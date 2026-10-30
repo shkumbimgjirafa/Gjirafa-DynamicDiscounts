@@ -127,4 +127,27 @@ public class LeverBacktestTests
         var gains = CoverageBacktest.Gains(months, effect);
         Assert.Equal(new[] { ("2026-08", 15000m, 750m), ("2026-09", 8000m, 400m) }, gains);
     }
+
+    [Fact]
+    public void A_stored_backtest_reads_back_whole_and_becomes_a_csv_row_per_figure()
+    {
+        var w = new CampaignWindow(3, "Black Friday 2024", new DateOnly(2024, 11, 29), new DateOnly(2024, 11, 30), "main");
+        var replay = new CampaignReplayResult(3, "Black Friday 2024", "Black Friday", w.StartDate, 2, 21, true, 9073m, 5202m, 3871m, 932, 1727, 2326m, null);
+        var data = new BacktestSnapshotData(From, To,
+            new List<LeverBacktestResult> { new(1, From, To, new List<LeverGain> { new(3, "2026-08", -1.0m, 2446m, 758, 785m) }, new List<LeverContext> { new("2026-08", 394m, 106, 49m, 0m) }) },
+            new List<CampaignLayerBacktest> { new(1, new List<CampaignReplayResult> { replay }, null, null, null,
+                new List<CampaignDepthGain> { new(3, "Black Friday 2024", 2, "reallocate", 3.22m, 9073m, 11708m, 360, 295, 22.4m, 19.9m) }) },
+            new List<CoverageMonth> { new(2, "2026-08", 8032m, false) }, new List<CoverageEffect> { new("mid", 10600m, 180411m, "test") },
+            new List<CoverageGain> { new("mid", "2026-08", 8032m, 472m) });
+
+        var back = System.Text.Json.JsonSerializer.Deserialize<BacktestSnapshotData>(System.Text.Json.JsonSerializer.Serialize(data, BacktestSnapshotBuilder.Json), BacktestSnapshotBuilder.Json)!;
+        Assert.Equal((From, 2446m, 2635m, "2026-08"), (back.From, back.Levers[0].Gains[0].Gain, back.Campaigns[0].DepthGains[0].Gain, back.Coverage[0].Month));
+        Assert.False(back.Campaigns[0].Replays[0].SeenType);                                        // no event lift: computed again after the round trip
+
+        var csv = BacktestSnapshotBuilder.Csv(back).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Contains("lever,1,3,2026-08,e-1,2446,758,785,estimated", csv);
+        Assert.Contains("cross-dock loss,1,normal days,2026-08,measured,394,106,,measured", csv);
+        Assert.Contains(csv, l => l.StartsWith("lever 7,1,Black Friday 2024,2 days,reallocate,2635"));
+        Assert.Contains("lever 4,MK/AL,coverage,2026-08,mid,472,,,estimated", csv);
+    }
 }

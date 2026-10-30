@@ -39,6 +39,7 @@
                         <li class="nav-item"><a class="nav-link" asp-controller="Operations" asp-action="Cycle">Daily cycle</a></li>
                         <li class="nav-item"><a class="nav-link" asp-controller="Agent" asp-action="Index">Agent</a></li>
                         <li class="nav-item"><a class="nav-link" asp-controller="Campaigns" asp-action="Index">Campaigns</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Backtest" asp-action="Index">Backtest</a></li>
                         <li class="nav-item"><a class="nav-link" asp-controller="Agent" asp-action="Exceptions">Exceptions
                             @if (User.Identity?.IsAuthenticated == true) { @await Component.InvokeAsync("WaitingBadge") }</a></li>
                         @if (User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager))

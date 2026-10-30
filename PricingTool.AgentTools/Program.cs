@@ -32,6 +32,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   backtest-campaigns <layer> [<layer> ...]                         replay finished campaigns with the planner's arithmetic
 //   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3, 5, 6 on booked sales lines
 //   backtest-coverage                                                lever 4: the Kosovo effect on the MK/AL months without a push
+//   backtest-snapshot [--by <who>]                                   run every lever and store it for the results page and CSV
 //   reproduce-per-ty --test                                          the Për ty reproduction test: the agents plan the 6 Oct brief
 //                                                                   with data cut off at 7 Oct (two model calls; records to the test DB)
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
@@ -431,6 +432,24 @@ switch (command)
         return 0;
     }
 
+    case "backtest-snapshot":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var sp = scope.ServiceProvider;
+        var builderSnap = new PricingTool.Agent.Backtest.BacktestSnapshotBuilder(sp.GetRequiredService<PricingDataReader>(), sp.GetRequiredService<AgentDataTools>(),
+            sp.GetRequiredService<AgentDbContext>());
+        var dropPct = sp.GetRequiredService<IOptions<AgentOptions>>().Value.Outcomes.DropPct;
+        var sw = Stopwatch.StartNew();
+        var record = await builderSnap.RunAsync(new DateOnly(2026, 8, 1), new DateOnly(2026, 10, 16), new[] { 1, 4 },
+            new PricingTool.Agent.Backtest.LeverBacktester.LearningExperiment(12, new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 3), new DateOnly(2026, 10, 1), 1m - dropPct / 100m),
+            new[] { ("low", 4_000m, "same-weeks control, one run on one layer (a floor)"), ("mid", 10_600m, "measured before/after"), ("high", 13_000m, "before/after, season-adjusted with 2025") },
+            Opt("--by") ?? "cli");
+        Console.WriteLine($"Backtest snapshot #{record.Id} stored in {sw.Elapsed.TotalSeconds:0} s ({record.Json.Length / 1024} kB).");
+        return 0;
+    }
+
     case "backtest-coverage":
     {
         using var host = builder.Build();
@@ -757,7 +776,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|backtest-coverage|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|backtest-coverage|backtest-snapshot|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

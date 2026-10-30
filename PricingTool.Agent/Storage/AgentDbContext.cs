@@ -40,6 +40,7 @@ public class AgentDbContext : DbContext
     public DbSet<AgentLesson> AgentLessons => Set<AgentLesson>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<ChatRule> ChatRules => Set<ChatRule>();
+    public DbSet<BacktestSnapshotRecord> BacktestSnapshots => Set<BacktestSnapshotRecord>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -270,6 +271,13 @@ public class AgentDbContext : DbContext
             e.Property(x => x.From).HasMaxLength(20);
             e.Property(x => x.Author).HasMaxLength(256);
             e.Property(x => x.Text).HasMaxLength(8000);
+        });
+
+        builder.Entity<BacktestSnapshotRecord>(e =>
+        {
+            e.ToTable("BacktestSnapshot");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.CreatedBy).HasMaxLength(256);
         });
 
         builder.Entity<ChatRule>(e =>

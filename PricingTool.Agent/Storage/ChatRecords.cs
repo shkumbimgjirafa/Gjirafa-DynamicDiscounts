@@ -49,3 +49,13 @@ public static class ChatRuleKinds
     public const string ExcludeBrand = "exclude-brand", ExcludeCategory = "exclude-category", MinCampaignMargin = "min-campaign-margin";
     public static readonly string[] All = { ExcludeBrand, ExcludeCategory, MinCampaignMargin };
 }
+
+/// <summary>One stored run of the whole backtest (see Backtest.BacktestSnapshotBuilder), shown on the results page and as CSV.</summary>
+public class BacktestSnapshotRecord
+{
+    public long Id { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public string CreatedBy { get; set; } = "";
+    public int Seconds { get; set; }
+    public string Json { get; set; } = "{}";
+}

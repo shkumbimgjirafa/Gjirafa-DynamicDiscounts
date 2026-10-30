@@ -664,6 +664,34 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.ToTable("AiCallLog", "ai");
                 });
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.BacktestSnapshotRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Json")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Seconds")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BacktestSnapshot", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.CampaignBrief", b =>
                 {
                     b.Property<long>("Id")
