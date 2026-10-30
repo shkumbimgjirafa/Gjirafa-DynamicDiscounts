@@ -119,6 +119,7 @@ public sealed class AgentChat
                       $"depth at most {_options.Campaigns.MaxDepthPct:0.#}%.");
         sb.AppendLine("Active rules: " + (rules.Count == 0 ? "none." : string.Join("; ", rules.Select(r => $"#{r.Id} {r.Kind} {r.Value} {r.FromDate:yyyy-MM-dd}..{r.ToDate:yyyy-MM-dd}{(r.LayerId is { } l ? $" layer {l}" : "")}"))));
         sb.AppendLine();
+        sb.AppendLine(await CampaignStateAsync(today, ct));
         sb.AppendLine("The conversation so far (oldest first):");
         foreach (var m in history) sb.AppendLine($"[{m.From}] {m.Text}");
         sb.AppendLine();
@@ -139,6 +140,33 @@ public sealed class AgentChat
         if (role == AgentRole.Alpha || handedQuestion is not null) answer = answer with { AskAlpha = null, Brief = null };
         if (noMoreAlpha) answer = answer with { AskAlpha = null };
         return (answer, call.CallLogIds.Count > 0 ? call.CallLogIds[^1] : null);
+    }
+
+    /// <summary>
+    /// The agents' own campaign records, which the data tools don't show: each campaign from two weeks ago to two months ahead with its
+    /// latest brief and plan (status, verdict, expected figures, the goal check), so "where does X stand?" is answered from them.
+    /// </summary>
+    private async Task<string> CampaignStateAsync(DateOnly today, CancellationToken ct)
+    {
+        var entries = await _db.CampaignCalendar.AsNoTracking().Where(c => c.EndDate >= today.AddDays(-14) && c.StartDate <= today.AddDays(60))
+            .OrderBy(c => c.StartDate).ToListAsync(ct);
+        var sb = new StringBuilder("Campaigns now (the stored briefs and plans; plan figures are code's estimates):" + Environment.NewLine);
+        if (entries.Count == 0) sb.AppendLine("- none in the window");
+        foreach (var e in entries)
+        {
+            var brief = await _db.CampaignBriefs.AsNoTracking().Where(b => b.CalendarId == e.Id && !b.IsTest && b.Status != BriefStatus.Superseded)
+                .OrderByDescending(b => b.Id).FirstOrDefaultAsync(ct);
+            var plan = brief is null ? null : await _db.CampaignPlans.AsNoTracking().Where(p => p.BriefId == brief.Id && !p.IsTest).OrderByDescending(p => p.Id).FirstOrDefaultAsync(ct);
+            sb.Append($"- #{e.Id} {e.Name}, layer {e.LayerId}, {e.StartDate:yyyy-MM-dd}..{e.EndDate:yyyy-MM-dd}, {e.Status}");
+            if (e.GoalType is not null) sb.Append($", goal {e.GoalType} {e.GoalValue:0.##}{(e.GoalSetBy is null ? "" : $" (set by a person: {e.GoalSetBy})")}");
+            sb.Append(brief is null ? "; no brief yet" : $"; brief #{brief.Id} {brief.Status}");
+            if (plan is not null)
+                sb.Append($"; plan #{plan.Id} {plan.Strategy} {plan.Status}{(string.IsNullOrEmpty(plan.GoalVerdict) ? "" : $" ({plan.GoalVerdict})")}{(plan.WaitsForPerson ? ", waiting for a person" : "")}: " +
+                          $"{plan.DiscountedSkus} SKUs at {plan.AverageDepthPct:0.0}%, expected GP {plan.ExpectedGrossProfit:N0}, margin {plan.ExpectedMarginPct:0.0}%. Goal check: {plan.Feasibility}");
+            if (e.Context is not null) sb.Append($" Context: {e.Context}");
+            sb.AppendLine();
+        }
+        return sb.ToString();
     }
 
     private async Task RuleAsync(long conversation, ChatRuleDto r, string instruction, string author, ChatMessage reply, List<ChatMessage> added, CancellationToken ct)

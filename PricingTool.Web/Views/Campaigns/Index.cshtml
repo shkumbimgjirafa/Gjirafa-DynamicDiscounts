@@ -19,6 +19,18 @@
 </p>
 @if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
 @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+@if (isManager)
+{
+    <form method="post" asp-controller="Agent" asp-action="Chat" class="card card-body mb-3"
+          onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').innerText = 'Nova is reading the data…';">
+        <label class="form-label h6">Plan a campaign</label>
+        <div class="input-group">
+            <input name="text" class="form-control" maxlength="2000" required placeholder="e.g. Plan a 3-day laptops campaign next week on Gjirafa50, €4k profit" />
+            <button type="submit" class="btn btn-primary">Ask Nova</button>
+        </div>
+        <div class="form-text">Opens the chat on the Agent tab. Code checks the brief against the limits; an accepted plan publishes to the sandbox and can be stopped until it starts.</div>
+    </form>
+}
 
 @foreach (var (title, rows, hint) in new[]
 {

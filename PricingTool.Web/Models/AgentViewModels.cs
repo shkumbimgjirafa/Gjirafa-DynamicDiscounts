@@ -29,6 +29,11 @@ public class AgentStatusViewModel
     public IReadOnlyList<CampaignRow> ComingUp { get; init; } = Array.Empty<CampaignRow>();
     public IReadOnlyList<AgentQueryLogEntry> Queries { get; init; } = Array.Empty<AgentQueryLogEntry>();
     public IReadOnlyList<AgentLesson> Lessons { get; init; } = Array.Empty<AgentLesson>();
+    /// <summary>The chat shown (the latest conversation unless one is picked) and the recent ones to switch to.</summary>
+    public long? ConversationId { get; init; }
+    public IReadOnlyList<ChatMessage> Chat { get; init; } = Array.Empty<ChatMessage>();
+    public IReadOnlyList<(long Id, DateTime StartedUtc, string First)> Conversations { get; init; } = Array.Empty<(long, DateTime, string)>();
+    public IReadOnlyList<ChatRule> Rules { get; init; } = Array.Empty<ChatRule>();
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";
 }

@@ -105,6 +105,30 @@ public class AgentChatTests : IDisposable
     }
 
     [Fact]
+    public async Task The_agents_see_their_own_campaign_records_which_the_data_tools_dont_show()
+    {
+        var entry = new CampaignCalendarEntry { LayerId = 1, Name = "Black Friday 2026", StartDate = new DateOnly(2026, 11, 27), EndDate = new DateOnly(2026, 11, 30),
+            Status = CampaignStatus.Planned, GoalType = "gross-profit", GoalValue = 57456m, GoalSetBy = "user, 2026-10-30", CreatedBy = "test", CreatedUtc = Now };
+        _db.CampaignCalendar.Add(entry);
+        await _db.SaveChangesAsync();
+        var brief = new CampaignBrief { PassId = 1, LayerId = 1, CalendarId = entry.Id, Name = "Black Friday 2026", Kind = "calendar", GoalType = "gross-profit", GoalValue = 57456m,
+            StartDate = entry.StartDate, EndDate = entry.EndDate, Status = BriefStatus.Planned, Exclusions = "[]", CreatedUtc = Now };
+        _db.CampaignBriefs.Add(brief);
+        await _db.SaveChangesAsync();
+        _db.CampaignPlans.Add(new CampaignPlan { BriefId = brief.Id, LayerId = 1, Strategy = "visible", Status = PlanStatus.Held, GoalVerdict = GoalVerdicts.NotReachable,
+            ExpectedGrossProfit = 29828m, Feasibility = "57,456 EUR gross profit is not reachable on the arithmetic.", CreatedUtc = Now });
+        await _db.SaveChangesAsync();
+        Says("It's held: the plan expects 49k against your 57k.");
+
+        await Chat().AskAsync(null, "Where does Black Friday stand?", "manager@test");
+
+        Assert.Contains("Black Friday 2026, layer 1", _prompts[0]);
+        Assert.Contains("set by a person", _prompts[0]);
+        Assert.Contains("held (not-reachable)", _prompts[0]);
+        Assert.Contains("is not reachable on the arithmetic", _prompts[0]);
+    }
+
+    [Fact]
     public async Task Nova_hands_a_pricing_question_to_alpha_and_answers_with_its_reply()
     {
         Says("Let me ask Alpha.", askAlpha: "What margin does Kozmetikë make at 15 % off?");

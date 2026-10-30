@@ -31,6 +31,8 @@ builder.Services.Configure<PricingTool.NopIntegration.PublisherOptions>(
     builder.Configuration.GetSection(PricingTool.NopIntegration.PublisherOptions.SectionName));
 builder.Services.AddSingleton<PricingTool.NopIntegration.IShopCacheInvalidator, PricingTool.NopIntegration.ShopCacheInvalidator>();
 builder.Services.AddScoped<PricingTool.NopIntegration.NopDiscountWriter>();
+// A campaign planned from the chat publishes like any other: time-boxed, to the sandbox, stoppable until it starts.
+builder.Services.AddScoped<PricingTool.Agent.Campaigns.ICampaignPublisher, PricingTool.NopIntegration.CampaignPublisher>();
 builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
 builder.Services.AddSingleton<RunLauncher>();
 

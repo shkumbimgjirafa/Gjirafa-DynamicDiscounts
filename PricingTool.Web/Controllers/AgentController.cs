@@ -37,7 +37,7 @@ public class AgentController : Controller
         _publisher = publisher.Value;
     }
 
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(long? conversation = null)
     {
         var layers = await _db.Layers.AsNoTracking().Where(l => l.IsActive).OrderBy(l => l.SortOrder).ThenBy(l => l.Id).ToListAsync();
         var autonomy = new List<LayerAutonomy>();
@@ -50,6 +50,7 @@ public class AgentController : Controller
             .GroupBy(d => d.PassId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count);
         var since = DateTime.UtcNow.AddDays(-7);
         var today = DateOnly.FromDateTime(DateTime.Now);
+        var chatId = conversation ?? await _ai.ChatMessages.MaxAsync(m => (long?)m.ConversationId);
         return View(new AgentStatusViewModel
         {
             KillSwitch = await _killSwitch.GetAsync(),
@@ -64,7 +65,47 @@ public class AgentController : Controller
             ComingUp = await ComingUpAsync(today),
             Queries = await _ai.AgentQueryLog.AsNoTracking().OrderByDescending(q => q.Id).Take(25).ToListAsync(),
             Lessons = await _ai.AgentLessons.AsNoTracking().Where(l => l.RetiredUtc == null).OrderByDescending(l => l.Id).ToListAsync(),
+            ConversationId = chatId,
+            Chat = chatId is { } cid ? await _ai.ChatMessages.AsNoTracking().Where(m => m.ConversationId == cid).OrderBy(m => m.Id).ToListAsync() : Array.Empty<ChatMessage>(),
+            Conversations = (await _ai.ChatMessages.AsNoTracking().GroupBy(m => m.ConversationId)
+                    .Select(g => new { g.Key, Started = g.Min(m => m.CreatedUtc), FirstId = g.Min(m => m.Id) }).OrderByDescending(x => x.Key).Take(8).ToListAsync())
+                .Select(x => (x.Key, x.Started, _ai.ChatMessages.AsNoTracking().Where(m => m.Id == x.FirstId).Select(m => m.Text).Single())).ToList(),
+            Rules = await _ai.ChatRules.AsNoTracking().Where(r => r.RemovedUtc == null).OrderBy(r => r.Id).ToListAsync(),
         });
+    }
+
+    /// <summary>A message to the agents: Nova answers, "@alpha" asks Alpha. Takes up to a minute or two (the agents read data).</summary>
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Chat(long? conversationId, string text, [FromServices] PricingTool.Agent.Chat.AgentChat chat)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return RedirectToAction(nameof(Index), new { conversation = conversationId });
+        var turn = await chat.AskAsync(conversationId is > 0 ? conversationId : null, text, Who, HttpContext.RequestAborted);
+        if (turn.Error is not null) TempData["Error"] = turn.Error;
+        return Redirect(Url.Action(nameof(Index), new { conversation = turn.ConversationId }) + "#chat");
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveRule(long ruleId)
+    {
+        var rule = await _ai.ChatRules.SingleOrDefaultAsync(r => r.Id == ruleId && r.RemovedUtc == null);
+        if (rule is null) TempData["Error"] = $"Rule #{ruleId} is not active.";
+        else
+        {
+            (rule.RemovedUtc, rule.RemovedBy) = (DateTime.UtcNow, Who);
+            await _ai.SaveChangesAsync();
+            _db.AuditLog.Add(new PricingTool.Data.Entities.AuditLogEntry
+            {
+                LayerId = rule.LayerId, TimestampUtc = DateTime.UtcNow, UserName = Who, Category = AgentModeStore.AuditCategory, Action = "Chat rule removed",
+                EntityType = nameof(ChatRule), EntityId = rule.Id.ToString(), OldValue = $"{rule.Kind} {rule.Value} {rule.FromDate:yyyy-MM-dd}..{rule.ToDate:yyyy-MM-dd}", NewValue = "removed",
+            });
+            await _db.SaveChangesAsync();
+            TempData["Message"] = $"Rule #{rule.Id} removed: campaign planning no longer applies it.";
+        }
+        return Redirect(Url.Action(nameof(Index)) + "#rules");
     }
 
     private async Task<WeekNumbers> WeekAsync(DateTime since)
