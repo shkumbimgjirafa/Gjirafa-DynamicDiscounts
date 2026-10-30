@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Configuration;
 using PricingTool.Agent;
 using PricingTool.Agent.Operations;
 using PricingTool.Agent.Storage;
@@ -31,6 +32,20 @@ public class HackathonHostTests
         Assert.True(DailyCycle.HasRetryableFailure(new[] { S(1, "refresh-hk", StepStatus.Failed), S(2, "engine-L4", StepStatus.Succeeded) }));
         Assert.False(DailyCycle.HasRetryableFailure(new[] { S(1, "refresh-hk", StepStatus.Failed), S(2, "refresh-hk", StepStatus.Succeeded) }));
         Assert.False(DailyCycle.HasRetryableFailure(Enumerable.Range(1, DailyCycle.MaxAttemptsPerDay).Select(i => S(i, "alpha-L4", StepStatus.Failed))));
+    }
+
+    [Fact]
+    public void Test_runs_keep_their_records_in_the_test_database()
+    {
+        IConfiguration Config(string? testDatabase) => new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:PricingToolDb"] = @"Server=(localdb)\mssqllocaldb;Database=PricingToolHackathon;Trusted_Connection=True",
+            ["Agent:TestDatabase"] = testDatabase,
+        }).Build();
+        string Catalog(string cs) => new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(cs).InitialCatalog;
+
+        Assert.Equal("PricingToolHackathonTest", Catalog(AgentServiceCollectionExtensions.TestConnectionString(Config(null))));
+        Assert.Equal("DemoDb", Catalog(AgentServiceCollectionExtensions.TestConnectionString(Config("DemoDb"))));
     }
 
     [Fact]

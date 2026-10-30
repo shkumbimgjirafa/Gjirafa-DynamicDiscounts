@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Microsoft.Data.SqlClient;
@@ -79,7 +80,9 @@ public sealed class CheckedExport
 
     public async Task<ExportResult> ExportAsync(long runId, string directory, CancellationToken ct = default)
     {
-        var check = await _db.AgentRunChecks.AsNoTracking().Where(c => c.RunId == runId && c.Status != "Running")
+        var sw = Stopwatch.StartNew();
+        // A test check (an injected-test drill) never gates or shapes a real export.
+        var check = await _db.AgentRunChecks.AsNoTracking().Where(c => c.RunId == runId && c.Status != "Running" && !c.IsTest)
             .OrderByDescending(c => c.Id).FirstOrDefaultAsync(ct);
         if (check is null)
             return new ExportResult(false, $"Run {runId} has not been checked: nothing exported.", null, 0, 0, null);
@@ -130,6 +133,18 @@ public sealed class CheckedExport
             CreatedUtc = _clock.GetUtcNow().UtcDateTime, ExpectedGp30Eur = Math.Round(expected, 2),
         };
         _db.ExportBatches.Add(batch);
+        await _db.SaveChangesAsync(ct);
+
+        var type = await _db.TimeSheetTaskTypes.SingleAsync(t => t.Id == AgentDbContext.TaskTypes.CreateAndPushDiscounts, ct);
+        _db.TimeSheetEntries.Add(new TimeSheetEntry
+        {
+            Date = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime), UserEmail = _options.TimeSheetOwnerEmail, TaskTypeId = type.Id,
+            What = $"Engine run #{runId} (layer {run.LayerId}): push file of {exported.Count:N0} checked prices, {batch.LeftOutByCheck:N0} held by check #{check.Id}, " +
+                   $"{batch.LeftOutHoldout:N0} holdout left out",
+            MinutesBefore = type.MinutesBefore, MinutesAfter = Math.Round((decimal)sw.Elapsed.TotalMinutes, 2),
+            Proof = $"ai.ExportBatch #{batch.Id}",
+            Comment = "Written by the export; minutes after = the export's wall clock. The team's push of the file is manual and not included.",
+        });
         await _db.SaveChangesAsync(ct);
 
         return new ExportResult(true,

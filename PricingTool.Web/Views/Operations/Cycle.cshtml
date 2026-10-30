@@ -1,0 +1,41 @@
+@model CycleViewModel
+@{
+    ViewData["Title"] = "Daily cycle";
+    string Badge(string status) => status switch
+    {
+        "Succeeded" => "bg-success", "Warning" => "bg-warning text-dark", "Failed" => "bg-danger",
+        "Running" => "bg-primary", "NotBuilt" => "bg-dark", _ => "bg-secondary",
+    };
+}
+
+<h1 class="h3">Daily cycle</h1>
+<p class="text-muted">
+    The engine host on this laptop (<code>--hackathon-host</code>, see GO-LIVE-LAPTOP.md) runs one cycle a day, from @Model.Cycle.DailyStartLocal or when it starts:
+    size check → hk refresh → engine runs (layers @string.Join(", ", Model.Cycle.Layers)) → Alpha's pass (@(Model.Cycle.AlphaDay)s) → run checks → exports →
+    money ledger → time sheet → retention → backup. A failed step doesn't stop the rest and is tried again after @Model.Cycle.RetryFailedAfterMinutes minutes,
+    three times a day at most. AI calls: @(Model.AgentEnabled ? "on" : "off (kill switch)").
+</p>
+
+@foreach (var day in Model.Steps.GroupBy(s => s.CycleDate))
+{
+    <h2 class="h5 mt-3">@day.Key.ToString("dddd yyyy-MM-dd")</h2>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Step</th><th>Status</th><th>Started</th><th class="text-end">Seconds</th><th>Result</th></tr></thead>
+        <tbody>
+        @foreach (var s in day)
+        {
+            <tr>
+                <td><code>@s.Step</code></td>
+                <td><span class="badge @Badge(s.Status)">@s.Status</span></td>
+                <td>@s.StartedUtc.ToLocalTime().ToString("HH:mm:ss")</td>
+                <td class="text-end">@((s.FinishedUtc - s.StartedUtc)?.TotalSeconds.ToString("0") ?? "")</td>
+                <td class="small text-break">@(s.Detail ?? s.Error)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+@if (Model.Steps.Count == 0)
+{
+    <p class="text-muted">No cycle in the last 7 days. Start the engine host (GO-LIVE-LAPTOP.md).</p>
+}

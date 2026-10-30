@@ -523,3 +523,29 @@ public class MoversViewModel
     /// <summary>Profit/margin impact (now→proposed) over 7d/30d/90d across the movers shown.</summary>
     public List<PricingTool.Core.Services.WindowProfit> Kpis { get; set; } = new();
 }
+
+// ---------------------------------------------------------------- Operations (laptop, prompt 05)
+
+public class LedgerViewModel
+{
+    public PricingTool.Agent.Operations.LedgerSummary Summary { get; set; } = null!;
+    public List<PricingTool.Agent.Storage.MoneyLedgerEntry> Entries { get; set; } = new();
+    public List<PricingTool.Agent.Storage.ExportBatch> Exports { get; set; } = new();
+    /// <summary>Holdout categories per layer id (the control group, never exported).</summary>
+    public Dictionary<string, List<string>> Holdouts { get; set; } = new();
+}
+
+public class TimeSheetViewModel
+{
+    public List<PricingTool.Agent.Storage.TimeSheetTaskType> TaskTypes { get; set; } = new();
+    public List<PricingTool.Agent.Storage.TimeSheetEntry> Entries { get; set; } = new();
+    public List<FileInfo> Files { get; set; } = new();
+    public bool OwnerEmailSet { get; set; }
+}
+
+public class CycleViewModel
+{
+    public List<PricingTool.Agent.Storage.DailyCycleStep> Steps { get; set; } = new();
+    public PricingTool.Agent.CycleOptions Cycle { get; set; } = new();
+    public bool AgentEnabled { get; set; }
+}

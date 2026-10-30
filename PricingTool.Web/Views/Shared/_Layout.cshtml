@@ -34,6 +34,9 @@
                         <li class="nav-item"><a class="nav-link" asp-controller="Bands" asp-action="Index">Price Bands</a></li>
                         <li class="nav-item"><a class="nav-link" asp-controller="Schedule" asp-action="Index">Schedule</a></li>
                         <li class="nav-item"><a class="nav-link" asp-controller="Audit" asp-action="Index">Audit Log</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Operations" asp-action="Ledger">Ledger</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Operations" asp-action="TimeSheet">Time sheet</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Operations" asp-action="Cycle">Daily cycle</a></li>
                         @if (User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager))
                         {
                             <li class="nav-item"><a class="nav-link" asp-controller="Users" asp-action="Index">Users</a></li>

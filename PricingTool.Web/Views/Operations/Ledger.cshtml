@@ -1,0 +1,140 @@
+@model LedgerViewModel
+@{
+    ViewData["Title"] = "Money ledger";
+    var isManager = User.IsInRole("Manager");
+    var s = Model.Summary;
+    var met = s.TargetEur is { } target && s.Measured30Eur >= target;
+}
+
+<h1 class="h3">Money ledger</h1>
+<p class="text-muted">
+    Condition 4 of the 10 % bar: the gross profit the applied prices made, measured in the 30 days, against three times the monthly raise.
+    Every pushed export is measured at 7 and 30 days from the refreshed sales lines (booked COGS), as a difference-in-differences against the
+    holdout categories. <strong>Conservative by rule:</strong> a window not yet complete, or not attributable (holdout too thin), counts as €0.
+    The expected figure is an estimate made at export time and is never added to a total.
+</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">Measured, 30-day windows <span class="badge bg-success">measured</span></div>
+            <div class="fs-3">€@s.Measured30Eur.ToString("N0")</div>
+            <div class="small text-muted">@s.Measured30 of @s.Entries entries measured at 30 days; the rest count as €0</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">Measured, 7-day windows <span class="badge bg-success">measured</span></div>
+            <div class="fs-3">€@s.Measured7Eur.ToString("N0")</div>
+            <div class="small text-muted">an early read; the bar uses the 30-day windows</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">The bar: 3 × the monthly raise <span class="badge bg-secondary">entered by the user</span></div>
+            @if (s.TargetEur is { } t)
+            {
+                <div class="fs-3">€@t.ToString("N0")</div>
+                <div class="small @(met ? "text-success" : "text-danger")">@(met ? "met" : $"not met: €{t - s.Measured30Eur:N0} to go")</div>
+            }
+            else
+            {
+                <div class="fs-5 text-muted">raise not set</div>
+            }
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">Monthly raise (EUR)</div>
+            <form method="post" asp-action="SaveRaise" class="d-flex gap-2 mt-1">
+                @Html.AntiForgeryToken()
+                <input name="monthlyRaiseEur" value="@(s.MonthlyRaiseEur?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"
+                       class="form-control" placeholder="e.g. 400" disabled="@(isManager ? null : "disabled")" />
+                @if (isManager) { <button class="btn btn-primary">Save</button> }
+            </form>
+            <div class="form-text">The raise's monthly cost to the company, as agreed with the organisers.</div>
+        </div></div>
+    </div>
+</div>
+
+<h2 class="h5">Exports for the team's push</h2>
+<p class="text-muted small">
+    The daily cycle writes one file per layer from the checked run: warned and blocked rows held back, holdout categories left out
+    (@string.Join("; ", Model.Holdouts.Select(h => $"layer {h.Key}: {string.Join(", ", h.Value)}"))).
+    Once the team has pushed a file, mark it here: that records it as applied (an Approval) and starts its measurement.
+</p>
+<table class="table table-sm align-middle">
+    <thead><tr>
+        <th>#</th><th>Created</th><th>Layer</th><th>Run</th><th>Check</th><th class="text-end">Prices</th>
+        <th class="text-end">Held by check</th><th class="text-end">Holdout left out</th>
+        <th class="text-end">Expected GP, 30 d <span class="badge bg-warning text-dark">estimated</span></th><th>File</th><th>Pushed</th>
+    </tr></thead>
+    <tbody>
+    @foreach (var b in Model.Exports)
+    {
+        <tr>
+            <td>@b.Id</td>
+            <td>@b.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+            <td>@b.LayerId</td>
+            <td>#@b.RunId</td>
+            <td>#@b.CheckId</td>
+            <td class="text-end">@b.Rows.ToString("N0")</td>
+            <td class="text-end">@b.LeftOutByCheck.ToString("N0")</td>
+            <td class="text-end">@b.LeftOutHoldout.ToString("N0")</td>
+            <td class="text-end">€@b.ExpectedGp30Eur.ToString("N0")</td>
+            <td class="small text-break" style="max-width:280px">@b.FilePath</td>
+            <td>
+                @if (b.ApprovalId is { } a)
+                {
+                    <span class="small">@b.PushedUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), approval #@a</span>
+                }
+                else if (isManager)
+                {
+                    <form method="post" asp-action="MarkPushed" onsubmit="return confirm('Record export #@b.Id as pushed by the team? Its measurement starts now.');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="exportBatchId" value="@b.Id" />
+                        <button class="btn btn-sm btn-outline-primary">Mark as pushed</button>
+                    </form>
+                }
+                else { <span class="text-muted small">not pushed</span> }
+            </td>
+        </tr>
+    }
+    @if (Model.Exports.Count == 0)
+    {
+        <tr><td colspan="11" class="text-muted">No exports yet: the daily cycle writes them after each checked run.</td></tr>
+    }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">Ledger entries</h2>
+<table class="table table-sm align-middle">
+    <thead><tr>
+        <th>#</th><th>Source</th><th>Ref</th><th>Layer</th><th>Applied</th><th class="text-end">SKUs</th>
+        <th class="text-end">Expected <span class="badge bg-warning text-dark">estimated</span></th>
+        <th class="text-end">7 days <span class="badge bg-success">measured</span></th>
+        <th class="text-end">30 days <span class="badge bg-success">measured</span></th><th>Evidence</th>
+    </tr></thead>
+    <tbody>
+    @foreach (var e in Model.Entries)
+    {
+        <tr>
+            <td>@e.Id</td>
+            <td>@e.Source</td>
+            <td>@(e.Source == "AppliedSet" ? $"approval #{e.RefId}" : e.RefId.ToString())</td>
+            <td>@e.LayerId</td>
+            <td>@e.AppliedUtc.ToLocalTime().ToString("yyyy-MM-dd")</td>
+            <td class="text-end">@e.Skus.ToString("N0")</td>
+            <td class="text-end" title="@e.ExpectedBasis">@(e.ExpectedEur is { } x ? $"€{x:N0}" : "–")</td>
+            <td class="text-end">@(e.Measured7Eur is { } m7 ? $"€{m7:N0}" : "not yet (€0)")</td>
+            <td class="text-end">@(e.Measured30Eur is { } m30 ? $"€{m30:N0}" : "not yet (€0)")</td>
+            <td class="small">@e.Evidence</td>
+        </tr>
+    }
+    @if (Model.Entries.Count == 0)
+    {
+        <tr><td colspan="10" class="text-muted">No entries yet: an entry starts when an export is marked as pushed. The total is €0 until then.</td></tr>
+    }
+    </tbody>
+</table>
+<p class="small text-muted">Cost-watcher fixes will be ledger entries of their own once the cost watcher is built (not built yet).</p>

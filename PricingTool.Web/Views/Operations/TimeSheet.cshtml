@@ -1,0 +1,83 @@
+@model TimeSheetViewModel
+@{
+    ViewData["Title"] = "Time sheet";
+    var isManager = User.IsInRole("Manager");
+    var types = Model.TaskTypes.ToDictionary(t => t.Id);
+}
+
+<h1 class="h3">Time sheet: hours saved</h1>
+<p class="text-muted">
+    Every real task the app does writes its own row (the run check, the export for the push, Alpha's weekly pass); test runs never do.
+    "Minutes after" is the task's measured wall clock. "Minutes before" is the time the task takes by hand: you set it once per task type,
+    and until then that type's rows are kept but not exported. The daily cycle exports the organisers' template (columns A–H) and CSV/JSON.
+</p>
+@if (!Model.OwnerEmailSet)
+{
+    <div class="alert alert-warning py-2">Column B (who) is blank: set <code>Agent:TimeSheetOwnerEmail</code> in user-secrets for the Web and Engine projects.</div>
+}
+
+<h2 class="h5">Task types</h2>
+<table class="table table-sm align-middle" style="max-width:900px">
+    <thead><tr><th>#</th><th>Task</th><th>Minutes by hand <span class="badge bg-secondary">entered by the user</span></th><th class="text-end">Rows</th></tr></thead>
+    <tbody>
+    @foreach (var t in Model.TaskTypes)
+    {
+        <tr>
+            <td>@t.Id</td>
+            <td>@t.Name</td>
+            <td>
+                <form method="post" asp-action="SaveMinutesBefore" class="d-flex gap-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="taskTypeId" value="@t.Id" />
+                    <input name="minutesBefore" type="number" min="1" max="1440" value="@t.MinutesBefore" placeholder="not set"
+                           class="form-control form-control-sm" style="width:110px" disabled="@(isManager ? null : "disabled")" />
+                    @if (isManager) { <button class="btn btn-sm btn-primary">Save</button> }
+                </form>
+            </td>
+            <td class="text-end">@Model.Entries.Count(e => e.TaskTypeId == t.Id)</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<div class="d-flex align-items-center gap-3 mb-2">
+    <h2 class="h5 mb-0">Rows</h2>
+    @if (isManager)
+    {
+        <form method="post" asp-action="ExportTimeSheet">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-sm btn-outline-primary">Export now</button>
+        </form>
+    }
+    <span class="small text-muted">
+        @if (Model.Files.Count > 0) { <text>Latest export: @Model.Files[0].FullName (@Model.Files[0].LastWriteTime.ToString("yyyy-MM-dd HH:mm"))</text> }
+        else { <text>No export yet.</text> }
+    </span>
+</div>
+<table class="table table-sm align-middle">
+    <thead><tr>
+        <th>Date</th><th>Task</th><th>What</th>
+        <th class="text-end">Minutes before</th><th class="text-end">Minutes after <span class="badge bg-success">measured</span></th>
+        <th class="text-end">Saved</th><th>Proof</th><th>Comment</th>
+    </tr></thead>
+    <tbody>
+    @foreach (var e in Model.Entries)
+    {
+        var before = e.MinutesBefore ?? types.GetValueOrDefault(e.TaskTypeId)?.MinutesBefore;
+        <tr>
+            <td>@e.Date.ToString("yyyy-MM-dd")</td>
+            <td>@(types.GetValueOrDefault(e.TaskTypeId)?.Name ?? e.TaskTypeId.ToString())</td>
+            <td class="small">@e.What</td>
+            <td class="text-end">@(before?.ToString() ?? "not set")</td>
+            <td class="text-end">@e.MinutesAfter.ToString("0.##")</td>
+            <td class="text-end">@(before is { } b ? Math.Max(0, b - e.MinutesAfter).ToString("0.##") : "– (not exported)")</td>
+            <td class="small">@e.Proof</td>
+            <td class="small text-muted">@e.Comment</td>
+        </tr>
+    }
+    @if (Model.Entries.Count == 0)
+    {
+        <tr><td colspan="8" class="text-muted">No rows yet: the first real run check writes one.</td></tr>
+    }
+    </tbody>
+</table>

@@ -64,6 +64,10 @@ public class AgentOptions
         Path.GetFullPath(string.IsNullOrWhiteSpace(ToolsExecutable) ? "PricingTool.AgentTools.exe" : ToolsExecutable,
             AppContext.BaseDirectory);
 
+    /// <summary>Where test runs (<c>--test</c>: demo, backtest, injected tests) keep their records. Empty = the tool's
+    /// database name + "Test" (PricingToolHackathonTest). See <see cref="AgentServiceCollectionExtensions.TestConnectionString"/>.</summary>
+    public string TestDatabase { get; set; } = "";
+
     /// <summary>The daily cycle on the laptop (prompt 05).</summary>
     public CycleOptions Cycle { get; set; } = new();
 

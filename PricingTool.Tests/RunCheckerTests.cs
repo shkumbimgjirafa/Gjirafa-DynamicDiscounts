@@ -115,11 +115,12 @@ public class RunCheckerTests : IDisposable
     public async Task Injected_bad_rows_block_the_run_and_the_block_stops_the_export()
     {
         InjectTheFourBadRows();
-        ModelSays("block",
+        void ModelBlocks() => ModelSays("block",
             V("INJ-X10", "block", "495.00 is ten times today's 49.50: a data error."),
             V("INJ-COST62", "block", "Cost 1860.00 is 62x the shelf price: denars in a euro layer."),
             V("INJ-BELOWCOST", "block", "19.50 is below the cost of 25.00."),
             V("INJ-UNCHARMED", "warn", "49.37 is off the .50 grid.", fix: 49.50m));
+        ModelBlocks();
 
         var result = await Checker().CheckAsync(Run, isTest: true);
 
@@ -134,7 +135,14 @@ public class RunCheckerTests : IDisposable
         Assert.StartsWith("[INJECTED-TEST]", (await _db.AiCallLog.SingleAsync()).Purpose);
         Assert.Empty(await _db.TimeSheetEntries.ToListAsync());                     // tests never reach the time sheet
 
-        var export = await Export();
+        var export = await Export();                                                 // a test check never gates a real export
+        Assert.False(export.Exported);
+        Assert.Contains("has not been checked", export.Reason);
+
+        ModelBlocks();
+        var real = await Checker().CheckAsync(Run);                                  // the same rows in a real check block it
+        Assert.Equal(Severity.Block, real.Verdict);
+        export = await Export();
         Assert.False(export.Exported);
         Assert.Contains("blocked by check", export.Reason);
         Assert.False(Directory.Exists(Path.Combine(_dir, "exports")) && Directory.EnumerateFiles(Path.Combine(_dir, "exports")).Any());
@@ -159,7 +167,8 @@ public class RunCheckerTests : IDisposable
         var csv = await File.ReadAllLinesAsync(export.FilePath!);
         Assert.Contains(csv, l => l.StartsWith("INJ-UNCHARMED,60.00,50.50,49.50,") && l.EndsWith("fixed by the run checker"));
         Assert.DoesNotContain(csv, l => l.StartsWith("INJ-BIGCHANGE"));
-        Assert.Single(await _db.TimeSheetEntries.ToListAsync());                    // a real check is logged
+        Assert.Equal(new[] { AgentDbContext.TaskTypes.PrePublishRunCheck, AgentDbContext.TaskTypes.CreateAndPushDiscounts },
+            await _db.TimeSheetEntries.OrderBy(e => e.Id).Select(e => e.TaskTypeId).ToListAsync());   // the real check and the export are logged
     }
 
     [Fact]

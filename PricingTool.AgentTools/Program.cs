@@ -34,6 +34,9 @@ using PricingTool.NopIntegration.Sandbox;
 //   ledger                                                          update the money ledger and print its entries
 //   timesheet                                                       export the hours-saved sheet (xlsx, csv, json)
 //   cycle-status [yyyy-MM-dd]                                       the daily cycle's steps for a day (default today)
+//   test-db                                                         create or migrate the test database and list what it holds
+// --test (alpha-pass, check-run, test-db): the run is labelled [INJECTED-TEST] and its records go to the test database
+// (PricingToolHackathonTest), never the live one; inputs are still read from the live database.
 // Settings come from appsettings.json next to the executable (the hackathon DB; no secrets).
 
 var command = args.FirstOrDefault() ?? "";
@@ -54,6 +57,17 @@ if (Opt("--timeout") is { } timeout)
     builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Agent:QueryData:TimeoutSeconds"] = timeout });
 if (command == "ask" && Environment.ProcessPath is { } self)
     builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Agent:ToolsExecutable"] = self });
+
+var testRun = args.Contains("--test") || command == "test-db";
+if (testRun)
+{
+    var testDb = AgentServiceCollectionExtensions.TestConnectionString(builder.Configuration);
+    var key = $"ConnectionStrings:{AgentServiceCollectionExtensions.AgentDbConnectionName}";
+    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [key] = testDb });
+    // The data tools Claude Code starts for this run inherit it, so their query log lands in the test database too.
+    Environment.SetEnvironmentVariable(key.Replace(":", "__"), testDb);
+    Console.Error.WriteLine($"Test run: the agents' records go to {new SqlConnectionStringBuilder(testDb).InitialCatalog}.");
+}
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);
@@ -223,16 +237,21 @@ switch (command)
         var batch = await db.PublishBatches.SingleAsync(b => b.Id == outcome.BatchId);
         await PrintWrittenAsync(conn, batch, "Rows as written");
 
-        var type = await db.TimeSheetTaskTypes.SingleAsync(t => t.Id == AgentDbContext.TaskTypes.CreateAndPushDiscounts);
-        db.TimeSheetEntries.Add(new TimeSheetEntry
+        // Only a live publish that stays is a real task for the hours-saved sheet; a sandbox write or a rolled-back
+        // canary is a test of the publisher.
+        if (batch.Target == "Live" && !args.Contains("--rollback") && outcome.Status == "Published")
         {
-            Date = DateOnly.FromDateTime(DateTime.Now), UserEmail = builder.Configuration["Agent:TimeSheetOwnerEmail"] ?? "",
-            TaskTypeId = type.Id, MinutesBefore = type.MinutesBefore, MinutesAfter = Math.Round((decimal)sw.Elapsed.TotalMinutes, 2),
-            What = $"Layer {layer} canary, engine run #{run}, '{category}': {outcome.Created + outcome.Updated} discounts written to the {batch.Target.ToLowerInvariant()} " +
-                   $"({batch.ShopSchema}), {outcome.Skipped} skipped",
-            Proof = $"ai.PublishBatch #{batch.Id}", Comment = "Canary publish; minutes after = the publish's wall clock.",
-        });
-        await db.SaveChangesAsync();
+            var type = await db.TimeSheetTaskTypes.SingleAsync(t => t.Id == AgentDbContext.TaskTypes.CreateAndPushDiscounts);
+            db.TimeSheetEntries.Add(new TimeSheetEntry
+            {
+                Date = DateOnly.FromDateTime(DateTime.Now), UserEmail = builder.Configuration["Agent:TimeSheetOwnerEmail"] ?? "",
+                TaskTypeId = type.Id, MinutesBefore = type.MinutesBefore, MinutesAfter = Math.Round((decimal)sw.Elapsed.TotalMinutes, 2),
+                What = $"Layer {layer} canary, engine run #{run}, '{category}': {outcome.Created + outcome.Updated} discounts written to the shop " +
+                       $"({batch.ShopSchema}), {outcome.Skipped} skipped",
+                Proof = $"ai.PublishBatch #{batch.Id}", Comment = "Canary publish; minutes after = the publish's wall clock.",
+            });
+            await db.SaveChangesAsync();
+        }
 
         if (args.Contains("--rollback"))
         {
@@ -326,6 +345,21 @@ switch (command)
         return 0;
     }
 
+    case "test-db":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        Console.WriteLine($"{db.Database.GetDbConnection().Database}: test records only (no mock data in the live database).");
+        foreach (var p in await db.AgentPasses.AsNoTracking().OrderBy(p => p.Id).ToListAsync())
+            Console.WriteLine($"  pass #{p.Id} layer {p.LayerId} {p.StartedUtc:yyyy-MM-dd HH:mm} {p.Status}, test={p.IsTest}: {p.Summary?[..Math.Min(p.Summary.Length, 90)]}");
+        Console.WriteLine($"  {await db.AgentDecisions.CountAsync()} decisions, {await db.AgentRunChecks.CountAsync()} run checks, " +
+                          $"{await db.AiCallLog.CountAsync()} AI calls (${await db.AiCallLog.SumAsync(c => c.CostUsd ?? 0):0.00}), " +
+                          $"{await db.AgentQueryLog.CountAsync()} logged queries, {await db.TimeSheetEntries.CountAsync()} time-sheet rows");
+        return 0;
+    }
+
     case "publish-rollback":
     {
         using var host = builder.Build();
@@ -337,7 +371,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|timesheet|cycle-status ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

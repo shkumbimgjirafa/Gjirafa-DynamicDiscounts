@@ -21,9 +21,11 @@ public static class AgentServiceCollectionExtensions
     {
         services.Configure<AgentOptions>(config.GetSection(AgentOptions.SectionName));
 
+        // The agents' own records go to "AgentDb" when it is set (test runs: the test database, see TestConnectionString),
+        // else to the tool's database. Their data is always read from the tool's database.
         services.AddDbContext<AgentDbContext>(o =>
             o.UseSqlServer(
-                config.GetConnectionString("PricingToolDb")
+                config.GetConnectionString(AgentDbConnectionName) ?? config.GetConnectionString("PricingToolDb")
                     ?? throw new InvalidOperationException("Missing connection string 'PricingToolDb'."),
                 sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", AgentDbContext.Schema)
                           .EnableRetryOnFailure()));
@@ -49,6 +51,22 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<AgentDataTools>();
         services.AddScoped<QueryDataService>();
         return services;
+    }
+
+    public const string AgentDbConnectionName = "AgentDb";
+
+    /// <summary>
+    /// The test database for demo, backtest and injected-test runs (prompt 05: no mock data in the live DB): the tool's
+    /// connection with the catalog <see cref="AgentOptions.TestDatabase"/> (default: the tool's database name + "Test").
+    /// It holds only the agents' records (schema <c>ai</c>); the inputs are read from the tool's database.
+    /// </summary>
+    public static string TestConnectionString(IConfiguration config)
+    {
+        var cs = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(config.GetConnectionString("PricingToolDb")
+            ?? throw new InvalidOperationException("Missing connection string 'PricingToolDb'."));
+        var name = config[$"{AgentOptions.SectionName}:{nameof(AgentOptions.TestDatabase)}"];
+        cs.InitialCatalog = string.IsNullOrWhiteSpace(name) ? cs.InitialCatalog + "Test" : name;
+        return cs.ConnectionString;
     }
 
     /// <summary>Applies the agent layer's own migrations (schema <c>ai</c>). Call after the tool's
