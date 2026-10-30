@@ -373,6 +373,59 @@ public sealed class PricingDataReader
                 r.GetDecimal(5), r.GetDecimal(6), r.GetDecimal(7), r.GetString(8), r.IsDBNull(9) ? null : r.GetDecimal(9), r.IsDBNull(10) ? null : Id(r, 10),
                 r.GetString(11), r.GetBoolean(12)), ct);
 
+    /// <summary>
+    /// Backtest lever 5: for each SKU and day strictly between a run finishing and its prices being approved (local days, so
+    /// the partial first and last days aren't counted), the price live (old) and the price the engine had already computed
+    /// (new), where they differ by at least 0.5 %. A SKU-day inside two such gaps takes the later approval.
+    /// </summary>
+    public Task<List<(string Sku, DateOnly Day, decimal Old, decimal New)>> GetPendingPriceChangesAsync(int layerId, CancellationToken ct = default) =>
+        QueryAsync("""
+            WITH a AS (
+                SELECT a.Id, a.ApprovedUtc,
+                       DATEADD(day, 1, CAST(CAST(f.Done AS datetime2) AT TIME ZONE 'UTC' AT TIME ZONE 'Central European Standard Time' AS date)) AS FromDay,
+                       CAST(CAST(a.ApprovedUtc AS datetime2) AT TIME ZONE 'UTC' AT TIME ZONE 'Central European Standard Time' AS date) AS ToDay
+                FROM PricingTool.Approvals a
+                CROSS APPLY (SELECT MAX(TimestampUtc) AS Done FROM PricingTool.AuditLog l
+                             WHERE l.EntityType = 'PricingRun' AND l.EntityId = CAST(a.SourceRunId AS nvarchar(20)) AND l.Action LIKE 'Run finished%') f
+                WHERE a.LayerId = @L AND f.Done IS NOT NULL),
+            x AS (
+                SELECT DISTINCT c.Sku, s.SaleDate, c.OldPrice, c.NewPrice, a.ApprovedUtc
+                FROM a
+                JOIN agent.TestPhasePriceChanges c ON c.ApprovalId = a.Id AND c.OldPrice > 0 AND ABS(c.NewPrice - c.OldPrice) >= 0.005 * c.OldPrice
+                JOIN agent.SalesLines s ON s.LayerId = @L AND s.Sku = c.Sku AND s.SaleDate >= a.FromDay AND s.SaleDate < a.ToDay)
+            SELECT Sku, SaleDate, OldPrice, NewPrice FROM (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY Sku, SaleDate ORDER BY ApprovedUtc DESC) AS Rn FROM x) y WHERE Rn = 1
+            """,
+            p => p.AddWithValue("@L", layerId),
+            r => (r.GetString(0), DateOnly.FromDateTime(r.GetDateTime(1)), r.GetDecimal(2), r.GetDecimal(3)), ct);
+
+    /// <summary>The raises (at least 0.5 %) of one approval that went live by hand: SKU, old and new price.</summary>
+    public Task<List<(string Sku, decimal Old, decimal New)>> GetApprovalRaisesAsync(int approvalId, CancellationToken ct = default) =>
+        QueryAsync("""
+            SELECT Sku, OldPrice, NewPrice FROM agent.TestPhasePriceChanges
+            WHERE ApprovalId = @A AND OldPrice > 0 AND NewPrice >= 1.005 * OldPrice
+            """,
+            p => p.AddWithValue("@A", approvalId),
+            r => (r.GetString(0), r.GetDecimal(1), r.GetDecimal(2)), ct);
+
+    /// <summary>Gross profit per category on normal days (no campaign of the layer) in [from, to): lever 6's before/after.</summary>
+    public Task<List<(string Category, decimal Gp)>> GetCategoryNormalDayGpAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        QueryAsync("""
+            DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
+            SELECT ISNULL(CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END, N'Unknown'), SUM(s.GrossProfit)
+            FROM agent.SalesLines s
+            WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To
+              AND NOT EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND s.SaleDate BETWEEN c.StartDate AND c.EndDate)
+            GROUP BY ISNULL(CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END, N'Unknown')
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r => (r.GetString(0), r.GetDecimal(1)), ct);
+
     /// <summary>The people's band edits in the audit log (old and new band JSON), the history of the hand-set floors.</summary>
     public Task<List<(DateTime Utc, int BandId, string? OldJson, string? NewJson)>> GetBandFloorEditsAsync(int layerId, CancellationToken ct = default) =>
         QueryAsync("""

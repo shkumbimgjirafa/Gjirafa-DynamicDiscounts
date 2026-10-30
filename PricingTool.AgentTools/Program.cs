@@ -390,12 +390,23 @@ switch (command)
         var backtester = new PricingTool.Agent.Backtest.LeverBacktester(host.Services.GetRequiredService<PricingDataReader>());
         var from = DateOnly.Parse(Opt("--from") ?? "2026-08-01", System.Globalization.CultureInfo.InvariantCulture);
         var to = DateOnly.Parse(Opt("--to") ?? "2026-10-16", System.Globalization.CultureInfo.InvariantCulture);
-        string[] names = { "", "loss-sale block", "per-category floors", "cost reaction" };
+        string[] names = { "", "loss-sale block", "per-category floors", "cost reaction", "coverage MK/AL", "cadence", "learning" };
+        // Lever 6's experiment (plan: August's run #12, approval 12 on GjirafaMall), rolled back in September where it didn't pay.
+        var learning = new PricingTool.Agent.Backtest.LeverBacktester.LearningExperiment(12, new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 3), new DateOnly(2026, 10, 1),
+            1m - host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.Outcomes.DropPct / 100m);
         foreach (var layer in positional.Where(a => int.TryParse(a, out _)).Select(int.Parse))
         {
             var sw = Stopwatch.StartNew();
             var trace = new List<(int Lever, PricingTool.Agent.Backtest.BacktestLine Line, decimal Gain)>();
-            var r = await backtester.RunAsync(layer, from, to, trace);
+            var r = await backtester.RunAsync(layer, from, to, trace, layer == 1 ? learning : null);
+            if (layer == 1)
+            {
+                Console.WriteLine($"Lever 6 verdicts on approval 12 (GP/day 28 days after vs before, season-adjusted with 2025; rolled back in Sep 3-30 under x{learning.RollBackBelow:0.00}, the outcome tracker's drop): " +
+                                  string.Join(", ", (await backtester.LearningVerdictsAsync(1, learning.LiveOn)).OrderBy(v => v.Key).Select(v => $"{v.Key} {(v.Value is { } x ? x.ToString("0.00") : "n/a")}")));
+                var naive = await backtester.RunAsync(layer, from, to, null, learning with { RollBackBelow = 1m });
+                Console.WriteLine("  the plan's plain rule (roll back under x1.00) instead: " +
+                                  string.Join("; ", naive.Gains.Where(g => g.Lever == 6).Select(g => $"{g.Month} e {g.Elasticity}: {g.Gain:N0} ({g.Lines} lines)")));
+            }
             Console.WriteLine($"Layer {layer}, {from:yyyy-MM-dd}..{to.AddDays(-1):yyyy-MM-dd}, in {sw.Elapsed.TotalSeconds:0.0} s (booked COGS, EUR VAT excl.; estimated unless said)");
             Console.WriteLine("lever | month | e -0.5 | e -1.0 | e -2.0 | lines | units");
             foreach (var g in r.Gains.GroupBy(g => (g.Lever, g.Month)))

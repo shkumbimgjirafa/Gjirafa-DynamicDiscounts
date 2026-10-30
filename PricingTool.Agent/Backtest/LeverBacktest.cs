@@ -18,6 +18,12 @@ public sealed record LeverContext(string Month, decimal CrossDockLoss, int Cross
 
 public sealed record LeverBacktestResult(int LayerId, DateOnly From, DateOnly To, IReadOnlyList<LeverGain> Gains, IReadOnlyList<LeverContext> Context);
 
+/// <summary>Lever 5's input: the price live and the one the engine had already computed, for a SKU on a day.</summary>
+public delegate (decimal Old, decimal New)? Pending(string sku, DateOnly day);
+
+/// <summary>Lever 6's input: for a SKU on a day, the raise to undo (old and new price), or null.</summary>
+public delegate (decimal Old, decimal New)? Rollback(string sku, string category, DateOnly day);
+
 /// <summary>
 /// Backtest levers 1–3 (plan section 5, "Backtester") on booked sales lines, walk-forward (each line is judged only on the lines
 /// before it), each line counted by one lever at most, in the plan's order: loss block, per-category floor, cost reaction.
@@ -31,6 +37,11 @@ public sealed record LeverBacktestResult(int LayerId, DateOnly From, DateOnly To
 /// Never above a ceiling: the line's pre-discount price, or the SKU's highest price in the 60 days before (assumed).</item>
 /// <item>3, cost reaction: a line whose unit cost is more than 5 % above the SKU's median of the 30 days before while its price
 /// moved less than 1 %; priced to restore the prior margin (capped at the ceiling), from the day after the jump was first seen.</item>
+/// <item>5, cadence: a line sold at the old price (within 2 %) on a day the engine had already computed a new one that wasn't
+/// live yet (<see cref="Pending"/>), priced at the new one. Only the measurable gaps between a run and its approval; what
+/// the engine would have proposed between pushes isn't known (proposals weren't kept).</item>
+/// <item>6, learning: a raise of an earlier approval, in a category where that approval's raises didn't pay (season-adjusted),
+/// rolled back on the lines of the scoring window (<see cref="Rollback"/>); the gain can be negative.</item>
 /// </list>
 /// </summary>
 public static class LeverBacktest
@@ -40,7 +51,8 @@ public static class LeverBacktest
     public const int ReferenceDays = 30, CeilingDays = 60, KnownCostDays = 60;
 
     public static LeverBacktestResult Run(int layerId, IReadOnlyList<BacktestLine> lines, DateOnly from, DateOnly to,
-        Func<int, DateOnly, decimal?> handFloorPct, Func<int, string, decimal?> agentFloorPct, ICollection<(int Lever, BacktestLine Line, decimal Gain)>? trace = null)
+        Func<int, DateOnly, decimal?> handFloorPct, Func<int, string, decimal?> agentFloorPct, ICollection<(int Lever, BacktestLine Line, decimal Gain)>? trace = null,
+        Pending? pending = null, Rollback? rollback = null)
     {
         var gains = new Dictionary<(int, string, decimal), (decimal Gain, int Lines, decimal Units)>();
         var context = new Dictionary<string, (decimal Loss, int LossLines, decimal Caught, decimal CampaignLoss)>();
@@ -121,9 +133,23 @@ public static class LeverBacktest
                     {
                         var target = Math.Min(l.UnitCogs / (1 - priorMargin), ceiling / l.VatFactor);
                         if (target > l.UnitNet)
+                        {
                             foreach (var e in Elasticities) Add(3, l, e, Gp(l, target * l.VatFactor, e) - l.Gp);
+                            continue;
+                        }
                     }
                 }
+
+                // 5. Cadence: the engine's new price was computed but not live yet.
+                if (pending?.Invoke(l.Sku, l.Day) is { } change && Math.Abs(l.UnitGross - change.Old) <= 0.02m * change.Old)
+                {
+                    foreach (var e in Elasticities) Add(5, l, e, Gp(l, l.UnitGross * change.New / change.Old, e) - l.Gp);
+                    continue;
+                }
+
+                // 6. Learning: an earlier raise undone where its category showed it didn't pay.
+                if (rollback?.Invoke(l.Sku, l.Category, l.Day) is { } raise)
+                    foreach (var e in Elasticities) Add(6, l, e, Gp(l, l.UnitGross * raise.Old / raise.New, e) - l.Gp);
             }
         }
 

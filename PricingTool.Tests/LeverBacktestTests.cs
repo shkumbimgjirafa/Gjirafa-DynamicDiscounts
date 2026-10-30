@@ -55,6 +55,29 @@ public class LeverBacktestTests
     }
 
     [Fact]
+    public void Cadence_prices_the_days_a_computed_price_waited_and_learning_undoes_a_raise()
+    {
+        var lines = new List<BacktestLine>
+        {
+            L("D", 2, 1, 10m, 6m),                                                                 // live at 12 gross, the engine had 13.20 ready
+            L("D2", 2, 1, 12.5m, 6m),                                                              // sold at 15: not the old price, not counted
+            L("E", 3, 2, 10m, 6m, category: "Shtëpi"),                                             // a raise 10 → 12 undone
+            L("E", 4, 1, 10m, 6m, category: "Kozmetikë"),                                          // another category: kept
+        };
+        var trace = new List<(int Lever, BacktestLine Line, decimal Gain)>();
+        LeverBacktest.Run(1, lines, From, To, (_, _) => null, (_, _) => null, trace,
+            (sku, day) => sku is "D" or "D2" && day == From.AddDays(2) ? (12m, 13.2m) : null,
+            (sku, category, _) => sku == "E" && category == "Shtëpi" ? (10m, 12m) : null);
+
+        var five = Assert.Single(trace, t => t.Lever == 5);
+        Assert.Equal("D", five.Line.Sku);
+        Assert.Equal(Math.Round(LeverBacktest.Gp(five.Line, 13.2m, -1m) - five.Line.Gp, 6), Math.Round(five.Gain, 6));
+        var six = Assert.Single(trace, t => t.Lever == 6);
+        Assert.Equal(Math.Round(LeverBacktest.Gp(six.Line, 10m, -1m) - six.Line.Gp, 6), Math.Round(six.Gain, 6));
+        Assert.True(six.Gain < 0);                                                                  // undoing a raise on a 40 % margin costs GP at e -1
+    }
+
+    [Fact]
     public void A_campaign_replay_moves_depth_between_skus_but_keeps_the_campaign_as_deep_on_average()
     {
         var w = new CampaignWindow(1, "Për ty, Oct 2025", new DateOnly(2025, 10, 8), new DateOnly(2025, 10, 12), "main");
