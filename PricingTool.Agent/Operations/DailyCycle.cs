@@ -36,6 +36,10 @@ public sealed class DailyCycle
 {
     public const int MaxAttemptsPerDay = 3;
 
+    /// <summary><c>PricingRun.TriggeredBy</c> of the cycle's own engine runs. Only these count as today's run, so a
+    /// manual run earlier in the day neither stands in for the cycle's run nor gets checked and exported by it.</summary>
+    public const string TriggeredBy = "daily cycle";
+
     private readonly IServiceProvider _sp;
     private readonly AgentDbContext _db;
     private readonly AgentOptions _options;
@@ -114,7 +118,7 @@ public sealed class DailyCycle
                 if (await TodaysRunAsync(layer, day, ct) is { } done)
                     return (StepStatus.Skipped, $"already ran today: run #{done.Id}");
                 using var scope = _sp.CreateScope();
-                var run = await scope.ServiceProvider.GetRequiredService<PricingRunOrchestrator>().ExecuteRunAsync("daily cycle", isOnDemand: false, layer, ct);
+                var run = await scope.ServiceProvider.GetRequiredService<PricingRunOrchestrator>().ExecuteRunAsync(TriggeredBy, isOnDemand: false, layer, ct);
                 var ok = run.Status is RunStatus.Succeeded or RunStatus.SucceededWithErrors;
                 return (ok ? StepStatus.Succeeded : StepStatus.Failed,
                     $"run #{run.Id} {run.Status}: {run.SkuCount:N0} SKUs, {run.ProposalCount:N0} proposals, {run.ErrorCount} errors {run.ErrorMessage}");
@@ -179,7 +183,7 @@ public sealed class DailyCycle
         return await work(scope.ServiceProvider.GetRequiredService<T>());
     }
 
-    /// <summary>Today's successful engine run for the layer (local day), if there is one.</summary>
+    /// <summary>The cycle's successful engine run for the layer on the day (local), if there is one.</summary>
     private async Task<PricingRun?> TodaysRunAsync(int layer, DateOnly day, CancellationToken ct)
     {
         var start = day.ToDateTime(TimeOnly.MinValue);
@@ -187,7 +191,7 @@ public sealed class DailyCycle
         using var scope = _sp.CreateScope();
         var tool = scope.ServiceProvider.GetRequiredService<PricingToolDbContext>();
         return await tool.PricingRuns.AsNoTracking()
-            .Where(r => r.LayerId == layer && r.StartedUtc >= startUtc && r.StartedUtc < startUtc.AddDays(1)
+            .Where(r => r.LayerId == layer && r.TriggeredBy == TriggeredBy && r.StartedUtc >= startUtc && r.StartedUtc < startUtc.AddDays(1)
                         && (r.Status == RunStatus.Succeeded || r.Status == RunStatus.SucceededWithErrors)
                         && tool.ProposedPrices.Any(p => p.PricingRunId == r.Id))
             .OrderByDescending(r => r.Id).FirstOrDefaultAsync(ct);
