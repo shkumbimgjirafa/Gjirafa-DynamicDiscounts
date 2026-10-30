@@ -25,7 +25,9 @@ $c.CommandText = $CreateSql; [void]$c.ExecuteNonQuery()
 $src = New-Object System.Data.SqlClient.SqlConnection $sourceCs
 $src.Open()
 try {
-    $cmd = $src.CreateCommand(); $cmd.CommandText = (Get-Content $SqlFile -Raw); $cmd.CommandTimeout = $TimeoutSeconds
+    # UTF-8 explicitly: Windows PowerShell would otherwise read the file as ANSI and mangle
+    # Albanian literals such as N'Kozmetikë' (this happened once; the categories didn't match).
+    $cmd = $src.CreateCommand(); $cmd.CommandText = (Get-Content $SqlFile -Raw -Encoding UTF8); $cmd.CommandTimeout = $TimeoutSeconds
     $reader = $cmd.ExecuteReader()
     $bulk = New-Object System.Data.SqlClient.SqlBulkCopy($dest)
     $bulk.DestinationTableName = $DestTable; $bulk.BatchSize = 20000; $bulk.BulkCopyTimeout = 0
