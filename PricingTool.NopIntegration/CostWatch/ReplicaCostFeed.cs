@@ -36,10 +36,12 @@ public sealed class ReplicaCostFeed
     private readonly AgentOptions _agent;
     private readonly ILogger<ReplicaCostFeed> _logger;
     private readonly TimeProvider _clock;
+    private readonly ICategoryMapReader? _categoryMap;
 
     public ReplicaCostFeed(IConfiguration config, AgentDbContext db, PricingToolDbContext tool, BandConfigProvider bands, IOptions<CostWatcherOptions> options,
-        IOptions<AgentOptions> agent, ILogger<ReplicaCostFeed> logger, TimeProvider? clock = null)
+        IOptions<AgentOptions> agent, ILogger<ReplicaCostFeed> logger, TimeProvider? clock = null, ICategoryMapReader? categoryMap = null)
     {
+        _categoryMap = categoryMap;
         _replica = config.GetConnectionString("SourceReadOnly");
         _db = db;
         _tool = tool;
@@ -125,7 +127,8 @@ public sealed class ReplicaCostFeed
         return costs;
     }
 
-    /// <summary>SKU → the latest run's cost, for SKUs in local stock or sold in 30 days whose margin is within the headroom of the band floor.</summary>
+    /// <summary>SKU → the latest run's cost, for SKUs in local stock or sold in 30 days whose margin is within the headroom of the band
+    /// floor, leaving out the lanes the watcher never touches (<see cref="CostWatchLanes"/>).</summary>
     private async Task<Dictionary<string, decimal>> WatchedAsync(Layer layer, CancellationToken ct)
     {
         var run = await _tool.PricingRuns.AsNoTracking()
@@ -134,12 +137,18 @@ public sealed class ReplicaCostFeed
         if (run is null) return new Dictionary<string, decimal>();
         var date = run.StartedUtc.Date;
         var bands = await _bands.GetBandsAsync(layer.Id, ct);
-        var rows = await _tool.DailySnapshots.AsNoTracking()
-            .Where(s => s.LayerId == layer.Id && s.SnapshotDate == date && s.Pptcv > 0 && s.CurrentPrice > 0 && (s.LocalWarehouseStock > 0 || s.Qty30 > 0))
-            .Select(s => new { s.Sku, Cost = s.Pptcv!.Value, Price = s.CurrentPrice!.Value }).ToListAsync(ct);
+        var rows = await (from s in _tool.DailySnapshots.AsNoTracking()
+                          join p in _tool.ProposedPrices.AsNoTracking().Where(p => p.PricingRunId == run.Id) on s.Sku equals p.Sku
+                          where s.LayerId == layer.Id && s.SnapshotDate == date && s.Pptcv > 0 && s.CurrentPrice > 0 && (s.LocalWarehouseStock > 0 || s.Qty30 > 0)
+                          select new { s.Sku, Cost = s.Pptcv!.Value, Price = s.CurrentPrice!.Value, p.ProductId, p.DeadStockStage, Codes = p.ReasonCodes + "," + p.GuardrailFlags })
+            .ToListAsync(ct);
+        var isMall = layer.Brand == "GjirafaMall";
+        var holdouts = _agent.Limits.Holdouts.TryGetValue(layer.Id.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
+        var holdoutMap = holdouts.Count > 0 && _categoryMap is not null ? await _categoryMap.ReadAsync(layer.Id, isMall, holdouts, ct) : null;
         var watched = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in rows)
         {
+            if (CostWatchLanes.LaneOf((int)r.DeadStockStage, r.Codes, isMall, CostWatchLanes.IsHoldout(holdoutMap, holdouts, r.Sku, r.ProductId)) is not null) continue;
             var band = BandConfigProvider.FindBand(bands, r.Cost);
             if (band is null) continue;
             var margin = 100m * (r.Price - r.Cost) / r.Price;

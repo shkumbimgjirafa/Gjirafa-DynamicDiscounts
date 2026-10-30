@@ -71,6 +71,30 @@ public sealed class WriterCostPublisher : ICostPublisher
 public sealed record CostWatchResult(int Observed, int Raised, int Held, int Ended, int NoAction, string? Skipped);
 
 /// <summary>
+/// The SKUs the cost watcher leaves to the daily run, because another firm rule owns their price: the dead-stock lane
+/// (the only one allowed under the floor, at its cost-based tiers, and the clearance lock that pins it), a GjirafaMall
+/// price that follows Gjirafa50 verbatim (the Gjirafa50 layer's own watch covers the shared SKU), and the holdout
+/// categories (the control group stays exactly as the pre-agent tool prices it).
+/// </summary>
+public static class CostWatchLanes
+{
+    public static string? LaneOf(int deadStockStage, string codes, bool isMall, bool isHoldout) =>
+        deadStockStage != 0 || codes.Contains("DEAD_STOCK", StringComparison.Ordinal) || codes.Contains(Core.Domain.GuardrailFlags.ClearanceLockHeld, StringComparison.Ordinal)
+            ? "dead-stock-lane"
+            : isMall && codes.Contains(Core.Domain.GuardrailFlags.SyncedToGj50, StringComparison.Ordinal) ? "synced-to-gj50"
+            : isHoldout ? "holdout"
+            : null;
+
+    /// <summary>Whether the SKU's category (its own listing first, else its lowest product id) is a holdout category.</summary>
+    public static bool IsHoldout(IReadOnlyDictionary<string, IReadOnlyList<SkuListing>>? listings, IReadOnlyCollection<string> holdouts, string sku, int? productId)
+    {
+        if (listings is null || holdouts.Count == 0 || !listings.TryGetValue(sku, out var l) || l.Count == 0) return false;
+        var own = productId is { } id ? l.FirstOrDefault(x => x.ProductId == id) : null;
+        return holdouts.Contains((own ?? l.MinBy(x => x.ProductId))!.Category, StringComparer.OrdinalIgnoreCase);
+    }
+}
+
+/// <summary>
 /// The fast lane for cost rises (plan section 5, "CostWatcher"). Holding the floor is a rule, not a judgment, so code
 /// does it within one watch: a SKU whose cost rose and whose live price is now under its floor gets our ai-price
 /// discount raised to the floor price (cost ÷ (1 − floor), charm-rounded up), never above max(anchor, current price).
@@ -94,10 +118,17 @@ public sealed class CostWatcher
     private readonly CostWatcherOptions _options;
     private readonly ILogger<CostWatcher> _logger;
     private readonly TimeProvider _clock;
+    private readonly PricingTool.Agent.AgentOptions _agent;
+    private readonly decimal _minDisplayedDiscountPct;
+    private readonly ICategoryMapReader? _categoryMap;
 
     public CostWatcher(AgentDbContext db, PricingToolDbContext tool, BandConfigProvider bands, ICostPublisher publisher, IKillSwitch killSwitch,
-        IOptions<CostWatcherOptions> options, ILogger<CostWatcher> logger, TimeProvider? clock = null)
+        IOptions<CostWatcherOptions> options, IOptions<PricingTool.Agent.AgentOptions> agent, IOptions<Core.Options.PricingEngineOptions> engine,
+        ILogger<CostWatcher> logger, TimeProvider? clock = null, ICategoryMapReader? categoryMap = null)
     {
+        _agent = agent.Value;
+        _minDisplayedDiscountPct = engine.Value.MinDisplayedDiscountPct;
+        _categoryMap = categoryMap;
         _db = db;
         _tool = tool;
         _bands = bands;
@@ -137,6 +168,12 @@ public sealed class CostWatcher
                 .GroupBy(s => s.Sku, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             var bands = await _bands.GetBandsAsync(layer.Id, ct);
             var categoryBands = await _bands.GetCategoryBandsAsync(layer, bands, ct);
+            var proposals = (await _tool.ProposedPrices.AsNoTracking().Where(p => p.PricingRunId == run.Id && skus.Contains(p.Sku))
+                    .Select(p => new { p.Sku, p.ProductId, p.DeadStockStage, Codes = p.ReasonCodes + "," + p.GuardrailFlags }).ToListAsync(ct))
+                .GroupBy(p => p.Sku, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var isMall = layer.Brand == "GjirafaMall";
+            var holdouts = _agent.Limits.Holdouts.TryGetValue(layer.Id.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
+            var holdoutMap = holdouts.Count > 0 && _categoryMap is not null ? await _categoryMap.ReadAsync(layer.Id, isMall, holdouts, ct) : null;
             // What the watcher itself published since the snapshot: that is the live price now.
             var ours = (await _db.CostObservations.AsNoTracking().Where(o => o.LayerId == layer.Id && o.Outcome == "raised" && skus.Contains(o.Sku) && o.DecisionId != null)
                     .Join(_db.AgentDecisions, o => o.DecisionId, d => d.Id, (o, d) => new { o.Sku, o.ProcessedUtc, d.EvidenceRefs }).ToListAsync(ct))
@@ -148,6 +185,15 @@ public sealed class CostWatcher
                 if (!snaps.TryGetValue(o.Sku, out var s) || s.Pptcv is not { } oldCost || oldCost <= 0 || s.CurrentPrice is not { } current || current <= 0)
                 {
                     Done(o, "unknown-sku");
+                    none++;
+                    continue;
+                }
+                proposals.TryGetValue(o.Sku, out var proposal);
+                var lane = CostWatchLanes.LaneOf((int)(proposal?.DeadStockStage ?? 0), proposal?.Codes ?? "", isMall,
+                    CostWatchLanes.IsHoldout(holdoutMap, holdouts, o.Sku, proposal?.ProductId));
+                if (lane is not null)
+                {
+                    Done(o, lane);                                                   // another firm rule owns this price
                     none++;
                     continue;
                 }
@@ -207,6 +253,30 @@ public sealed class CostWatcher
                 else
                 {
                     var price = Math.Min(target, ceiling);
+                    var shelf = s.OldPrice ?? 0m;
+                    if (shelf > 0 && 100m * (shelf - price) / shelf < _minDisplayedDiscountPct)
+                    {
+                        // The engine never shows a discount under the minimum (it holds such a price at the full shelf price):
+                        // end ours instead, so the regular price, above the floor, applies.
+                        var endBatch = await _publisher.EndOurDiscountAsync(o.LayerId, o.Sku, ct);
+                        facts["publishBatch"] = endBatch;
+                        var why = $"Cost {oldCost:0.00} -> {o.Pptcv:0.00}: the floor price {price:0.00} would be under {_minDisplayedDiscountPct:0.#}% off the shelf price {shelf:0.00}, " +
+                                  "which the engine holds at the full price.";
+                        if (endBatch is not null)
+                        {
+                            var d = Decision(o, band.BandId, category, floorPct, "end-our-discount", DecisionStatus.Applied, "min-discount", why + " Our discount was ended; the regular price applies.", facts);
+                            Done(o, "ended-our-discount", d, endBatch);
+                            ended++;
+                        }
+                        else
+                        {
+                            var d = Decision(o, band.BandId, category, floorPct, "hold", DecisionStatus.Held, "team-discount",
+                                why + " The low price comes from a discount we didn't create: a person decides.", facts);
+                            Done(o, "held-team-discount", d);
+                            held++;
+                        }
+                        continue;
+                    }
                     var (batchId, status, cheaper) = await _publisher.RaiseAsync(o.LayerId, o.Sku, price, anchor, ct);
                     facts["publishBatch"] = batchId;
                     facts["publishStatus"] = status;
