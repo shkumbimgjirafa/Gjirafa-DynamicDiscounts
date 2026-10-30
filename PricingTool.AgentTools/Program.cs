@@ -30,6 +30,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
 //   approve-plan <plan id> [--by <who>] [--publish]                  a person approves a plan waiting for them (held, or a stretch)
 //   backtest-campaigns <layer> [<layer> ...]                         replay finished campaigns with the planner's arithmetic
+//   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3 on booked sales lines
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
 //   lesson <Nova|Alpha> "<text>" [--layer <id>] [--by <who>]       teach an agent: kept in every pass's prompt until retired
 //   lessons [<Nova|Alpha>] | lesson-retire <id> [--by <who>]        list the active lessons, or retire one
@@ -360,6 +361,39 @@ switch (command)
         return 0;
     }
 
+    case "backtest-levers":
+    {
+        using var host = builder.Build();
+        var backtester = new PricingTool.Agent.Backtest.LeverBacktester(host.Services.GetRequiredService<PricingDataReader>());
+        var from = DateOnly.Parse(Opt("--from") ?? "2026-08-01", System.Globalization.CultureInfo.InvariantCulture);
+        var to = DateOnly.Parse(Opt("--to") ?? "2026-10-16", System.Globalization.CultureInfo.InvariantCulture);
+        string[] names = { "", "loss-sale block", "per-category floors", "cost reaction" };
+        foreach (var layer in positional.Where(a => int.TryParse(a, out _)).Select(int.Parse))
+        {
+            var sw = Stopwatch.StartNew();
+            var trace = new List<(int Lever, PricingTool.Agent.Backtest.BacktestLine Line, decimal Gain)>();
+            var r = await backtester.RunAsync(layer, from, to, trace);
+            Console.WriteLine($"Layer {layer}, {from:yyyy-MM-dd}..{to.AddDays(-1):yyyy-MM-dd}, in {sw.Elapsed.TotalSeconds:0.0} s (booked COGS, EUR VAT excl.; estimated unless said)");
+            Console.WriteLine("lever | month | e -0.5 | e -1.0 | e -2.0 | lines | units");
+            foreach (var g in r.Gains.GroupBy(g => (g.Lever, g.Month)))
+                Console.WriteLine($"{g.Key.Lever} {names[g.Key.Lever]} | {g.Key.Month} | " +
+                                  string.Join(" | ", PricingTool.Agent.Backtest.LeverBacktest.Elasticities.Select(e => g.FirstOrDefault(x => x.Elasticity == e)?.Gain.ToString("N0") ?? "0")) +
+                                  $" | {g.First().Lines:N0} | {g.First().Units:N0}");
+            if (args.Contains("--detail"))
+                foreach (var lv in trace.GroupBy(t => t.Lever))
+                {
+                    Console.WriteLine($"  lever {lv.Key}, top days at e -1.0: " + string.Join("; ", lv.GroupBy(t => t.Line.Day).OrderByDescending(d => d.Sum(t => t.Gain)).Take(6)
+                        .Select(d => $"{d.Key:MM-dd} {d.Sum(t => t.Gain):N0} ({d.Count()} lines, {d.Select(t => t.Line.Sku).Distinct().Count()} SKUs)")));
+                    Console.WriteLine($"  lever {lv.Key}, top SKUs: " + string.Join("; ", lv.GroupBy(t => t.Line.Sku).OrderByDescending(d => d.Sum(t => t.Gain)).Take(5)
+                        .Select(d => $"{d.Key} {d.Sum(t => t.Gain):N0} ({d.Count()} lines, cost {d.First().Line.UnitCogs:0.00} at {d.First().Line.UnitNet:0.00} net)")));
+                }
+            Console.WriteLine("month | cross-dock loss on normal days (measured) | lines | caught by the known-cost rule | campaign-day cross-dock loss (lever 7)");
+            foreach (var c in r.Context)
+                Console.WriteLine($"{c.Month} | {c.CrossDockLoss:N0} | {c.CrossDockLossLines:N0} | {c.CaughtLoss:N0} ({(c.CrossDockLoss > 0 ? 100m * c.CaughtLoss / c.CrossDockLoss : 0):0}%) | {c.CampaignDayCrossDockLoss:N0}");
+        }
+        return 0;
+    }
+
     case "approve-plan":
     {
         using var host = builder.Build();
@@ -599,7 +633,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

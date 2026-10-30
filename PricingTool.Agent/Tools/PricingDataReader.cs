@@ -352,6 +352,38 @@ public sealed class PricingDataReader
             r => new Campaigns.ReplaySkuRow(Id(r, 0), r.GetString(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6),
                 r.GetDecimal(7)), ct);
 
+    /// <summary>The layer's booked sales lines in [from, to) for the lever backtest, with the category decisions are made at
+    /// and whether a campaign of the layer ran that day.</summary>
+    public Task<List<Backtest.BacktestLine>> GetBacktestLinesAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        QueryAsync("""
+            DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
+            SELECT s.SaleDate, s.Sku, s.Qty, s.NetRevenue, s.GrossRevenue, s.Cogs, s.GrossProfit, ISNULL(s.DiscountGiven, 0), ISNULL(s.StockClass, N''),
+                   s.UnitCostInclVat, s.BandId, ISNULL(CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END, N'Unknown'),
+                   CAST(CASE WHEN EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND s.SaleDate BETWEEN c.StartDate AND c.EndDate) THEN 1 ELSE 0 END AS bit)
+            FROM agent.SalesLines s
+            WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To AND s.Qty > 0
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r => new Backtest.BacktestLine(DateOnly.FromDateTime(r.GetDateTime(0)), r.GetString(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4),
+                r.GetDecimal(5), r.GetDecimal(6), r.GetDecimal(7), r.GetString(8), r.IsDBNull(9) ? null : r.GetDecimal(9), r.IsDBNull(10) ? null : Id(r, 10),
+                r.GetString(11), r.GetBoolean(12)), ct);
+
+    /// <summary>The people's band edits in the audit log (old and new band JSON), the history of the hand-set floors.</summary>
+    public Task<List<(DateTime Utc, int BandId, string? OldJson, string? NewJson)>> GetBandFloorEditsAsync(int layerId, CancellationToken ct = default) =>
+        QueryAsync("""
+            SELECT TimestampUtc, EntityId, OldValue, NewValue FROM PricingTool.AuditLog
+            WHERE LayerId = @L AND EntityType = 'PriceBand' AND UserName <> 'Alpha' AND ISNUMERIC(EntityId) = 1
+            ORDER BY TimestampUtc
+            """,
+            p => p.AddWithValue("@L", layerId),
+            r => (r.GetDateTime(0), int.Parse(r.GetString(1), System.Globalization.CultureInfo.InvariantCulture), r.IsDBNull(2) ? null : r.GetString(2),
+                r.IsDBNull(3) ? null : r.GetString(3)), ct);
+
     /// <summary>The layer's first day of sales lines (comparison windows before it have no data).</summary>
     public async Task<DateOnly?> GetFirstSaleDayAsync(int layerId, CancellationToken ct = default) =>
         (await QueryAsync("SELECT MIN(SaleDate) FROM agent.SalesLines WHERE LayerId = @L", p => p.AddWithValue("@L", layerId),
