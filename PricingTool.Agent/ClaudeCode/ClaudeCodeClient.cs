@@ -204,6 +204,9 @@ public sealed class ClaudeCodeClient
             if (!drop && e.Value is string value) env[key] = value;
         }
         env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false";
+        // Wait for our MCP server before the first turn. Claude Code 2.1.205 otherwise starts the turn while
+        // the server is still "pending", and the agent never sees its data tools (seen 2026-10-30, AiCallLog #4).
+        env["MCP_CONNECTION_NONBLOCKING"] = "false";
         return env;
     }
 

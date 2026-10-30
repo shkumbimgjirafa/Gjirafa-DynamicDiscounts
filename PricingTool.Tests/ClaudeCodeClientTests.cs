@@ -205,7 +205,8 @@ public class ClaudeCodeClientTests : IDisposable
         Assert.Equal("server-login", env["CLAUDE_CODE_OAUTH_TOKEN"]);
         Assert.Equal("C:\\Git\\bin\\bash.exe", env["CLAUDE_CODE_GIT_BASH_PATH"]);
         Assert.Equal("false", env["ENABLE_CLAUDEAI_MCP_SERVERS"]);
-        foreach (var dropped in new[] { "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SIMPLE", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "MCP_CONNECTION_NONBLOCKING" })
+        Assert.Equal("false", env["MCP_CONNECTION_NONBLOCKING"]);             // set by us, not inherited
+        foreach (var dropped in new[] { "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SIMPLE", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL" })
             Assert.False(env.ContainsKey(dropped), dropped);
     }
 

@@ -16,7 +16,12 @@ public sealed class PricingMcpTools
     private const string LayerHelp = "Layer id: 1 = GjirafaMall KS, 4 = Gjirafa50 KS.";
     private const string BandHelp = "Optional band id (see get_current_config).";
     private const string CategoryHelp = "Optional category: the main group on layer 1, the L1 category on layer 4.";
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    // Relaxed escaping keeps Albanian category names and dashes readable (and short) for the model;
+    // the text goes to the agent over stdio, never into HTML.
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     private readonly AgentDataTools _tools;
     private readonly QueryDataService _query;
