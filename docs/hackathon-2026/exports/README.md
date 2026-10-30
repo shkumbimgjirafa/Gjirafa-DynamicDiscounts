@@ -15,6 +15,8 @@ user-secrets store, the tool DB's is passed in at run time.
 | `hk.ActiveDiscountsKs`, `hk.ActiveDiscountProductsKs` | NOP replica | `active_discounts_ks.sql`, `active_discount_products_ks.sql` | StoreId 2 discounts live now or starting within 60 days, with their product mappings |
 | `hk.ProductDiscountFlagsKs` | NOP replica | `product_discount_flags_ks.sql` | `HasDiscountsApplied` + `HasDiscountsAppliedStoreIds` for KS-scope products |
 | `agent.*` views | — | `agent_views.sql` | The curated views behind `query_data` |
+| `hk.SalesLinesMkAl` | NOP replica (Sales Report lines) | `sales_lines_mkal.sql` | MK/AL layers 2, 3, 5, 6 from 2026-07-01 for backtest lever 4; same scope rules as KS; money in local currency (MKD/ALL) plus `*Eur` columns at the shop's `Currency.Rate` on the extraction day (`EurRate` per row); no `StockClass`. Kept apart from `hk.SalesLines`, which is EUR-only and reloaded daily |
+| `hk.PushDatesMkAl` | NOP replica | `push_dates_mkal.sql` | Discount sets of 200+ rows on the MK/AL stores (StoreId 1 = MK, 3 = AL, both shop DBs) from 2026-06-15, by name prefix, apply type, platform type (0 = all, 2 = app only) and start day |
 
 Generic runner: `Copy-ReplicaQuery.ps1 -SqlFile … -DestTable … -CreateSql …`.
 
