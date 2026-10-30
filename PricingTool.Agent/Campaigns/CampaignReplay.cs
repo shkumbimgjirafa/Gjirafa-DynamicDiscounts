@@ -38,6 +38,9 @@ public sealed record CampaignCalibration(decimal Factor, decimal Conservative, i
 public sealed record CampaignBacktest(List<CampaignReplayResult> Replays, CampaignCalibration? SeenType, CampaignCalibration? UnseenType,
     List<CampaignReplayResult> InSample, CampaignCalibration? InSampleCalibration)
 {
+    /// <summary>Backtest lever 7: the planner's depth per SKU against each past campaign's (provisional ones included, flagged).</summary>
+    public List<Backtest.CampaignDepthGain> DepthGains { get; init; } = new();
+
     /// <summary>The leave-one-out factor for a plan with (or without) an event lift for its type, or null with too few replays.</summary>
     public CampaignCalibration? For(bool planHasEventLift) => planHasEventLift ? SeenType : UnseenType;
 }

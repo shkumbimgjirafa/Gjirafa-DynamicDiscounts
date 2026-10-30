@@ -115,17 +115,23 @@ public sealed partial class AgentDataTools
             .Select(c => c.SourceCampaignId!.Value).ToListAsync(ct)).ToHashSet();
         var inSampleDepth = DepthEffectFrom(byCampaign, today, notRepresentative);
         List<CampaignReplayResult> loo = new(), inSample = new();
-        foreach (var w in windows.Where(w => w.EndDate < today && !Provisional(w, today) && rows.Contains(w.CampaignId)))
+        var depthGains = new List<Backtest.CampaignDepthGain>();
+        foreach (var w in windows.Where(w => w.EndDate < today && rows.Contains(w.CampaignId)))
         {
-            var rate = CampaignReplay.RateWindow(w.StartDate);
-            var normalDays = Enumerable.Range(0, rate.Days).Select(rate.From.AddDays).Count(d => !windows.Any(o => d >= o.StartDate && d <= o.EndDate));
             var representative = !notRepresentative.Contains(w.CampaignId);
             var without = DepthEffectFrom(byCampaign, today, new HashSet<int>(notRepresentative) { w.CampaignId });
+            foreach (var strategy in Backtest.CampaignDepthBacktest.Strategies)
+                foreach (var scale in new[] { 1m, 0.5m, 2m })
+                    depthGains.Add(Backtest.CampaignDepthBacktest.Score(w, rows[w.CampaignId], without, strategy, _campaigns.MaxDepthPct, scale)
+                        with { Representative = representative, Provisional = Provisional(w, today) });
+            if (Provisional(w, today)) continue;
+            var rate = CampaignReplay.RateWindow(w.StartDate);
+            var normalDays = Enumerable.Range(0, rate.Days).Select(rate.From.AddDays).Count(d => !windows.Any(o => d >= o.StartDate && d <= o.EndDate));
             loo.Add(CampaignReplay.Replay(w, normalDays, rows[w.CampaignId], without, representative));
             inSample.Add(CampaignReplay.Replay(w, normalDays, rows[w.CampaignId], inSampleDepth, representative));
         }
         return new CampaignBacktest(loo, CampaignReplay.Calibrate(loo, seenType: true), CampaignReplay.Calibrate(loo, seenType: false),
-            inSample, CampaignReplay.Calibrate(inSample, leaveOneOut: false));
+            inSample, CampaignReplay.Calibrate(inSample, leaveOneOut: false)) { DepthGains = depthGains };
     }
 
     /// <summary>The within-campaign fit over finished, representative campaigns.</summary>

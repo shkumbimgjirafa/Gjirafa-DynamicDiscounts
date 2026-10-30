@@ -357,6 +357,29 @@ switch (command)
             Console.WriteLine(bt.SeenType is { } seen ? $"Types with an event lift: {seen.Basis}." : $"Types with an event lift: fewer than {PricingTool.Agent.Campaigns.CampaignReplay.MinCampaigns} usable replays, no factor.");
             Console.WriteLine(bt.UnseenType is { } unseen ? $"Types without one: {unseen.Basis}." : $"Types without one: fewer than {PricingTool.Agent.Campaigns.CampaignReplay.MinCampaigns} usable replays, no factor.");
             Console.WriteLine(bt.InSampleCalibration is null ? "" : $"For comparison only, {bt.InSampleCalibration.Basis}.");
+            Console.WriteLine("Lever 7, the planner's depth per SKU vs the campaign's (EUR GP, estimated; uplift curve leave-one-out, x0.5 and x2 for sensitivity):");
+            Console.WriteLine("campaign | strategy | B | actual GP | planned GP | gain | gain/day (B x0.5 / x2) | SKUs scored / changed | depth actual -> planned | flags");
+            foreach (var g in bt.DepthGains.Where(g => g.BScale == 1m))
+            {
+                var half = bt.DepthGains.Single(x => x.CampaignId == g.CampaignId && x.Strategy == g.Strategy && x.BScale == 0.5m);
+                var dbl = bt.DepthGains.Single(x => x.CampaignId == g.CampaignId && x.Strategy == g.Strategy && x.BScale == 2m);
+                Console.WriteLine($"{g.Name} | {g.Strategy} | {g.B:0.00} | {g.ActualGp:N0} | {g.PlannedGp:N0} | {g.Gain:N0} | {g.GainPerDay:N0} ({half.GainPerDay:N0} / {dbl.GainPerDay:N0}) | " +
+                                  $"{g.SkusScored:N0} / {g.SkusChanged:N0} | {g.ActualDepthPct:0.0}% -> {g.PlannedDepthPct:0.0}% | " +
+                                  $"{(g.Provisional ? "provisional " : "")}{(g.Representative ? "" : "not representative ")}" +
+                                  $"{(g.PlannedDepthPct < g.ActualDepthPct - 0.5m ? "shallower than the campaign (grid or cost limit)" : "")}");
+            }
+            // A year of campaign days at the median gain per day of the representative, finished campaigns.
+            var yearDays = bt.Replays.Where(r => r.Start >= DateOnly.FromDateTime(DateTime.Today).AddDays(-365)).Sum(r => r.Days)
+                           + bt.DepthGains.Where(g => g.Provisional && g.BScale == 1m && g.Strategy == "reallocate").Sum(g => g.Days);
+            foreach (var strategy in PricingTool.Agent.Backtest.CampaignDepthBacktest.Strategies)
+            {
+                var perDay = bt.DepthGains.Where(g => g.Strategy == strategy && g.BScale == 1m && g.Representative && !g.Provisional && g.SkusScored > 0)
+                    .Select(g => g.GainPerDay).OrderBy(v => v).ToList();
+                if (perDay.Count == 0) continue;
+                var median = perDay.Count % 2 == 1 ? perDay[perDay.Count / 2] : (perDay[perDay.Count / 2 - 1] + perDay[perDay.Count / 2]) / 2m;
+                Console.WriteLine($"Lever 7 {strategy}: median {median:N0} EUR/campaign day over {perDay.Count} campaigns x {yearDays} campaign days in the last 12 months = " +
+                                  $"{median * yearDays:N0} EUR a year, {median * yearDays / 12m:N0} a month (estimated).");
+            }
         }
         return 0;
     }

@@ -22,6 +22,7 @@ public sealed partial class AgentDataTools
     private const int MaxPastDecisions = 60;
 
     private readonly ScorecardOptions _scorecard;
+    private readonly Campaigns.CampaignLimitOptions _campaigns;
     private readonly AgentToolLog _log;
     private readonly AgentDbContext _db;
     private readonly TimeProvider _clock;
@@ -31,6 +32,7 @@ public sealed partial class AgentDataTools
     {
         _reader = reader;
         _scorecard = options.Value.Scorecard;
+        _campaigns = options.Value.Campaigns;
         _log = log;
         _db = db;
         _clock = clock ?? TimeProvider.System;

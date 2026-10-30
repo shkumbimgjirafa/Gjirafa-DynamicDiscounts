@@ -1,4 +1,6 @@
 using PricingTool.Agent.Backtest;
+using PricingTool.Agent.Campaigns;
+using PricingTool.Agent.Tools;
 
 namespace PricingTool.Tests;
 
@@ -50,5 +52,27 @@ public class LeverBacktestTests
         Assert.Equal((3m, 2, 2m), (context.CrossDockLoss, context.CrossDockLossLines, context.CaughtLoss));   // measured: 1 + 2 lost, 2 caught
         Assert.Equal(3, r.Gains.Count(g => g.Lever == 1));                                         // one row per elasticity case
         Assert.True(r.Gains.Single(g => g.Lever == 3 && g.Elasticity == -2.0m).Gain < r.Gains.Single(g => g.Lever == 3 && g.Elasticity == -0.5m).Gain);
+    }
+
+    [Fact]
+    public void A_campaign_replay_moves_depth_between_skus_but_keeps_the_campaign_as_deep_on_average()
+    {
+        var w = new CampaignWindow(1, "Për ty, Oct 2025", new DateOnly(2025, 10, 8), new DateOnly(2025, 10, 12), "main");
+        var depth = new DepthEffect(3m, 4, 20, 25m, 0m, new Dictionary<string, decimal>(), new Dictionary<string, decimal>(), "test");
+        var rows = new[]
+        {
+            // Normal price 100 for both; THIN costs 85 and sold 10 at 20 % off (80, a loss); FAT costs 40 and sold 10 at 0 % off.
+            new ReplaySkuRow(1, "THIN", 10m, 1000m, 150m, 10m, 800m, -50m),
+            new ReplaySkuRow(1, "FAT", 10m, 1000m, 600m, 10m, 1000m, 600m),
+            new ReplaySkuRow(1, "TAIL", 0m, 0m, 0m, 5m, 500m, 100m),                              // no normal-day sales: kept as it was
+        };
+        var r = CampaignDepthBacktest.Score(w, rows, depth, "reallocate");
+
+        Assert.Equal((650m, 2), (r.ActualGp, r.SkusScored));
+        Assert.Equal(8.9m, r.ActualDepthPct);                                                     // (20 × 800 + 0 × 1000) / 1800: weighted by campaign revenue
+        Assert.True(r.PlannedDepthPct >= r.ActualDepthPct);                                       // as deep on average as it was
+        Assert.True(r.Gain > 0);                                                                  // the depth moved off the loss-making SKU
+        var none = CampaignDepthBacktest.Score(w, rows, depth with { B = 0m }, "reallocate");
+        Assert.True(none.PlannedDepthPct >= none.ActualDepthPct);
     }
 }
