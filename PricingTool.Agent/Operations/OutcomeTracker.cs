@@ -34,6 +34,12 @@ public sealed record OutcomeFigures(
 
 public sealed record OutcomeUpdate(int Decisions, int NotLive, int Waiting, int Measured, int RolledBack, int RollbacksWaiting);
 
+/// <summary>When a run's prices reached customers: a pushed export, or a successful publish to the live shop.</summary>
+internal sealed record LiveSource(int LayerId, long RunId, DateTime LiveUtc, long? ExportId, long? PublishId)
+{
+    public string What => ExportId is { } e ? $"export #{e} was pushed" : $"live publish batch #{PublishId} went out";
+}
+
 /// <summary>
 /// The outcome tracker (plan section 5, "OutcomeTracker" and "Auto-pause and rollback"), shared by both agents. For
 /// every applied floor/target change of a real pass it finds when the change reached customers (the first pushed
@@ -90,8 +96,16 @@ public sealed class OutcomeTracker
             .OrderBy(d => d.Id).ToListAsync(ct);
         var outcomes = await _db.AgentOutcomes.ToDictionaryAsync(x => x.DecisionId, ct);
 
-        // When each rule went live: pushed exports, the runs behind them and the rules those runs priced with.
-        var pushed = await _db.ExportBatches.AsNoTracking().Where(b => b.PushedUtc != null && b.ApprovalId != null).ToListAsync(ct);
+        // When each rule went live: pushed exports, and successful publishes to the live shop (Target "Live", kind "Regular", not
+        // rolled back; the publisher's PublisherOptions.LiveTarget and PublishKinds.Regular), the runs behind them and the rules those
+        // runs priced with. A sandbox publish never reaches a customer, so it never counts.
+        var pushed = (await _db.ExportBatches.AsNoTracking().Where(b => b.PushedUtc != null && b.ApprovalId != null).ToListAsync(ct))
+            .Select(b => new LiveSource(b.LayerId, b.RunId, b.PushedUtc!.Value, b.Id, null))
+            .Concat((await _db.PublishBatches.AsNoTracking()
+                    .Where(b => b.Target == "Live" && b.Kind == "Regular" && b.Status == "Published" && b.RolledBackUtc == null && b.EngineRunId != null)
+                    .ToListAsync(ct))
+                .Select(b => new LiveSource(b.LayerId, b.EngineRunId!.Value, b.FinishedUtc ?? b.StartedUtc, null, b.Id)))
+            .ToList();
         var runIds = pushed.Select(b => b.RunId).Distinct().ToList();
         var runStarts = await _tool.PricingRuns.AsNoTracking().Where(r => runIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.StartedUtc, ct);
         var runRules = (await _tool.PricingRunCategoryRules.AsNoTracking().Where(r => runIds.Contains(r.PricingRunId)).ToListAsync(ct))
@@ -115,23 +129,24 @@ public sealed class OutcomeTracker
                             && runRules[b.RunId].Any(r => r.BandId == d.BandId && r.Category == d.Category
                                                           && Math.Abs(r.MarginFloorPct - d.ProposedFloorPct) < 0.005m
                                                           && Math.Abs((r.TargetMarginPct ?? -1m) - (d.ProposedTargetPct ?? -1m)) < 0.005m))
-                .OrderBy(b => b.PushedUtc).FirstOrDefault();
+                .OrderBy(b => b.LiveUtc).FirstOrDefault();
             if (live is null)
             {
                 x.Status = OutcomeStatus.NotLive;
-                x.Evidence = "Applied to the rule; no export priced with it has been marked pushed yet, so its prices haven't reached customers.";
+                x.Evidence = "Applied to the rule; no export priced with it has been marked pushed and no live publish carried it, so its prices haven't reached customers.";
                 notLive++;
                 continue;
             }
 
-            x.LiveFromUtc = live.PushedUtc;
-            x.LiveExportBatchId = live.Id;
-            var pushDay = DateOnly.FromDateTime(live.PushedUtc!.Value);
+            x.LiveFromUtc = live.LiveUtc;
+            x.LiveExportBatchId = live.ExportId;
+            x.LivePublishBatchId = live.PublishId;
+            var pushDay = DateOnly.FromDateTime(live.LiveUtc);
             var afterEnds = pushDay.AddDays(1 + o.WindowDays);                 // the push day itself is in neither window
             if (today < afterEnds)
             {
                 x.Status = OutcomeStatus.Waiting;
-                x.Evidence = $"Live since export #{live.Id} was pushed on {pushDay:yyyy-MM-dd}; measured from {afterEnds:yyyy-MM-dd} ({o.WindowDays} days after against {o.WindowDays} before).";
+                x.Evidence = $"Live since {live.What} on {pushDay:yyyy-MM-dd}; measured from {afterEnds:yyyy-MM-dd} ({o.WindowDays} days after against {o.WindowDays} before).";
                 waiting++;
                 continue;
             }
@@ -150,7 +165,7 @@ public sealed class OutcomeTracker
             x.Verdict = f.Verdict;
             x.MeasuredUtc = now;
             x.Status = today >= afterEnds.AddDays(o.RemeasureDays) ? OutcomeStatus.Final : OutcomeStatus.Provisional;
-            x.Evidence = Truncate($"Export #{live.Id} pushed on {pushDay:yyyy-MM-dd}. {Describe(f, w, series.Holdouts)}" +
+            x.Evidence = Truncate($"{char.ToUpperInvariant(live.What[0])}{live.What[1..]} on {pushDay:yyyy-MM-dd}. {Describe(f, w, series.Holdouts)}" +
                                   (x.Status == OutcomeStatus.Provisional ? " Provisional: late cancellations still post." : ""));
             measured++;
 

@@ -235,6 +235,9 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<DateTime?>("LiveFromUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<long?>("LivePublishBatchId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime?>("MeasuredUtc")
                         .HasColumnType("datetime2");
 

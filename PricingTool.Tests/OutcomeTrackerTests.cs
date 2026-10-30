@@ -189,6 +189,31 @@ public class OutcomeTrackerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_live_publish_with_the_rules_prices_counts_as_live_and_a_sandbox_one_never_does()
+    {
+        Seed(pushed: false);
+        void Publish(long id, string target, string status = "Published", DateTime? rolledBack = null) => _ai.PublishBatches.Add(new PublishBatch
+        {
+            Id = id, LayerId = 4, Db = "GjirafaEcommerce", StoreId = 2, Target = target, ShopSchema = target == "Live" ? "dbo" : "shop_sandbox", Kind = "Regular",
+            EngineRunId = 9001, Status = status, StartedUtc = Pushed.AddMinutes(-5), FinishedUtc = Pushed, RolledBackUtc = rolledBack,
+        });
+        Publish(31, "Sandbox");                                                          // the hackathon's: never reaches a customer
+        Publish(32, "Live", "RolledBack", Pushed.AddHours(1));                           // undone
+        await _ai.SaveChangesAsync();
+        var (tracker, clock, _) = Tracker(S(140, 1400), S(140, 1420));
+        clock.Now = Pushed.AddDays(5);
+
+        Assert.Equal(1, (await tracker.UpdateAsync()).NotLive);
+
+        Publish(33, "Live");
+        await _ai.SaveChangesAsync();
+        Assert.Equal(1, (await tracker.UpdateAsync()).Waiting);                          // live from the publish, its window still open
+        var x = await _ai.AgentOutcomes.SingleAsync();
+        Assert.Equal((Pushed, (long?)33, (long?)null), (x.LiveFromUtc!.Value, x.LivePublishBatchId, x.LiveExportBatchId));
+        Assert.Contains("live publish batch #33", x.Evidence);
+    }
+
+    [Fact]
     public async Task A_live_change_waits_for_its_window_then_is_measured()
     {
         Seed();

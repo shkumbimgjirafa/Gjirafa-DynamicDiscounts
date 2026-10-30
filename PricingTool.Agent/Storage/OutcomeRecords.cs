@@ -31,6 +31,8 @@ public class AgentOutcome
     /// <summary>When its prices reached customers: the first pushed export of a run that priced with the decision's rule.</summary>
     public DateTime? LiveFromUtc { get; set; }
     public long? LiveExportBatchId { get; set; }
+    /// <summary>The successful publish to the live shop that took the rule's prices live, when that came before a pushed export.</summary>
+    public long? LivePublishBatchId { get; set; }
     public int WindowDays { get; set; }
 
     public decimal? GpPerDayBefore { get; set; }
