@@ -352,6 +352,42 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public async Task A_goal_asked_for_in_the_chat_binds_a_mini_campaign_too()
+    {
+        var (planning, publisher, brief) = Setup();
+        var entry = await _db.CampaignCalendar.SingleAsync();
+        (entry.Type, entry.GoalType, entry.GoalValue, entry.GoalSetBy) = ("mini", "gross-profit", 1_000_000m, "manager@test in the chat (conversation 3)");
+        (brief.Kind, brief.GoalValue) = ("mini", 1_000_000m);
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "max-gross-profit", ["explanation"] = "Profit first." });
+        Says(new JsonObject { ["decision"] = "adjust", ["goalValue"] = 900m, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Lower the goal to what the plan reaches." });
+        Says(new JsonObject { ["strategy"] = "max-gross-profit", ["explanation"] = "Profit first." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: true);
+
+        Assert.Equal(1_000_000m, (await _db.CampaignBriefs.SingleAsync()).GoalValue);                       // Nova can't lower it
+        Assert.Equal(PlanStatus.Held, r.Status);
+        Assert.Empty(publisher.Calls);
+    }
+
+    [Fact]
+    public async Task A_plan_that_discounts_no_sku_is_never_published()
+    {
+        var (planning, publisher, brief) = Setup();
+        brief.MinMarginPct = 60m;                                                                           // every candidate makes 40 %: nothing can be discounted
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "max-gross-profit", ["explanation"] = "Profit first." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: true);
+
+        Assert.Equal((PlanStatus.Accepted, 0), (r.Status, r.Final!.DiscountedSkus));
+        Assert.Empty(publisher.Calls);
+        Assert.Contains(await _db.CampaignMessages.Select(m => m.Text).ToListAsync(), t => t.Contains("discounts no SKU"));
+    }
+
+    [Fact]
     public async Task The_minimum_margin_never_goes_under_the_code_floor_from_the_brief_or_the_review()
     {
         var (planning, _, brief) = Setup();

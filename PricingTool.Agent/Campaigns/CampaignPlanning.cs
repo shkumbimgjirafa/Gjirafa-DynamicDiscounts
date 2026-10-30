@@ -118,8 +118,9 @@ public sealed class CampaignPlanning
         }
         if (ruleMinMargin > brief.MinMarginPct)
             await SayAsync(brief, null, 1, "code", $"A person's rule raises the minimum margin from {brief.MinMarginPct:0.#}% to {ruleMinMargin:0.#}% for these days.", null, ct);
-        // A goal a person set for the calendar campaign is binding: Nova can't change it, and a plan short of it waits for a person.
-        var personGoal = brief.Kind == "calendar" && calendar?.GoalSetBy is { } setBy && calendar.GoalType == brief.GoalType ? setBy : null;
+        // A goal a person set for the campaign (on the calendar, or by asking for it in the chat) is binding: Nova can't change
+        // it, and a plan short of it waits for a person.
+        var personGoal = calendar?.GoalSetBy is { } setBy && calendar.GoalType == brief.GoalType ? setBy : null;
         var days = brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1;
         // SKUs the plan doesn't price still sell during the campaign: GjirafaMall SKUs that take Gjirafa50's price, and on an
         // all-shop campaign the holdout categories. Their expected gross profit at today's price with the event lift counts
@@ -258,6 +259,12 @@ public sealed class CampaignPlanning
         if (_publisher is null)
         {
             await SayAsync(brief, plan.Id, plan.Round, "code", "Accepted; no publisher configured here, so nothing was published.", null, ct);
+            return;
+        }
+        if (plan.DiscountedSkus == 0)
+        {
+            await SayAsync(brief, plan.Id, plan.Round, "code",
+                "The plan discounts no SKU, so there is no campaign to publish: nothing goes out and the SKUs keep today's prices.", null, ct);
             return;
         }
         var lines = await _db.CampaignPlanLines.AsNoTracking().Where(l => l.PlanId == plan.Id).ToListAsync(ct);

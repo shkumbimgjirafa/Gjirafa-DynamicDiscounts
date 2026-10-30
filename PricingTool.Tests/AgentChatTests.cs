@@ -170,6 +170,7 @@ public class AgentChatTests : IDisposable
         Assert.Equal((BriefStatus.Proposed, "mini"), (brief.Status, brief.Kind));
         Assert.Equal(new[] { brief.Id }, _planned);
         Assert.NotNull(brief.CalendarId);                                                             // on the calendar, so the Campaigns tab shows it
+        Assert.Equal("manager@test in the chat (conversation 1)", (await _db.CampaignCalendar.SingleAsync(c => c.Id == brief.CalendarId)).GoalSetBy);  // the person's goal: binding
         Assert.Contains("passes the campaign limits", ok.Added[2].Text);
         Assert.Contains("Plan #5 (visible)", ok.Added[3].Text);
         Assert.Contains("a person can stop it", ok.Added[3].Text);

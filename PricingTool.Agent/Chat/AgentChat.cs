@@ -72,7 +72,7 @@ public sealed class AgentChat
         var (a, callId) = answer.Value;
         var reply = await AddAsync(conversation, role == AgentRole.Alpha ? "Alpha" : "Nova", a.Reply, callId, added, ct);
         if (a.Rule is { } rule) await RuleAsync(conversation, rule, text, author, reply, added, ct);
-        if (role == AgentRole.Nova && a.Brief is { } brief) await BriefAsync(conversation, brief, reply, added, ct);
+        if (role == AgentRole.Nova && a.Brief is { } brief) await BriefAsync(conversation, brief, reply, added, author, ct);
         return new ChatTurn(conversation, added, null);
     }
 
@@ -199,7 +199,7 @@ public sealed class AgentChat
         await AddAsync(conversation, "code", $"No rule recorded: {problem}", null, added, ct);
     }
 
-    private async Task BriefAsync(long conversation, ChatBriefDto b, ChatMessage reply, List<ChatMessage> added, CancellationToken ct)
+    private async Task BriefAsync(long conversation, ChatBriefDto b, ChatMessage reply, List<ChatMessage> added, string author, CancellationToken ct)
     {
         var now = _clock.GetUtcNow().UtcDateTime;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
@@ -241,6 +241,9 @@ public sealed class AgentChat
             LayerId = b.Layer, Name = brief.Name, StartDate = start, EndDate = end, Type = "mini", ScopeKind = brief.ScopeKind, ScopeValue = brief.ScopeValue,
             GoalType = brief.GoalType, GoalValue = brief.GoalValue, Status = CampaignStatus.Proposed, CreatedBy = CampaignAgent.Source, CreatedUtc = now,
             Notes = $"From the chat, conversation {conversation}.",
+            // A person asked for this campaign in the chat, so its goal is theirs: binding, like a goal set on the calendar
+            // (the campaign agent can't lower it to make a plan pass; a plan short of it waits for that person).
+            GoalSetBy = $"{author} in the chat (conversation {conversation})",
         };
         _db.CampaignCalendar.Add(entry);
         await _db.SaveChangesAsync(ct);
