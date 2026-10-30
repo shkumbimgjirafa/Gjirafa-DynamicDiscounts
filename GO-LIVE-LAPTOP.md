@@ -3,49 +3,83 @@
 From Monday 2 Nov the solution runs here on real data, by itself, once a day. This is what to do once, what
 happens every day, and where to look.
 
+## The packaged app (read this first)
+
+The Claude desktop app is MSIX-packaged. Everything started from a Claude session (the build, the web app, the
+engine host) reads and writes AppData **inside the package**, `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache`:
+
+- the LocalDB instance that holds `PricingToolHackathon` (and `PricingToolHackathonTest`),
+- the user-secrets (the replica connection, `ConnectionStrings:SourceReadOnly`),
+- `%LOCALAPPDATA%\PricingToolAgent` (host copy, logs, exports, time sheet, backups).
+
+A program started anywhere else (a plain Task Scheduler task, a normal PowerShell window) sees a different
+LocalDB instance and no user-secrets. On 30 Oct the first scheduled task did exactly that: it crashed trying to
+create the database (error 5170) and is now **disabled**. Checked the same evening from a scheduled task: started
+directly, it found no user-secrets and no `PricingToolHackathon`; started through `Invoke-CommandInDesktopPackage`,
+it found both. So:
+
+- **Start the host from a Claude session**, or through `Invoke-CommandInDesktopPackage` (what the task below does).
+- **Open the files in Explorer** under `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\PricingToolAgent`.
+  Inside a Claude session the same folder shows as `%LOCALAPPDATA%\PricingToolAgent`.
+
+## Now (until the task is registered)
+
+The engine host is running inside the app, started from a Claude session on 30 Oct at 20:46. It waits for 07:00
+and then runs the day's cycle. **After any change the cycle uses, restart it** so it copies the newest build
+(from a Claude session):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\restart-laptop-host.ps1
+```
+
+If the laptop restarts, nothing starts the host again until a Claude session runs that line, or until the task
+below is registered.
+
 ## Once
 
-1. **Build** (PowerShell, in the repo folder):
+1. **Build** (in the repo folder, from a Claude session):
 
    ```powershell
    $env:PATH="C:\Program Files\dotnet;$env:PATH"; dotnet build PricingTool.sln
    ```
 
-2. **Register the task** (as yourself, no admin needed). This is the one command:
+2. **Register the task** (as yourself, no admin needed). This is the one command; it replaces the disabled task:
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\register-laptop-task.ps1
    ```
 
    It creates the Task Scheduler task **"PricingTool Hackathon daily cycle"**: at log-on, and daily at 07:00 with
-   "run as soon as possible after a missed start"; on battery too; no time limit; a second start while it runs is
-   ignored. Start it now without logging off: `Start-ScheduledTask -TaskName 'PricingTool Hackathon daily cycle'`.
+   "run as soon as possible after a missed start", on battery too. Its action starts `scripts\run-laptop-host.ps1`
+   inside the Claude package with `Invoke-CommandInDesktopPackage`, then ends; a start while the host already
+   runs does nothing. Not tested yet: a log-on start before the Claude app itself has started (the probe ran while
+   the app was open). After registering, check the next morning's log (see "Where things are").
 
 3. **Settings only you can enter** (until then the pages say so):
    - The monthly raise, on the **Ledger** page (the bar is 3× that, measured in 30 days).
    - "Minutes by hand" for each task type, on the **Time sheet** page (rows of a type without it are kept, not exported).
-   - Your email for column B of the time sheet, in user-secrets for the Engine and Web projects:
+   - Your email for column B of the time sheet, in user-secrets for the Engine and Web projects (from a Claude
+     session, so it lands in the package's user-secrets):
      `dotnet user-secrets set "Agent:TimeSheetOwnerEmail" "<your email>" --project PricingTool.Engine` (and `--project PricingTool.Web`).
-   - Confirm or change the assumed limits and holdouts in the `Agent:Limits` section of
+   - The limits and holdouts in `Agent:Limits` were confirmed on 30 Oct. To change them, edit
      `PricingTool.Engine/appsettings.Hackathon.json`, `PricingTool.Web/appsettings.Hackathon.json` and
-     `PricingTool.AgentTools/appsettings.json` (a test keeps the three the same).
+     `PricingTool.AgentTools/appsettings.json` together (a test keeps the three the same).
 
 4. **Keep the laptop awake on power** during the 30 days (Settings → System → Power: never sleep when plugged in).
    The task doesn't wake the laptop; a missed 07:00 start runs as soon as the laptop is on again.
 
 ## Every day, by itself
 
-The task runs `scripts\run-laptop-host.ps1`. It copies the current build to `%LOCALAPPDATA%\PricingToolAgent\host`
-(so you can keep building the repo while it runs) and starts the engine host (`--hackathon-host`). The host runs
-the daily cycle at start and then each day from 07:00:
+`scripts\run-laptop-host.ps1` copies the current build to `%LOCALAPPDATA%\PricingToolAgent\host` (so the repo can
+be rebuilt while it runs) and starts the engine host (`--hackathon-host`). The host runs the daily cycle at start
+and then each day from 07:00:
 
 size check (warns at 8 GB) → incremental hk refresh from the replica → engine runs, Gjirafa50 then GjirafaMall →
 Alpha's floor/target pass (Mondays) → run checks → checked exports for the push (holdout categories left out) →
 money ledger → time-sheet export → retention (latest 2 local runs per layer) → backup (keeps 7).
 
 Each step writes a row (page **Daily cycle**); a failed step doesn't stop the rest and is tried again after an
-hour, three times a day at most. The cost watcher and Nova's weekly pass are not built yet; the cycle logs them as
-NotBuilt.
+hour, three times a day at most. Steps not built yet are logged as NotBuilt.
 
 ## What you do each day
 
@@ -53,8 +87,12 @@ NotBuilt.
 2. The team pushes the file the way it does today.
 3. Click **Mark as pushed** on that export (or `PricingTool.AgentTools mark-pushed <export id>`). That records it as
    applied (an Approval) and starts its 7- and 30-day measurement against the holdout.
+4. Look at the **Agent** page's "Waiting for you" (the exceptions inbox). On a normal day it is empty.
 
 ## Where things are
+
+Paths as seen from a Claude session; in Explorer, prefix `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\`
+instead of `%LOCALAPPDATA%\`.
 
 | What | Where |
 |---|---|
@@ -63,12 +101,13 @@ NotBuilt.
 | Time-sheet files (xlsx, csv, json) | `%LOCALAPPDATA%\PricingToolAgent\timesheet` |
 | Database backups (7 kept) | `%LOCALAPPDATA%\PricingToolAgent\backups` |
 | The day's steps | page **Daily cycle**, or `PricingTool.AgentTools cycle-status` |
+| What waits for a person | page **Agent** → exceptions inbox |
 | Test and demo runs (never in the live DB) | database `PricingToolHackathonTest`: `PricingTool.AgentTools test-db` |
 
 ## Changing, pausing, stopping
 
-- **New build:** build as usual, then restart the task so it copies the new build:
-  `Stop-ScheduledTask -TaskName 'PricingTool Hackathon daily cycle'; Get-Process PricingTool.Engine -ErrorAction SilentlyContinue | Stop-Process; Start-ScheduledTask -TaskName 'PricingTool Hackathon daily cycle'`
-- **Stop the AI calls only (kill switch):** set `Agent:Enabled` to `false` in the three settings files and restart
-  the task. The engine runs and exports still happen; checks fail closed, so nothing is exported unchecked.
+- **New build:** build as usual, then restart the host (from a Claude session):
+  `powershell -ExecutionPolicy Bypass -File scripts\restart-laptop-host.ps1`.
+- **Stop every AI call and the publisher at once:** the **kill switch** on the Agent page (no restart; audited).
+  The engine runs still happen; run checks stop, so their runs stay blocked and nothing is exported unchecked.
 - **Remove the task:** `powershell -ExecutionPolicy Bypass -File scripts\register-laptop-task.ps1 -Unregister`.
