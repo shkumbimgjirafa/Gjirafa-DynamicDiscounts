@@ -62,7 +62,10 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 | **Publisher** | nothing | `Publisher:Target` must be Sandbox to write anywhere but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly | `NopIntegration/PublisherOptions.cs:58` |
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
-`ai.AgentQueryLog`. 37 calls, $4.04 in the live database and 5 calls, $1.03 in the test database (E15).
+`ai.AgentQueryLog`. The agents' runtime Claude calls: 37 calls, $4.04 in the live database and 5 calls, $1.03 in the test
+database (E15). The two Claude Code sessions that built this used $220.94 since kickoff, $142.65 of it in the unattended
+blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
+the flat Claude subscription).
 
 ### Logged responses (from `ai.AiCallLog.Output`; emails are redacted by the client, none appeared)
 
@@ -83,21 +86,22 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers (framing A: what this build adds; estimated)
 
-| ID | Lever | € a month, central (low) |
+| ID | Lever | € a month, central (low / high) |
 |---|---|---|
-| E1 | Loss-sale block | 196 (196) |
-| E2 | Per-category floors | 4 (2) |
-| E3 | Cost reaction | 1,527 (1,204), mostly one real cost event in early August |
-| E4 | Coverage MK/AL | 1,349 (509) |
-| E5 | Cadence | 396 (260) |
+| E1 | Loss-sale block | 196 (196 / 196) |
+| E2 | Per-category floors | 4 (2 / 4) |
+| E3 | Cost reaction | 1,527 (1,204 / 1,711), mostly one real cost event in early August |
+| E4 | Coverage MK/AL | 1,349 (509 / 1,654) |
+| E5 | Cadence | 396 (260 / 474) |
 | E6 | Learning, as built | 0 (the plan's plain rule would have cost €1.0–1.3k in September) |
 | E7 | Campaign planning | 783 |
-| **E8** | **Total** | **4,255 (2,954)** |
+| **E8** | **Total** | **4,255 (2,954 / 4,822)** |
 
-Walk-forward on booked sales lines, each line counted by one lever, elasticity −0.5 / −1 / −2 (the low case is −2).
+Walk-forward on booked sales lines, each line counted by one lever, elasticity −1 central, −2 low, −0.5 high.
 Method per lever: [`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md); the Backtest tab
 shows the stored run and its CSV. **This is far short of the €10k bar on its own.** Framing B (the rollout of the
-calculator's measured test phase, E20: €4.0k / €10.6k / €13.0k a month) is a separate case and is never added into these
+calculator's test phase, E20: €4.0k a month measured in a test phase with a control (changed vs unchanged products in the
+same weeks, one run on one layer, so a floor); €10.6k and €13.0k measured before/after, not controlled) is a separate case and is never added into these
 figures. Framing B claims no past euro: the declaration said the calculator's measured past result is not claimed, and
 framing B claims only the next 12 months of an automated system, using the past as evidence for the rate.
 
@@ -129,7 +133,7 @@ framing B claims only the next 12 months of an automated system, using the past 
 | No personal data | Sales lines carry no order, customer, email, name or address; the AI call log redacts emails |
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours and 17 unattended blocks (E16); unattended blocks count as AI cost |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours and 18 unattended blocks (E16); unattended blocks count as AI cost only, $142.65 API-equivalent (E18) |
 
 ## 7. Tests
 

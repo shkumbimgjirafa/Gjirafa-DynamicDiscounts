@@ -39,16 +39,16 @@ function LeverMonthly($layerResult, $lever, $e) {
     return Round0 (($g | Measure-Object -Property gain -Sum).Sum / $test.Count)
 }
 $ids = @{ 1 = 'E1'; 2 = 'E2'; 3 = 'E3'; 5 = 'E5'; 6 = 'E6' }
-$totals = @{ central = 0; low = 0 }
+$totals = @{ high = 0; central = 0; low = 0 }
 foreach ($lever in 1, 2, 3, 5, 6) {
-    $central = 0; $low = 0; $parts = @()
+    $high = 0; $central = 0; $low = 0; $parts = @()
     foreach ($r in $snap.levers) {
-        $c = LeverMonthly $r $lever -1.0; $l = LeverMonthly $r $lever -2.0
-        $central += $c; $low += $l; $parts += "layer $($r.layerId): $c ($l)"
+        $h = LeverMonthly $r $lever -0.5; $c = LeverMonthly $r $lever -1.0; $l = LeverMonthly $r $lever -2.0
+        $high += $h; $central += $c; $low += $l; $parts += "layer $($r.layerId): $c ($l / $h)"
     }
-    $totals.central += $central; $totals.low += $low
-    Add $ids[$lever] "Lever $lever, $($names[$lever]): extra GP a month, both KS layers" ([ordered]@{ central = $central; low = $low }) 'EUR/month' 'estimated' `
-        "Walk-forward on booked sales lines, Aug-Sep 2026 monthly average; central e -1.0, low e -2.0; $($parts -join '; ')" $snapRef $leverScript
+    $totals.high += $high; $totals.central += $central; $totals.low += $low
+    Add $ids[$lever] "Lever $lever, $($names[$lever]): extra GP a month, both KS layers" ([ordered]@{ central = $central; low = $low; high = $high }) 'EUR/month' 'estimated' `
+        "Walk-forward on booked sales lines, Aug-Sep 2026 monthly average; central e -1.0, low e -2.0, high e -0.5; central (low / high) $($parts -join '; ')" $snapRef $leverScript
 }
 
 # Lever 7: the median gain per campaign day (reallocate, curve as fitted) x the campaign days of the last 12 months.
@@ -64,8 +64,8 @@ foreach ($c in $snap.campaigns) {
     $monthly = Round0 ($median * $days / 12)
     $l7 += $monthly; $l7parts += "layer $($c.layerId): median $median EUR/day x $days days / 12 = $monthly"
 }
-$totals.central += $l7; $totals.low += $l7
-Add 'E7' 'Lever 7, campaign planning: extra GP a month from per-SKU depth, both KS layers' ([ordered]@{ central = $l7; low = $l7 }) 'EUR/month' 'estimated' `
+$totals.high += $l7; $totals.central += $l7; $totals.low += $l7
+Add 'E7' 'Lever 7, campaign planning: extra GP a month from per-SKU depth, both KS layers' ([ordered]@{ central = $l7; low = $l7; high = $l7 }) 'EUR/month' 'estimated' `
     "Each finished campaign replayed with the planner's depth per SKU, as deep on average; uplift curve leave-one-out; $($l7parts -join '; ')" $snapRef $leverScript
 
 # Lever 4: the Kosovo effect on the MK/AL months without a push.
@@ -78,9 +78,9 @@ $effects = ($snap.coverageEffects | ForEach-Object { "$($_.case) $([math]::Round
 Add 'E4' 'Lever 4, coverage MK/AL: extra GP a month on months without a push' $l4 'EUR/month' 'estimated' `
     "The calculator's measured Kosovo gain as a share of Kosovo GP ($effects) x MK/AL tool-scope GP (hk.SalesLinesMkAl, EUR at the load day's shop rate) on months with no push of their own (hk.PushDatesMkAl); Aug-Sep average" `
     $snapRef 'PricingTool.AgentTools backtest-coverage'
-$totals.central += $l4.mid; $totals.low += $l4.low
-Add 'E8' 'Framing A: all levers together, extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low }) 'EUR/month' 'estimated' `
-    'E1 + E2 + E3 + E4 (mid / low) + E5 + E6 + E7; each line counted by one lever' $snapRef 'this script'
+$totals.high += $l4.high; $totals.central += $l4.mid; $totals.low += $l4.low
+Add 'E8' 'Framing A: all levers together, extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low; high = $totals.high }) 'EUR/month' 'estimated' `
+    'E1 + E2 + E3 + E4 (mid / low / high) + E5 + E6 + E7; each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5) and, for lever 4, by the calculator test-phase case' $snapRef 'this script'
 
 # --- The planner's calibration and the Për ty reproduction -----------------------------------------------------------
 $tails = @($snap.campaigns | Where-Object { $_.layerId -eq 1 } | ForEach-Object { $_.replays } | Where-Object { $_.usable } |
@@ -120,7 +120,7 @@ Add 'E14' 'Cross-dock lines sold under booked cost, a month (last 12 months, KS)
 # --- AI cost and hours ---------------------------------------------------------------------------------------------
 $ai = (Query 'PricingToolHackathon' 'SELECT COUNT(*), SUM(CostUsd), SUM(InputTokens), SUM(OutputTokens), SUM(CacheReadTokens), SUM(CacheCreationTokens) FROM ai.AiCallLog').Rows[0]
 $aiTest = (Query 'PricingToolHackathonTest' 'SELECT COUNT(*), ISNULL(SUM(CostUsd), 0) FROM ai.AiCallLog').Rows[0]
-Add 'E15' 'AI cost of the hackathon build and runs (Claude Code subscription, as logged)' ([ordered]@{ liveCalls = $ai[0]; liveUsd = [math]::Round([decimal]$ai[1], 2); testCalls = $aiTest[0]; testUsd = [math]::Round([decimal]$aiTest[1], 2)
+Add 'E15' 'Agents'' runtime Claude calls (Alpha, Nova, the run checker, the chat), as logged' ([ordered]@{ liveCalls = $ai[0]; liveUsd = [math]::Round([decimal]$ai[1], 2); testCalls = $aiTest[0]; testUsd = [math]::Round([decimal]$aiTest[1], 2)
         inputTokens = $ai[2]; outputTokens = $ai[3]; cacheReadTokens = $ai[4]; cacheCreationTokens = $ai[5] }) 'calls / USD' 'measured' `
     'total_cost_usd and usage from each headless call''s JSON (Claude Code reports the cost the API would charge; billed through the subscription)' 'ai.AiCallLog (live and test databases)' 'this script (SQL above)'
 $rows = Get-Content (Join-Path $repo 'docs\hackathon-2026\hours.md') -Encoding UTF8 | Where-Object { $_ -match '^\| (Fri|Sat|Sun|Mon) ' }
@@ -131,14 +131,22 @@ foreach ($row in $rows) {
     if ($h -match '^0 \(unattended') { $unattended++ }
     elseif ($h -match '^([0-9]+(\.[0-9]+)?)') { $attended += [double]$Matches[1] }
 }
+$usage = Get-Content (Join-Path $here 'ai-usage.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that built this)' ([ordered]@{
+        sinceKickoffUsd = $usage.sinceKickoff.usdApiEquivalent; sinceKickoffResponses = $usage.sinceKickoff.responses
+        unattendedBlocksUsd = $usage.unattendedBlocks.usdApiEquivalent; unattendedBlocksResponses = $usage.unattendedBlocks.responses }) 'USD (API-equivalent)' `
+    'measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)' `
+    "Usage fields of the session transcripts, each response once, priced per model at list prices ($($usage.prices)); blocks in CET, transcripts in UTC" `
+    'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
 Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured' `
-    'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E15)' 'docs/hackathon-2026/hours.md' 'this script'
+    'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
 $testsLine = 'dotnet test PricingTool.sln: 909 passed, 1 skipped (the opt-in real headless call), 31 Oct 00:02'
 Add 'E17' 'Automated tests' ([ordered]@{ passed = 909; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results, measured before the hackathon (quoted, not recomputed here) -------------------------
-Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10600; high = 13000 }) 'EUR/month' 'measured' `
-    'Low: same-weeks control (changed vs unchanged products, one run on one layer, a floor); mid: before/after; high: before/after season-adjusted with 2025' `
+Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10600; high = 13000 }) 'EUR/month' `
+    ([ordered]@{ low = 'measured (same-weeks control)'; mid = 'measured before/after, not controlled'; high = 'measured before/after, season-adjusted with 2025, not controlled' }) `
+    'Low: changed vs unchanged products in the same weeks (a test phase with a control: one run on one layer, so a floor); mid: before/after on the approvals; high: the same, season-adjusted with 2025. The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)' `
     'Main repo analysis before the hackathon (kickoff-plan.md sections 8 and 10)' 'not in this repo'
 Add 'E21' 'Below-floor GP forgone, Kosovo (the June/July analysis)' ([ordered]@{ jun = 24400; jul = 15100 }) 'EUR/month' 'measured' 'Lines priced under the hand-set floor, lifted to it, booked COGS' 'Main repo analysis before the hackathon (kickoff-plan.md section 5, lever 2)' 'not in this repo'
 
