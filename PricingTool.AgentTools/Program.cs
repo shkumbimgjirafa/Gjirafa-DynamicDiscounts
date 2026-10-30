@@ -13,6 +13,7 @@ using PricingTool.Agent.Tools;
 using Microsoft.Data.SqlClient;
 using PricingTool.AgentTools;
 using PricingTool.Data;
+using PricingTool.NopIntegration;
 using PricingTool.NopIntegration.Sandbox;
 
 // PricingTool.AgentTools: the agents' data tools as an MCP server, plus commands to check them by hand.
@@ -22,6 +23,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   ask --agent <role> [--schema <file>] "<question>"               one real Claude Code call with the data tools
 //   alpha-pass <layer> [--mode Autonomous|ApproveFirst|Off] [--test] Alpha's weekly floor/target pass for one layer
 //   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
+//   publish-canary <layer> --run <id> --category <c> [--max n] [--rollback]   publish a run's sample, show the rows
+//   publish-rollback <batch id>                                     restore what a publish batch changed
 // Settings come from appsettings.json next to the executable (the hackathon DB; no secrets).
 
 var command = args.FirstOrDefault() ?? "";
@@ -45,6 +48,7 @@ if (command == "ask" && Environment.ProcessPath is { } self)
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);
+builder.Services.AddNopPublisher(builder.Configuration);
 builder.Services.AddSingleton(new AgentToolContext(role, Opt("--call-tag") ?? (command == "mcp" ? null : "cli")));
 
 switch (command)
@@ -163,7 +167,109 @@ switch (command)
         return failed ? 1 : 0;
     }
 
+    case "publish-canary":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var layer = int.Parse(positional[0]);
+        var run = long.Parse(Opt("--run") ?? throw new ArgumentException("--run <engine run id> is required"));
+        var category = Opt("--category") ?? throw new ArgumentException("--category <category> is required");
+        var max = int.Parse(Opt("--max") ?? "20");
+        var conn = builder.Configuration.GetConnectionString("PricingToolDb")!;
+
+        // A deterministic sample of the run's changed prices in one category (Mall: main group, Gj50: L1).
+        var items = new List<PublishItem>();
+        await using (var c = new SqlConnection(conn))
+        {
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand("""
+                DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM PricingTool.Layers WHERE Id = @L);
+                SELECT TOP (@Max) pp.Sku, pp.ProposedPriceValue, pp.OldPrice
+                FROM PricingTool.ProposedPrices pp
+                JOIN hk.Products p ON p.LayerId = pp.LayerId AND p.ProductId = pp.ProductId
+                WHERE pp.PricingRunId = @Run AND pp.LayerId = @L AND pp.HasChange = 1
+                  AND (CASE WHEN @Mall = 1 THEN p.MainGroup ELSE p.CategoryL1 END) = @Cat
+                ORDER BY CHECKSUM(pp.Sku, 'canary')
+                """, c);
+            cmd.Parameters.AddWithValue("@L", layer);
+            cmd.Parameters.AddWithValue("@Run", run);
+            cmd.Parameters.AddWithValue("@Cat", category);
+            cmd.Parameters.AddWithValue("@Max", max);
+            await using var rd = await cmd.ExecuteReaderAsync();
+            while (await rd.ReadAsync()) items.Add(new PublishItem(rd.GetString(0), rd.GetDecimal(1), rd.IsDBNull(2) ? null : rd.GetDecimal(2)));
+        }
+        Console.WriteLine($"Canary: layer {layer}, engine run #{run}, category '{category}', {items.Count} changed prices");
+
+        var writer = scope.ServiceProvider.GetRequiredService<NopDiscountWriter>();
+        var sw = Stopwatch.StartNew();
+        var outcome = await writer.PublishAsync(new PublishRequest(layer, items) { EngineRunId = run });
+        sw.Stop();
+        Console.WriteLine($"Batch #{outcome.BatchId}: {outcome.Status}; created {outcome.Created}, updated {outcome.Updated}, unchanged {outcome.Unchanged}, " +
+                          $"skipped {outcome.Skipped}; round-trip {outcome.RoundTripChecked - outcome.RoundTripMismatches}/{outcome.RoundTripChecked} read back; {sw.ElapsedMilliseconds} ms");
+        foreach (var g in outcome.Exceptions.GroupBy(e => e.Kind))
+            Console.WriteLine($"  {g.Key}: {g.Count()} (e.g. {g.First().Sku}: {g.First().Detail})");
+
+        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        var batch = await db.PublishBatches.SingleAsync(b => b.Id == outcome.BatchId);
+        await PrintWrittenAsync(conn, batch, "Rows as written");
+
+        var type = await db.TimeSheetTaskTypes.SingleAsync(t => t.Id == AgentDbContext.TaskTypes.CreateAndPushDiscounts);
+        db.TimeSheetEntries.Add(new TimeSheetEntry
+        {
+            Date = DateOnly.FromDateTime(DateTime.Now), UserEmail = builder.Configuration["Agent:TimeSheetOwnerEmail"] ?? "",
+            TaskTypeId = type.Id, MinutesBefore = type.MinutesBefore, MinutesAfter = Math.Round((decimal)sw.Elapsed.TotalMinutes, 2),
+            What = $"Layer {layer} canary, engine run #{run}, '{category}': {outcome.Created + outcome.Updated} discounts written to the {batch.Target.ToLowerInvariant()} " +
+                   $"({batch.ShopSchema}), {outcome.Skipped} skipped",
+            Proof = $"ai.PublishBatch #{batch.Id}", Comment = "Canary publish; minutes after = the publish's wall clock.",
+        });
+        await db.SaveChangesAsync();
+
+        if (args.Contains("--rollback"))
+        {
+            var restored = await writer.RollbackAsync(outcome.BatchId);
+            Console.WriteLine($"Rolled back batch #{outcome.BatchId}: {restored} rows restored from ai.PublishAudit");
+            await PrintWrittenAsync(conn, batch, "Rows after the rollback");
+        }
+        return outcome.Status == "Published" ? 0 : 1;
+    }
+
+    case "publish-rollback":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        var batchId = long.Parse(positional[0]);
+        var restored = await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().RollbackAsync(batchId);
+        Console.WriteLine($"Rolled back batch #{batchId}: {restored} rows restored from ai.PublishAudit");
+        return 0;
+    }
+
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback ... (see Program.cs)");
         return 2;
+}
+
+// The discount rows a publish batch created or updated, with the product flags, read back from the sandbox schema
+// it wrote to (the sandbox lives in the tool DB; a live batch's rows are in the shop DB, so only its audit is shown).
+static async Task PrintWrittenAsync(string toolConnection, PublishBatch batch, string title)
+{
+    Console.WriteLine($"{title} (batch #{batch.Id}, {batch.ShopSchema}):");
+    var sandbox = batch.Target == PublisherOptions.SandboxTarget;
+    await using var c = new SqlConnection(toolConnection);
+    await c.OpenAsync();
+    await using var cmd = new SqlCommand(sandbox ? $"""
+        SELECT a.Sku, d.Id, d.Name, d.DiscountAmount, d.StartDateUtc, d.EndDateUtc, d.StoreId, d.DiscountApplyTypeId, d.DiscountPlatformTypeId,
+               p.HasDiscountsApplied, p.HasDiscountsAppliedStoreIds, a.Change
+        FROM ai.PublishAudit a
+        JOIN [{batch.ShopSchema}].[Discount] d ON d.Id = a.DiscountId
+        LEFT JOIN [{batch.ShopSchema}].[Product] p ON p.Id = a.ProductId
+        WHERE a.BatchId = @B AND a.Change IN ('DiscountCreated', 'DiscountUpdated') AND a.Applied = 1
+        ORDER BY a.Sku
+        """ : "SELECT Sku, DiscountId, DiscountName, NewDiscountAmount, NewStartDateUtc, NewEndDateUtc, 0, 0, 0, NULL, NewStoreIds, Change FROM ai.PublishAudit WHERE BatchId = @B AND Applied = 1 ORDER BY Sku", c);
+    cmd.Parameters.AddWithValue("@B", batch.Id);
+    await using var r = await cmd.ExecuteReaderAsync();
+    while (await r.ReadAsync())
+        Console.WriteLine($"  {r.GetString(0),-22} #{r.GetValue(1)} {r.GetValue(2)} amount {r.GetValue(3):0.00} " +
+                          $"{r.GetValue(4):yyyy-MM-dd HH:mm:ss} -> {r.GetValue(5):yyyy-MM-dd HH:mm:ss} store {r.GetValue(6)} apply {r.GetValue(7)} platform {r.GetValue(8)} " +
+                          $"| product flags {r.GetValue(9)} '{r.GetValue(10)}' ({r.GetString(11)})");
 }
