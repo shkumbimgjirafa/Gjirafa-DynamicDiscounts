@@ -57,7 +57,7 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
   would use `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` (an env var, never in the repo, chat
   or logs). Don't add the Anthropic SDK or an API key.
 - **Flags we rely on** (checked on Claude Code 2.1.205; confirm with `claude --help`):
-  `--model` with full ids, not aliases (`claude-opus-5-5` for Alpha, Nova and the chat, `claude-sonnet-5-5` for the run checker; on 2026-10-30 the alias `opus` ran `claude-opus-4-8` and `sonnet` ran `claude-sonnet-5`; `claude-opus-5-5` needs Claude Code 2.1.280 or newer, `claude update`), `--system-prompt`
+  `--model` with full ids, not aliases (`claude-opus-5-5` for Alpha, Nova and the chat, `claude-sonnet-5-5` for the run checker; on 2026-10-30 the alias `opus` ran `claude-opus-4-8` and `sonnet` ran `claude-sonnet-5`; `claude-opus-5-5` needs Claude Code 2.1.280 or newer; updated to 2.1.314 on 2026-10-30, both models checked: `ai.AiCallLog` #13–14), `--system-prompt`
   or `--append-system-prompt[-file]` for the agent's fixed rules, `--json-schema` for the answer's
   shape, `--tools ""` (no built-in tools: no Bash, no file access), `--strict-mcp-config
   --mcp-config` for our own read-only tools, `--no-session-persistence`, `--max-budget-usd`.
@@ -69,7 +69,7 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
   `--setting-sources ""`, `--system-prompt-file`, `--tools ""`, `--strict-mcp-config`,
   `--disable-slash-commands`, and a child environment without the parent's `CLAUDE*` / `ANTHROPIC_*` /
   `MCP_*` variables. The agent then sees only `StructuredOutput`, the input is 861 tokens, and Claude Code
-  still adds the account email, today's date and the budget line; the log redacts emails. The CLI must be
+  still adds the account email, today's date and the budget line (2.1.314 also adds an environment block: the runtime folder, platform and shell; 1,275 input tokens, #13); the log redacts emails. The CLI must be
   logged in once per machine (`claude auth login`), separately from the desktop app.
 - **Reliability:** our code does all arithmetic and sends only the rows that need judgement (e.g.
   below or near the floor). One call per run or per layer pass, never one per product. Validate the
