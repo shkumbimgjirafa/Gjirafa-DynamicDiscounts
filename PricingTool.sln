@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.Tests", "Pricin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.Agent", "PricingTool.Agent\PricingTool.Agent.csproj", "{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.AgentTools", "PricingTool.AgentTools\PricingTool.AgentTools.csproj", "{8AB28E26-22B7-409E-8695-1862AFB21F1D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,5 +50,9 @@ Global
 		{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8AB28E26-22B7-409E-8695-1862AFB21F1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8AB28E26-22B7-409E-8695-1862AFB21F1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8AB28E26-22B7-409E-8695-1862AFB21F1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8AB28E26-22B7-409E-8695-1862AFB21F1D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
