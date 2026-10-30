@@ -28,6 +28,7 @@
     <ProjectReference Include="..\PricingTool.Web\PricingTool.Web.csproj" />
     <!-- For driving the scheduler's tick (ScheduledRunWorker) against the in-memory database. -->
     <ProjectReference Include="..\PricingTool.Engine\PricingTool.Engine.csproj" />
+    <ProjectReference Include="..\PricingTool.Agent\PricingTool.Agent.csproj" />
   </ItemGroup>
 
 </Project>

@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.Web", "PricingT
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.Tests", "PricingTool.Tests\PricingTool.Tests.csproj", "{D1381782-E7B4-46E2-BCBF-916DD7F494A2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.Agent", "PricingTool.Agent\PricingTool.Agent.csproj", "{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{D1381782-E7B4-46E2-BCBF-916DD7F494A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D1381782-E7B4-46E2-BCBF-916DD7F494A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D1381782-E7B4-46E2-BCBF-916DD7F494A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F9CC0E64-0D20-4C55-9792-9D5A85EEB5F4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

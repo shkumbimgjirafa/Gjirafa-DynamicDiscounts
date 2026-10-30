@@ -1,4 +1,9 @@
-# Gjirafa AI Dynamic Pricing Tool — v1
+# Gjirafa Dynamic Pricing Tool: pricing calculator v0.5 + Pricing Tool v2 (hackathon build)
+
+The calculator described below (v0.5) works with rules and statistics; it has no AI model in it.
+The AI part of Pricing Tool v2, the pricing agent Alpha and the campaign agent Nova, is the Gjirafa
+AI Hackathon 2026 build in `PricingTool.Agent`. See `DECLARATION.md` and
+`docs/hackathon-2026/kickoff-plan.md`.
 
 In-house automated dynamic pricing for Gjirafa's e-commerce stores. Recalculates **proposed**
 prices on a configurable schedule (default daily 03:00 UTC) from margin, demand, inventory and
