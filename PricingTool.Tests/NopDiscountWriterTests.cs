@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 using PricingTool.Data;
@@ -69,13 +70,34 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         Currency = "EUR", IsActive = true,
     };
 
-    private NopDiscountWriter Writer(Action<PublisherOptions>? configure = null)
+    private NopDiscountWriter Writer(Action<PublisherOptions>? configure = null, IKillSwitch? killSwitch = null)
     {
         var options = new PublisherOptions { ChunkSize = 5000, RollingExpiryDays = 7, RoundTripRollbackPct = 5m };
         configure?.Invoke(options);
         var o = Options.Create(options);
         return new NopDiscountWriter(o, new AgentDataSource(_fixture.ConnectionString), _db, _tool,
-            new ShopCacheInvalidator(o, new ConfigurationBuilder().Build()), NullLogger<NopDiscountWriter>.Instance, _clock);
+            new ShopCacheInvalidator(o, new ConfigurationBuilder().Build()), NullLogger<NopDiscountWriter>.Instance, _clock, killSwitch);
+    }
+
+    private sealed class PulledSwitch : IKillSwitch
+    {
+        public Task<KillSwitchState> GetAsync(CancellationToken ct = default) =>
+            Task.FromResult(new KillSwitchState(true, "pulled by manager@test at 2026-10-30 18:00 UTC"));
+    }
+
+    /// <summary>The product map the canary reads its category from (Gjirafa50: L1 category).</summary>
+    private void MapProducts(params (int Layer, int ProductId, string Sku, string Category)[] rows)
+    {
+        using var c = _fixture.Open();
+        Exec(c, "IF SCHEMA_ID('hk') IS NULL EXEC('CREATE SCHEMA hk');");
+        Exec(c, """
+            IF OBJECT_ID('hk.Products') IS NULL
+                CREATE TABLE hk.Products (LayerId int NOT NULL, ProductId int NOT NULL, Sku nvarchar(400) NULL,
+                    CategoryL1 nvarchar(400) NOT NULL, MainGroup nvarchar(100) NOT NULL, PRIMARY KEY (LayerId, ProductId));
+            DELETE FROM hk.Products;
+            """);
+        foreach (var r in rows)
+            Exec(c, $"INSERT INTO hk.Products VALUES ({r.Layer}, {r.ProductId}, N'{r.Sku}', N'{r.Category}', N'Others')");
     }
 
     // ---- sandbox helpers -------------------------------------------------------------------------------
@@ -189,6 +211,70 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         Assert.Equal("ai-price-1-MALL-1", Assert.Single(Discounts(Mall)).Name);
         using var c = _fixture.Open();
         Assert.False((bool)new SqlCommand($"SELECT DisplayAvailabilityTime FROM [{Mall}].[Discount]", c).ExecuteScalar()!);
+    }
+
+    // ---- the switches: any one stops the publish before a shop row is touched ---------------------------
+
+    [LocalDbFact]
+    public async Task A_pulled_kill_switch_stops_the_publish_and_writes_nothing()
+    {
+        Product(101, "SKU-A");
+
+        var outcome = await Writer(killSwitch: new PulledSwitch()).PublishAsync(Regular(4, ("SKU-A", 49.50m)));
+
+        Assert.Equal(("Stopped", 0, 1), (outcome.Status, outcome.Created, outcome.Skipped));
+        Assert.Empty(Discounts());
+        Assert.Equal((false, (string?)null), Flags(101));
+        var batch = await _db.PublishBatches.SingleAsync();
+        Assert.Contains("kill switch (pulled by manager@test", batch.Note);
+        Assert.Empty(await _db.PublishAudits.ToListAsync());
+    }
+
+    [LocalDbFact]
+    public async Task A_layer_missing_from_EnabledLayers_is_not_published()
+    {
+        Product(101, "SKU-A");
+
+        var outcome = await Writer(o => o.EnabledLayers = new() { 1 }).PublishAsync(Regular(4, ("SKU-A", 49.50m)));
+
+        Assert.Equal("Stopped", outcome.Status);
+        Assert.Empty(Discounts());
+        Assert.Contains("Layer 4 is not in Publisher:EnabledLayers (1)", (await _db.PublishBatches.SingleAsync()).Note);
+    }
+
+    [Fact]
+    public void An_empty_EnabledLayers_means_every_layer_on_the_sandbox_and_none_live()
+    {
+        Assert.True(new PublisherOptions { Target = PublisherOptions.SandboxTarget }.IsLayerEnabled(4));
+        Assert.False(new PublisherOptions { Target = PublisherOptions.LiveTarget }.IsLayerEnabled(4));
+        Assert.True(new PublisherOptions { Target = PublisherOptions.LiveTarget, EnabledLayers = new() { 4 } }.IsLayerEnabled(4));
+    }
+
+    [LocalDbFact]
+    public async Task The_canary_publishes_only_its_category_and_at_most_its_cap()
+    {
+        Product(301, "CAN-1");
+        Product(302, "CAN-2");
+        Product(303, "CAN-3");
+        MapProducts((4, 301, "CAN-1", "Gaming"), (4, 302, "CAN-2", "Gaming"), (4, 303, "CAN-3", "Laptopë"));
+
+        var outcome = await Writer(o => o.Canary = new CanaryOptions { Enabled = true, Category = "Gaming", MaxSkus = 1 })
+            .PublishAsync(Regular(4, ("CAN-1", 9.50m), ("CAN-2", 9.50m), ("CAN-3", 9.50m)));
+
+        Assert.Equal(("Published", 1, 2), (outcome.Status, outcome.Created, outcome.Skipped));
+        Assert.Equal("ai-price-4-CAN-1", Assert.Single(Discounts()).Name);
+        Assert.Contains("1 outside the category and 1 over the cap left out", (await _db.PublishBatches.SingleAsync()).Note);
+    }
+
+    [LocalDbFact]
+    public async Task A_canary_without_a_category_stops_the_publish()
+    {
+        Product(101, "SKU-A");
+
+        var outcome = await Writer(o => o.Canary = new CanaryOptions { Enabled = true }).PublishAsync(Regular(4, ("SKU-A", 49.50m)));
+
+        Assert.Equal("Stopped", outcome.Status);
+        Assert.Empty(Discounts());
     }
 
     [LocalDbFact]

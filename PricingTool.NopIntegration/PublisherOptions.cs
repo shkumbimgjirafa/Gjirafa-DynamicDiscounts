@@ -15,6 +15,17 @@ public class PublisherOptions
 
     public string Target { get; set; } = SandboxTarget;
 
+    public bool IsSandbox => string.Equals(Target, SandboxTarget, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The layers allowed to publish. Empty means every layer on the sandbox and none on Live, so going
+    /// live opens one layer at a time (GO-LIVE.md step 4).</summary>
+    public List<int> EnabledLayers { get; set; } = new();
+
+    public bool IsLayerEnabled(int layerId) => EnabledLayers.Count == 0 ? IsSandbox : EnabledLayers.Contains(layerId);
+
+    /// <summary>For the first live runs: one category and a few SKUs per publish (plan section 5, "Canary").</summary>
+    public CanaryOptions Canary { get; set; } = new();
+
     /// <summary>Per shop database (GjirafaMall, GjirafaEcommerce): where its discount tables are.</summary>
     public Dictionary<string, ShopConnection> Shops { get; set; } = new();
 
@@ -57,6 +68,16 @@ public class PublisherOptions
             throw new InvalidOperationException($"Publisher:Target is Live, but shop {db} has no write connection or schema configured.");
         return shop;
     }
+}
+
+/// <summary>When on, a publish writes only the SKUs of <see cref="Category"/> (GjirafaMall: main group,
+/// Gjirafa50: L1 category, as for the holdout) and at most <see cref="MaxSkus"/> of them; the rest are left
+/// out and counted on the batch. On without a category stops the publish.</summary>
+public class CanaryOptions
+{
+    public bool Enabled { get; set; }
+    public string? Category { get; set; }
+    public int MaxSkus { get; set; } = 50;
 }
 
 public class ShopConnection

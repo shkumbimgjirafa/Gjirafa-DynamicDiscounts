@@ -4,6 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 using PricingTool.Data;
@@ -60,12 +61,13 @@ public sealed class NopDiscountWriter
     private readonly IShopCacheInvalidator _cache;
     private readonly ILogger<NopDiscountWriter> _logger;
     private readonly TimeProvider _clock;
+    private readonly IKillSwitch? _killSwitch;
 
     /// <summary>Tests only: runs inside each chunk's transaction after its writes, before the commit.</summary>
     internal Func<int, Task>? BeforeChunkCommit { get; set; }
 
     public NopDiscountWriter(IOptions<PublisherOptions> options, AgentDataSource tool, AgentDbContext db, PricingToolDbContext toolDb,
-        IShopCacheInvalidator cache, ILogger<NopDiscountWriter> logger, TimeProvider? clock = null)
+        IShopCacheInvalidator cache, ILogger<NopDiscountWriter> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null)
     {
         _options = options.Value;
         _tool = tool;
@@ -74,6 +76,7 @@ public sealed class NopDiscountWriter
         _cache = cache;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
+        _killSwitch = killSwitch;
     }
 
     public static string NameFor(PublishRequest r, string sku) =>
@@ -94,6 +97,10 @@ public sealed class NopDiscountWriter
         _db.PublishBatches.Add(batch);
         await _db.SaveChangesAsync(ct);
 
+        // The switches: any one of them stops the publish before a single shop row is touched.
+        if (await StopReasonAsync(request.LayerId, ct) is { } stop)
+            return await StopAsync(batch, stop);
+
         var exceptions = new List<PublishException>();
         var items = new List<PublishItem>();
         foreach (var g in request.Items.GroupBy(i => i.Sku.Trim(), StringComparer.Ordinal))
@@ -102,6 +109,20 @@ public sealed class NopDiscountWriter
             if (item.Price <= 0) exceptions.Add(Exception(batch, item.Sku, "invalid-price", $"Price {item.Price} is not a price."));
             else if (NameFor(request, item.Sku).Length > 400) exceptions.Add(Exception(batch, item.Sku, "sku-too-long", "The discount name would exceed nvarchar(400)."));
             else items.Add(item);
+        }
+
+        var canaryLeftOut = 0;
+        if (_options.Canary.Enabled)
+        {
+            var canary = _options.Canary;
+            var inCategory = await CanarySkusAsync(layer, canary.Category!, ct);
+            var outside = items.Count(i => !inCategory.Contains(i.Sku));
+            var kept = items.Where(i => inCategory.Contains(i.Sku)).OrderBy(i => i.Sku, StringComparer.Ordinal)
+                .Take(Math.Max(0, canary.MaxSkus)).ToList();
+            canaryLeftOut = items.Count - kept.Count;
+            batch.Note = $"Canary: {kept.Count} of {items.Count} prices published ('{canary.Category}', at most {canary.MaxSkus}); " +
+                         $"{outside} outside the category and {canaryLeftOut - outside} over the cap left out.";
+            items = kept;
         }
 
         var written = new List<(PublishItem Item, int ProductId, string Name)>();
@@ -126,7 +147,7 @@ public sealed class NopDiscountWriter
         }
 
         _db.PublishExceptions.AddRange(exceptions);
-        batch.Skipped = exceptions.Select(e => e.Sku).Distinct().Count(sku => written.All(w => w.Item.Sku != sku));
+        batch.Skipped = exceptions.Select(e => e.Sku).Distinct().Count(sku => written.All(w => w.Item.Sku != sku)) + canaryLeftOut;
         batch.Status = written.Count == 0 && items.Count > 0 ? "Failed" : "Published";
         batch.FinishedUtc = Truncate(_clock.GetUtcNow().UtcDateTime);
         await _db.SaveChangesAsync(CancellationToken.None);
@@ -500,7 +521,7 @@ public sealed class NopDiscountWriter
         return audits.Count;
     }
 
-    private sealed record LayerRef(int LayerId, string Db, int StoreId, bool HasDisplayAvailabilityTime);
+    private sealed record LayerRef(int LayerId, string Db, int StoreId, bool HasDisplayAvailabilityTime, bool IsMall);
 
     private async Task<(ShopConnection Shop, LayerRef Layer)> ShopForLayerAsync(int layerId, CancellationToken ct)
     {
@@ -508,7 +529,53 @@ public sealed class NopDiscountWriter
         var shop = _options.ShopFor(layer.OperationalDatabase, _tool.ConnectionString);
         var hasDisplay = SandboxSchema.LoadSnapshot().Any(r => r.Db == layer.OperationalDatabase && r.Kind == "column"
             && r.Table == "Discount" && r.Name == "DisplayAvailabilityTime");
-        return (shop, new LayerRef(layerId, layer.OperationalDatabase, layer.StoreId, hasDisplay));
+        return (shop, new LayerRef(layerId, layer.OperationalDatabase, layer.StoreId, hasDisplay,
+            string.Equals(layer.Brand, "GjirafaMall", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>Why this publish may not run, or null: the kill switch, the layer not enabled, or a canary
+    /// without a category.</summary>
+    private async Task<string?> StopReasonAsync(int layerId, CancellationToken ct)
+    {
+        if (_killSwitch is not null && await _killSwitch.GetAsync(ct) is { Stopped: true } ks)
+            return $"Stopped by the kill switch ({ks.Reason}).";
+        if (!_options.IsLayerEnabled(layerId))
+            return _options.EnabledLayers.Count == 0
+                ? $"Publisher:Target is {_options.Target} and Publisher:EnabledLayers is empty: no layer may publish."
+                : $"Layer {layerId} is not in Publisher:EnabledLayers ({string.Join(", ", _options.EnabledLayers)}).";
+        if (_options.Canary.Enabled && string.IsNullOrWhiteSpace(_options.Canary.Category))
+            return "Publisher:Canary is on but names no category.";
+        return null;
+    }
+
+    /// <summary>Records the publish as Stopped with the reason; nothing was written to the shop.</summary>
+    private async Task<PublishOutcome> StopAsync(PublishBatch batch, string reason)
+    {
+        batch.Status = "Stopped";
+        batch.Skipped = batch.Requested;
+        batch.Note = reason;
+        batch.FinishedUtc = Truncate(_clock.GetUtcNow().UtcDateTime);
+        await _db.SaveChangesAsync(CancellationToken.None);
+        _logger.LogWarning("Publish batch {Batch} for layer {Layer} stopped: {Reason}", batch.Id, batch.LayerId, reason);
+        return new PublishOutcome(batch.Id, batch.Status, 0, 0, 0, batch.Skipped, 0, 0, false, Array.Empty<PublishException>());
+    }
+
+    /// <summary>The layer's SKUs in the canary category, from the product map (GjirafaMall: main group,
+    /// Gjirafa50: L1 category, the holdout's convention).</summary>
+    private async Task<HashSet<string>> CanarySkusAsync(LayerRef layer, string category, CancellationToken ct)
+    {
+        var skus = new HashSet<string>(StringComparer.Ordinal);
+        await using var conn = new SqlConnection(_tool.ConnectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = new SqlCommand(
+            "SELECT Sku FROM hk.Products WHERE LayerId = @L AND Sku IS NOT NULL AND (CASE WHEN @Mall = 1 THEN MainGroup ELSE CategoryL1 END) = @Cat",
+            conn) { CommandTimeout = 120 };
+        cmd.Parameters.AddWithValue("@L", layer.LayerId);
+        cmd.Parameters.AddWithValue("@Mall", layer.IsMall);
+        cmd.Parameters.AddWithValue("@Cat", category);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct)) skus.Add(r.GetString(0).Trim());
+        return skus;
     }
 
     private (DateTime Start, DateTime End) Window(PublishRequest r, DateTime now)
