@@ -10,24 +10,24 @@ public sealed partial class AgentDataTools
     private const int TrendWeeksMax = 52;
 
     /// <summary>
-    /// Every past campaign of the layer: units per day against the 28 days before (season-adjusted with the same windows
-    /// a year earlier where they sold enough), discount depth against normal days, margin and gross profit per day; and
-    /// the uplift curve (how much volume each extra point of discount bought), per category.
+    /// Every past campaign of the layer, in two views kept apart. What the campaigns did: units per day against the 28 days
+    /// before (season-adjusted with the same windows a year earlier where usable), discount depth against normal days,
+    /// margin and gross profit per day; event and depth together. What depth buys: the within-campaign fit (campaign
+    /// fixed effects, <see cref="CampaignMath.FitWithinCampaign"/>), with each campaign type's event lift, and the engine's
+    /// fitted SKU elasticity next to it as a sanity check.
     /// </summary>
     public Task<object> GetCampaignHistoryAsync(AgentToolContext ctx, int layer, string? category, CancellationToken ct = default) =>
         LoggedAsync(ctx, AgentToolNames.GetCampaignHistory, new { layer, category }, async () =>
         {
             var today = Today();
-            var (byCampaign, windows) = await CampaignSegmentsAsync(layer, category, today, ct);
+            var (byCampaign, windows) = await CampaignSegmentsAsync(layer, null, today, ct);
             var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layer && c.SourceCampaignId != null)
                 .ToDictionaryAsync(c => c.SourceCampaignId!.Value, c => c.Id, ct);
 
-            // Campaigns that ended in the last 14 days still lose lines to cancellations: listed, not in the curves.
-            bool Provisional(CampaignWindow w) => w.EndDate > today.AddDays(-14);
             object Row(CampaignWindow w, CampaignEffect e) => new
             {
-                calendarId = calendar.TryGetValue(w.CampaignId, out var id) ? id : (long?)null, campaign = w.Name, provisional = Provisional(w),
-                dates = $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd}", w.CampaignType,
+                calendarId = calendar.TryGetValue(w.CampaignId, out var id) ? id : (long?)null, campaign = w.Name, type = CampaignMath.TypeOf(w.Name),
+                provisional = Provisional(w, today), dates = $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd}", w.CampaignType,
                 unitsPerDayBefore = R1(e.UnitsPerDayBefore), unitsPerDayCampaign = R1(e.UnitsPerDayCampaign),
                 rawUplift = R2(e.RawUplift), seasonFactor = R2(e.SeasonFactor), uplift = R2(e.Uplift),
                 depthBeforePct = R1(e.DepthBeforePct), depthCampaignPct = R1(e.DepthCampaignPct), extraDepthPp = R1(e.ExtraDepthPp),
@@ -35,54 +35,78 @@ public sealed partial class AgentDataTools
                 gpPerDayBefore = R0(e.GpPerDayBefore), gpPerDayCampaign = R0(e.GpPerDayCampaign), thin = e.Thin,
             };
 
-            var totals = byCampaign.Select(c => (c.Window, Effect: CampaignMath.Read(Total(c.ByCategory.Values)))).ToList();
-            var layerCurve = CampaignMath.Fit(totals.Where(t => !Provisional(t.Window)).Select(t => t.Effect), "all categories");
-            object Curve(UpliftCurve c) => new
-            {
-                b = c.B, campaignsUsed = c.Points, unitsMultiplierAtExtraDepthPct = c.Grid.ToDictionary(g => g.DepthPct.ToString("0"), g => g.Uplift),
-                c.Basis,
-            };
+            var rows = byCampaign.Select(c => (c.Window, Effect: CampaignMath.Read(category is null
+                ? Total(c.ByCategory.Values)
+                : c.ByCategory.TryGetValue(category, out var s) ? s : Empty(c)))).ToList();
+            var eventPlusDepth = CampaignMath.Fit(rows.Where(r => !Provisional(r.Window, today)).Select(r => r.Effect), category ?? "all categories");
+            var depth = DepthEffectFrom(byCampaign, today);
+            var elasticity = await MedianUsableElasticityAsync(layer, category, ct);
 
             const string basis = "Booked COGS, EUR VAT excl. uplift = units/day in the campaign over the 28 days before, divided by the same " +
                                  "ratio a year earlier (seasonFactor; null when last year's windows sold too little, start before the data " +
                                  "(Oct 2024) or follow a campaign, then uplift = rawUplift). depth = discount given / pre-discount price, both incl. " +
                                  "VAT, lines claiming over 80 % off left out (data errors); extraDepthPp = campaign depth minus normal-day depth. " +
-                                 "provisional = ended in the last 14 days (cancellations still post): not in the curves. Depth is null where " +
-                                 "under 20 % of the lines carry a discount (GjirafaMall from Nov 2025: discounts stopped being booked on the line). The curve " +
-                                 "fits units multiplier = exp(b x extra depth) through (0, 1); it includes the campaign's own traffic, so it is an " +
-                                 "estimate of what a campaign at that depth buys, not of a quiet price cut.";
-            if (category is not null)
-            {
-                var rows = byCampaign.Select(c => (c.Window, Effect: CampaignMath.Read(c.ByCategory.TryGetValue(category, out var s) ? s : Empty(c))))
-                    .ToList();
-                return (new
-                {
-                    layer, category, basis,
-                    campaigns = rows.Select(r => Row(r.Window, r.Effect)),
-                    curve = Curve(CampaignMath.Fit(rows.Where(r => !Provisional(r.Window)).Select(r => r.Effect), category)),
-                    layerCurve = Curve(layerCurve),
-                    upcoming = windows.Where(w => w.EndDate >= today).Select(w => new { w.Name, dates = $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd}", w.CampaignType }),
-                }, rows.Count);
-            }
-
-            var categories = byCampaign.SelectMany(c => c.ByCategory.Keys).Distinct().OrderBy(c => c, StringComparer.Ordinal).ToList();
-            var perCategory = categories.Select(cat => (cat, curve: CampaignMath.Fit(
-                    byCampaign.Where(c => !Provisional(c.Window)).Select(c => CampaignMath.Read(c.ByCategory.TryGetValue(cat, out var s) ? s : Empty(c))), cat)))
-                .Where(x => x.curve.Points > 0).OrderByDescending(x => x.curve.Points).ToList();
+                                 "Depth is null where under 20 % of the lines carry a discount (GjirafaMall from Nov 2025). provisional = ended " +
+                                 "in the last 14 days (cancellations still post): listed, not fitted.";
             return (new
             {
-                layer, basis,
-                campaigns = totals.Select(t => Row(t.Window, t.Effect)),
-                layerCurve = Curve(layerCurve),
-                categoryCurves = perCategory.Select(x => new
+                layer, category = category ?? "all", basis,
+                whatCampaignsDid = new
                 {
-                    category = x.cat, b = x.curve.B, campaignsUsed = x.curve.Points,
-                    at10Pct = x.curve.UpliftAt(10) is { } u10 ? Math.Round(u10, 2) : (decimal?)null,
-                    at20Pct = x.curve.UpliftAt(20) is { } u20 ? Math.Round(u20, 2) : (decimal?)null,
+                    note = "Event and depth together: the campaign's traffic, banners and newsletter are in these numbers. Not what depth alone buys.",
+                    campaigns = rows.Select(r => Row(r.Window, r.Effect)),
+                    eventPlusDepthCurve = new
+                    {
+                        b = eventPlusDepth.B, campaignsUsed = eventPlusDepth.Points,
+                        unitsMultiplierAtExtraDepthPct = eventPlusDepth.Grid.ToDictionary(g => g.DepthPct.ToString("0"), g => g.Uplift),
+                        eventPlusDepth.Basis,
+                    },
+                },
+                whatDepthBuys = new
+                {
+                    note = "units multiplier = eventLift(campaign type) x exp(b x extra depth). b comes only from categories that went deeper " +
+                           "or shallower than others in the same campaign (campaign fixed effects), all categories of the layer pooled; " +
+                           "never read beyond the extra depths seen. impliedElasticity ~ -b, next to the engine's own fitted SKU elasticity.",
+                    b = depth.B, campaignsUsed = depth.Campaigns, points = depth.Points,
+                    extraDepthSeenPp = depth.B is null ? null : $"{depth.MinDepthPct:0.#} to {depth.MaxDepthPct:0.#}",
+                    depthMultiplierAtExtraDepthPct = depth.B is null ? null
+                        : CampaignMath.DepthGrid.ToDictionary(d => d.ToString("0"), d => Math.Round(depth.DepthMultiplier(d)!.Value, 2)),
+                    impliedElasticity = depth.B is { } b ? -b : (decimal?)null,
+                    engineMedianSkuElasticity = elasticity,
+                    eventLiftByType = depth.EventLiftByType,
+                    depth.Basis,
+                },
+                upcoming = windows.Where(w => w.EndDate >= today).Select(w => new
+                {
+                    calendarId = calendar.TryGetValue(w.CampaignId, out var id) ? id : (long?)null, w.Name, type = CampaignMath.TypeOf(w.Name),
+                    dates = $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd}", w.CampaignType,
                 }),
-                upcoming = windows.Where(w => w.EndDate >= today).Select(w => new { w.Name, dates = $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd}", w.CampaignType }),
-            }, totals.Count);
+            }, rows.Count);
         }, ct);
+
+    /// <summary>The layer's within-campaign depth effect, for the campaign planner (code, not a logged tool call).</summary>
+    public async Task<DepthEffect> GetDepthEffectAsync(int layer, CancellationToken ct = default)
+    {
+        var today = Today();
+        var (byCampaign, _) = await CampaignSegmentsAsync(layer, null, today, ct);
+        return DepthEffectFrom(byCampaign, today);
+    }
+
+    private static DepthEffect DepthEffectFrom(List<(CampaignWindow Window, Dictionary<string, CampaignSegments> ByCategory)> byCampaign, DateOnly today) =>
+        CampaignMath.FitWithinCampaign(byCampaign.Where(c => !Provisional(c.Window, today)).SelectMany(c => c.ByCategory.Select(kv =>
+            new CampaignPoint(c.Window.CampaignId.ToString(System.Globalization.CultureInfo.InvariantCulture), CampaignMath.TypeOf(c.Window.Name),
+                CampaignMath.Read(kv.Value)))), "all categories");
+
+    private static bool Provisional(CampaignWindow w, DateOnly today) => w.EndDate > today.AddDays(-14);
+
+    /// <summary>The median usable per-SKU elasticity the engine fitted, for the SKUs its latest run priced.</summary>
+    private async Task<decimal?> MedianUsableElasticityAsync(int layer, string? category, CancellationToken ct)
+    {
+        var run = await _reader.GetLatestRunAsync(layer, ct);
+        if (run is null) return null;
+        var usable = (await _reader.GetElasticityFitsAsync(layer, run, null, category, ct)).Where(f => f.IsUsable).Select(f => f.Coefficient).OrderBy(c => c).ToList();
+        return usable.Count == 0 ? null : Math.Round(Median(usable), 2);
+    }
 
     /// <summary>Revenue, gross profit, margin, units and discount depth per week against the same weeks a year earlier,
     /// with each week's campaign days, plus today's local stock and dead-stock share from the latest engine run.</summary>

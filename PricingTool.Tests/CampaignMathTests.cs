@@ -68,6 +68,45 @@ public class CampaignMathTests
     }
 
     [Fact]
+    public void Within_campaign_the_depth_slope_is_told_apart_from_the_campaigns_own_lift()
+    {
+        // True model: units multiplier = event lift x exp(3 x extra depth). Three campaigns with big, different event lifts;
+        // two categories in each, at different depths.
+        const double trueB = 3;
+        CampaignPoint P(string campaign, string type, double eventLift, decimal extraPp) =>
+            new(campaign, type, Effect(extraPp, (decimal)(eventLift * Math.Exp(trueB * (double)extraPp / 100))));
+        var points = new[]
+        {
+            P("bf24", "Black Friday", 5, 10), P("bf24", "Black Friday", 5, 20),
+            P("pt25", "Për ty", 2, 5), P("pt25", "Për ty", 2, 15),
+            P("bf25", "Black Friday", 3, 10), P("bf25", "Black Friday", 3, 25),
+        };
+
+        var throughOrigin = CampaignMath.Fit(points.Select(p => p.Effect), "event + depth");
+        Assert.True(throughOrigin.B > 8m);                                   // the event lift lands in the slope
+
+        var within = CampaignMath.FitWithinCampaign(points, "test");
+        Assert.Equal(3m, within.B);                                          // the true slope
+        Assert.Equal((3, 6), (within.Campaigns, within.Points));
+        Assert.Equal(5m, within.EventLiftByCampaign["bf24"]);
+        Assert.Equal(4m, within.EventLift("Black Friday"));                  // median of 5 and 3
+        Assert.Equal(2m, within.EventLift("Për ty"));
+        Assert.Equal(1.82m, Math.Round(within.DepthMultiplier(20)!.Value, 2)); // exp(0.6)
+        Assert.Equal(within.DepthMultiplier(25), within.DepthMultiplier(40)); // never beyond the deepest point seen
+
+        // A campaign with one category doesn't count; too few left gives no slope.
+        Assert.Null(CampaignMath.FitWithinCampaign(points.Take(4).Append(P("x", "x", 2, 10)), "too few").B);
+    }
+
+    [Theory]
+    [InlineData("Për ty, Oct 2025", "Për ty")]
+    [InlineData("50 Orë Magjike 2026 (Mall)", "50 Orë Magjike")]
+    [InlineData("Black Friday 2026", "Black Friday")]
+    [InlineData("Valentine's 2026", "Valentine's")]
+    public void A_campaign_type_is_its_name_without_year_month_or_note(string name, string type) =>
+        Assert.Equal(type, CampaignMath.TypeOf(name));
+
+    [Fact]
     public void A_calendar_entry_moves_from_planned_to_live_to_done_with_its_dates()
     {
         var start = new DateOnly(2026, 11, 27);

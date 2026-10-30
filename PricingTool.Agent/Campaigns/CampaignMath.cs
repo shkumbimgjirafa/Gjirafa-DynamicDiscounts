@@ -42,9 +42,27 @@ public sealed record UpliftCurve(decimal? B, int Points, IReadOnlyList<(decimal 
     public decimal? UpliftAt(decimal depthPct) => B is { } b ? (decimal)Math.Exp((double)(b * Math.Min(depthPct, MaxDepthPct) / 100m)) : null;
 }
 
+/// <summary>One campaign × category point for the within-campaign fit.</summary>
+public sealed record CampaignPoint(string CampaignKey, string CampaignType, CampaignEffect Effect);
+
 /// <summary>
-/// The campaign arithmetic (plan section 5, "get_campaign_history"): how much volume each depth of discount bought, per
-/// category. Pure, so the planner and the tests read the same numbers.
+/// What depth alone buys, separated from what the campaign event brings (see <see cref="CampaignMath.FitWithinCampaign"/>):
+/// units multiplier = event lift(type) × exp(B × extra depth), extra depth never read beyond <see cref="MaxDepthPct"/>.
+/// </summary>
+public sealed record DepthEffect(decimal? B, int Campaigns, int Points, decimal MaxDepthPct, decimal MinDepthPct,
+    IReadOnlyDictionary<string, decimal> EventLiftByCampaign, IReadOnlyDictionary<string, decimal> EventLiftByType, string Basis)
+{
+    /// <summary>The units multiplier depth alone buys at <paramref name="extraDepthPct"/> points over normal-day depth.</summary>
+    public decimal? DepthMultiplier(decimal extraDepthPct) =>
+        B is { } b ? (decimal)Math.Exp((double)(b * Math.Clamp(extraDepthPct, Math.Min(0, MinDepthPct), MaxDepthPct) / 100m)) : null;
+
+    /// <summary>The event lift of a campaign type (median over its past windows), or null when none was measured.</summary>
+    public decimal? EventLift(string type) => EventLiftByType.TryGetValue(type, out var v) ? v : null;
+}
+
+/// <summary>
+/// The campaign arithmetic (plan section 5, "get_campaign_history"): what past campaigns did, and how much volume depth
+/// alone buys. Pure, so the planner and the tests read the same numbers.
 /// </summary>
 public static class CampaignMath
 {
@@ -74,9 +92,10 @@ public static class CampaignMath
     }
 
     /// <summary>
-    /// Least squares of ln(uplift) on extra depth through the origin (no extra depth, no extra units): B = Σ d·ln u / Σ d².
-    /// Uses campaigns that went at least half a point deeper than normal days and aren't thin. Fewer than three such
-    /// campaigns gives no fit (B null).
+    /// What a campaign like these did, event and depth together: least squares of ln(uplift) on extra depth through the
+    /// origin, B = Σ d·ln u / Σ d². Everything the campaign brought (traffic, banners, newsletter, season residue) lands in
+    /// B, so it is not what depth alone buys: use <see cref="FitWithinCampaign"/> for that. Uses campaigns that went at
+    /// least half a point deeper than normal days and aren't thin; fewer than three gives no fit (B null).
     /// </summary>
     public static UpliftCurve Fit(IEnumerable<CampaignEffect> effects, string basis)
     {
@@ -91,4 +110,52 @@ public static class CampaignMath
             basis + $"; {points.Count} campaigns, extra depth up to {maxDepth:0.#} pt (deeper is read as {maxDepth:0.#})", maxDepth);
         return curve with { Grid = DepthGrid.Select(d => (d, Math.Round(curve.UpliftAt(d)!.Value, 2))).ToList() };
     }
+
+    /// <summary>
+    /// What depth alone buys: ln u(c, k) = a_k + B · d(c, k) over categories c in campaigns k, with a per-campaign intercept
+    /// a_k (campaign fixed effects). B then comes only from categories that went deeper or shallower than others in the
+    /// same campaign, under the same traffic; exp(a_k) is what campaign k brought at normal depth (its event lift), kept
+    /// per campaign type as the median over its windows. Uses campaigns with at least two non-thin categories whose depth
+    /// was recorded; fewer than three such campaigns or six points gives no B.
+    /// </summary>
+    public static DepthEffect FitWithinCampaign(IEnumerable<CampaignPoint> points, string basis)
+    {
+        var usable = points.Where(p => !p.Effect.Thin && p.Effect.ExtraDepthPp is not null && p.Effect.Uplift is > 0m)
+            .Select(p => (p.CampaignKey, p.CampaignType, D: (double)(p.Effect.ExtraDepthPp!.Value / 100m), LnU: Math.Log((double)p.Effect.Uplift!.Value)))
+            .GroupBy(p => p.CampaignKey).Where(g => g.Count() >= 2).ToList();
+        var n = usable.Sum(g => g.Count());
+        var empty = new Dictionary<string, decimal>();
+        if (usable.Count < 3 || n < 6)
+            return new DepthEffect(null, usable.Count, n, 0, 0, empty, empty,
+                basis + $"; {usable.Count} campaigns with two or more categories of recorded depth, {n} points: too few for a within-campaign fit (3 campaigns, 6 points needed)");
+
+        double sxy = 0, sxx = 0;
+        foreach (var g in usable)
+        {
+            double md = g.Average(p => p.D), mu = g.Average(p => p.LnU);
+            foreach (var p in g) { sxy += (p.D - md) * (p.LnU - mu); sxx += (p.D - md) * (p.D - md); }
+        }
+        if (sxx <= 0)
+            return new DepthEffect(null, usable.Count, n, 0, 0, empty, empty, basis + "; no variation in depth within a campaign");
+        var b = sxy / sxx;
+        var lifts = usable.ToDictionary(g => g.Key, g => (decimal)Math.Round(Math.Exp(g.Average(p => p.LnU) - b * g.Average(p => p.D)), 2));
+        var byType = usable.GroupBy(g => g.First().CampaignType)
+            .ToDictionary(t => t.Key, t => Median(t.Select(g => lifts[g.Key]).OrderBy(v => v).ToList()));
+        var all = usable.SelectMany(g => g).ToList();
+        var max = Math.Round((decimal)all.Max(p => p.D) * 100m, 1);
+        var min = Math.Round((decimal)all.Min(p => p.D) * 100m, 1);
+        return new DepthEffect(Math.Round((decimal)b, 3), usable.Count, n, max, min, lifts, byType,
+            basis + $"; within-campaign fit over {usable.Count} campaigns and {n} campaign x category points, extra depth {min:0.#} to {max:0.#} pt");
+    }
+
+    /// <summary>A campaign's type from its name: the name without the year, the month or a bracketed note
+    /// ("Për ty, Oct 2025" → "Për ty", "50 Orë Magjike 2026 (Mall)" → "50 Orë Magjike").</summary>
+    public static string TypeOf(string name)
+    {
+        var t = System.Text.RegularExpressions.Regex.Replace(name, @"\(.*?\)|\b(19|20)\d{2}\b|,?\s*\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b", "");
+        return System.Text.RegularExpressions.Regex.Replace(t, @"[\s,]+$|\s{2,}", " ").Trim().TrimEnd(',').Trim();
+    }
+
+    private static decimal Median(IReadOnlyList<decimal> sorted) =>
+        sorted.Count % 2 == 1 ? sorted[sorted.Count / 2] : (sorted[sorted.Count / 2 - 1] + sorted[sorted.Count / 2]) / 2m;
 }
