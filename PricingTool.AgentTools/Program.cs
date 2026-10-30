@@ -5,10 +5,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using PricingTool.Agent;
 using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Checker;
 using PricingTool.Agent.ClaudeCode;
+using PricingTool.Agent.Operations;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 using Microsoft.Data.SqlClient;
@@ -28,6 +30,10 @@ using PricingTool.NopIntegration.Sandbox;
 //   publish-rollback <batch id>                                     restore what a publish batch changed
 //   check-run <run id> [--test]                                     the pre-publish run check (one model call)
 //   export-run <run id> [--out <dir>]                               the checked export for the push (refused when blocked)
+//   mark-pushed <export batch id> [--by <who>]                      record an export as pushed (an Approval): its measurement starts
+//   ledger                                                          update the money ledger and print its entries
+//   timesheet                                                       export the hours-saved sheet (xlsx, csv, json)
+//   cycle-status [yyyy-MM-dd]                                       the daily cycle's steps for a day (default today)
 // Settings come from appsettings.json next to the executable (the hackathon DB; no secrets).
 
 var command = args.FirstOrDefault() ?? "";
@@ -269,6 +275,57 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "mark-pushed":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var batchId = long.Parse(positional[0]);
+        var by = Opt("--by") ?? host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.Cycle.PushedBy;
+        var approvalId = await scope.ServiceProvider.GetRequiredService<CheckedExport>().MarkPushedAsync(batchId, by);
+        Console.WriteLine($"Export batch #{batchId} recorded as pushed by {by}: approval #{approvalId}. The ledger measures it at 7 and 30 days.");
+        return 0;
+    }
+
+    case "ledger":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var ledger = scope.ServiceProvider.GetRequiredService<MoneyLedger>();
+        var (added, measured) = await ledger.UpdateAsync();
+        var sum = await ledger.SummaryAsync();
+        Console.WriteLine($"{added} new entries, {measured} windows measured. Measured 30-day total {sum.Measured30Eur:0} EUR over {sum.Entries} entries " +
+                          $"({sum.Measured30} measured at 30 days; unmeasured count as 0). Bar: " + (sum.TargetEur is { } t ? $"{t:0} EUR (3x the raise)" : "raise not set"));
+        foreach (var e in await scope.ServiceProvider.GetRequiredService<AgentDbContext>().MoneyLedger.AsNoTracking().OrderBy(e => e.Id).ToListAsync())
+            Console.WriteLine($"  #{e.Id} {e.Source} {e.RefId} layer {e.LayerId} applied {e.AppliedUtc:yyyy-MM-dd}, {e.Skus} SKUs: expected {e.ExpectedEur:0} (estimated), " +
+                              $"7d {e.Measured7Eur?.ToString("0") ?? "-"}, 30d {e.Measured30Eur?.ToString("0") ?? "-"}  {e.Evidence}");
+        return 0;
+    }
+
+    case "timesheet":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        var r = await scope.ServiceProvider.GetRequiredService<TimeSheetExporter>().ExportAsync();
+        Console.WriteLine($"{r.Exported} rows -> {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before.");
+        return 0;
+    }
+
+    case "cycle-status":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        var day = positional.Count > 0 ? DateOnly.Parse(positional[0], System.Globalization.CultureInfo.InvariantCulture)
+                                       : scope.ServiceProvider.GetRequiredService<DailyCycle>().Today();
+        var steps = await scope.ServiceProvider.GetRequiredService<AgentDbContext>().DailyCycleSteps.AsNoTracking()
+            .Where(s => s.CycleDate == day).OrderBy(s => s.Id).ToListAsync();
+        Console.WriteLine(steps.Count == 0 ? $"No cycle steps on {day:yyyy-MM-dd}." : $"Daily cycle {day:yyyy-MM-dd}:");
+        foreach (var x in steps)
+            Console.WriteLine($"  {x.StartedUtc.ToLocalTime():HH:mm} {x.Step,-14} {x.Status,-9} {(x.FinishedUtc - x.StartedUtc)?.TotalSeconds,6:0}s  {x.Detail ?? x.Error}");
+        return 0;
+    }
+
     case "publish-rollback":
     {
         using var host = builder.Build();
@@ -280,7 +337,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|timesheet|cycle-status ... (see Program.cs)");
         return 2;
 }
 

@@ -1,11 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using PricingTool.Agent;
+using PricingTool.Agent.Operations;
 using PricingTool.Core.Options;
 using PricingTool.Data;
 using PricingTool.Data.Services;
 using PricingTool.Engine;
 
 var runOnce = args.Contains("--run-now");
+var hackathonHost = args.Contains("--hackathon-host");
+var cycleOnce = args.Contains("--cycle-once");
 var fitElasticity = args.Contains("--fit-elasticity");
 var weeklyReport = args.Contains("--weekly-report");
 
@@ -17,15 +21,17 @@ if (layerIdx >= 0 && layerIdx + 1 < args.Length) layerArg = args[layerIdx + 1];
 var builder = Host.CreateApplicationBuilder(args);
 
 // Hackathon: the replica connection lives in user-secrets (loaded by default only in Development).
-// The engine runs on demand only: no scheduler, no elasticity fit or approval refresh against the
-// replica, no weekly email.
+// No scheduler, no elasticity fit or approval refresh against the replica, no weekly email: the engine
+// runs one layer on demand, or the laptop's daily cycle (prompt 05) as a host (--hackathon-host) or once
+// (--cycle-once).
 var hackathon = builder.Environment.IsEnvironment("Hackathon");
 if (hackathon)
 {
     builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
-    if (!runOnce || layerArg is null)
+    if (!hackathonHost && !cycleOnce && (!runOnce || layerArg is null))
     {
-        Console.WriteLine("Hackathon environment: the engine runs on demand for one layer. Use --run-now --layer <code>.");
+        Console.WriteLine("Hackathon environment: use --hackathon-host (the daily cycle, kept running), --cycle-once, " +
+                          "or --run-now --layer <code> for one engine run.");
         return;
     }
     // Which configuration source supplied the replica connection (the source's name, never its value).
@@ -36,7 +42,13 @@ if (hackathon)
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.Configure<WeeklyPcsReportOptions>(builder.Configuration.GetSection(WeeklyPcsReportOptions.Section));
-if (!runOnce && !fitElasticity && !weeklyReport)
+if (hackathon)
+{
+    builder.Services.AddPricingAgent(builder.Configuration);
+    if (hackathonHost)
+        builder.Services.AddHostedService<DailyCycleWorker>();
+}
+else if (!runOnce && !fitElasticity && !weeklyReport)
 {
     builder.Services.AddHostedService<ScheduledRunWorker>();
     builder.Services.AddHostedService<ElasticityFitWorker>();
@@ -61,6 +73,20 @@ using (var scope = host.Services.CreateScope())
         await scope.ServiceProvider.GetRequiredService<DemoHistoryBackfill>().EnsureBackfilledAsync();
         await scope.ServiceProvider.GetRequiredService<DemoOutcomeSeeder>().EnsureSeededAsync();
     }
+
+    if (hackathon)
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+}
+
+// `--cycle-once` (Hackathon): run (or resume) today's daily cycle once, print each step, and exit.
+if (cycleOnce)
+{
+    using var scope = host.Services.CreateScope();
+    var steps = await scope.ServiceProvider.GetRequiredService<DailyCycle>().RunAsync();
+    foreach (var s in steps)
+        Console.WriteLine($"{s.Step,-14} {s.Status,-9} {(s.FinishedUtc - s.StartedUtc)?.TotalSeconds,6:0}s  {s.Detail ?? s.Error}");
+    Environment.ExitCode = steps.GroupBy(s => s.Step).Any(g => g.Last().Status == StepStatus.Failed) ? 1 : 0;
+    return;
 }
 
 // `--run-now`: execute one pricing run per targeted layer immediately and exit (ops/cron escape

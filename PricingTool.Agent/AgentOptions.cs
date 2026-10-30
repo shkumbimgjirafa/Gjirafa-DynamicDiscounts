@@ -127,6 +127,13 @@ public class CycleOptions
     /// <summary>The day of the week Alpha's floor/target pass runs.</summary>
     public DayOfWeek AlphaDay { get; set; } = DayOfWeek.Monday;
 
+    /// <summary>Local time ("HH:mm") from which a running engine host starts the new day's cycle. A host that
+    /// starts later in the day (at log-on) runs the cycle straight away.</summary>
+    public string DailyStartLocal { get; set; } = "07:00";
+
+    /// <summary>A failed step of today's cycle is tried again after this many minutes (three attempts a day at most).</summary>
+    public int RetryFailedAfterMinutes { get; set; } = 60;
+
     /// <summary>Where the checked exports go for the team's push (outside the repo).</summary>
     public string ExportDirectory { get; set; } = "";
     public string BackupDirectory { get; set; } = "";
@@ -146,6 +153,8 @@ public class CycleOptions
 
     /// <summary>Who pushes the exports and owns the measurement, for the Approval record.</summary>
     public string PushedBy { get; set; } = "pricing tool (team push)";
+
+    public TimeOnly DailyStart() => TimeOnly.ParseExact(DailyStartLocal, "HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 
     public string ExportDir() => string.IsNullOrWhiteSpace(ExportDirectory) ? Local("exports") : ExportDirectory;
     public string BackupDir() => string.IsNullOrWhiteSpace(BackupDirectory) ? Local("backups") : BackupDirectory;

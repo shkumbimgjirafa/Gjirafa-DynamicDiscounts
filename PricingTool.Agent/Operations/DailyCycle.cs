@@ -193,5 +193,10 @@ public sealed class DailyCycle
             .OrderByDescending(r => r.Id).FirstOrDefaultAsync(ct);
     }
 
+    /// <summary>True when the day's latest attempt of some step failed and that step has attempts left.</summary>
+    public static bool HasRetryableFailure(IEnumerable<DailyCycleStep> steps) =>
+        steps.GroupBy(s => s.Step).Any(g => g.OrderBy(s => s.Id).Last().Status == StepStatus.Failed
+                                            && g.Count(s => s.Status == StepStatus.Failed) < MaxAttemptsPerDay);
+
     private static string? Truncate(string? s) => s is null || s.Length <= 2000 ? s : s[..2000];
 }
