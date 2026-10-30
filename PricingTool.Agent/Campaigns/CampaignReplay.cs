@@ -20,20 +20,24 @@ public sealed record CampaignReplayResult(int CampaignId, string Name, string Ty
     public bool Usable => Representative && NormalDays >= CampaignReplay.MinNormalDays && TotalRatio is not null;
 }
 
-/// <summary>How far the planner's arithmetic lands from what past campaigns really made (median of the usable replays).</summary>
-public sealed record CampaignCalibration(decimal Factor, int Campaigns, decimal Low, decimal High, decimal TailSharePct, string Basis);
+/// <summary>
+/// How far the planner's arithmetic lands from what past campaigns really made: the median of the usable replays, and a
+/// conservative factor (the 25th percentile, or the second-lowest with fewer than 8 replays) a goal must clear to be called
+/// reachable rather than a stretch.
+/// </summary>
+public sealed record CampaignCalibration(decimal Factor, decimal Conservative, int Campaigns, decimal Low, decimal High, decimal TailSharePct, string Basis);
 
 /// <summary>
 /// Backtest lever 7's measuring stick (plan section 5, "Backtester"): each finished campaign is replayed the way the planner
 /// would have planned it a week before (no look-ahead in the sales: the rate comes from the normal days of the 28 days that end
 /// 14 days before planning), at the depth the campaign actually used, and scored on its booked sales lines (booked COGS).
 /// Expected units per SKU = normal-day rate × days × the campaign type's event lift × what the extra depth buys; gross profit
-/// at the campaign's own unit economics. The event lift and the depth fit come from the whole campaign history, the replayed
-/// campaign included (in-sample: said wherever the factor is shown).
+/// at the campaign's own unit economics. Leave-one-out: the event lift and the depth fit used to score a campaign are refitted
+/// without it, so no campaign is scored with numbers it helped make (the in-sample replay is kept beside it for comparison).
 /// </summary>
 public static class CampaignReplay
 {
-    public const int LeadDays = 7, LagDays = 14, RateDays = 28, MinNormalDays = 14, MinCampaigns = 3;
+    public const int LeadDays = 7, LagDays = 14, RateDays = 28, MinNormalDays = 14, MinCampaigns = 3, PercentileFrom = 8;
 
     /// <summary>The planner's rate window for a campaign starting on <paramref name="start"/>, planned <see cref="LeadDays"/> days before.</summary>
     public static DateWindow RateWindow(DateOnly start) => DateWindow.Ending(start.AddDays(-LeadDays), RateDays, LagDays);
@@ -65,18 +69,28 @@ public static class CampaignReplay
             Math.Round(tail, 0), tailSkus, seenSkus, Math.Round(predicted, 0), lift);
     }
 
-    /// <summary>The median factor over the usable replays, or null with fewer than <see cref="MinCampaigns"/>.</summary>
-    public static CampaignCalibration? Calibrate(IEnumerable<CampaignReplayResult> results)
+    /// <summary>The median and conservative factors over the usable replays, or null with fewer than <see cref="MinCampaigns"/>.</summary>
+    public static CampaignCalibration? Calibrate(IEnumerable<CampaignReplayResult> results, bool leaveOneOut = true)
     {
         var usable = results.Where(r => r.Usable).ToList();
         if (usable.Count < MinCampaigns) return null;
         var ratios = usable.Select(r => r.TotalRatio!.Value).OrderBy(x => x).ToList();
         var tails = usable.Select(r => r.TailSharePct).OrderBy(x => x).ToList();
         var factor = Median(ratios);
-        return new CampaignCalibration(factor, usable.Count, ratios[0], ratios[^1], Median(tails),
-            $"median of {usable.Count} past campaigns replayed with the planner's arithmetic (actual GP / planned GP, x{ratios[0]:0.00}..x{ratios[^1]:0.00}); " +
-            $"a median {Median(tails):0}% of a campaign's GP came from SKUs with no normal-day sales in the weeks before, which no rate can see; " +
-            "event lift and depth fit in-sample; estimated");
+        var conservative = ratios.Count >= PercentileFrom ? Percentile(ratios, 0.25m) : ratios[1];
+        return new CampaignCalibration(factor, conservative, usable.Count, ratios[0], ratios[^1], Median(tails),
+            $"{(leaveOneOut ? "leave-one-out" : "in-sample")} replay of {usable.Count} past campaigns with the planner's arithmetic (actual GP / planned GP): " +
+            $"median x{factor:0.00}, conservative x{conservative:0.00} ({(ratios.Count >= PercentileFrom ? "25th percentile" : "second-lowest")}), range x{ratios[0]:0.00}..x{ratios[^1]:0.00}; " +
+            $"a median {Median(tails):0}% of a campaign's GP came from SKUs with no normal-day sales in the weeks before; estimated");
+    }
+
+    /// <summary>Linear interpolation between the closest ranks.</summary>
+    private static decimal Percentile(IReadOnlyList<decimal> sorted, decimal p)
+    {
+        var pos = p * (sorted.Count - 1);
+        var lo = (int)Math.Floor(pos);
+        var hi = Math.Min(lo + 1, sorted.Count - 1);
+        return Math.Round(sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo), 2);
     }
 
     private static decimal Median(IReadOnlyList<decimal> sorted) =>

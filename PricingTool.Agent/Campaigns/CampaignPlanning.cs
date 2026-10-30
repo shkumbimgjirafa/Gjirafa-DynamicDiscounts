@@ -142,6 +142,14 @@ public sealed class CampaignPlanning
             if (review.Value.Accept)
             {
                 plan.Status = PlanStatus.Accepted;
+                if (personGoal is not null && plan.GoalVerdict == GoalVerdicts.Stretch)
+                {
+                    // Met only on the median estimate: it goes ahead, and the person who set the goal sees that it is a stretch.
+                    plan.WaitsForPerson = true;
+                    await SayAsync(brief, plan.Id, round, "code",
+                        $"The goal a person set ({personGoal}) is met only on the median estimate. {plan.Feasibility} " +
+                        $"The plan goes ahead and waits in the inbox for that person to approve it as a stretch (approve-plan {plan.Id}) or set another goal (campaign-goal).", null, ct);
+                }
                 break;
             }
             if (round == MaxRounds)
@@ -182,15 +190,32 @@ public sealed class CampaignPlanning
         return new PlanningResult(brief.Id, final.Status, plans, null);
     }
 
-    /// <summary>A person approves a held plan as it is (e.g. one short of the goal they set): it is accepted and, when asked, published.</summary>
-    public async Task<PlanningResult> ApproveHeldAsync(long planId, string by, bool publish, CancellationToken ct = default)
+    /// <summary>
+    /// A person approves a plan waiting for them: a held one (e.g. short of the goal they set) is accepted and, when asked,
+    /// published; one that went ahead as a stretch is marked approved.
+    /// </summary>
+    public async Task<PlanningResult> ApproveAsync(long planId, string by, bool publish, CancellationToken ct = default)
     {
         var stop = await _killSwitch.GetAsync(ct);
         if (stop.Stopped) return new PlanningResult(0, "Skipped", Array.Empty<CampaignPlan>(), $"Kill switch: {stop.Reason}");
         var plan = await _db.CampaignPlans.SingleAsync(p => p.Id == planId, ct);
         var brief = await _db.CampaignBriefs.SingleAsync(b => b.Id == plan.BriefId, ct);
+        if (plan.Status == PlanStatus.Accepted && plan.PublishBatchId is null && !plan.WaitsForPerson && plan.ReviewedBy is not null && publish && !brief.IsTest)
+        {
+            // Approved earlier where no publisher runs (the web app): publish it now.
+            await PublishPlanAsync(brief, plan, ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
+            return new PlanningResult(brief.Id, plan.Status, new[] { plan }, null);
+        }
+        if (plan.Status != PlanStatus.Held && !plan.WaitsForPerson)
+            return new PlanningResult(brief.Id, "Refused", new[] { plan }, $"Plan #{planId} is {plan.Status} and waits for nobody: nothing to approve.");
+        (plan.ReviewedBy, plan.ReviewedUtc, plan.WaitsForPerson) = (by, _clock.GetUtcNow().UtcDateTime, false);
         if (plan.Status != PlanStatus.Held)
-            return new PlanningResult(brief.Id, "Refused", new[] { plan }, $"Plan #{planId} is {plan.Status}: only a held plan is approved.");
+        {
+            await SayAsync(brief, plan.Id, plan.Round, by, $"Approved by a person as a stretch. {plan.Feasibility}", null, ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
+            return new PlanningResult(brief.Id, plan.Status, new[] { plan }, null);
+        }
         plan.Status = PlanStatus.Accepted;
         await SayAsync(brief, plan.Id, plan.Round, by, $"Approved by a person as it is. {plan.Feasibility}", null, ct);
         if (publish && !brief.IsTest) await PublishPlanAsync(brief, plan, ct);
@@ -342,7 +367,7 @@ public sealed class CampaignPlanning
             BriefId = brief.Id, CalendarId = brief.CalendarId, LayerId = brief.LayerId, Round = round, Strategy = r.Strategy, DiscountedSkus = t.Discounted,
             SkusInScope = t.InScope, HoldoutSkus = r.Lines.Count(l => l.CampaignHoldout), ExpectedUnits = t.Units, ExpectedNetRevenue = t.NetRevenue,
             ExpectedGrossProfit = t.GrossProfit, ExpectedMarginPct = t.MarginPct, GrossProfitWithoutDiscounts = t.GrossProfitWithoutDiscounts,
-            AverageDepthPct = t.AverageDepthPct, Feasible = r.Feasible, Feasibility = r.Feasibility, LeftOut = JsonSerializer.Serialize(r.LeftOut, Json),
+            AverageDepthPct = t.AverageDepthPct, Feasible = r.Feasible, Feasibility = r.Feasibility, GoalVerdict = r.GoalVerdict, LeftOut = JsonSerializer.Serialize(r.LeftOut, Json),
             Alternatives = JsonSerializer.Serialize(all.Select(a => new { a.Strategy, a.Totals, a.Feasible, a.Feasibility }), Json),
             Explanation = Truncate(explanation, 2000), Basis = Truncate(basis, 1000), IsTest = brief.IsTest, CreatedUtc = _clock.GetUtcNow().UtcDateTime,
         };

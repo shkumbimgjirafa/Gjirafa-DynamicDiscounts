@@ -8,6 +8,9 @@ namespace PricingTool.Agent.Operations;
 
 public sealed record WaitingDecision(AgentDecision Decision, string BandName);
 
+/// <summary>A campaign plan waiting for a person, with its brief's name and goal.</summary>
+public sealed record PlanWaiting(CampaignPlan Plan, string Campaign, string GoalType, decimal GoalValue);
+
 public sealed record PublishProblem(PublishBatch Batch, IReadOnlyList<(string Kind, int Count)> Exceptions)
 {
     /// <summary>Stopped (a switch), failed, or rolled back because prices did not read back: a person should look.
@@ -42,9 +45,13 @@ public sealed class InboxSnapshot
     /// <summary>Campaign briefs held on a cap a person may lift (too many mini-campaigns at once), real passes only.</summary>
     public IReadOnlyList<CampaignBrief> HeldBriefs { get; init; } = Array.Empty<CampaignBrief>();
 
+    /// <summary>Campaign plans waiting for a person: held (e.g. short of the goal they set), or gone ahead as a stretch on it.</summary>
+    public IReadOnlyList<PlanWaiting> CampaignPlans { get; init; } = Array.Empty<PlanWaiting>();
+
     public IReadOnlyDictionary<int, string> LayerNames { get; init; } = new Dictionary<int, string>();
 
-    public int WaitingCount => Decisions.Count + BlockedRuns.Count + Publishes.Count(p => p.NeedsAPerson) + FailedSteps.Count + Pauses.Count + HeldBriefs.Count + CostHolds.Count;
+    public int WaitingCount => Decisions.Count + BlockedRuns.Count + Publishes.Count(p => p.NeedsAPerson) + FailedSteps.Count + Pauses.Count + HeldBriefs.Count
+                               + CostHolds.Count + CampaignPlans.Count;
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";
 }
@@ -111,6 +118,13 @@ public sealed class ExceptionsInbox
                 .Where(d => d.Status == DecisionStatus.Held && d.Source == "CostWatcher" && _ai.AgentPasses.Any(p => p.Id == d.PassId && !p.IsTest))
                 .OrderByDescending(d => d.Id).ToListAsync(ct),
             HeldBriefs = await _ai.CampaignBriefs.AsNoTracking().Where(b => b.Status == BriefStatus.Held && !b.IsTest).OrderByDescending(b => b.Id).ToListAsync(ct),
+            // The latest plan of each brief only: an older held plan a newer one replaced waits for nobody.
+            CampaignPlans = await (from p in _ai.CampaignPlans.AsNoTracking()
+                                   join b in _ai.CampaignBriefs.AsNoTracking() on p.BriefId equals b.Id
+                                   where !p.IsTest && (p.Status == PlanStatus.Held || p.WaitsForPerson)
+                                         && !_ai.CampaignPlans.Any(n => n.BriefId == p.BriefId && n.Id > p.Id)
+                                   orderby p.Id descending
+                                   select new PlanWaiting(p, b.Name, b.GoalType, b.GoalValue)).ToListAsync(ct),
             LayerNames = await _tool.Layers.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.DisplayName, ct),
         };
     }

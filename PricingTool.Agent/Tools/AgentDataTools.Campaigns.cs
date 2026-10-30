@@ -101,24 +101,31 @@ public sealed partial class AgentDataTools
     }
 
     /// <summary>
-    /// Every finished campaign of the layer replayed with the planner's arithmetic (<see cref="CampaignReplay"/>), and the
-    /// calibration factor from the usable ones: how far planned gross profit lands from what campaigns really made.
+    /// Every finished campaign of the layer replayed with the planner's arithmetic (<see cref="CampaignReplay"/>), leave-one-out
+    /// (event lift and depth fit refitted without the campaign scored) and in-sample beside it, with the calibration factors from
+    /// the usable ones: how far planned gross profit lands from what campaigns really made. The planner uses the leave-one-out one.
     /// </summary>
-    public async Task<(List<CampaignReplayResult> Replays, CampaignCalibration? Calibration)> ReplayCampaignsAsync(int layer, CancellationToken ct = default)
+    public async Task<(List<CampaignReplayResult> Replays, CampaignCalibration? Calibration, List<CampaignReplayResult> InSample, CampaignCalibration? InSampleCalibration)>
+        ReplayCampaignsAsync(int layer, CancellationToken ct = default)
     {
         var today = Today();
-        var depth = await GetDepthEffectAsync(layer, ct);
+        var (byCampaign, _) = await CampaignSegmentsAsync(layer, null, today, ct);
         var windows = await _reader.GetCampaignWindowsAsync(layer, new DateOnly(2000, 1, 1), today, ct);
         var rows = (await _reader.GetCampaignReplayRowsAsync(layer, today, ct)).ToLookup(r => r.CampaignId);
         var notRepresentative = (await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layer && !c.Representative && c.SourceCampaignId != null)
             .Select(c => c.SourceCampaignId!.Value).ToListAsync(ct)).ToHashSet();
-        var replays = windows.Where(w => w.EndDate < today && !Provisional(w, today) && rows.Contains(w.CampaignId)).Select(w =>
+        var inSampleDepth = DepthEffectFrom(byCampaign, today, notRepresentative);
+        List<CampaignReplayResult> loo = new(), inSample = new();
+        foreach (var w in windows.Where(w => w.EndDate < today && !Provisional(w, today) && rows.Contains(w.CampaignId)))
         {
             var rate = CampaignReplay.RateWindow(w.StartDate);
             var normalDays = Enumerable.Range(0, rate.Days).Select(rate.From.AddDays).Count(d => !windows.Any(o => d >= o.StartDate && d <= o.EndDate));
-            return CampaignReplay.Replay(w, normalDays, rows[w.CampaignId], depth, !notRepresentative.Contains(w.CampaignId));
-        }).ToList();
-        return (replays, CampaignReplay.Calibrate(replays));
+            var representative = !notRepresentative.Contains(w.CampaignId);
+            var without = DepthEffectFrom(byCampaign, today, new HashSet<int>(notRepresentative) { w.CampaignId });
+            loo.Add(CampaignReplay.Replay(w, normalDays, rows[w.CampaignId], without, representative));
+            inSample.Add(CampaignReplay.Replay(w, normalDays, rows[w.CampaignId], inSampleDepth, representative));
+        }
+        return (loo, CampaignReplay.Calibrate(loo), inSample, CampaignReplay.Calibrate(inSample, leaveOneOut: false));
     }
 
     /// <summary>The within-campaign fit over finished, representative campaigns.</summary>

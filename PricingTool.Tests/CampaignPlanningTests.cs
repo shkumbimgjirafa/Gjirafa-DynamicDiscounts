@@ -95,14 +95,15 @@ public class CampaignPlanningTests : IDisposable
     {
         var candidates = Enumerable.Range(0, 20).Select(i => C($"S{i}", 100m, 100m, 60m)).ToList();
         var raw = CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: 1m), candidates, Depth, NoRounding, 5000, new Dictionary<string, int>()).Totals.GrossProfit;
-        var cal = new CampaignCalibration(1.25m, 7, 0.55m, 1.72m, 44m, "test");
-        var spec = Spec(goalValue: raw * 1.2m) with { Calibration = cal };
-        var r = CampaignPlanner.Plan("max-gross-profit", spec, candidates, Depth, NoRounding, 5000, new Dictionary<string, int>());
-        Assert.True(r.Feasible);                                                                    // raw falls short, x1.25 reaches it
-        Assert.Contains("calibrated estimate", r.Feasibility);
-        Assert.Contains("x0.55..x1.72", r.Feasibility);
-        Assert.False(CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: raw * 1.3m) with { Calibration = cal }, candidates, Depth, NoRounding, 5000,
-            new Dictionary<string, int>()).Feasible);
+        var cal = new CampaignCalibration(1.25m, 1.05m, 7, 0.55m, 1.72m, 44m, "test");
+        PlanResult At(decimal goal) => CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: goal) with { Calibration = cal }, candidates, Depth, NoRounding, 5000,
+            new Dictionary<string, int>());
+        Assert.Equal((true, GoalVerdicts.Reachable), (At(raw).Feasible, At(raw).GoalVerdict));                          // the conservative x1.05 clears it
+        var stretch = At(raw * 1.2m);
+        Assert.Equal((true, GoalVerdicts.Stretch), (stretch.Feasible, stretch.GoalVerdict));                             // only the median x1.25 does
+        Assert.Contains("median estimate", stretch.Feasibility);
+        Assert.Contains("conservative", stretch.Feasibility);
+        Assert.Equal((false, GoalVerdicts.NotReachable), (At(raw * 1.3m).Feasible, At(raw * 1.3m).GoalVerdict));
     }
 
     [Fact]
@@ -127,6 +128,7 @@ public class CampaignPlanningTests : IDisposable
         var cal = CampaignReplay.Calibrate(results.Append(r with { Representative = false, PredictedSeenGp = 1m }))!;
         Assert.Equal((4, 0.3m, 1.7m), (cal.Campaigns, cal.Low, cal.High));                        // the unrepresentative one left out
         Assert.Equal(0.9m, cal.Factor);                                                           // median of 0.3, 0.6, 1.2, 1.7
+        Assert.Equal(0.6m, cal.Conservative);                                                     // fewer than 8: the second-lowest
     }
 
     [Fact]
@@ -288,9 +290,34 @@ public class CampaignPlanningTests : IDisposable
         Assert.Contains(said, t => t.Contains("set by a person") && t.Contains("it stays"));
         Assert.Contains(said, t => t.Contains($"approve-plan {r.Final!.Id}"));
 
-        var approved = await planning.ApproveHeldAsync(r.Final.Id, "user", publish: true);                   // the person approves it as it is
+        var approved = await planning.ApproveAsync(r.Final.Id, "user", publish: true);                   // the person approves it as it is
         Assert.Equal(PlanStatus.Published, approved.Status);
         Assert.Single(publisher.Calls);
-        Assert.Equal("Refused", (await planning.ApproveHeldAsync(r.Final.Id, "user", publish: true)).Status);
+        Assert.Equal("Refused", (await planning.ApproveAsync(r.Final.Id, "user", publish: true)).Status);
+    }
+
+    [Fact]
+    public async Task A_person_goal_met_only_on_the_median_goes_ahead_and_waits_for_that_person()
+    {
+        var (planning, publisher, brief) = Setup();
+        var entry = await _db.CampaignCalendar.SingleAsync();
+        (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = ("gross-profit", 5000m, "user, 2026-10-30");
+        brief.GoalValue = 5000m;
+        await _db.SaveChangesAsync();
+        planning.CalibrationSource = (_, _) => Task.FromResult<CampaignCalibration?>(new CampaignCalibration(1000m, 0.001m, 7, 0.001m, 1000m, 44m, "test"));
+        Says(new JsonObject { ["strategy"] = "visible", ["explanation"] = "Visible." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: true);
+
+        Assert.Equal((PlanStatus.Published, GoalVerdicts.Stretch, true), (r.Status, r.Final!.GoalVerdict, r.Final.WaitsForPerson));
+        Assert.Single(publisher.Calls);
+        var inbox = await new PricingTool.Agent.Operations.ExceptionsInbox(_db, _tool).LoadAsync();
+        Assert.Equal(r.Final.Id, Assert.Single(inbox.CampaignPlans).Plan.Id);
+
+        var approved = await planning.ApproveAsync(r.Final.Id, "user", publish: true);                      // approved as a stretch: no second publish
+        Assert.Equal((PlanStatus.Published, false, "user"), (approved.Status, approved.Final!.WaitsForPerson, approved.Final.ReviewedBy));
+        Assert.Single(publisher.Calls);
+        Assert.Empty((await new PricingTool.Agent.Operations.ExceptionsInbox(_db, _tool).LoadAsync()).CampaignPlans);
     }
 }

@@ -153,5 +153,18 @@ public class AgentController : Controller
         return RedirectToAction(nameof(Exceptions));
     }
 
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApprovePlan(long planId)
+    {
+        // The web app has no publisher: a held plan is approved here and published from the engine host (approve-plan --publish).
+        var r = await HttpContext.RequestServices.GetRequiredService<PricingTool.Agent.Campaigns.CampaignPlanning>().ApproveAsync(planId, Who, publish: false);
+        if (r.Error is not null) TempData["Error"] = r.Error;
+        else TempData["Message"] = $"Campaign plan #{planId} approved ({r.Status})." +
+                                   (r.Status == "accepted" ? $" Publish it from the engine host: PricingTool.AgentTools approve-plan {planId} --publish." : "");
+        return RedirectToAction(nameof(Exceptions));
+    }
+
     private string Who => User.Identity?.Name ?? "unknown";
 }

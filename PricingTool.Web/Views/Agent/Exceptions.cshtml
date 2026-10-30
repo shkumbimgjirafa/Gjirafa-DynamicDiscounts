@@ -205,6 +205,32 @@
     </tbody>
 </table>
 
+<h2 class="h5 mt-4">Campaign plans waiting for you (@Model.CampaignPlans.Count)</h2>
+<p class="small text-muted">A plan short of a goal a person set is held; one that meets it only on the median estimate (not the conservative one) goes
+    ahead and waits here for that person. Estimates come from the planner's arithmetic, calibrated by replaying past campaigns.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Plan</th><th>Layer</th><th>Campaign</th><th>Goal</th><th>Status</th><th>Verdict</th><th>The numbers</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var w in Model.CampaignPlans)
+    {
+        <tr class="table-warning">
+            <td>@w.Plan.Id</td><td>@Model.LayerName(w.Plan.LayerId)</td><td>@w.Campaign</td><td>@w.GoalType @w.GoalValue.ToString("N0")</td>
+            <td>@w.Plan.Status</td><td>@w.Plan.GoalVerdict</td><td class="small text-break">@w.Plan.Feasibility</td>
+            <td>
+                <form asp-action="ApprovePlan" method="post" class="d-inline">
+                    <input type="hidden" name="planId" value="@w.Plan.Id" />
+                    <button type="submit" class="btn btn-sm btn-outline-primary">@(w.Plan.Status == "held" ? "Approve as it is" : "Approve as a stretch")</button>
+                </form>
+            </td>
+        </tr>
+    }
+    @if (Model.CampaignPlans.Count == 0)
+    {
+        <tr><td colspan="8" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
 <h2 class="h5 mt-4">Daily cycle steps that failed (@Model.FailedSteps.Count)</h2>
 <table class="table table-sm align-middle">
     <thead><tr><th>Day</th><th>Step</th><th>Started</th><th>Error</th></tr></thead>

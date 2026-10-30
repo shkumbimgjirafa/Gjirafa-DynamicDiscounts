@@ -166,6 +166,12 @@ public class CampaignPlan
     public string Basis { get; set; } = "";
     public string Status { get; set; } = PlanStatus.Proposed;
     public long? PublishBatchId { get; set; }
+    /// <summary>reachable / stretch / not-reachable (see Campaigns.GoalVerdicts).</summary>
+    public string GoalVerdict { get; set; } = "";
+    /// <summary>A plan that went ahead as a stretch on a goal a person set, until that person approves it.</summary>
+    public bool WaitsForPerson { get; set; }
+    public string? ReviewedBy { get; set; }
+    public DateTime? ReviewedUtc { get; set; }
     public bool IsTest { get; set; }
     public DateTime CreatedUtc { get; set; }
 }

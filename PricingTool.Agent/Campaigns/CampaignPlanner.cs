@@ -17,7 +17,18 @@ public sealed record PlanTotals(int Discounted, int InScope, decimal Units, deci
     decimal GrossProfitWithoutDiscounts, decimal AverageDepthPct);
 
 public sealed record PlanResult(string Strategy, PlanTotals Totals, IReadOnlyList<PlanLine> Lines, IReadOnlyDictionary<string, int> LeftOut,
-    bool Feasible, string Feasibility, IReadOnlyList<PlanLine> TopContributors);
+    bool Feasible, string Feasibility, IReadOnlyList<PlanLine> TopContributors)
+{
+    /// <summary>See <see cref="GoalVerdicts"/>.</summary>
+    public string GoalVerdict { get; init; } = GoalVerdicts.Reachable;
+}
+
+/// <summary>A plan's verdict on its brief's goal. With a backtest calibration a gross-profit goal is reachable when the
+/// conservative estimate clears it, a stretch when only the median does, and not reachable when the median falls short.</summary>
+public static class GoalVerdicts
+{
+    public const string Reachable = "reachable", Stretch = "stretch", NotReachable = "not-reachable";
+}
 
 /// <summary>The brief as code plans it.</summary>
 public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct,
@@ -130,9 +141,9 @@ public static class CampaignPlanner
         }
 
         var totals = Totals(lines, vat);
-        var (feasible, why) = Feasibility(spec, totals);
-        return new PlanResult(strategy, totals, lines, leftOut, feasible, why,
-            lines.Where(l => l.CampaignPrice is not null).OrderByDescending(l => l.ExpectedGrossProfit).Take(10).ToList());
+        var (verdict, why) = Feasibility(spec, totals);
+        return new PlanResult(strategy, totals, lines, leftOut, verdict != GoalVerdicts.NotReachable, why,
+            lines.Where(l => l.CampaignPrice is not null).OrderByDescending(l => l.ExpectedGrossProfit).Take(10).ToList()) { GoalVerdict = verdict };
     }
 
     /// <summary>A fixed ~10 % of SKUs per campaign (by a stable hash of the campaign and the SKU), so a re-plan keeps the same holdout.</summary>
@@ -162,7 +173,7 @@ public static class CampaignPlanner
             discounted.Count > 0 ? Math.Round(discounted.Average(l => l.DepthPct), 1) : 0);
     }
 
-    private static (bool, string) Feasibility(PlanSpec spec, PlanTotals t)
+    private static (string Verdict, string Text) Feasibility(PlanSpec spec, PlanTotals t)
     {
         var outside = spec.GoalType == "gross-profit" ? spec.GrossProfitOutsidePlan : 0m;
         var (actual, unit) = spec.GoalType switch
@@ -173,20 +184,19 @@ public static class CampaignPlanner
             _ => (0m, spec.GoalType),
         };
         if (t.MarginPct < spec.MinMarginPct)
-            return (false, $"The blended margin of {t.MarginPct:0.0}% stays under the brief's minimum of {spec.MinMarginPct:0.#}% even with the discounts made shallower.");
+            return (GoalVerdicts.NotReachable, $"The blended margin of {t.MarginPct:0.0}% stays under the brief's minimum of {spec.MinMarginPct:0.#}% even with the discounts made shallower.");
         var counted = outside > 0 ? $" ({t.GrossProfit:N0} from this plan plus {outside:N0} from SKUs it doesn't price)" : "";
         if (spec.GoalType == "gross-profit" && spec.Calibration is { } cal)
         {
-            var calibrated = Math.Round(actual * cal.Factor, 0);
-            var range = $"x{cal.Low:0.00}..x{cal.High:0.00} gives {actual * cal.Low:N0}..{actual * cal.High:N0}";
-            return calibrated >= spec.GoalValue
-                ? (true, $"{spec.GoalValue:N0} {unit} is reachable on the calibrated estimate: {calibrated:N0} (the arithmetic gives {actual:N0}{counted}; " +
-                         $"x{cal.Factor:0.00} from the backtest of {cal.Campaigns} past campaigns, whose {range}).")
-                : (false, $"{spec.GoalValue:N0} {unit} is not reachable on the calibrated estimate: {calibrated:N0} (the arithmetic gives {actual:N0}{counted}; " +
-                          $"x{cal.Factor:0.00} from the backtest of {cal.Campaigns} past campaigns, whose {range}).");
+            decimal median = Math.Round(actual * cal.Factor, 0), conservative = Math.Round(actual * cal.Conservative, 0);
+            var numbers = $"arithmetic {actual:N0}{counted}; median estimate {median:N0} (x{cal.Factor:0.00}), conservative {conservative:N0} (x{cal.Conservative:0.00}); " +
+                          $"backtest of {cal.Campaigns} past campaigns, range {actual * cal.Low:N0}..{actual * cal.High:N0}";
+            if (conservative >= spec.GoalValue) return (GoalVerdicts.Reachable, $"{spec.GoalValue:N0} {unit} is reachable: even the conservative estimate clears it ({numbers}).");
+            if (median >= spec.GoalValue) return (GoalVerdicts.Stretch, $"{spec.GoalValue:N0} {unit} is a stretch: only the median estimate clears it ({numbers}).");
+            return (GoalVerdicts.NotReachable, $"{spec.GoalValue:N0} {unit} is not reachable: the median estimate falls short ({numbers}).");
         }
         return actual >= spec.GoalValue
-            ? (true, $"{spec.GoalValue:N0} {unit} is reachable: the plan expects {actual:N0}{counted}.")
-            : (false, $"{spec.GoalValue:N0} {unit} is not reachable within the limits: the best this strategy expects is {actual:N0}{counted}.");
+            ? (GoalVerdicts.Reachable, $"{spec.GoalValue:N0} {unit} is reachable: the plan expects {actual:N0}{counted}.")
+            : (GoalVerdicts.NotReachable, $"{spec.GoalValue:N0} {unit} is not reachable within the limits: the best this strategy expects is {actual:N0}{counted}.");
     }
 }

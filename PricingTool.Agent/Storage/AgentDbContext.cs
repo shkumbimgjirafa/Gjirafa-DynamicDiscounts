@@ -218,7 +218,9 @@ public class AgentDbContext : DbContext
                 e.Property(p).HasPrecision(18, 2);
             e.Property(x => x.ExpectedMarginPct).HasPrecision(9, 2);
             e.Property(x => x.AverageDepthPct).HasPrecision(9, 2);
-            e.Property(x => x.Feasibility).HasMaxLength(500);
+            e.Property(x => x.Feasibility).HasMaxLength(1000);
+            e.Property(x => x.GoalVerdict).HasMaxLength(20);
+            e.Property(x => x.ReviewedBy).HasMaxLength(256);
             e.Property(x => x.Explanation).HasMaxLength(2000);
             e.Property(x => x.Basis).HasMaxLength(1000);
             e.Property(x => x.Status).HasMaxLength(20);

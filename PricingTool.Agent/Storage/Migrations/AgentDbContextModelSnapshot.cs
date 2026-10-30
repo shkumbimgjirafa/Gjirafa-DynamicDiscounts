@@ -953,11 +953,16 @@ namespace PricingTool.Agent.Storage.Migrations
 
                     b.Property<string>("Feasibility")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<bool>("Feasible")
                         .HasColumnType("bit");
+
+                    b.Property<string>("GoalVerdict")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<decimal>("GrossProfitWithoutDiscounts")
                         .HasPrecision(18, 2)
@@ -979,6 +984,13 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<long?>("PublishBatchId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("ReviewedUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("Round")
                         .HasColumnType("int");
 
@@ -994,6 +1006,9 @@ namespace PricingTool.Agent.Storage.Migrations
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("WaitsForPerson")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
