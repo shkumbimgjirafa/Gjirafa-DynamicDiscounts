@@ -87,6 +87,67 @@
     </div>
 </div>
 
+@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
+@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+
+<h2 class="h5">This week</h2>
+<div class="row g-2 mb-4 small">
+    @foreach (var (label, value, note) in new[]
+    {
+        ("Changes applied", Model.Week.DecisionsApplied.ToString("N0"), "within the limits, by code (keeps not counted)"),
+        ("Held for a person", Model.Week.Held.ToString("N0"), "outside the limits"),
+        ("Publishes", $"{Model.Week.Publishes:N0}", $"{Model.Week.DiscountsWritten:N0} discounts written (sandbox)"),
+        ("AI cost", $"${Model.Week.AiCostUsd:0.00}", $"{Model.Week.AiCalls:N0} calls, measured"),
+        ("Extra GP vs the holdout", Model.Week.MeasuredGp30 is { } g ? $"€{g:N0}" : "not measured yet", Model.Week.MeasuredGp30 is null ? $"{Model.Week.LedgerEntries} ledger entries wait for their window" : "measured, 30 days"),
+    })
+    {
+        <div class="col-6 col-lg"><div class="border rounded p-2 h-100"><div class="text-muted">@label</div><div class="fs-5">@value</div><div class="text-muted">@note</div></div></div>
+    }
+</div>
+
+<h2 class="h5">What they did (last 7 days)</h2>
+<p class="small text-muted">Alpha (pricing), Nova (campaigns), the cost watcher, the agents' campaign threads and the publisher, newest first. "why?" shows the reason each gave.</p>
+<div class="mb-4" style="max-height: 28rem; overflow-y: auto">
+<table class="table table-sm align-middle small">
+    <tbody>
+    @foreach (var f in Model.Feed)
+    {
+        <tr>
+            <td class="text-nowrap text-muted">@f.Utc.ToLocalTime().ToString("ddd HH:mm")</td>
+            <td><span class="badge @(f.Who switch { "Nova" => "bg-info text-dark", "Alpha" => "bg-primary", "CostWatcher" => "bg-dark", "code" => "bg-secondary", "Publisher" => "bg-success", _ => "bg-warning text-dark" })">@f.Who</span></td>
+            <td class="text-nowrap">@(f.LayerId is { } lid ? Model.LayerName(lid) : "")</td>
+            <td>
+                @if (f.Link is not null) { <a href="@f.Link">@f.What</a> } else { @f.What }
+                @if (!string.IsNullOrWhiteSpace(f.Why))
+                {
+                    <details><summary class="text-muted">why?</summary><div style="white-space: pre-wrap">@f.Why</div></details>
+                }
+            </td>
+        </tr>
+    }
+    @if (Model.Feed.Count == 0) { <tr><td class="text-muted">Nothing in the last 7 days.</td></tr> }
+    </tbody>
+</table>
+</div>
+
+<h2 class="h5">Coming up (next 3 weeks)</h2>
+<table class="table table-sm align-middle mb-4">
+    <thead><tr><th>Campaign</th><th>Layer</th><th>Starts</th><th>Plan</th><th>Veto</th></tr></thead>
+    <tbody>
+    @foreach (var r in Model.ComingUp)
+    {
+        <tr>
+            <td><a asp-controller="Campaigns" asp-action="Detail" asp-route-id="@r.Entry.Id">@r.Entry.Name</a></td>
+            <td>@Model.LayerName(r.Entry.LayerId)</td>
+            <td>@r.Entry.StartDate.ToString("ddd dd MMM")</td>
+            <td class="small">@(r.Plan is { } p ? $"{p.Status}{(string.IsNullOrEmpty(p.GoalVerdict) ? "" : ", " + p.GoalVerdict)}" : r.Brief is { } b ? $"brief {b.Status}" : "no brief yet")</td>
+            <td class="small">@(r.CanStop(DateOnly.FromDateTime(DateTime.Now)) ? $"goes live {r.Entry.StartDate:ddd dd MMM} unless you stop it (Campaigns tab)" : "")</td>
+        </tr>
+    }
+    @if (Model.ComingUp.Count == 0) { <tr><td colspan="5" class="text-muted">Nothing in the next three weeks.</td></tr> }
+    </tbody>
+</table>
+
 <h2 class="h5">Autonomy per layer</h2>
 <p class="small text-muted">Off: no pass. Approve-first: every change waits for one click. Autonomous: changes within the limits apply
     by themselves and only what is outside them waits. A layer without a setting is approve-first.</p>
@@ -145,5 +206,56 @@
     {
         <tr><td colspan="12" class="text-muted">No real passes yet.</td></tr>
     }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">What the agents keep in mind</h2>
+<p class="small text-muted">Lessons from people and corrections code recorded when a person overrode an agent; every pass reads them until a person retires one.</p>
+<table class="table table-sm align-middle small">
+    <thead><tr><th>#</th><th>Agent</th><th>Layer</th><th>From</th><th>Lesson</th>@if (isManager) { <th></th> }</tr></thead>
+    <tbody>
+    @foreach (var l in Model.Lessons)
+    {
+        <tr>
+            <td>@l.Id</td><td>@l.Agent</td><td>@(l.LayerId is { } lid ? Model.LayerName(lid) : "all")</td>
+            <td class="text-nowrap">@l.CreatedBy, @l.CreatedUtc.ToLocalTime().ToString("dd MMM") @(l.Source == "correction" ? "(a correction)" : "")</td>
+            <td class="text-break">@l.Text</td>
+            @if (isManager)
+            {
+                <td><form method="post" asp-action="RetireLesson"><input type="hidden" name="lessonId" value="@l.Id" /><button class="btn btn-sm btn-outline-secondary">Retire</button></form></td>
+            }
+        </tr>
+    }
+    @if (Model.Lessons.Count == 0) { <tr><td colspan="6" class="text-muted">None yet.</td></tr> }
+    </tbody>
+</table>
+@if (isManager)
+{
+    <form method="post" asp-action="AddLesson" class="row g-2 align-items-end mb-4">
+        <div class="col-auto"><label class="form-label small">Agent</label><select name="agent" class="form-select form-select-sm"><option>Nova</option><option>Alpha</option></select></div>
+        <div class="col-auto"><label class="form-label small">Layer</label>
+            <select name="layerId" class="form-select form-select-sm"><option value="">all</option>
+                @foreach (var l in Model.Layers) { <option value="@l.LayerId">@l.Name</option> }
+            </select></div>
+        <div class="col"><label class="form-label small">Lesson</label><input name="text" class="form-control form-control-sm" maxlength="2000" required /></div>
+        <div class="col-auto"><button class="btn btn-sm btn-outline-primary">Teach</button></div>
+    </form>
+}
+
+<h2 class="h5 mt-4">What they looked at</h2>
+<p class="small text-muted">The agents' data tool calls, newest first: every query_data statement with its rows and time, refused ones with the reason.</p>
+<table class="table table-sm align-middle small">
+    <thead><tr><th>When</th><th>Agent</th><th>Tool</th><th>Request</th><th class="text-end">Rows</th><th class="text-end">ms</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var q in Model.Queries)
+    {
+        <tr class="@(q.Accepted ? "" : "table-warning")">
+            <td class="text-nowrap">@q.CalledAtUtc.ToLocalTime().ToString("ddd HH:mm")</td><td>@q.Agent</td><td>@q.Tool</td>
+            <td class="text-break"><code>@(q.Request.Length > 220 ? q.Request[..220] + "…" : q.Request)</code></td>
+            <td class="text-end">@q.RowCount</td><td class="text-end">@q.DurationMs</td>
+            <td>@(q.Accepted ? (q.Truncated ? "truncated" : "") : $"refused: {q.Error}")</td>
+        </tr>
+    }
+    @if (Model.Queries.Count == 0) { <tr><td colspan="7" class="text-muted">No calls yet.</td></tr> }
     </tbody>
 </table>

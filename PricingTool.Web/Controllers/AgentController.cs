@@ -48,6 +48,8 @@ public class AgentController : Controller
         var changed = await _ai.AgentDecisions.AsNoTracking()
             .Where(d => passIds.Contains(d.PassId) && d.Status == DecisionStatus.Applied && d.Action != "keep")
             .GroupBy(d => d.PassId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count);
+        var since = DateTime.UtcNow.AddDays(-7);
+        var today = DateOnly.FromDateTime(DateTime.Now);
         return View(new AgentStatusViewModel
         {
             KillSwitch = await _killSwitch.GetAsync(),
@@ -57,7 +59,94 @@ public class AgentController : Controller
             RecentPasses = passes,
             Changed = changed,
             LayerNames = inbox.LayerNames,
+            Week = await WeekAsync(since),
+            Feed = await FeedAsync(since),
+            ComingUp = await ComingUpAsync(today),
+            Queries = await _ai.AgentQueryLog.AsNoTracking().OrderByDescending(q => q.Id).Take(25).ToListAsync(),
+            Lessons = await _ai.AgentLessons.AsNoTracking().Where(l => l.RetiredUtc == null).OrderByDescending(l => l.Id).ToListAsync(),
         });
+    }
+
+    private async Task<WeekNumbers> WeekAsync(DateTime since)
+    {
+        var real = _ai.AgentPasses.Where(p => !p.IsTest).Select(p => p.Id);
+        var decisions = await _ai.AgentDecisions.AsNoTracking().Where(d => d.CreatedUtc >= since && real.Contains(d.PassId) && d.Action != "keep")
+            .GroupBy(d => d.Status).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count);
+        var batches = await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since && b.Status == "Published").ToListAsync();
+        var calls = await _ai.AiCallLog.AsNoTracking().Where(c => c.CalledAtUtc >= since).ToListAsync();
+        var ledger = await _ai.MoneyLedger.AsNoTracking().Where(m => m.Measured30Eur != null).ToListAsync();
+        return new WeekNumbers(decisions.GetValueOrDefault(DecisionStatus.Applied), decisions.GetValueOrDefault(DecisionStatus.Held), batches.Count,
+            batches.Sum(b => b.Created + b.Updated), calls.Count, calls.Sum(c => c.CostUsd ?? 0m),
+            ledger.Count > 0 ? ledger.Sum(m => m.Measured30Eur!.Value) : null, await _ai.MoneyLedger.CountAsync());
+    }
+
+    /// <summary>"What they did": both agents' decisions and passes, the cost watcher, the campaign threads and the publishes, newest first.</summary>
+    private async Task<IReadOnlyList<FeedItem>> FeedAsync(DateTime since)
+    {
+        var feed = new List<FeedItem>();
+        var real = await _ai.AgentPasses.AsNoTracking().Where(p => !p.IsTest && p.StartedUtc >= since).ToListAsync();
+        var realIds = real.Select(p => p.Id).ToList();
+        foreach (var p in real.Where(p => p.Source != "CostWatcher"))
+            feed.Add(new FeedItem(p.StartedUtc, p.Source, p.LayerId, $"{(p.Source == "Nova" ? "Weekly campaign pass" : "Weekly floor and target pass")} #{p.Id}: {p.Status}",
+                p.Summary ?? p.Error, null));
+        foreach (var d in await _ai.AgentDecisions.AsNoTracking().Where(d => realIds.Contains(d.PassId) && d.Action != "keep").OrderByDescending(d => d.Id).Take(60).ToListAsync())
+            feed.Add(new FeedItem(d.CreatedUtc, d.Source, d.LayerId,
+                d.Source == "CostWatcher"
+                    ? $"{d.Action} ({d.Status}{(d.Limit is null ? "" : ", " + d.Limit)})"
+                    : $"{d.Action} band {d.BandId} {d.Category}: floor {d.CurrentFloorPct:0.#} -> {d.ProposedFloorPct:0.#}%, target {d.CurrentTargetPct:0.#} -> {d.ProposedTargetPct:0.#}% ({d.Status})",
+                d.Reason, null));
+        var messages = await (from m in _ai.CampaignMessages.AsNoTracking()
+                              join b in _ai.CampaignBriefs.AsNoTracking() on m.BriefId equals b.Id
+                              where !b.IsTest && m.CreatedUtc >= since
+                              orderby m.Id descending
+                              select new { m, b.Name, b.LayerId, b.CalendarId }).Take(40).ToListAsync();
+        foreach (var x in messages)
+            feed.Add(new FeedItem(x.m.CreatedUtc, x.m.From, x.LayerId, $"on {x.Name} (round {x.m.Round})", x.m.Text,
+                x.CalendarId is { } cid ? Url.Action("Detail", "Campaigns", new { id = cid }) : null));
+        foreach (var b in await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since).OrderByDescending(b => b.Id).Take(20).ToListAsync())
+            feed.Add(new FeedItem(b.StartedUtc, "Publisher", b.LayerId,
+                $"{b.Kind} batch #{b.Id} to {b.Target}: {b.Status}{(b.RolledBackUtc is null ? "" : ", rolled back")} ({b.Created} created, {b.Updated} updated)", null, null));
+        return feed.OrderByDescending(f => f.Utc).Take(80).ToList();
+    }
+
+    /// <summary>"Coming up": campaigns starting in the next three weeks with their plan, and the veto window for published ones.</summary>
+    private async Task<IReadOnlyList<CampaignRow>> ComingUpAsync(DateOnly today)
+    {
+        var entries = await _ai.CampaignCalendar.AsNoTracking().Where(c => c.StartDate >= today && c.StartDate <= today.AddDays(21)).OrderBy(c => c.StartDate).ToListAsync();
+        var rows = new List<CampaignRow>();
+        foreach (var e in entries)
+        {
+            var brief = await _ai.CampaignBriefs.AsNoTracking().Where(b => b.CalendarId == e.Id && !b.IsTest && b.Status != BriefStatus.Superseded && b.Status != BriefStatus.Rejected)
+                .OrderByDescending(b => b.Id).FirstOrDefaultAsync();
+            var plan = brief is null ? null : await _ai.CampaignPlans.AsNoTracking().Where(p => p.BriefId == brief.Id).OrderByDescending(p => p.Id).FirstOrDefaultAsync();
+            var batch = plan?.PublishBatchId is { } id ? await _ai.PublishBatches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == id) : null;
+            rows.Add(new CampaignRow(e, brief, plan, batch, null));
+        }
+        return rows;
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddLesson(string agent, int? layerId, string text)
+    {
+        try
+        {
+            var l = await new PricingTool.Agent.Campaigns.LessonBook(_ai).AddAsync(agent, layerId, text, Who);
+            TempData["Message"] = $"Lesson #{l.Id} for {l.Agent}: kept in every pass until a person retires it.";
+        }
+        catch (ArgumentException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RetireLesson(long lessonId)
+    {
+        TempData["Message"] = await new PricingTool.Agent.Campaigns.LessonBook(_ai).RetireAsync(lessonId, Who)
+            ? $"Lesson #{lessonId} retired." : $"Lesson #{lessonId} is not active.";
+        return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Exceptions() => View(await _inbox.LoadAsync());
