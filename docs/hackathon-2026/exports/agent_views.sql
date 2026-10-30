@@ -21,24 +21,33 @@ FROM hk.Products p;
 GO
 
 -- One row per order line. Qty and money are line totals. GrossProfit = NetRevenue - Cogs (booked).
+-- BandId: the engine bands a SKU by its cost incl. VAT (PPTCV); here the booked unit cost x VAT
+-- stands in for it, using today's band limits.
 CREATE OR ALTER VIEW agent.SalesLines AS
 SELECT s.LayerId, CAST(s.DateAdded AS date) AS SaleDate, s.DateAdded AS SaleTime, s.Sku, s.ProductId,
        s.Qty, s.NetoPrice AS NetRevenue, s.BrutoPrice AS GrossRevenue, s.Cogs, s.Margin AS GrossProfit,
        s.ProductDiscount AS DiscountGiven, s.SalesNoDiscount AS ListValue, s.StockClass,
+       CAST(s.Cogs / NULLIF(s.Qty, 0) * ISNULL(s.Vat, 1.18) AS decimal(12,2)) AS UnitCostInclVat,
+       b.Id AS BandId, b.Name AS BandName,
        p.Brand, ISNULL(p.CategoryL1, N'Unknown') AS CategoryL1, p.CategoryL2, ISNULL(p.MainGroup, N'Others') AS MainGroup,
        ISNULL(p.IsGj50Listed, 0) AS IsGj50Listed
 FROM hk.SalesLines s
-LEFT JOIN hk.Products p ON p.LayerId = s.LayerId AND p.ProductId = s.ProductId;
+LEFT JOIN hk.Products p ON p.LayerId = s.LayerId AND p.ProductId = s.ProductId
+OUTER APPLY (SELECT TOP 1 pb.Id, pb.Name FROM PricingTool.PriceBands pb
+             WHERE pb.LayerId = s.LayerId
+               AND s.Cogs / NULLIF(s.Qty, 0) * ISNULL(s.Vat, 1.18) >= pb.MinPrice
+               AND s.Cogs / NULLIF(s.Qty, 0) * ISNULL(s.Vat, 1.18) < pb.MaxPrice
+             ORDER BY pb.SortOrder) b;
 GO
 
 -- Daily totals per layer and main group: the cheap starting point for trend questions.
 CREATE OR ALTER VIEW agent.DailySales AS
-SELECT LayerId, SaleDate, MainGroup, CategoryL1,
+SELECT LayerId, SaleDate, MainGroup, CategoryL1, BandId,
        COUNT(*) AS Lines, SUM(Qty) AS Units, SUM(NetRevenue) AS NetRevenue, SUM(GrossProfit) AS GrossProfit,
        CAST(SUM(GrossProfit) / NULLIF(SUM(NetRevenue), 0) AS decimal(9,4)) AS MarginPct,
        SUM(DiscountGiven) AS DiscountGiven
 FROM agent.SalesLines
-GROUP BY LayerId, SaleDate, MainGroup, CategoryL1;
+GROUP BY LayerId, SaleDate, MainGroup, CategoryL1, BandId;
 GO
 
 CREATE OR ALTER VIEW agent.CampaignHistory AS
