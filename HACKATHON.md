@@ -8,7 +8,9 @@ output changes a price, a band or a discount without passing limits written in C
 
 Everything below can be checked from this repository and the hackathon database (`PricingToolHackathon` on LocalDB).
 Figures carry an ID from [`docs/hackathon-2026/evidence/numbers.json`](docs/hackathon-2026/evidence/numbers.json), each with
-its label (measured / estimated / assumed), method, source and the script that reruns it.
+its label (measured / estimated / assumed), method, source and the script that reruns it. The
+[one-page summary](docs/hackathon-2026/one-pager.md) and the [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx)
+are generated from the same file (`docs/hackathon-2026/financial/build_financial_sheet.py`, `build_one_pager.py`).
 
 ## 1. What was written during the hackathon
 
@@ -104,6 +106,12 @@ calculator's test phase, E20: €4.0k a month measured in a test phase with a co
 same weeks, one run on one layer, so a floor); €10.6k and €13.0k measured before/after, not controlled) is a separate case and is never added into these
 figures. Framing B claims no past euro: the declaration said the calculator's measured past result is not claimed, and
 framing B claims only the next 12 months of an automated system, using the past as evidence for the rate.
+
+The [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx) carries both framings in three cases each (live
+formulas; inputs typed from `numbers.json` with their IDs): year-1 net benefit, ROI, payback and the Track A score. Its
+costs are the attended hackathon hours at €50 (E16), 120 assumed hours to production, the build sessions' AI usage (E18)
+and the agents' running AI cost from the measured cost per call (E19) × an assumed monthly volume. The Evidence and Works
+ratings in it are our own judgment, with the reason next to each.
 
 ## 5. What is mocked, injected or not finished
 

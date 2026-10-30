@@ -1,12 +1,12 @@
 {
-  "generated": "2026-10-31 00:08",
+  "generated": "2026-10-31 00:18",
   "label": "measured tokens; API-equivalent cost at list prices (the actual spend is the flat Claude subscription)",
   "prices": "USD per million tokens from the claude-api skill (cached 2026-10-06): claude-opus-5-5 4.0/20.0, cache read 0.2; claude-sonnet-5-5 2.0/10.0, cache read 0.2; claude-opus-5 5.0/25.0, cache read 0.5; claude-opus-4-8 5.0/25.0, cache read 0.5; claude-fable-5-1 10.0/50.0, cache read 0.25; claude-haiku-5-5 0.1/0.5, cache read 0.01; cache writes 1.25x input (5 min), 2x (1 h)",
   "sources": [
     {
       "transcript": "d7071225-5a98-43c3-bcf8-a901f206caf9.jsonl",
       "from": "start",
-      "responses": 1054
+      "responses": 1097
     },
     {
       "transcript": "a425eebb-0dd7-4bef-956a-a9675e0cc8c0.jsonl",
@@ -18,24 +18,24 @@
     "<synthetic>"
   ],
   "sinceKickoff": {
-    "responses": 1376,
+    "responses": 1419,
     "tokens": {
-      "input": 2862,
-      "output": 2073285,
-      "cacheWrite": 4526570,
-      "cacheRead": 708144051
+      "input": 2948,
+      "output": 2123683,
+      "cacheWrite": 4693520,
+      "cacheRead": 716276942
     },
-    "usdApiEquivalent": 220.94
+    "usdApiEquivalent": 224.91
   },
   "unattendedBlocks": {
-    "responses": 913,
+    "responses": 972,
     "tokens": {
-      "input": 1906,
-      "output": 1287661,
-      "cacheWrite": 2243690,
-      "cacheRead": 494709655
+      "input": 2030,
+      "output": 1358989,
+      "cacheWrite": 2488576,
+      "cacheRead": 516291397
     },
-    "usdApiEquivalent": 142.65
+    "usdApiEquivalent": 150.35
   },
   "blocks": [
     {
@@ -429,6 +429,20 @@
         "cacheRead": 17012801
       },
       "usdApiEquivalent": 4.14
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "00:06",
+      "to": "00:18",
+      "unattended": true,
+      "responses": 59,
+      "tokens": {
+        "input": 124,
+        "output": 71328,
+        "cacheWrite": 244886,
+        "cacheRead": 21581742
+      },
+      "usdApiEquivalent": 7.7
     }
   ]
 }

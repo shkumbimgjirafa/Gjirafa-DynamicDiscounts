@@ -31,3 +31,18 @@ finally {
     $xl.Quit()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) | Out-Null
 }
+
+# Excel stamps the Office user's name as the last author on save; the submitted file carries no personal names.
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::Open($Path, 'Update')
+try {
+    $entry = $zip.GetEntry('docProps/core.xml')
+    $reader = New-Object System.IO.StreamReader($entry.Open())
+    $xml = $reader.ReadToEnd(); $reader.Close()
+    $xml = [regex]::Replace($xml, '<cp:lastModifiedBy>[^<]*</cp:lastModifiedBy>', '<cp:lastModifiedBy></cp:lastModifiedBy>')
+    $entry.Delete()
+    $writer = New-Object System.IO.StreamWriter($zip.CreateEntry('docProps/core.xml').Open(), (New-Object System.Text.UTF8Encoding($false)))
+    $writer.Write($xml); $writer.Close()
+}
+finally { $zip.Dispose() }
+"last author cleared"

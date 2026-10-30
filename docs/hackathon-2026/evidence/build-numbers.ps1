@@ -5,7 +5,7 @@
 # database (the Për ty reproduction) or hours.md. To refresh after new data:
 #   PricingTool.AgentTools backtest-snapshot        (about a minute: every lever)
 #   powershell -ExecutionPolicy Bypass -File docs\hackathon-2026\evidence\build-numbers.ps1
-# The calculator's own results (E20-E22) were measured before the hackathon in the main repo; they are quoted with that
+# The calculator's own results (E20, E21) were measured before the hackathon in the main repo; they are quoted with that
 # label and source, not recomputed here.
 
 $ErrorActionPreference = 'Stop'
@@ -123,6 +123,18 @@ $aiTest = (Query 'PricingToolHackathonTest' 'SELECT COUNT(*), ISNULL(SUM(CostUsd
 Add 'E15' 'Agents'' runtime Claude calls (Alpha, Nova, the run checker, the chat), as logged' ([ordered]@{ liveCalls = $ai[0]; liveUsd = [math]::Round([decimal]$ai[1], 2); testCalls = $aiTest[0]; testUsd = [math]::Round([decimal]$aiTest[1], 2)
         inputTokens = $ai[2]; outputTokens = $ai[3]; cacheReadTokens = $ai[4]; cacheCreationTokens = $ai[5] }) 'calls / USD' 'measured' `
     'total_cost_usd and usage from each headless call''s JSON (Claude Code reports the cost the API would charge; billed through the subscription)' 'ai.AiCallLog (live and test databases)' 'this script (SQL above)'
+$kindSql = @"
+SELECT k, COUNT(*) AS n, CAST(AVG(CostUsd) AS decimal(9,4)) AS avgUsd FROM (
+  SELECT CostUsd, CASE WHEN Purpose LIKE 'floor-target%' THEN 'alphaWeeklyPass' WHEN Purpose LIKE 'campaign-briefs%' THEN 'novaWeeklyPass'
+    WHEN Purpose LIKE 'run-check%' THEN 'runCheck' WHEN Purpose LIKE 'campaign-plan%' OR Purpose LIKE 'campaign-review%' THEN 'planningCall'
+    WHEN Purpose LIKE 'chat%' OR Purpose LIKE 'ask%' THEN 'chat' END AS k FROM ai.AiCallLog) x
+WHERE k IS NOT NULL GROUP BY k ORDER BY k
+"@
+$kinds = [ordered]@{}
+foreach ($r in (Query 'PricingToolHackathon' $kindSql).Rows) { $kinds[$r.k] = [ordered]@{ calls = $r.n; avgUsd = [decimal]$r.avgUsd } }
+Add 'E19' 'Cost of one agent call by kind (live database)' $kinds 'USD per call' 'measured' `
+    'Average total_cost_usd per logged attempt, failed attempts included; kinds by Purpose (floor-target, campaign-briefs, run-check, campaign-plan/-review, chat and ask); the isolation probes left out' `
+    'ai.AiCallLog' 'this script (SQL above)'
 $rows = Get-Content (Join-Path $repo 'docs\hackathon-2026\hours.md') -Encoding UTF8 | Where-Object { $_ -match '^\| (Fri|Sat|Sun|Mon) ' }
 $attended = 0.0; $unattended = 0
 foreach ($row in $rows) {
@@ -144,9 +156,9 @@ $testsLine = 'dotnet test PricingTool.sln: 909 passed, 1 skipped (the opt-in rea
 Add 'E17' 'Automated tests' ([ordered]@{ passed = 909; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results, measured before the hackathon (quoted, not recomputed here) -------------------------
-Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10600; high = 13000 }) 'EUR/month' `
+Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10632; high = 13000 }) 'EUR/month' `
     ([ordered]@{ low = 'measured (same-weeks control)'; mid = 'measured before/after, not controlled'; high = 'measured before/after, season-adjusted with 2025, not controlled' }) `
-    'Low: changed vs unchanged products in the same weeks (a test phase with a control: one run on one layer, so a floor); mid: before/after on the approvals; high: the same, season-adjusted with 2025. The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)' `
+    'Low: changed vs unchanged products in the same weeks (a test phase with a control: one run on one layer, so a floor); mid: before/after on the approvals (Aug 11,184, Sep 10,079; their average); high: the same, season-adjusted with 2025. The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)' `
     'Main repo analysis before the hackathon (kickoff-plan.md sections 8 and 10)' 'not in this repo'
 Add 'E21' 'Below-floor GP forgone, Kosovo (the June/July analysis)' ([ordered]@{ jun = 24400; jul = 15100 }) 'EUR/month' 'measured' 'Lines priced under the hand-set floor, lifted to it, booked COGS' 'Main repo analysis before the hackathon (kickoff-plan.md section 5, lever 2)' 'not in this repo'
 
