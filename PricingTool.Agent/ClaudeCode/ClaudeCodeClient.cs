@@ -247,6 +247,10 @@ public sealed class ClaudeCodeClient
             return new Outcome(AgentCallStatus.CliError, null, envelope,
                 "Claude Code is not logged in on this machine: run `claude auth login` once (or set CLAUDE_CODE_OAUTH_TOKEN " +
                 "from `claude setup-token` on a server). No request was made.", envelope.Result, Retry: false);
+        if (IsUsageLimited(envelope))
+            return new Outcome(AgentCallStatus.CliError, null, envelope,
+                $"The subscription's usage limit is reached ({envelope.Result?.Trim()}). Calls work again after the reset, " +
+                "or once the organisers raise the limit.", envelope.Result, Retry: false);
         if (envelope.IsError || envelope.Subtype != "success")
             return new Outcome(AgentCallStatus.CliError, null, envelope,
                 $"Claude Code returned an error ({envelope.Subtype ?? "no subtype"}): {envelope.Result}".Trim(), envelope.Result);
@@ -270,6 +274,14 @@ public sealed class ClaudeCodeClient
     private static bool IsNotLoggedIn(ClaudeCodeEnvelope envelope) =>
         envelope.IsError && envelope.DurationApiMs is null or 0
         && envelope.Result?.Contains("Not logged in", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>"You've hit your session limit · resets 7:10pm" (seen 2026-10-30, AiCallLog #6–7): a retry
+    /// minutes later fails the same way, so it is reported, not retried.</summary>
+    private static bool IsUsageLimited(ClaudeCodeEnvelope envelope) =>
+        envelope.IsError && envelope.Result is { } r
+        && (r.Contains("hit your session limit", StringComparison.OrdinalIgnoreCase)
+            || r.Contains("hit your usage limit", StringComparison.OrdinalIgnoreCase)
+            || r.Contains("usage limit reached", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The answer text as JSON, allowing a ```json fence around it.</summary>
     internal static JsonElement? ParseJsonAnswer(string? text)

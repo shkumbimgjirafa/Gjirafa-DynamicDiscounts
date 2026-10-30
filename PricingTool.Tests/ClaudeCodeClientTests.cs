@@ -320,6 +320,27 @@ public class ClaudeCodeClientTests : IDisposable
     }
 
     [Fact]
+    public async Task The_subscription_usage_limit_is_reported_and_not_retried()
+    {
+        // What Claude Code 2.1.205 printed mid-pass on 2026-10-30 (AiCallLog #6): the work so far was billed.
+        var limited = new JsonObject
+        {
+            ["type"] = "result", ["subtype"] = "success", ["is_error"] = true, ["duration_api_ms"] = 125289, ["num_turns"] = 9,
+            ["result"] = "You've hit your session limit · resets 7:10pm (Europe/Budapest)", ["total_cost_usd"] = 0.370873m,
+            ["usage"] = new JsonObject { ["input_tokens"] = 20, ["output_tokens"] = 10037 },
+        }.ToJsonString();
+        var runner = new FakeRunner().Returns(new ProcessResult(1, limited, "", false, TimeSpan.FromSeconds(128)));
+
+        var result = await Client(runner).CallAsync(Request(AgentRole.Alpha));
+
+        Assert.Equal(AgentCallStatus.CliError, result.Status);
+        Assert.Contains("usage limit is reached", result.Error);
+        Assert.Contains("resets 7:10pm", result.Error);
+        Assert.Single(runner.Calls);
+        Assert.Equal(0.370873m, (await _db.AiCallLog.SingleAsync()).CostUsd);
+    }
+
+    [Fact]
     public async Task A_timeout_is_a_typed_failure_and_is_logged()
     {
         var killed = new ProcessResult(-1, "", "", true, TimeSpan.FromSeconds(60));
