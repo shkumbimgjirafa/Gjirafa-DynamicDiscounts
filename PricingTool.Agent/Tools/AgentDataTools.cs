@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PricingTool.Agent.Alpha;
+using PricingTool.Agent.Storage;
 
 namespace PricingTool.Agent.Tools;
 
@@ -17,15 +19,20 @@ public sealed class AgentDataTools
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly PricingDataReader _reader;
+    private const int MaxPastDecisions = 60;
+
     private readonly ScorecardOptions _scorecard;
     private readonly AgentToolLog _log;
+    private readonly AgentDbContext _db;
     private readonly TimeProvider _clock;
 
-    public AgentDataTools(PricingDataReader reader, IOptions<AgentOptions> options, AgentToolLog log, TimeProvider? clock = null)
+    public AgentDataTools(PricingDataReader reader, IOptions<AgentOptions> options, AgentToolLog log, AgentDbContext db,
+        TimeProvider? clock = null)
     {
         _reader = reader;
         _scorecard = options.Value.Scorecard;
         _log = log;
+        _db = db;
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -109,14 +116,32 @@ public sealed class AgentDataTools
             }, stock.Count);
         }, ct);
 
-    /// <summary>Earlier agent decisions and their measured outcomes. Empty until the decision log exists.</summary>
+    /// <summary>Earlier agent decisions on real (non-test) passes, newest first: what was decided, what code
+    /// let through, and why. Measured outcomes are not here yet: the outcome tracker writes them later.</summary>
     public Task<object> GetPastDecisionsAsync(AgentToolContext ctx, int layer, int? band, string? category, CancellationToken ct = default) =>
-        LoggedAsync(ctx, AgentToolNames.GetPastDecisions, new { layer, band, category }, () =>
-            Task.FromResult<(object, int)>((new
+        LoggedAsync(ctx, AgentToolNames.GetPastDecisions, new { layer, band, category }, async () =>
+        {
+            var realPasses = _db.AgentPasses.Where(p => p.LayerId == layer && !p.IsTest && p.Status == "Succeeded").Select(p => p.Id);
+            var q = _db.AgentDecisions.AsNoTracking().Where(d => d.LayerId == layer && realPasses.Contains(d.PassId));
+            if (band is not null) q = q.Where(d => d.BandId == band);
+            if (category is not null) q = q.Where(d => d.Category == category);
+            var rows = await q.OrderByDescending(d => d.CreatedUtc).ThenBy(d => d.BandId)
+                .Where(d => d.Action != "keep" || d.Status != "Applied")              // changes and anything held or refused
+                .Take(MaxPastDecisions).ToListAsync(ct);
+            return (new
             {
-                decisions = Array.Empty<object>(),
-                note = "No agent decisions yet: this is the first pass. Outcomes appear here once decisions have been applied and measured.",
-            }, 0)), ct);
+                note = rows.Count == 0
+                    ? "No earlier changes or holds on this layer (keeps are not listed)."
+                    : "Changes and holds from earlier real passes, newest first (keeps are not listed). Measured outcomes " +
+                      "(units and gross profit before vs after) are not available yet.",
+                decisions = rows.Select(d => new
+                {
+                    decisionId = d.Id, passId = d.PassId, date = d.CreatedUtc.ToString("yyyy-MM-dd"), d.BandId, d.Category, d.Action,
+                    floor = $"{d.CurrentFloorPct:0.##} -> {d.ProposedFloorPct:0.##}", target = $"{d.CurrentTargetPct:0.##} -> {d.ProposedTargetPct:0.##}",
+                    d.Status, d.Limit, d.Reason, outcome = "not measured yet",
+                }),
+            }, rows.Count);
+        }, ct);
 
     /// <summary>Fitted price elasticities per band × category for SKUs the latest engine run priced.</summary>
     public Task<object> GetElasticitySummaryAsync(AgentToolContext ctx, int layer, int? band, string? category, CancellationToken ct = default) =>
