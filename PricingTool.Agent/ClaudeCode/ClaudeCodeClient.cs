@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Json.Schema;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 
@@ -55,22 +56,25 @@ public sealed class ClaudeCodeClient
     private readonly AgentDbContext _db;
     private readonly ILogger<ClaudeCodeClient> _logger;
     private readonly TimeProvider _clock;
+    private readonly IKillSwitch _killSwitch;
 
     public ClaudeCodeClient(
         IOptions<AgentOptions> options, IProcessRunner runner, AgentDbContext db,
-        ILogger<ClaudeCodeClient> logger, TimeProvider? clock = null)
+        ILogger<ClaudeCodeClient> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null)
     {
         _options = options.Value;
         _runner = runner;
         _db = db;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
+        _killSwitch = killSwitch ?? new ConfigKillSwitch(_options);
     }
 
     public async Task<AgentCallResult> CallAsync(AgentCallRequest request, CancellationToken ct = default)
     {
-        if (!_options.Enabled)
-            return new AgentCallResult(AgentCallStatus.Disabled, null, "Agent:Enabled is off (kill switch); no call made.", Array.Empty<long>());
+        var stop = await _killSwitch.GetAsync(ct);
+        if (stop.Stopped)
+            return new AgentCallResult(AgentCallStatus.Disabled, null, $"Stopped by the kill switch ({stop.Reason}); no call made.", Array.Empty<long>());
 
         foreach (var file in request.AppendSystemPromptFiles.Prepend(request.SystemPromptFile))
             if (!File.Exists(file))

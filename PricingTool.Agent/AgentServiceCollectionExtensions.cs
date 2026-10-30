@@ -38,6 +38,8 @@ public static class AgentServiceCollectionExtensions
         services.AddSingleton<AlphaInputBuilder>();
         services.AddSingleton<IAlphaInputSource>(sp => sp.GetRequiredService<AlphaInputBuilder>());
         services.AddScoped<AgentModeStore>();
+        services.AddScoped<KillSwitch>();
+        services.AddScoped<IKillSwitch>(sp => sp.GetRequiredService<KillSwitch>());
         services.AddScoped<FloorTargetAgent>();
         services.AddScoped<RunChecker>();
         services.AddScoped<CheckedExport>();

@@ -45,9 +45,11 @@ public sealed class FloorTargetAgent
     private readonly AgentOptions _options;
     private readonly ILogger<FloorTargetAgent> _logger;
     private readonly TimeProvider _clock;
+    private readonly IKillSwitch _killSwitch;
 
     public FloorTargetAgent(IAlphaInputSource input, ClaudeCodeClient client, AgentDbContext db, PricingToolDbContext tool,
-        AgentModeStore modes, IOptions<AgentOptions> options, ILogger<FloorTargetAgent> logger, TimeProvider? clock = null)
+        AgentModeStore modes, IOptions<AgentOptions> options, ILogger<FloorTargetAgent> logger, TimeProvider? clock = null,
+        IKillSwitch? killSwitch = null)
     {
         _input = input;
         _client = client;
@@ -57,6 +59,7 @@ public sealed class FloorTargetAgent
         _options = options.Value;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
+        _killSwitch = killSwitch ?? new ConfigKillSwitch(_options);
     }
 
     /// <summary>Where the rules, the decision schema and the data dictionary ship.</summary>
@@ -71,8 +74,9 @@ public sealed class FloorTargetAgent
     {
         if (injectedTestNote is not null && !isTest)
             throw new ArgumentException("An injected test note is only allowed on a test pass.", nameof(injectedTestNote));
-        if (!_options.Enabled)
-            return new AlphaPassResult(null, "Skipped", "Agent:Enabled is off (kill switch): no pass, nothing changed.", Array.Empty<AgentDecision>());
+        var stop = await _killSwitch.GetAsync(ct);
+        if (stop.Stopped)
+            return new AlphaPassResult(null, "Skipped", $"Stopped by the kill switch ({stop.Reason}): no pass, nothing changed.", Array.Empty<AgentDecision>());
         var mode = await _modes.GetAsync(layerId, ct);
         if (mode == AutonomyMode.Off)
             return new AlphaPassResult(null, "Skipped", $"Layer {layerId} is Off: no pass.", Array.Empty<AgentDecision>());

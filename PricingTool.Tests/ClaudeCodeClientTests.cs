@@ -4,9 +4,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using PricingTool.Agent;
+using PricingTool.Agent.Alpha;
 using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
+using PricingTool.Data;
 
 namespace PricingTool.Tests;
 
@@ -394,6 +396,25 @@ public class ClaudeCodeClientTests : IDisposable
         var result = await Client(runner, enabled: false).CallAsync(Request());
 
         Assert.Equal(AgentCallStatus.Disabled, result.Status);
+        Assert.Empty(runner.Calls);
+        Assert.Empty(await _db.AiCallLog.ToListAsync());
+    }
+
+    [Fact]
+    public async Task A_kill_switch_pulled_at_runtime_makes_no_call_either()
+    {
+        var runner = new FakeRunner();
+        var options = Options.Create(new AgentOptions { Enabled = true, RuntimeDirectory = Path.Combine(_dir, "runtime"), TimeoutSeconds = 60 });
+        await using var tool = new PricingToolDbContext(new DbContextOptionsBuilder<PricingToolDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var killSwitch = new KillSwitch(tool, options);
+        await killSwitch.SetAsync(stop: true, "manager@test");
+
+        var result = await new ClaudeCodeClient(options, runner, _db, NullLogger<ClaudeCodeClient>.Instance, killSwitch: killSwitch)
+            .CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.Disabled, result.Status);
+        Assert.Contains("pulled by manager@test", result.Error);
         Assert.Empty(runner.Calls);
         Assert.Empty(await _db.AiCallLog.ToListAsync());
     }

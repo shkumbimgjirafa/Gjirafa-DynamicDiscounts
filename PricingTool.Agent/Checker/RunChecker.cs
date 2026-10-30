@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PricingTool.Agent.Alpha;
 using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
 using PricingTool.Core.Domain;
@@ -35,9 +36,10 @@ public sealed class RunChecker
     private readonly AgentOptions _options;
     private readonly ILogger<RunChecker> _logger;
     private readonly TimeProvider _clock;
+    private readonly IKillSwitch _killSwitch;
 
     public RunChecker(PricingToolDbContext tool, AgentDbContext db, ClaudeCodeClient client, IOptions<AgentOptions> options,
-        ILogger<RunChecker> logger, TimeProvider? clock = null)
+        ILogger<RunChecker> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null)
     {
         _tool = tool;
         _db = db;
@@ -45,6 +47,7 @@ public sealed class RunChecker
         _options = options.Value;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
+        _killSwitch = killSwitch ?? new ConfigKillSwitch(_options);
     }
 
     public static string PromptsDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Prompts");
@@ -66,8 +69,9 @@ public sealed class RunChecker
         _db.AgentRunChecks.Add(check);
         await _db.SaveChangesAsync(ct);
 
-        if (!_options.Enabled)
-            return await FinishAsync(check, sw, "Skipped", "Agent:Enabled is off (kill switch): no check, so the run stays blocked.", Array.Empty<AgentRunCheckRow>());
+        var stop = await _killSwitch.GetAsync(ct);
+        if (stop.Stopped)
+            return await FinishAsync(check, sw, "Skipped", $"Stopped by the kill switch ({stop.Reason}): no check, so the run stays blocked.", Array.Empty<AgentRunCheckRow>());
 
         var (inputs, notes) = await LoadAsync(run, ct);
         var flagged = inputs.Select(i => { var h = RunCheckRules.Evaluate(i); return new Flagged(i, h, RunCheckRules.Worst(h)); })
