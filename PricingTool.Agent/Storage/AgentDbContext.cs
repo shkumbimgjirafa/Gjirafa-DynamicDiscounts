@@ -81,6 +81,7 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Limit).HasMaxLength(40);
             e.Property(x => x.LimitDetail).HasMaxLength(500);
             e.Property(x => x.Reason).HasMaxLength(2000);
+            e.Property(x => x.ReviewedBy).HasMaxLength(256);
             foreach (var p in new[] { nameof(AgentDecision.CurrentFloorPct), nameof(AgentDecision.ProposedFloorPct),
                          nameof(AgentDecision.CurrentTargetPct), nameof(AgentDecision.ProposedTargetPct) })
                 e.Property(p).HasPrecision(9, 4);

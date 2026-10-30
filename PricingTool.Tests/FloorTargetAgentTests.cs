@@ -71,7 +71,7 @@ public class FloorTargetAgentTests : IDisposable
         }
     }
 
-    private FloorTargetAgent Agent(bool enabled = true)
+    private FloorTargetAgent Agent(bool enabled = true, decimal hardMin = 4m)
     {
         var options = Options.Create(new AgentOptions
         {
@@ -81,7 +81,7 @@ public class FloorTargetAgentTests : IDisposable
             Limits = new SafetyLimitOptions
             {
                 MaxStepPpPerWeek = 1m,
-                HardMinFloorPct = new() { ["4"] = 4m },
+                HardMinFloorPct = new() { ["4"] = hardMin },
                 Holdouts = new() { ["4"] = new() { "SMART" } },
             },
         });
@@ -181,6 +181,97 @@ public class FloorTargetAgentTests : IDisposable
         Assert.Empty(await _tool.BandCategoryRules.ToListAsync());
         Assert.Equal("Failed", (await _db.AgentPasses.SingleAsync()).Status);
         Assert.Equal(2, await _db.AiCallLog.CountAsync());
+    }
+
+    // ---- the exceptions inbox: a person reviews what code held ---------------------------------------------
+
+    private void SeedBand26()
+    {
+        _tool.PriceBands.Add(new PriceBand { Id = 26, LayerId = Layer, Name = "10-50", MinPrice = 10m, MaxPrice = 50m, MarginFloorPct = 13m, TargetMarginPct = 23m });
+        _tool.SaveChanges();
+    }
+
+    /// <summary>The standard week in Autonomous mode: "Celular, Tablet &amp; Navigim" +5 pt is held on the step limit.</summary>
+    private async Task<AgentDecision> HeldAfterAStandardWeek(bool isTest = false)
+    {
+        SeedBand26();
+        await SetMode(AutonomyMode.Autonomous);
+        ModelAnswersStandardWeek();
+        var result = await Agent().RunPassAsync(Layer, isTest);
+        return result.Decisions.Single(x => x.Status == DecisionStatus.Held);
+    }
+
+    [Fact]
+    public async Task Approving_a_held_decision_writes_it_like_an_automatic_one_under_the_persons_name()
+    {
+        var held = await HeldAfterAStandardWeek();
+
+        var review = await Agent().ApproveAsync(held.Id, "manager@test");
+
+        Assert.True(review.Ok, review.Message);
+        var d = await _db.AgentDecisions.AsNoTracking().SingleAsync(x => x.Id == held.Id);
+        Assert.Equal((DecisionStatus.Applied, "max-step", "manager@test"), (d.Status, d.Limit, d.ReviewedBy));
+        Assert.NotNull(d.AppliedUtc);
+        var rule = await _tool.BandCategoryRules.SingleAsync(r => r.Category == "Celular, Tablet & Navigim");
+        Assert.Equal((18m, 28m, "manager@test", held.Id),
+            (rule.MarginFloorPct!.Value, rule.TargetMarginPct!.Value, rule.UpdatedBy, rule.AgentDecisionId!.Value));
+        Assert.Contains(await _tool.AuditLog.Select(a => a.Action).ToListAsync(), a => a.Contains($"decision #{held.Id}, approved by manager@test"));
+    }
+
+    [Fact]
+    public async Task A_held_decision_whose_starting_values_changed_is_not_applied()
+    {
+        var held = await HeldAfterAStandardWeek();
+        _tool.BandCategoryRules.Add(new BandCategoryRule
+        {
+            LayerId = Layer, BandId = 26, Category = "Celular, Tablet & Navigim", MarginFloorPct = 14m, TargetMarginPct = 24m,
+            UpdatedBy = "someone else", UpdatedUtc = DateTime.UtcNow,
+        });
+        _tool.SaveChanges();
+
+        var review = await Agent().ApproveAsync(held.Id, "manager@test");
+
+        Assert.False(review.Ok);
+        Assert.Contains("changed since the pass", review.Message);
+        Assert.Equal(DecisionStatus.Held, (await _db.AgentDecisions.AsNoTracking().SingleAsync(x => x.Id == held.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Approval_lifts_only_the_step_limit_not_the_hard_minimum()
+    {
+        var held = await HeldAfterAStandardWeek();
+
+        var review = await Agent(hardMin: 20m).ApproveAsync(held.Id, "manager@test");   // the minimum was raised after the pass
+
+        Assert.False(review.Ok);
+        Assert.Contains("under the hard minimum of 20%", review.Message);
+        Assert.Null(await _tool.BandCategoryRules.FirstOrDefaultAsync(r => r.Category == "Celular, Tablet & Navigim"));
+    }
+
+    [Fact]
+    public async Task Rejecting_keeps_the_values_and_the_limit_and_records_who()
+    {
+        var held = await HeldAfterAStandardWeek();
+
+        var review = await Agent().RejectAsync(held.Id, "manager@test");
+
+        Assert.True(review.Ok, review.Message);
+        var d = await _db.AgentDecisions.AsNoTracking().SingleAsync(x => x.Id == held.Id);
+        Assert.Equal((DecisionStatus.Rejected, "max-step", "manager@test"), (d.Status, d.Limit, d.ReviewedBy));
+        Assert.Null(await _tool.BandCategoryRules.FirstOrDefaultAsync(r => r.Category == "Celular, Tablet & Navigim"));
+        Assert.Contains(await _tool.AuditLog.Select(a => a.Action).ToListAsync(), a => a == $"Decision #{held.Id} rejected in the exceptions inbox");
+        Assert.False((await Agent().ApproveAsync(held.Id, "manager@test")).Ok);           // decided once
+    }
+
+    [Fact]
+    public async Task A_test_pass_decision_cannot_be_approved()
+    {
+        var held = await HeldAfterAStandardWeek(isTest: true);
+
+        var review = await Agent().ApproveAsync(held.Id, "manager@test");
+
+        Assert.False(review.Ok);
+        Assert.Contains("test pass", review.Message);
     }
 
     [Fact]

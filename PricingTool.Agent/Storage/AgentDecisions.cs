@@ -74,6 +74,10 @@ public class AgentDecision
     public long? AiCallLogId { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime? AppliedUtc { get; set; }
+
+    /// <summary>The person who approved or rejected a held or pending decision in the exceptions inbox, and when.</summary>
+    public string? ReviewedBy { get; set; }
+    public DateTime? ReviewedUtc { get; set; }
 }
 
 /// <summary>A kind of task the solution does for people, with its measured time before (<c>ai.TimeSheetTaskType</c>).

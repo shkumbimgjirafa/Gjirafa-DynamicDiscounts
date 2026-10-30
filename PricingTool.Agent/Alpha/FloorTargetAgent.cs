@@ -177,9 +177,90 @@ public sealed class FloorTargetAgent
         return new AlphaPassResult(pass.Id, pass.Status, null, decisions);
     }
 
+    /// <summary>Who reviewed a held or pending decision, and what came of it.</summary>
+    public sealed record DecisionReview(bool Ok, string Message);
+
+    /// <summary>
+    /// A person approves a held (or approve-first pending) decision from the exceptions inbox. It is written
+    /// through the same path as an automatic one. A person lifts only the weekly step size: the hard minimum
+    /// floor, target at or above the floor and the holdout still hold, test passes never apply, and a decision
+    /// whose starting floor or target has changed since the pass is refused (the next pass decides again).
+    /// </summary>
+    public async Task<DecisionReview> ApproveAsync(long decisionId, string by, CancellationToken ct = default)
+    {
+        var d = await _db.AgentDecisions.SingleOrDefaultAsync(x => x.Id == decisionId, ct);
+        if (d is null) return new(false, $"Decision #{decisionId} doesn't exist.");
+        if (d.Status is not (DecisionStatus.Held or DecisionStatus.Pending))
+            return new(false, $"Decision #{d.Id} is {d.Status}: there is nothing to approve.");
+        if (await _db.AgentPasses.AsNoTracking().AnyAsync(p => p.Id == d.PassId && p.IsTest, ct))
+            return new(false, $"Decision #{d.Id} comes from a test pass; test passes never apply.");
+        if (d.Action == "keep")
+            return new(false, $"Decision #{d.Id} keeps the current values: there is nothing to apply.");
+
+        var hardMin = _options.Limits.HardMinFloorFor(d.LayerId);
+        if (d.ProposedFloorPct < hardMin)
+            return new(false, $"Decision #{d.Id}: floor {d.ProposedFloorPct:0.##}% is under the hard minimum of {hardMin:0.##}% for this layer.");
+        if (d.ProposedTargetPct is { } t && t < d.ProposedFloorPct)
+            return new(false, $"Decision #{d.Id}: target {t:0.##}% is under its floor {d.ProposedFloorPct:0.##}%.");
+        if (_options.Limits.IsHoldout(d.LayerId, d.Category))
+            return new(false, $"Decision #{d.Id}: '{d.Category}' is a holdout category and stays on its hand-set values.");
+
+        var band = await _tool.PriceBands.AsNoTracking().SingleOrDefaultAsync(b => b.Id == d.BandId && b.LayerId == d.LayerId, ct);
+        if (band is null) return new(false, $"Decision #{d.Id}: band {d.BandId} no longer exists on layer {d.LayerId}.");
+        var existing = (await _tool.BandCategoryRules.AsNoTracking().Where(r => r.LayerId == d.LayerId).ToListAsync(ct))
+            .ToDictionary(r => Key(r.BandId, r.Category));
+        existing.TryGetValue(Key(d.BandId, d.Category), out var rule);
+        var floorNow = rule?.MarginFloorPct ?? band.MarginFloorPct;
+        var targetNow = rule?.TargetMarginPct ?? band.TargetMarginPct ?? floorNow;
+        if (Math.Abs(floorNow - d.CurrentFloorPct) > 0.005m || Math.Abs(targetNow - (d.CurrentTargetPct ?? floorNow)) > 0.005m)
+            return new(false, $"Decision #{d.Id}: the values it started from changed since the pass (floor {d.CurrentFloorPct:0.##}% → now " +
+                              $"{floorNow:0.##}%, target {d.CurrentTargetPct:0.##}% → now {targetNow:0.##}%). The next pass decides again.");
+
+        var now = _clock.GetUtcNow().UtcDateTime;
+        d.Status = DecisionStatus.Applied;
+        d.ReviewedBy = by;
+        d.ReviewedUtc = now;
+        d.LimitDetail = Truncate($"{d.LimitDetail} Approved by {by}.".Trim(), 500);
+        await ApplyAsync(d.LayerId, new[] { d }, existing, by, $"approved by {by} in the exceptions inbox");
+        if (d.Status == DecisionStatus.Applied)
+            return new(true, $"Decision #{d.Id} applied: {d.Category}, floor {d.CurrentFloorPct:0.##}% → {d.ProposedFloorPct:0.##}%, " +
+                             $"target {d.CurrentTargetPct:0.##}% → {d.ProposedTargetPct:0.##}%.");
+        d.ReviewedBy = null;
+        d.ReviewedUtc = null;
+        await _db.SaveChangesAsync(CancellationToken.None);
+        return new(false, $"Decision #{d.Id} could not be written and stays held: {d.LimitDetail}");
+    }
+
+    /// <summary>A person rejects a held or pending decision: nothing changes, the limit that held it is kept,
+    /// and who and when are recorded and audited.</summary>
+    public async Task<DecisionReview> RejectAsync(long decisionId, string by, CancellationToken ct = default)
+    {
+        var d = await _db.AgentDecisions.SingleOrDefaultAsync(x => x.Id == decisionId, ct);
+        if (d is null) return new(false, $"Decision #{decisionId} doesn't exist.");
+        if (d.Status is not (DecisionStatus.Held or DecisionStatus.Pending))
+            return new(false, $"Decision #{d.Id} is {d.Status}: there is nothing to reject.");
+
+        var now = _clock.GetUtcNow().UtcDateTime;
+        d.Status = DecisionStatus.Rejected;
+        d.ReviewedBy = by;
+        d.ReviewedUtc = now;
+        d.LimitDetail = Truncate($"{d.LimitDetail} Rejected by {by}.".Trim(), 500);
+        _tool.AuditLog.Add(new AuditLogEntry
+        {
+            LayerId = d.LayerId, TimestampUtc = now, UserName = by, Category = AgentModeStore.AuditCategory,
+            Action = $"Decision #{d.Id} rejected in the exceptions inbox", EntityType = nameof(AgentDecision), EntityId = d.Id.ToString(CultureInfo.InvariantCulture),
+            OldValue = $"floor {d.CurrentFloorPct:0.##}%, target {d.CurrentTargetPct:0.##}%",
+            NewValue = $"unchanged (proposed floor {d.ProposedFloorPct:0.##}%, target {d.ProposedTargetPct:0.##}%)",
+        });
+        await _tool.SaveChangesAsync(ct);
+        await _db.SaveChangesAsync(ct);
+        return new(true, $"Decision #{d.Id} rejected: {d.Category} keeps floor {d.CurrentFloorPct:0.##}%, target {d.CurrentTargetPct:0.##}%.");
+    }
+
     /// <summary>Writes the applied changes as category overrides, with an audit row each, in one save. If the
     /// write fails, those decisions are held instead: nothing is half-applied.</summary>
-    private async Task ApplyAsync(int layerId, IReadOnlyList<AgentDecision> toApply, IReadOnlyDictionary<string, BandCategoryRule> existing)
+    private async Task ApplyAsync(int layerId, IReadOnlyList<AgentDecision> toApply, IReadOnlyDictionary<string, BandCategoryRule> existing,
+        string? by = null, string? how = null)
     {
         if (toApply.Count == 0) return;
         var now = _clock.GetUtcNow().UtcDateTime;
@@ -191,12 +272,12 @@ public sealed class FloorTargetAgent
             rule.MarginFloorPct = d.ProposedFloorPct;
             rule.TargetMarginPct = d.ProposedTargetPct;
             rule.UpdatedUtc = now;
-            rule.UpdatedBy = Source;
+            rule.UpdatedBy = by ?? Source;
             rule.AgentDecisionId = d.Id;
             _tool.AuditLog.Add(new AuditLogEntry
             {
-                LayerId = layerId, TimestampUtc = now, UserName = Source, Category = AgentModeStore.AuditCategory,
-                Action = $"Floor/target {d.Action} (decision #{d.Id})", EntityType = nameof(BandCategoryRule),
+                LayerId = layerId, TimestampUtc = now, UserName = by ?? Source, Category = AgentModeStore.AuditCategory,
+                Action = $"Floor/target {d.Action} (decision #{d.Id}{(how is null ? "" : ", " + how)})", EntityType = nameof(BandCategoryRule),
                 EntityId = $"L{layerId}/B{d.BandId}/{d.Category}",
                 OldValue = $"floor {d.CurrentFloorPct:0.##}%, target {d.CurrentTargetPct:0.##}%",
                 NewValue = $"floor {d.ProposedFloorPct:0.##}%, target {d.ProposedTargetPct:0.##}%",
