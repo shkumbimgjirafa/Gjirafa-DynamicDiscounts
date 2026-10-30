@@ -91,8 +91,10 @@ public static class RunCheckRules
         var change = r.CurrentPrice > 0 ? 100m * (p - r.CurrentPrice) / r.CurrentPrice : r.ChangePct;
         if (Math.Abs(change) > ConfirmationChangePct)
             hits.Add(new("change-over-20", Severity.Warn, $"Changes {Pct(change)} against today's price {Money(r.CurrentPrice)}."));
+        // A GjirafaMall price synced from Gjirafa50 is Gjirafa50's price verbatim, on Gjirafa50's grid by design (on run
+        // #1104 that was 49,456 of 49,466 off-grid prices, all held back until this exemption).
         if (r.RoundingEnabled && r.Rounding != RoundingConvention.None && !RoundingService.IsOnGrid(p, r.Rounding)
-            && !DeliberatelyUnrounded(r, p, ceiling))
+            && !synced && !DeliberatelyUnrounded(r, p, ceiling))
             hits.Add(new("off-charm", Severity.Warn, $"{Money(p)} is not on the layer's {r.Rounding} grid."));
         if (r.PreviousCost is { } prev and > 0 && r.Cost is { } now && Math.Abs(100m * (now - prev) / prev) > CostMovePct)
             hits.Add(new("cost-moved", Severity.Warn, $"Cost moved {Pct(100m * (now - prev) / prev)} since the previous run ({Money(prev)} to {Money(now)})."));

@@ -66,6 +66,7 @@ public class RunCheckRulesTests
         var mall = Row(13.184m, current: 16.48m, cost: 10m) with { Rounding = RoundingConvention.GjmCharm };              // GjirafaMall's …49 / …99 grid
         Assert.Contains("off-charm", Codes(mall));
         Assert.DoesNotContain("off-charm", Codes(mall with { Price = 13.49m }));
+        Assert.DoesNotContain("off-charm", Codes(mall with { Price = 13.50m, GuardrailFlags = "SYNCED_TO_GJ50" }));  // Gjirafa50's price, its grid
         Assert.DoesNotContain("off-charm", Codes(mall with { Price = 4.39m, CurrentPrice = 4.99m, Cost = 3m }));  // .x9 under €5
         Assert.Contains("cost-moved", Codes(Row(49.50m) with { PreviousCost = 27m }));
         Assert.DoesNotContain("cost-moved", Codes(Row(49.50m) with { PreviousCost = 29.5m }));

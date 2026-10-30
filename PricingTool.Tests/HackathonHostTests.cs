@@ -15,9 +15,10 @@ public class HackathonHostTests
     private static DateTimeOffset At(DateOnly day, int h, int m = 0) => new(day.ToDateTime(new TimeOnly(h, m)), TimeSpan.FromHours(1));
 
     [Fact]
-    public void The_host_runs_at_start_then_on_a_new_day_from_the_start_time_and_retries_failures_after_the_interval()
+    public void The_host_runs_at_start_and_on_a_new_day_from_the_start_time_and_retries_failures_after_the_interval()
     {
-        Assert.True(DailyCycleWorker.IsDue(null, false, DateTimeOffset.MinValue, At(Mon, 2), Options));            // started at 02:00: runs now
+        Assert.False(DailyCycleWorker.IsDue(null, false, DateTimeOffset.MinValue, At(Mon, 2), Options));           // started at 02:00: waits for 07:00
+        Assert.True(DailyCycleWorker.IsDue(null, false, DateTimeOffset.MinValue, At(Mon, 9), Options));            // started at 09:00: runs now
         Assert.False(DailyCycleWorker.IsDue(Mon, false, At(Mon, 2), At(Mon, 23, 45), Options));                    // same day, nothing failed
         Assert.False(DailyCycleWorker.IsDue(Mon, false, At(Mon, 2), At(Mon.AddDays(1), 6, 45), Options));         // next day, before 07:00
         Assert.True(DailyCycleWorker.IsDue(Mon, false, At(Mon, 2), At(Mon.AddDays(1), 7), Options));              // next day, 07:00

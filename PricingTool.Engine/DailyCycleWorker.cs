@@ -5,8 +5,9 @@ using PricingTool.Agent.Operations;
 namespace PricingTool.Engine;
 
 /// <summary>
-/// The laptop's host mode (<c>--hackathon-host</c>, prompt 05). Runs the daily cycle as soon as the host starts
-/// (a second start the same day only resumes what isn't done), then every 15 minutes checks whether the next
+/// The laptop's host mode (<c>--hackathon-host</c>, prompt 05). Runs the daily cycle as soon as the host starts, once
+/// the daily start time has passed (a start before it waits for it; a second start the same day only resumes what
+/// isn't done), then every 15 minutes checks whether the next
 /// day's cycle is due (from <see cref="CycleOptions.DailyStartLocal"/>) or a failed step of today's cycle may be
 /// tried again (after <see cref="CycleOptions.RetryFailedAfterMinutes"/>; the cycle caps it at three attempts a
 /// day). The cost watcher is meant to share this 15-minute loop; it is not built yet, and the cycle logs it as
@@ -67,11 +68,12 @@ public class DailyCycleWorker : BackgroundService
         }
     }
 
-    /// <summary>Whether to run the cycle now: at the host's start; on a new day once the daily start time has
-    /// passed; or today again when a failed step has attempts left and the retry interval has passed.</summary>
+    /// <summary>Whether to run the cycle now: at the host's start or on a new day, once the daily start time has passed
+    /// (a restart at 00:35 on 31 Oct ran that day's cycle six hours early); or today again when a failed step has
+    /// attempts left and the retry interval has passed.</summary>
     internal static bool IsDue(DateOnly? lastDay, bool retryableFailure, DateTimeOffset lastRun, DateTimeOffset nowLocal, CycleOptions options)
     {
-        if (lastDay is null) return true;
+        if (lastDay is null) return TimeOnly.FromDateTime(nowLocal.DateTime) >= options.DailyStart();
         if (DateOnly.FromDateTime(nowLocal.DateTime) != lastDay)
             return TimeOnly.FromDateTime(nowLocal.DateTime) >= options.DailyStart();
         return retryableFailure && nowLocal - lastRun >= TimeSpan.FromMinutes(options.RetryFailedAfterMinutes);

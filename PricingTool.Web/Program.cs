@@ -115,7 +115,7 @@ using (var scope = app.Services.CreateScope())
     }
     await DbSeeder.SeedCoreAsync(db, options);
 
-    // Seed the initial Manager (admin@example.test by default) so the app is usable before anyone is
+    // Seed the initial Manager (Porta:InitialAdminEmail; empty in this repo: none) so the app is usable before anyone is
     // added via the Users admin screen. Only inserts when the Users table is empty.
     var porta = scope.ServiceProvider.GetRequiredService<IOptions<PricingTool.Web.Options.PortaOptions>>().Value;
     await DbSeeder.SeedInitialUserAsync(db, porta.InitialAdminEmail);

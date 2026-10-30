@@ -243,7 +243,7 @@ public static class DbSeeder
         db.Users.Add(new User
         {
             Email = initialAdminEmail.Trim().ToLowerInvariant(),
-            Name = "Drit",
+            Name = initialAdminEmail.Trim().Split('@')[0],
             Role = PricingRoles.Manager,
             Active = true,
             CreatedUtc = DateTime.UtcNow,

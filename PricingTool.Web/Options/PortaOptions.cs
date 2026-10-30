@@ -35,7 +35,7 @@ public class PortaOptions
     public string Scope { get; set; } = "openid profile email";
 
     /// <summary>Seeded as the initial Manager on first startup (only when the Users table is empty).</summary>
-    public string InitialAdminEmail { get; set; } = "admin@example.test";
+    public string InitialAdminEmail { get; set; } = "";
 
     /// <summary>True when enough is configured to wire real SSO; otherwise the dev no-auth shim is used.</summary>
     public bool IsConfigured =>

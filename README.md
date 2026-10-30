@@ -342,7 +342,7 @@ badge in this mode.
 (Authority, ClientId, ClientSecret, CallbackPath, InitialAdminEmail), mirroring the Finance app. It
 reuses Finance's Porta client, so that client must have this app's redirect URIs registered in Porta:
 `https://dynamic-pricing.gjirafa.dev/signin-oidc` and `…/signout-callback-oidc`. On first startup the
-initial Manager (`Porta__InitialAdminEmail`, default `admin@example.test`) is seeded so the app is usable
+initial Manager (`Porta__InitialAdminEmail`; empty by default in the hackathon repo) is seeded so the app is usable
 immediately; Managers add everyone else via **Users** in the navbar.
 
 ### Roles

@@ -72,7 +72,7 @@ below is registered.
 
 `scripts\run-laptop-host.ps1` copies the current build to `%LOCALAPPDATA%\PricingToolAgent\host` (so the repo can
 be rebuilt while it runs) and starts the engine host (`--hackathon-host`). The host runs the daily cycle at start
-and then each day from 07:00:
+(a start before 07:00 waits for 07:00) and then each day from 07:00:
 
 size check (warns at 8 GB) → incremental hk refresh from the replica → engine runs, Gjirafa50 then GjirafaMall →
 Alpha's floor/target pass (Mondays) → run checks → checked exports for the push (holdout categories left out) →

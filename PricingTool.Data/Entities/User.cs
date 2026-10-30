@@ -4,7 +4,7 @@ namespace PricingTool.Data.Entities;
 /// An authorized user of the tool. Porta SSO (OpenID Connect) only *authenticates* the
 /// person (proves their email); their *role* — Analyst or Manager — comes from this table,
 /// exactly like the sibling Finance app. A user who signs in via Porta but is not present
-/// here (or is inactive) is denied access. The initial Manager (admin@example.test) is seeded
+/// here (or is inactive) is denied access. The initial Manager (Porta:InitialAdminEmail) is seeded
 /// on startup so the system is usable before anyone is added via the Users admin screen.
 /// </summary>
 public class User
