@@ -1,0 +1,232 @@
+using System.Text.Json.Nodes;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using PricingTool.Agent;
+using PricingTool.Agent.Checker;
+using PricingTool.Agent.ClaudeCode;
+using PricingTool.Agent.Storage;
+using PricingTool.Core.Domain;
+using PricingTool.Data;
+using PricingTool.Data.Entities;
+
+namespace PricingTool.Tests;
+
+/// <summary>
+/// The run check end to end on injected, labelled bad rows ([INJECTED-TEST], in this in-memory test database
+/// only) against a fake Claude Code process: the verdict, what code does with the model's answer, and that a
+/// block stops the export.
+/// </summary>
+public class RunCheckerTests : IDisposable
+{
+    private const long Run = 5001;
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "pt-check-tests-" + Guid.NewGuid().ToString("N"));
+    private readonly AgentDbContext _db;
+    private readonly PricingToolDbContext _tool;
+    private readonly Queue<string> _answers = new();
+    private int _calls;
+
+    public RunCheckerTests()
+    {
+        Directory.CreateDirectory(_dir);
+        _db = new AgentDbContext(new DbContextOptionsBuilder<AgentDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        _db.Database.EnsureCreated();
+        _tool = new PricingToolDbContext(new DbContextOptionsBuilder<PricingToolDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        _tool.Layers.Add(new Layer { Id = 4, Brand = "Gjirafa50", CountryCode = "KS", DisplayName = "Gjirafa50 — Kosovo", OperationalDatabase = "GjirafaEcommerce", StoreId = 2, Currency = "EUR" });
+        _tool.PriceBands.Add(new PriceBand { Id = 26, LayerId = 4, Name = "10–50", MinPrice = 10, MaxPrice = 50, MarginFloorPct = 13, TargetMarginPct = 23,
+            RoundingConvention = (int)RoundingConvention.Gj50Charm, RoundingEnabled = true });
+        _tool.PricingRuns.Add(new PricingRun { Id = Run, LayerId = 4, Status = RunStatus.Succeeded, StartedUtc = new DateTime(2026, 10, 30, 16, 6, 0) });
+        _tool.SaveChanges();
+    }
+
+    public void Dispose()
+    {
+        _db.Dispose();
+        _tool.Dispose();
+        try { Directory.Delete(_dir, true); } catch (IOException) { }
+    }
+
+    private sealed class Runner : IProcessRunner
+    {
+        private readonly RunCheckerTests _t;
+        public Runner(RunCheckerTests t) => _t = t;
+        public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default)
+        {
+            _t._calls++;
+            return Task.FromResult(new ProcessResult(0, _t._answers.Dequeue(), "", false, TimeSpan.FromSeconds(20)));
+        }
+    }
+
+    /// <summary>An injected, labelled test price (never in the hackathon database).</summary>
+    private void Injected(long id, string sku, decimal price, decimal current, decimal cost, decimal old = 60m, decimal anchor = 60m)
+    {
+        _tool.ProposedPrices.Add(new ProposedPrice
+        {
+            Id = id, PricingRunId = Run, LayerId = 4, Sku = sku, ProductName = $"[INJECTED-TEST] {sku}", PriceBandId = 26, HasChange = true,
+            ProposedPriceValue = price, CurrentPrice = current, OldPrice = old, AnchorPrice = anchor, Pptcv = cost,
+            ChangePct = 100m * (price - current) / current, ReasonCodes = "", GuardrailFlags = "",
+        });
+        _tool.SaveChanges();
+    }
+
+    private void InjectTheFourBadRows()
+    {
+        Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);                 // clean
+        Injected(2, "INJ-X10", 495.00m, 49.50m, 30m);              // a price ×10
+        Injected(3, "INJ-COST62", 49.50m, 52.50m, 30m * 62);       // a cost ×62 (denars in a euro layer)
+        Injected(4, "INJ-UNCHARMED", 49.37m, 50.50m, 30m);         // off the .50 grid
+        Injected(5, "INJ-BELOWCOST", 19.50m, 22.50m, 25m);         // below cost
+    }
+
+    private static JsonObject V(string sku, string severity, string reason, decimal? fix = null) => new()
+    {
+        ["sku"] = sku, ["band"] = "10–50", ["new_price"] = 1m, ["margin_pct"] = null, ["floor_pct"] = 13m,
+        ["severity"] = severity, ["reason"] = reason, ["fix_price"] = fix,
+    };
+
+    private void ModelSays(string verdict, params JsonObject[] violations) => _answers.Enqueue(new JsonObject
+    {
+        ["type"] = "result", ["subtype"] = "success", ["is_error"] = false, ["num_turns"] = 2, ["result"] = "", ["total_cost_usd"] = 0.05m,
+        ["usage"] = new JsonObject { ["input_tokens"] = 900, ["output_tokens"] = 600 },
+        ["structured_output"] = new JsonObject { ["run_id"] = Run, ["verdict"] = verdict, ["violations"] = new JsonArray(violations.Select(v => (JsonNode)v).ToArray()) },
+    }.ToJsonString());
+
+    private RunChecker Checker(bool enabled = true, int cap = 150)
+    {
+        var options = Options.Create(new AgentOptions { Enabled = enabled, RuntimeDirectory = Path.Combine(_dir, "runtime"), RunCheckerModelCap = cap });
+        var client = new ClaudeCodeClient(options, new Runner(this), _db, NullLogger<ClaudeCodeClient>.Instance);
+        return new RunChecker(_tool, _db, client, options, NullLogger<RunChecker>.Instance);
+    }
+
+    private Task<ExportResult> Export() => new CheckedExport(_tool, _db).ExportAsync(Run, Path.Combine(_dir, "exports"));
+
+    [Fact]
+    public async Task Injected_bad_rows_block_the_run_and_the_block_stops_the_export()
+    {
+        InjectTheFourBadRows();
+        ModelSays("block",
+            V("INJ-X10", "block", "495.00 is ten times today's 49.50: a data error."),
+            V("INJ-COST62", "block", "Cost 1860.00 is 62x the shelf price: denars in a euro layer."),
+            V("INJ-BELOWCOST", "block", "19.50 is below the cost of 25.00."),
+            V("INJ-UNCHARMED", "warn", "49.37 is off the .50 grid.", fix: 49.50m));
+
+        var result = await Checker().CheckAsync(Run, isTest: true);
+
+        Assert.Equal((Severity.Block, "Succeeded", 4, 4, 3), (result.Verdict, result.Status, result.Flagged, result.Sent, result.Blocks));
+        Assert.Equal(1, result.Fixed);                                               // 49.50 passes every rule
+        var rows = await _db.AgentRunCheckRows.ToDictionaryAsync(r => r.Sku);
+        Assert.Contains("x10-jump", rows["INJ-X10"].Flags);
+        Assert.Contains("cost-scale", rows["INJ-COST62"].Flags);
+        Assert.Equal(("off-charm", Severity.Warn, Severity.Fixed, true), (rows["INJ-UNCHARMED"].Flags, rows["INJ-UNCHARMED"].RuleSeverity, rows["INJ-UNCHARMED"].FinalSeverity, rows["INJ-UNCHARMED"].FixAccepted));
+        Assert.False(rows.ContainsKey("INJ-OK"));
+        Assert.Equal("block", (await _db.AgentRunChecks.SingleAsync()).ModelVerdict);
+        Assert.StartsWith("[INJECTED-TEST]", (await _db.AiCallLog.SingleAsync()).Purpose);
+        Assert.Empty(await _db.TimeSheetEntries.ToListAsync());                     // tests never reach the time sheet
+
+        var export = await Export();
+        Assert.False(export.Exported);
+        Assert.Contains("blocked by check", export.Reason);
+        Assert.False(Directory.Exists(Path.Combine(_dir, "exports")) && Directory.EnumerateFiles(Path.Combine(_dir, "exports")).Any());
+    }
+
+    [Fact]
+    public async Task A_warned_row_stays_out_of_the_export_and_a_fixed_row_goes_out_at_the_fixed_price()
+    {
+        Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);
+        Injected(4, "INJ-UNCHARMED", 49.37m, 50.50m, 30m);
+        Injected(6, "INJ-BIGCHANGE", 39.50m, 52.50m, 30m);           // −24.8 %: a person confirms it
+        ModelSays("warn",
+            V("INJ-BIGCHANGE", "warn", "A 24.8 % cut needs a person."),
+            V("INJ-UNCHARMED", "warn", "Off the grid.", fix: 49.50m));
+
+        var result = await Checker().CheckAsync(Run);
+
+        Assert.Equal((Severity.Warn, 1, 1), (result.Verdict, result.Warns, result.Fixed));
+        var export = await Export();
+        Assert.True(export.Exported);
+        Assert.Equal((2, 1), (export.Rows, export.LeftOut));
+        var csv = await File.ReadAllLinesAsync(export.FilePath!);
+        Assert.Contains(csv, l => l.StartsWith("INJ-UNCHARMED,60.00,50.50,49.50,") && l.EndsWith("fixed by the run checker"));
+        Assert.DoesNotContain(csv, l => l.StartsWith("INJ-BIGCHANGE"));
+        Assert.Single(await _db.TimeSheetEntries.ToListAsync());                    // a real check is logged
+    }
+
+    [Fact]
+    public async Task A_fix_that_breaks_a_rule_is_refused()
+    {
+        Injected(4, "INJ-UNCHARMED", 49.37m, 50.50m, 30m);
+        ModelSays("warn", V("INJ-UNCHARMED", "warn", "Off the grid.", fix: 29.50m));   // below cost
+
+        await Checker().CheckAsync(Run);
+
+        var row = await _db.AgentRunCheckRows.SingleAsync();
+        Assert.Equal((false, Severity.Warn), (row.FixAccepted, row.FinalSeverity));
+        Assert.Contains("refused: below-cost", row.Detail);
+    }
+
+    [Fact]
+    public async Task A_block_may_be_downgraded_with_a_reason_and_a_warn_may_be_raised()
+    {
+        Injected(5, "INJ-BELOWCOST", 19.50m, 22.50m, 25m);
+        Injected(4, "INJ-UNCHARMED", 49.37m, 50.50m, 30m);
+        ModelSays("block",
+            V("INJ-BELOWCOST", "warn", "Clearance price agreed with the supplier; hold it for a person, don't stop the run."),
+            V("INJ-UNCHARMED", "block", "Looks like a data error."));
+
+        var result = await Checker().CheckAsync(Run);
+
+        var rows = await _db.AgentRunCheckRows.ToDictionaryAsync(r => r.Sku);
+        Assert.Equal(Severity.Warn, rows["INJ-BELOWCOST"].FinalSeverity);
+        Assert.Equal(Severity.Block, rows["INJ-UNCHARMED"].FinalSeverity);
+        Assert.Equal(Severity.Block, result.Verdict);
+    }
+
+    [Fact]
+    public async Task No_valid_answer_blocks_the_run()
+    {
+        InjectTheFourBadRows();
+        _answers.Enqueue("""{"type":"result","subtype":"success","is_error":false,"result":"looks fine to me"}""");
+        _answers.Enqueue("""{"type":"result","subtype":"success","is_error":false,"structured_output":{"run_id":5001,"verdict":"pass"}}""");
+
+        var result = await Checker().CheckAsync(Run);
+
+        Assert.Equal(("Failed", Severity.Block, 2), (result.Status, result.Verdict, _calls));
+        Assert.Contains("InvalidOutput", result.Error);
+        Assert.False((await Export()).Exported);
+    }
+
+    [Fact]
+    public async Task The_kill_switch_means_no_check_and_no_export()
+    {
+        InjectTheFourBadRows();
+
+        var result = await Checker(enabled: false).CheckAsync(Run);
+
+        Assert.Equal(("Skipped", Severity.Block, 0), (result.Status, result.Verdict, _calls));
+        Assert.False((await Export()).Exported);
+    }
+
+    [Fact]
+    public async Task Rows_over_the_cap_keep_their_rule_severity_and_the_check_says_so()
+    {
+        InjectTheFourBadRows();
+        ModelSays("block", V("INJ-X10", "block", "Tenfold."));
+
+        var result = await Checker(cap: 1).CheckAsync(Run);
+
+        Assert.Equal((4, 1), (result.Flagged, result.Sent));
+        var check = await _db.AgentRunChecks.SingleAsync();
+        Assert.Contains("3 flagged rows over the cap of 1", check.Notes);
+        Assert.Equal(1, await _db.AgentRunCheckRows.CountAsync(r => r.ModelSeverity != null));
+        Assert.Equal(Severity.Warn, (await _db.AgentRunCheckRows.SingleAsync(r => r.Sku == "INJ-UNCHARMED")).FinalSeverity);
+    }
+
+    [Fact]
+    public async Task An_unchecked_run_is_not_exported()
+    {
+        Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);
+        var export = await Export();
+        Assert.False(export.Exported);
+        Assert.Contains("has not been checked", export.Reason);
+    }
+}

@@ -239,6 +239,183 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.ToTable("AgentQueryLog", "ai");
                 });
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.AgentRunCheck", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long?>("AiCallLogId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Blocks")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CallTag")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("FinishedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Fixed")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsTest")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ModelVerdict")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("RowsChecked")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RowsFlagged")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RowsSentToModel")
+                        .HasColumnType("int");
+
+                    b.Property<long>("RunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("StartedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Verdict")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("Warns")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RunId", "StartedUtc");
+
+                    b.ToTable("AgentRunCheck", "ai");
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.AgentRunCheckRow", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("BandId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BandName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<decimal>("ChangePct")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<long>("CheckId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("Cost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CurrentPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FinalSeverity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<bool>("FixAccepted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("FixPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Flags")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal?>("FloorPct")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal?>("MarginPct")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<string>("ModelReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ModelSeverity")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<decimal>("NewPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("ProposalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RuleSeverity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<int?>("Stock")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckId");
+
+                    b.HasIndex("ProposalId");
+
+                    b.ToTable("AgentRunCheckRow", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.AiCallLogEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -611,6 +788,11 @@ namespace PricingTool.Agent.Storage.Migrations
                         {
                             Id = 2,
                             Name = "Create and push the discounts for a run"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Pre-publish check of a pricing run"
                         });
                 });
 
@@ -619,6 +801,15 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.HasOne("PricingTool.Agent.Storage.AgentPass", null)
                         .WithMany()
                         .HasForeignKey("PassId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.AgentRunCheckRow", b =>
+                {
+                    b.HasOne("PricingTool.Agent.Storage.AgentRunCheck", null)
+                        .WithMany()
+                        .HasForeignKey("CheckId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

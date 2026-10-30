@@ -23,12 +23,15 @@ public class AgentDbContext : DbContext
     public DbSet<PublishBatch> PublishBatches => Set<PublishBatch>();
     public DbSet<PublishAudit> PublishAudits => Set<PublishAudit>();
     public DbSet<PublishException> PublishExceptions => Set<PublishException>();
+    public DbSet<AgentRunCheck> AgentRunChecks => Set<AgentRunCheck>();
+    public DbSet<AgentRunCheckRow> AgentRunCheckRows => Set<AgentRunCheckRow>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
     {
         public const int WeeklyFloorTargetReview = 1;
         public const int CreateAndPushDiscounts = 2;
+        public const int PrePublishRunCheck = 3;
     }
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -91,7 +94,8 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Name).HasMaxLength(200);
             e.HasData(
                 new TimeSheetTaskType { Id = TaskTypes.WeeklyFloorTargetReview, Name = "Weekly floor and target review", MinutesBefore = null },
-                new TimeSheetTaskType { Id = TaskTypes.CreateAndPushDiscounts, Name = "Create and push the discounts for a run", MinutesBefore = null });
+                new TimeSheetTaskType { Id = TaskTypes.CreateAndPushDiscounts, Name = "Create and push the discounts for a run", MinutesBefore = null },
+                new TimeSheetTaskType { Id = TaskTypes.PrePublishRunCheck, Name = "Pre-publish check of a pricing run", MinutesBefore = null });
         });
 
         builder.Entity<TimeSheetEntry>(e =>
@@ -105,6 +109,40 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Proof).HasMaxLength(500);
             e.Property(x => x.Comment).HasMaxLength(1000);
             e.Property(x => x.Source).HasMaxLength(20);
+        });
+
+        builder.Entity<AgentRunCheck>(e =>
+        {
+            e.ToTable("AgentRunCheck");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Verdict).HasMaxLength(10);
+            e.Property(x => x.ModelVerdict).HasMaxLength(10);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Error).HasMaxLength(2000);
+            e.Property(x => x.CallTag).HasMaxLength(40);
+            e.Property(x => x.Notes).HasMaxLength(2000);
+            e.HasIndex(x => new { x.RunId, x.StartedUtc });
+        });
+
+        builder.Entity<AgentRunCheckRow>(e =>
+        {
+            e.ToTable("AgentRunCheckRow");
+            e.HasKey(x => x.Id);
+            e.HasOne<AgentRunCheck>().WithMany().HasForeignKey(x => x.CheckId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Sku).HasMaxLength(400);
+            e.Property(x => x.BandName).HasMaxLength(128);
+            foreach (var p in new[] { nameof(AgentRunCheckRow.NewPrice), nameof(AgentRunCheckRow.CurrentPrice), nameof(AgentRunCheckRow.Cost), nameof(AgentRunCheckRow.FixPrice) })
+                e.Property(p).HasPrecision(18, 4);
+            foreach (var p in new[] { nameof(AgentRunCheckRow.MarginPct), nameof(AgentRunCheckRow.FloorPct), nameof(AgentRunCheckRow.ChangePct) })
+                e.Property(p).HasPrecision(9, 4);
+            e.Property(x => x.Flags).HasMaxLength(300);
+            e.Property(x => x.RuleSeverity).HasMaxLength(10);
+            e.Property(x => x.ModelSeverity).HasMaxLength(10);
+            e.Property(x => x.ModelReason).HasMaxLength(1000);
+            e.Property(x => x.FinalSeverity).HasMaxLength(10);
+            e.Property(x => x.Detail).HasMaxLength(2000);
+            e.HasIndex(x => x.CheckId);
+            e.HasIndex(x => x.ProposalId);
         });
 
         builder.Entity<PublishBatch>(e =>

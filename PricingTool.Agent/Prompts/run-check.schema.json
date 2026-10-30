@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "run_id": { "type": "integer" },
+    "verdict": { "enum": ["pass", "warn", "block"] },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": { "type": "string" },
+          "band": { "type": "string" },
+          "new_price": { "type": "number" },
+          "margin_pct": { "type": ["number", "null"] },
+          "floor_pct": { "type": ["number", "null"] },
+          "severity": { "enum": ["warn", "block"] },
+          "reason": { "type": "string", "maxLength": 600 },
+          "fix_price": { "type": ["number", "null"] }
+        },
+        "required": ["sku", "band", "new_price", "margin_pct", "floor_pct", "severity", "reason", "fix_price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["run_id", "verdict", "violations"],
+  "additionalProperties": false
+}

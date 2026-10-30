@@ -64,6 +64,9 @@ public class AgentOptions
         Path.GetFullPath(string.IsNullOrWhiteSpace(ToolsExecutable) ? "PricingTool.AgentTools.exe" : ToolsExecutable,
             AppContext.BaseDirectory);
 
+    /// <summary>At most this many flagged rows go to the run checker's one call per run (highest impact first).</summary>
+    public int RunCheckerModelCap { get; set; } = 150;
+
     /// <summary>The scorecard Alpha judges (see <see cref="Alpha.AlphaInputBuilder"/>).</summary>
     public ScorecardOptions Scorecard { get; set; } = new();
 

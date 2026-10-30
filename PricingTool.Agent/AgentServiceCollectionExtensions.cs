@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PricingTool.Agent.Alpha;
+using PricingTool.Agent.Checker;
 using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
@@ -35,6 +36,8 @@ public static class AgentServiceCollectionExtensions
         services.AddSingleton<IAlphaInputSource>(sp => sp.GetRequiredService<AlphaInputBuilder>());
         services.AddScoped<AgentModeStore>();
         services.AddScoped<FloorTargetAgent>();
+        services.AddScoped<RunChecker>();
+        services.AddScoped<CheckedExport>();
         services.AddScoped<AgentToolLog>();
         services.AddScoped<AgentDataTools>();
         services.AddScoped<QueryDataService>();

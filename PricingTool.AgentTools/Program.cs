@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PricingTool.Agent;
 using PricingTool.Agent.Alpha;
+using PricingTool.Agent.Checker;
 using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
@@ -25,6 +26,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
 //   publish-canary <layer> --run <id> --category <c> [--max n] [--rollback]   publish a run's sample, show the rows
 //   publish-rollback <batch id>                                     restore what a publish batch changed
+//   check-run <run id> [--test]                                     the pre-publish run check (one model call)
+//   export-run <run id> [--out <dir>]                               the checked export for the push (refused when blocked)
 // Settings come from appsettings.json next to the executable (the hackathon DB; no secrets).
 
 var command = args.FirstOrDefault() ?? "";
@@ -234,6 +237,38 @@ switch (command)
         return outcome.Status == "Published" ? 0 : 1;
     }
 
+    case "check-run":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var runId = long.Parse(positional[0]);
+        var sw = Stopwatch.StartNew();
+        var r = await scope.ServiceProvider.GetRequiredService<RunChecker>().CheckAsync(runId, isTest: args.Contains("--test"));
+        Console.WriteLine($"Check #{r.CheckId} of run #{runId}: {r.Status}, verdict {r.Verdict.ToUpperInvariant()} in {sw.Elapsed.TotalSeconds:0} s " +
+                          $"({r.Flagged:N0} flagged, {r.Sent} sent to the model; {r.Blocks} block, {r.Warns} warn, {r.Fixed} fixed) {r.Error}");
+        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        var check = await db.AgentRunChecks.SingleAsync(c => c.Id == r.CheckId);
+        if (check.Notes is not null) Console.WriteLine("  notes: " + check.Notes);
+        foreach (var g in (await db.AgentRunCheckRows.Where(x => x.CheckId == r.CheckId).ToListAsync()).GroupBy(x => (x.RuleSeverity, x.FinalSeverity)).OrderBy(g => g.Key.ToString()))
+            Console.WriteLine($"  rule {g.Key.RuleSeverity,-5} -> final {g.Key.FinalSeverity,-5}: {g.Count(),6:N0}");
+        foreach (var x in (await db.AgentRunCheckRows.Where(x => x.CheckId == r.CheckId && x.ModelSeverity != null).OrderBy(x => x.Id).Take(8).ToListAsync()))
+            Console.WriteLine($"  {x.Sku} {x.NewPrice:0.00} (cost {x.Cost:0.00}) [{x.Flags}] rule {x.RuleSeverity} -> model {x.ModelSeverity}" +
+                              (x.FixPrice is { } fp ? $" fix {fp:0.00} {(x.FixAccepted ? "accepted" : "refused")}" : "") + $" -> {x.FinalSeverity}\n      {x.ModelReason}");
+        return 0;
+    }
+
+    case "export-run":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        var runId = long.Parse(positional[0]);
+        var dir = Opt("--out") ?? Path.Combine(AppContext.BaseDirectory, "exports");
+        var r = await scope.ServiceProvider.GetRequiredService<CheckedExport>().ExportAsync(runId, dir);
+        Console.WriteLine((r.Exported ? "Exported: " : "NOT exported: ") + r.Reason + (r.FilePath is null ? "" : $" -> {r.FilePath}"));
+        return r.Exported ? 0 : 1;
+    }
+
     case "publish-rollback":
     {
         using var host = builder.Build();
@@ -245,7 +280,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run ... (see Program.cs)");
         return 2;
 }
 
