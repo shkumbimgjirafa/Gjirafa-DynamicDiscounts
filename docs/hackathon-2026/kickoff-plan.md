@@ -125,7 +125,13 @@ aspirational and the engine is rules plus statistics.
   usage limit is hit, contact Mergim and he raises it. Mergca offered to review the first check's
   call, rules file and sample JSON: send them when the run checker first runs.
 - **The agent writes its own row in the time sheet for every check it does;** manual rows count as
-  the wrong path. (Which time sheet, and how to write to it: to confirm.)
+  the wrong path. The sheet is the organisers' `docs/hackathon-2026/Time-sheet-template-hours-saved.xlsx`
+  (sheet "Time sheet", rows from row 7): Date · Who used it (Gjirafa email) · What: the task · Time
+  BEFORE without AI (minutes) · Time AFTER with AI (minutes) · Minutes saved (formula) · Proof (link or
+  note) · Comment. It covers **2 Nov – 2 Dec** with a **30-hours-saved** goal; "Jarvis connects your
+  solution on Monday"; Mergca checks every row daily against the solution's own usage, and inflated or
+  invented numbers remove the entry. Time BEFORE is the one number we set, once per task type,
+  measured honestly. See "Time-sheet log" in section 5.
 - Baseline framing (A or B): pending.
 
 The user expects the open questions (data rules, API key, warehouse access) to be answered at the
@@ -505,6 +511,22 @@ the limits waits for a person.
   | Something needs a person | Held item, auto-pause after a sales drop, a `CostWatcher` hold, the kill switch | In-app notification during the hackathon; Google Chat at go-live (the sales anomaly watch already posts there) |
 - **Quiet by design:** on a normal day the user hears nothing.
 - Built on tables already in the plan (`AgentDecision`, `CampaignCalendar`, the agent-to-agent thread, `AuditLogEntry`, the AI call log), so it's mostly views.
+
+**Time-sheet log (the organisers' hours-saved sheet; added at kickoff).** Every real task the
+solution completes writes its own row, automatically; nothing is typed by hand.
+- **`TimeSheetEntry` table:** date, user email (the owner from config, kept in user-secrets), task
+  type, what (one line naming the layer, run or campaign), minutes before (from the task type),
+  minutes after (measured: wall-clock of the task plus any person's review of its held items),
+  proof (a link to the run, batch or campaign page, or the export file), comment, source = `app`.
+- **`TimeSheetTaskType` table:** one row per kind of task with its honestly measured "time before"
+  in minutes, set once by the user (placeholder `NULL` until measured; a row without it isn't
+  exported). Starting list: weekly floor and target review per layer (Alpha); pre-publish check of a
+  pricing run (run checker); creating and pushing the discounts for a run (publisher); planning a
+  campaign (Nova + Alpha); finding and fixing prices after a cost rise (`CostWatcher`); the weekly report.
+- **Only genuine work counts:** demo runs on injected test data and backtests are not logged; a
+  run that publishes nothing logs only the check it did.
+- **Export** in the template's exact columns A–H: an xlsx written into a copy of the template, and a
+  CSV / JSON endpoint for Jarvis (how Jarvis connects is to confirm on Monday).
 
 **Web (new `AgentController` + views):**
 - **Agent tab** in the main navigation, next to Price bands and Schedule. Top to bottom:
