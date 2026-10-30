@@ -28,6 +28,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   nova-pass <layer> [--test] [--preview]                           Nova's weekly campaign pass for one layer (briefs, results);
 //                                                                   --preview prints the prompt it would send, no call
 //   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
+//   approve-plan <plan id> [--by <who>] [--publish]                  a person approves a held plan as it is
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
 //   lesson <Nova|Alpha> "<text>" [--layer <id>] [--by <who>]       teach an agent: kept in every pass's prompt until retired
 //   lessons [<Nova|Alpha>] | lesson-retire <id> [--by <who>]        list the active lessons, or retire one
@@ -334,6 +335,17 @@ switch (command)
         return 0;
     }
 
+    case "approve-plan":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var r = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignPlanning>()
+            .ApproveHeldAsync(long.Parse(positional[0]), Opt("--by") ?? "user", args.Contains("--publish"));
+        Console.WriteLine($"Plan #{positional[0]}: {r.Status} {r.Error}");
+        return r.Error is null ? 0 : 1;
+    }
+
     case "campaign-goal":
     {
         using var host = builder.Build();
@@ -562,7 +574,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

@@ -226,4 +226,32 @@ public class CampaignPlanningTests : IDisposable
         Assert.Equal(PlanStatus.Held, r.Status);
         Assert.Empty(publisher.Calls);
     }
+
+    [Fact]
+    public async Task A_goal_a_person_set_stays_and_a_plan_short_of_it_waits_for_that_person()
+    {
+        var (planning, publisher, brief) = Setup();
+        var entry = await _db.CampaignCalendar.SingleAsync();
+        (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = ("gross-profit", 1_000_000m, "user, 2026-10-30");
+        brief.GoalValue = 1_000_000m;
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "visible", ["explanation"] = "Visible." });
+        Says(new JsonObject { ["decision"] = "adjust", ["goalValue"] = 100m, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Lower the goal to what the plan reaches." });
+        Says(new JsonObject { ["strategy"] = "visible", ["explanation"] = "Visible." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: true);
+
+        Assert.Equal(1_000_000m, (await _db.CampaignBriefs.SingleAsync()).GoalValue);                       // Nova can't lower a person's goal
+        Assert.Equal(PlanStatus.Held, r.Status);                                                             // short of it: a person decides
+        Assert.Empty(publisher.Calls);
+        var said = await _db.CampaignMessages.Where(m => m.From == "code").Select(m => m.Text).ToListAsync();
+        Assert.Contains(said, t => t.Contains("set by a person") && t.Contains("it stays"));
+        Assert.Contains(said, t => t.Contains($"approve-plan {r.Final!.Id}"));
+
+        var approved = await planning.ApproveHeldAsync(r.Final.Id, "user", publish: true);                   // the person approves it as it is
+        Assert.Equal(PlanStatus.Published, approved.Status);
+        Assert.Single(publisher.Calls);
+        Assert.Equal("Refused", (await planning.ApproveHeldAsync(r.Final.Id, "user", publish: true)).Status);
+    }
 }

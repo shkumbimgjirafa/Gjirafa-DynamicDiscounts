@@ -93,6 +93,8 @@ public sealed class CampaignPlanning
         var liftNote = eventLift is { } el ? $"event lift x{el:0.00} (median of past {type} windows)" : $"no past {type} window: no event lift assumed (x1.00, conservative)";
         var bands = (await _bands.GetBandsAsync(layer.Id, ct)).ToDictionary(b => b.BandId);
         var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct);
+        // A goal a person set for the calendar campaign is binding: Nova can't change it, and a plan short of it waits for a person.
+        var personGoal = brief.Kind == "calendar" && calendar?.GoalSetBy is { } setBy && calendar.GoalType == brief.GoalType ? setBy : null;
         var days = brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1;
         // GjirafaMall SKUs that take Gjirafa50's price aren't planned here, but they sell during the campaign: their expected
         // gross profit at today's price with the event lift counts toward a gross-profit goal, which (like the past windows
@@ -120,10 +122,18 @@ public sealed class CampaignPlanning
             plans.Add(plan);
             await SayAsync(brief, plan.Id, round, FloorTargetAgent.Source, choice.Value.Explanation, choice.Value.CallLogId, ct);
 
-            var review = await AskNovaAsync(brief, plan, round, ct);
+            var review = await AskNovaAsync(brief, plan, round, personGoal, ct);
             if (review is null)
                 return await FailAsync(brief, plans, "The campaign agent's review was missing or invalid: the plan waits for a person.", ct);
             await SayAsync(brief, plan.Id, round, CampaignAgent.Source, review.Value.Message, review.Value.CallLogId, ct);
+            if (review.Value.Accept && personGoal is not null && !plan.Feasible)
+            {
+                plan.Status = PlanStatus.Held;
+                await SayAsync(brief, plan.Id, round, "code",
+                    $"Accepted by the campaign agent, but it falls short of the goal a person set ({brief.GoalType} {brief.GoalValue:N0}; {personGoal}). " +
+                    $"{plan.Feasibility} The plan waits for a person: approve it as it is (approve-plan {plan.Id}) or set another goal (campaign-goal).", null, ct);
+                break;
+            }
             if (review.Value.Accept)
             {
                 plan.Status = PlanStatus.Accepted;
@@ -148,6 +158,12 @@ public sealed class CampaignPlanning
             var depthCap = _options.Campaigns.MaxDepthPct;
             if (adjusted.MaxDepth > depthCap)
                 await SayAsync(brief, plan.Id, round, "code", $"Max depth {adjusted.MaxDepth:0.#}% capped at {depthCap:0.#}%.", null, ct);
+            if (personGoal is not null && adjusted.Goal != brief.GoalValue)
+            {
+                await SayAsync(brief, plan.Id, round, "code",
+                    $"The goal was set by a person ({personGoal}): it stays {brief.GoalType} {brief.GoalValue:N0}. The campaign agent's {adjusted.Goal:N0} is kept as its view in this thread.", null, ct);
+                adjusted = (brief.GoalValue, adjusted.MaxDepth, adjusted.MinMargin);
+            }
             (brief.GoalValue, brief.MinMarginPct, brief.MaxDepthPct) = (adjusted.Goal, adjusted.MinMargin, Math.Min(adjusted.MaxDepth, depthCap));
             await _db.SaveChangesAsync(ct);
         }
@@ -155,24 +171,43 @@ public sealed class CampaignPlanning
         var final = plans[^1];
         brief.Status = BriefStatus.Planned;
         if (final.Status == PlanStatus.Accepted && publish && !brief.IsTest)
-        {
-            if (_publisher is null)
-                await SayAsync(brief, final.Id, final.Round, "code", "Accepted; no publisher configured here, so nothing was published.", null, ct);
-            else
-            {
-                var lines = await _db.CampaignPlanLines.AsNoTracking().Where(l => l.PlanId == final.Id).ToListAsync(ct);
-                var (start, end) = Window(brief, layer.Id);
-                var (batchId, status) = await _publisher.PublishAsync(layer.Id, brief.CalendarId ?? brief.Id, start, end,
-                    lines.Select(l => (l.Sku, l.CampaignPrice, l.RegularPrice)).ToList(), ct);
-                final.PublishBatchId = batchId;
-                if (status == "Published") final.Status = PlanStatus.Published;
-                await SayAsync(brief, final.Id, final.Round, "code",
-                    $"Publish batch #{batchId}: {status}. {lines.Count:N0} time-boxed ai-campaign discounts, live {start:yyyy-MM-dd HH:mm}..{end:yyyy-MM-dd HH:mm} UTC.", null, ct);
-            }
-        }
+            await PublishPlanAsync(brief, final, ct);
         await _db.SaveChangesAsync(CancellationToken.None);
         _logger.LogInformation("Campaign brief {Brief}: {Rounds} round(s), plan #{Plan} {Status}", brief.Id, plans.Count, final.Id, final.Status);
         return new PlanningResult(brief.Id, final.Status, plans, null);
+    }
+
+    /// <summary>A person approves a held plan as it is (e.g. one short of the goal they set): it is accepted and, when asked, published.</summary>
+    public async Task<PlanningResult> ApproveHeldAsync(long planId, string by, bool publish, CancellationToken ct = default)
+    {
+        var stop = await _killSwitch.GetAsync(ct);
+        if (stop.Stopped) return new PlanningResult(0, "Skipped", Array.Empty<CampaignPlan>(), $"Kill switch: {stop.Reason}");
+        var plan = await _db.CampaignPlans.SingleAsync(p => p.Id == planId, ct);
+        var brief = await _db.CampaignBriefs.SingleAsync(b => b.Id == plan.BriefId, ct);
+        if (plan.Status != PlanStatus.Held)
+            return new PlanningResult(brief.Id, "Refused", new[] { plan }, $"Plan #{planId} is {plan.Status}: only a held plan is approved.");
+        plan.Status = PlanStatus.Accepted;
+        await SayAsync(brief, plan.Id, plan.Round, by, $"Approved by a person as it is. {plan.Feasibility}", null, ct);
+        if (publish && !brief.IsTest) await PublishPlanAsync(brief, plan, ct);
+        await _db.SaveChangesAsync(CancellationToken.None);
+        return new PlanningResult(brief.Id, plan.Status, new[] { plan }, null);
+    }
+
+    private async Task PublishPlanAsync(CampaignBrief brief, CampaignPlan plan, CancellationToken ct)
+    {
+        if (_publisher is null)
+        {
+            await SayAsync(brief, plan.Id, plan.Round, "code", "Accepted; no publisher configured here, so nothing was published.", null, ct);
+            return;
+        }
+        var lines = await _db.CampaignPlanLines.AsNoTracking().Where(l => l.PlanId == plan.Id).ToListAsync(ct);
+        var (start, end) = Window(brief, brief.LayerId);
+        var (batchId, status) = await _publisher.PublishAsync(brief.LayerId, brief.CalendarId ?? brief.Id, start, end,
+            lines.Select(l => (l.Sku, l.CampaignPrice, l.RegularPrice)).ToList(), ct);
+        plan.PublishBatchId = batchId;
+        if (status == "Published") plan.Status = PlanStatus.Published;
+        await SayAsync(brief, plan.Id, plan.Round, "code",
+            $"Publish batch #{batchId}: {status}. {lines.Count:N0} time-boxed ai-campaign discounts, live {start:yyyy-MM-dd HH:mm}..{end:yyyy-MM-dd HH:mm} UTC.", null, ct);
     }
 
     /// <summary>The campaign's local days as a UTC window (whole days, inclusive of the last).</summary>
@@ -259,7 +294,7 @@ public sealed class CampaignPlanning
     }
 
     private async Task<(bool Accept, decimal? Goal, decimal? MaxDepth, decimal? MinMargin, string Message, long? CallLogId)?> AskNovaAsync(CampaignBrief brief,
-        CampaignPlan plan, int round, CancellationToken ct)
+        CampaignPlan plan, int round, string? personGoal, CancellationToken ct)
     {
         var prompt = $"""
             Review of the pricing agent's plan for your brief #{brief.Id} "{brief.Name}" (round {round} of at most {MaxRounds}).
@@ -272,6 +307,7 @@ public sealed class CampaignPlanning
             The pricing agent says: {plan.Explanation}
 
             Accept the plan, or adjust your brief (a new goal value, maximum depth or minimum margin; null keeps a value) and say why.
+            {(personGoal is null ? "" : $"The goal was set by a person ({personGoal}): it is binding, so don't change it; adjust the depth or the minimum margin, or accept. A plan short of it waits for that person.")}
             {(round == MaxRounds ? "This is the last round: if you don't accept, a person decides." : "")}
             """;
         var call = await _client.CallAsync(new AgentCallRequest(AgentRole.Nova, $"{(brief.IsTest ? "[INJECTED-TEST] " : "")}campaign-review brief {brief.Id} r{round}",
