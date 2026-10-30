@@ -114,4 +114,17 @@ public class LeverBacktestTests
         });
         Assert.Equal(30.0m, normal);
     }
+
+    [Fact]
+    public void Coverage_counts_only_the_months_without_a_push_of_their_own()
+    {
+        var months = new[]
+        {
+            new CoverageMonth(2, "2026-08", 8000m, false), new CoverageMonth(3, "2026-08", 7000m, false),
+            new CoverageMonth(2, "2026-09", 8000m, false), new CoverageMonth(3, "2026-09", 9000m, true),    // pushed: not counted
+        };
+        var effect = new CoverageEffect("mid", 10_000m, 200_000m, "test");                                // 5 % of Kosovo's GP
+        var gains = CoverageBacktest.Gains(months, effect);
+        Assert.Equal(new[] { ("2026-08", 15000m, 750m), ("2026-09", 8000m, 400m) }, gains);
+    }
 }

@@ -31,6 +31,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   approve-plan <plan id> [--by <who>] [--publish]                  a person approves a plan waiting for them (held, or a stretch)
 //   backtest-campaigns <layer> [<layer> ...]                         replay finished campaigns with the planner's arithmetic
 //   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3, 5, 6 on booked sales lines
+//   backtest-coverage                                                lever 4: the Kosovo effect on the MK/AL months without a push
 //   reproduce-per-ty --test                                          the Për ty reproduction test: the agents plan the 6 Oct brief
 //                                                                   with data cut off at 7 Oct (two model calls; records to the test DB)
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
@@ -430,6 +431,35 @@ switch (command)
         return 0;
     }
 
+    case "backtest-coverage":
+    {
+        using var host = builder.Build();
+        var reader = host.Services.GetRequiredService<PricingDataReader>();
+        var months = await reader.GetCoverageMonthsAsync(PricingTool.Agent.Backtest.CoverageBacktest.PushMinDiscounts);
+        // The calculator's measured Kosovo gain over Aug-Sep 2026 (kickoff plan, framing B: measured in the main repo), as a
+        // share of Kosovo's gross profit over the same two months.
+        var ksGp = await reader.GetKosovoGrossProfitAsync(new DateOnly(2026, 8, 1), new DateOnly(2026, 10, 1)) / 2m;
+        var effects = new[]
+        {
+            new PricingTool.Agent.Backtest.CoverageEffect("low", 4_000m, ksGp, "same-weeks control, one run on one layer (a floor)"),
+            new PricingTool.Agent.Backtest.CoverageEffect("mid", 10_600m, ksGp, "measured before/after"),
+            new PricingTool.Agent.Backtest.CoverageEffect("high", 13_000m, ksGp, "before/after, season-adjusted with 2025"),
+        };
+        Console.WriteLine("MK/AL tool-scope GP by layer and month (EUR at the load day's shop rate; MKD pegged, ALL at today's rate), * = a push that month:");
+        foreach (var m in months.GroupBy(m => m.Month))
+            Console.WriteLine($"  {m.Key}: " + string.Join(", ", m.Select(x => $"L{x.LayerId} {x.GrossProfitEur:N0}{(x.Pushed ? "*" : "")}")));
+        Console.WriteLine($"Kosovo GP Aug-Sep 2026: {ksGp:N0} a month (both layers, booked COGS).");
+        foreach (var e in effects)
+        {
+            var gains = PricingTool.Agent.Backtest.CoverageBacktest.Gains(months, e);
+            var testWindow = gains.Where(g => g.Month is "2026-08" or "2026-09").ToList();
+            Console.WriteLine($"Lever 4, {e.Case} (KS gain {e.GainPerMonth:N0} = {100m * e.Ratio:0.0}% of KS GP; {e.Source}): " +
+                              string.Join("; ", gains.Select(g => $"{g.Month} {g.Gain:N0} on {g.Base:N0}")) +
+                              $"; Aug-Sep average {(testWindow.Count > 0 ? testWindow.Sum(g => g.Gain) / 2m : 0):N0} a month (estimated).");
+        }
+        return 0;
+    }
+
     case "reproduce-per-ty":
     {
         if (!testRun)
@@ -719,7 +749,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|backtest-coverage|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

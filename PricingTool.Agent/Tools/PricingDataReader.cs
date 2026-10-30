@@ -476,6 +476,35 @@ public sealed class PricingDataReader
             },
             r => (r.GetBoolean(0), r.GetDecimal(1), r.GetDecimal(2)), ct);
 
+    /// <summary>
+    /// Backtest lever 4: the MK/AL layers' tool-scope gross profit per month in EUR (hk.SalesLinesMkAl, loaded by the data session,
+    /// converted at the shop's Currency.Rate of the load day) and whether a regular-price push started that month (hk.PushDatesMkAl:
+    /// public, all-platform, at least the given number of products).
+    /// </summary>
+    public Task<List<Backtest.CoverageMonth>> GetCoverageMonthsAsync(int pushMinDiscounts, CancellationToken ct = default) =>
+        QueryAsync("""
+            SELECT s.LayerId, FORMAT(s.DateAdded, 'yyyy-MM') AS M, SUM(s.GrossProfitEur),
+                   CAST(CASE WHEN EXISTS (SELECT 1 FROM hk.PushDatesMkAl p WHERE p.LayerId = s.LayerId AND p.ApplyType = 2 AND p.PlatformType = 0
+                                          AND p.Discounts >= @Min AND FORMAT(p.StartDay, 'yyyy-MM') = FORMAT(s.DateAdded, 'yyyy-MM')) THEN 1 ELSE 0 END AS bit)
+            FROM hk.SalesLinesMkAl s
+            GROUP BY s.LayerId, FORMAT(s.DateAdded, 'yyyy-MM')
+            ORDER BY M, s.LayerId
+            """,
+            p => p.AddWithValue("@Min", pushMinDiscounts),
+            r => new Backtest.CoverageMonth(Id(r, 0), r.GetString(1), r.GetDecimal(2), r.GetBoolean(3)), ct);
+
+    /// <summary>Kosovo's gross profit (both layers, every day) in [from, to): the base the calculator's measured gain is a share of.</summary>
+    public async Task<decimal> GetKosovoGrossProfitAsync(DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        (await QueryAsync("""
+            SELECT ISNULL(SUM(GrossProfit), 0) FROM agent.SalesLines WHERE LayerId IN (1, 4) AND SaleDate >= @From AND SaleDate < @To
+            """,
+            p =>
+            {
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r => r.GetDecimal(0), ct)).Single();
+
     /// <summary>The people's band edits in the audit log (old and new band JSON), the history of the hand-set floors.</summary>
     public Task<List<(DateTime Utc, int BandId, string? OldJson, string? NewJson)>> GetBandFloorEditsAsync(int layerId, CancellationToken ct = default) =>
         QueryAsync("""

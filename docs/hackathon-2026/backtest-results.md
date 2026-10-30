@@ -12,18 +12,26 @@ Commands: `PricingTool.AgentTools backtest-levers 1 4 [--detail]` and `backtest-
 | 1 | Loss-sale block | 76 (76) | 120 (120) | measured loss, estimated catch |
 | 2 | Per-category floors | 0 | 4 (3) | estimated; Alpha's 8 rules, Gj50 only |
 | 3 | Cost reaction | 1,315 (1,025) | 212 (181) | measured lag, estimated recovery; one event |
-| 4 | Coverage MK / AL | not measured | not measured | MK/AL sales lines aren't loaded |
+| 4 | Coverage MK / AL | — | — | the four MK/AL layers: 1,349 (509), estimated: the KS effect on months without a push |
 | 5 | Cadence | 397 (261) | 0 (0) | measured run → push gaps only |
 | 6 | Learning | 0 | — | as built; the plan's plain rule: −614 |
 | 7 | Campaign planning | 578 | 205 | estimated, uplift curve leave-one-out |
-| | **Total** | **2,365 (1,939)** | **541 (508)** | |
+| | **Total, Kosovo** | **2,365 (1,939)** | **541 (508)** | |
 
-**Both layers: about €2.9k a month central, €2.4k in the low case.** Against the €10k bar for band 5 this is
-far short. Lever 4's rough size from the plan (€2–2.5k a month, *assumed*, not measured here) would bring it to
-about €4.4–5.4k.
+**Kosovo's two layers: about €2.9k a month central, €2.4k in the low case. With lever 4 (MK/AL): about €4.3k
+central, €2.9k low.** Against the €10k bar for band 5 this is far short; the levers add to the rollout of the
+calculator's tested effect (framing B), they don't replace it.
 
 ## What each number rests on
 
+- **Lever 4.** MK/AL tool-scope gross profit per month (`hk.SalesLinesMkAl`, loaded by the data session: Mall own
+  vendors, no outlet, no Apple/Starlink, booked COGS, EUR at the shop's rate of the load day; MKD is pegged, ALL at
+  today's rate): €16.4k / €25.7k / €20.2k in Jul / Aug / Sep on the months without a push. A month counts as pushed when
+  a public, all-platform discount set of 50,000+ products started in it (`hk.PushDatesMkAl`): Gj50 AL in July, Mall AL
+  in September, all four in October (21 Oct). The calculator's measured Kosovo gain as a share of Kosovo's gross profit
+  (€180.4k a month, Aug–Sep): low €4.0k = 2.2 % (same-weeks control, one run on one layer), mid €10.6k = 5.9 %
+  (before/after), high €13.0k = 7.2 % (season-adjusted). The plan's "≈ 10 %" is above all three measurements.
+  `backtest-coverage`.
 - **Lever 1.** Cross-dock lines on normal days sold under their booked cost: €394 / €2,671 / €250 a month on
   Mall (Aug / Sep / Oct 1–15), €402 / €539 / €175 on Gj50 (measured). Counted only where the cost the SKU last
   sold at was already above the price, i.e. the tool knew: 4–37 % of the loss. Most of the loss arrives with a
@@ -62,8 +70,27 @@ usable Mall campaigns have an event lift from another window of their type, too 
 judge goals on the raw arithmetic and show the in-sample factor (×1.22 Mall, ×1.44 Gj50) for comparison only.
 Black Friday 2026's lift (×5.16) rests on Black Friday 2024 alone (2025 is marked not representative).
 
+## The Për ty reproduction test (`reproduce-per-ty --test`)
+
+The user's brief of 6 Oct (Për ty, GjirafaMall KS, 14–18 Oct, GM3 ≥ 10 %, about 14.9 % effective margin), with data cut
+off at 7 Oct: candidates from the booked sales lines of 26 Aug – 22 Sep (the engine's runs of then weren't kept; stock
+unknown), the depth fit, event lift and calibration as of 7 Oct; the real Alpha and Nova, records in the test database.
+
+| | Margin | Share of normal margin kept | GP, Mall's own SKUs |
+|---|---|---|---|
+| Hand plan (6 Oct) | 15.1 % forecast | 75 % (band targets) | — |
+| Agents, first run (30 Oct) | 19.0 % expected | 88 % | €43.0k expected |
+| Agents, after the fix (30 Oct) | 14.9 % expected | 69 % | €37.8k expected |
+| What happened (measured, provisional) | 14.8 % | — | €39.6k |
+
+**Verdict: FAIL, by one point.** The margin is within ±0.5 pt of 15.1 %, but 69 % kept is just under the 70–80 %
+required. The first run showed a real gap: no strategy spent a margin floor on volume (all stayed at 19–21 %), and the
+rules pointed a margin goal at max-gross-profit. The planner now has spend-to-margin, and the rules call a margin goal
+on a main calendar campaign a floor to spend. The share-kept miss depends on the normal-margin base: ours is the SKUs'
+normal-day revenue-weighted margin (21.6 %); the hand plan's 15.1 / 0.75 implies about 20.1 %. Gjirafa50-listed products
+were 32 % of Mall KS normal-day revenue at 15.0 % margin vs 21.4 % for Mall's own (measured); planning leaves them out, as
+the hand plan did, but the agents didn't find this themselves (planning gives them no data tools), so the bonus isn't met.
+
 ## Not done yet
 
-- Lever 4 (MK/AL): needs MK/AL sales lines loaded (a data-session task) and the MK/AL push dates of Jul–Oct.
-- The Për ty reproduction test (agents alone vs the hand plan of 6 Oct).
 - A results page and CSV download (Agent tab block).
