@@ -3,7 +3,7 @@
 #
 # The host runs from a copy of the current build under %LOCALAPPDATA%\PricingToolAgent\host, so building the repo
 # while it runs never hits a locked file. A restart of the task picks up the newest build. Output is appended to
-# %LOCALAPPDATA%\PricingToolAgent\logs\engine-host-<date>.log.
+# %LOCALAPPDATA%\PricingToolAgent\logs\engine-host-<date>.log; the runner's own lines to runner-<date>.log.
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -12,7 +12,10 @@ $hostDir = Join-Path $root 'host'
 $logDir = Join-Path $root 'logs'
 New-Item -ItemType Directory -Force $logDir | Out-Null
 $log = Join-Path $logDir ('engine-host-{0:yyyyMMdd}.log' -f (Get-Date))
-function Log($text) { "$(Get-Date -Format s) $text" | Out-File -Append -Encoding utf8 $log }
+# The runner's own lines go to their own file: a running host holds its log open (cmd's redirect), so a second start
+# writing there failed and exited 1 instead of saying "already running" (found 2026-10-31).
+$runnerLog = Join-Path $logDir ('runner-{0:yyyyMMdd}.log' -f (Get-Date))
+function Log($text) { "$(Get-Date -Format s) $text" | Out-File -Append -Encoding utf8 $runnerLog }
 
 if (Get-Process PricingTool.Engine -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$hostDir\*" }) {
     Log 'the engine host is already running; nothing to do'
