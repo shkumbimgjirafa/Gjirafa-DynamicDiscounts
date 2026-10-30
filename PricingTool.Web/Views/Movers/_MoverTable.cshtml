@@ -1,0 +1,70 @@
+@model List<PricingTool.Web.Models.MoverRow>
+@{
+    var cur = ViewData.CurrencyCode();
+    var vat = (decimal)(ViewData["Vat"] ?? 18m);
+    // Average selling price for a window = gross (VAT-incl) of net-revenue ÷ units; blank when no sales.
+    Func<decimal, int, string> avgPrice = (net, qty) =>
+        qty > 0 ? VatMath.GrossFromNet(net / qty, vat).ToString("0.00") : "–";
+}
+
+@if (!Model.Any())
+{
+    <p class="text-muted">No matching products in this run.</p>
+}
+else
+{
+    <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>SKU</th><th>Supplier</th><th>Band</th>
+                <th class="text-end">7d</th><th class="text-end">30d</th><th class="text-end">90d</th>
+                <th class="text-end" title="Average selling price over the last 7 days (VAT incl.)">Avg7d @cur</th>
+                <th class="text-end" title="Average selling price over the last 30 days (VAT incl.)">Avg30d @cur</th>
+                <th class="text-end" title="Average selling price over the last 90 days (VAT incl.)">Avg90d @cur</th>
+                <th class="text-end">KS</th><th class="text-end">Sup.</th>
+                <th class="text-end" title="PPTCV — all-in cost (VAT incl.)">Cost @cur</th>
+                <th class="text-end">Old @cur</th><th class="text-end">Anchor @cur</th>
+                <th class="text-end">Current @cur</th><th class="text-end">Proposed @cur</th>
+                <th class="text-end">Δ%</th><th>Reasons</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model)
+        {
+            <tr>
+                <td>
+                    <a asp-controller="Sku" asp-action="Details" asp-route-id="@r.Sku">@r.Sku</a>
+                    @if (ReasonCodeText.IsNewProduct(r.ReasonCodes, r.GuardrailFlags))
+                    {
+                        <span class="badge bg-info text-dark ms-1" title="New product (MarkAsNew window) — price held, no discount">NEW</span>
+                    }
+                </td>
+                <td><small>@(r.Supplier ?? "–")</small></td>
+                <td><small>@r.Band</small></td>
+                <td class="text-end">@r.Qty7</td>
+                <td class="text-end fw-bold">@r.Qty30</td>
+                <td class="text-end">@r.Qty90</td>
+                <td class="text-end text-muted">@avgPrice(r.Net7, r.Qty7)</td>
+                <td class="text-end text-muted">@avgPrice(r.Net30, r.Qty30)</td>
+                <td class="text-end text-muted">@avgPrice(r.Net90, r.Qty90)</td>
+                <td class="text-end">@r.KsStock</td>
+                <td class="text-end text-muted">@r.SupplierStock</td>
+                <td class="text-end">@(r.Pptcv?.ToString("0.00") ?? "–")</td>
+                <td class="text-end text-muted">@r.OldPrice.ToString("0.00")</td>
+                <td class="text-end">@r.AnchorPrice.ToString("0.00")</td>
+                <td class="text-end">@r.CurrentPrice.ToString("0.00")</td>
+                <td class="text-end fw-bold">@r.ProposedPrice.ToString("0.00")</td>
+                <td class="text-end @(r.ChangePct > 0 ? "text-success" : r.ChangePct < 0 ? "text-danger" : "text-muted")">
+                    @r.ChangePct.ToString("+0.##;-0.##;0")%
+                </td>
+                <td>
+                    @foreach (var (code, text) in ReasonCodeText.DescribeList(r.ReasonCodes, ReasonCodeText.NewProductCode))
+                    {
+                        <span class="badge bg-light text-dark border" title="@code">@text</span>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

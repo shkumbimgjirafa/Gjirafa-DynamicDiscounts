@@ -1,0 +1,127 @@
+@using Microsoft.Extensions.Options
+@using PricingTool.Web.Options
+@inject IOptions<PortaOptions> PortaOpts
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] – GjirafaMall Pricing Tool</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+@{
+    var activeLayers = ViewData["ActiveLayers"] as IReadOnlyList<PricingTool.Data.Entities.Layer>
+        ?? new List<PricingTool.Data.Entities.Layer>();
+    var currentLayer = ViewData["CurrentLayer"] as PricingTool.Data.Entities.Layer;
+    var currentBrand = currentLayer?.Brand ?? "GjirafaMall";
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+}
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-dark bg-dark border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-controller="Home" asp-action="Index">⚡ @currentBrand Pricing</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item"><a class="nav-link" asp-controller="Home" asp-action="Index">Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Proposals" asp-action="Index">Proposals</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Movers" asp-action="Index">Movers</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Bands" asp-action="Index">Price Bands</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Schedule" asp-action="Index">Schedule</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Audit" asp-action="Index">Audit Log</a></li>
+                        @if (User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager))
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="Users" asp-action="Index">Users</a></li>
+                        }
+                    </ul>
+                    <ul class="navbar-nav">
+                        @if (currentLayer is not null)
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle text-light" href="#" role="button"
+                                   data-bs-toggle="dropdown" aria-expanded="false"
+                                   title="Switch layer (brand / country)">
+                                    🗂 @currentLayer.DisplayName
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    @foreach (var brandGroup in activeLayers.GroupBy(l => l.Brand))
+                                    {
+                                        <li><h6 class="dropdown-header">@brandGroup.Key</h6></li>
+                                        @foreach (var layer in brandGroup)
+                                        {
+                                            <li>
+                                                <a class="dropdown-item @(layer.Id == currentLayer.Id ? "active" : "")"
+                                                   asp-controller="Layer" asp-action="Select"
+                                                   asp-route-layerId="@layer.Id" asp-route-returnUrl="@returnUrl">
+                                                    @layer.CountryCode — @layer.Currency
+                                                </a>
+                                            </li>
+                                        }
+                                    }
+                                </ul>
+                            </li>
+                        }
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-light" href="#" role="button"
+                               data-bs-toggle="dropdown" aria-expanded="false">
+                                👤 @(User.Identity?.Name ?? "guest")
+                                @if (!PortaOpts.Value.IsConfigured)
+                                {
+                                    <span class="badge bg-secondary" title="Porta SSO not configured — running with the dev no-auth shim">no-auth</span>
+                                }
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                @if (PortaOpts.Value.IsConfigured)
+                                {
+                                    <li>
+                                        <form asp-controller="Account" asp-action="Logout" method="post" class="px-2 py-1">
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Sign out</button>
+                                        </form>
+                                    </li>
+                                }
+                                else
+                                {
+                                    <li><span class="dropdown-item-text small text-muted">Porta SSO disabled (dev mode)</span></li>
+                                }
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container-fluid px-4">
+        <main role="main" class="pb-3">
+            @if (TempData["Message"] is string message)
+            {
+                <div class="alert alert-success alert-dismissible fade show">@message
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @if (TempData["Error"] is string error)
+            {
+                <div class="alert alert-danger alert-dismissible fade show">@error
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted">
+        <div class="container">
+            GjirafaMall Dynamic Pricing Tool v1 — proposals only; live prices change exclusively via the explicit Push step.
+        </div>
+    </footer>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

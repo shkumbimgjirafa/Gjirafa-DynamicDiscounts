@@ -1,0 +1,68 @@
+@model MoversViewModel
+@{
+    ViewData["Title"] = "Movers";
+    ViewData["Vat"] = Model.VatRatePct; // flows to the _MoverTable partials for gross avg-price
+}
+
+<h1 class="h3">
+    Movers
+    @if (Model.Run is not null)
+    {
+        <small class="text-muted">— run <a asp-controller="Proposals" asp-action="Index" asp-route-runId="@Model.Run.Id">#@Model.Run.Id</a>, @Model.Run.StartedUtc.ToString("yyyy-MM-dd")</small>
+    }
+</h1>
+
+@if (Model.Run is null)
+{
+    <p class="text-muted">No finished pricing run for this layer yet.</p>
+}
+else
+{
+    @await Html.PartialAsync("_KpiCards", Model.Kpis)
+
+    @* Supplier scope: both Top-50 lists (and the KPI cards) are recomputed for the selected
+       supplier — top movers OF that supplier, not its rows within the overall top 50. *@
+    @if (Model.Suppliers.Any() || Model.SupplierId.HasValue)
+    {
+        <form method="get" class="row g-2 align-items-end mb-3">
+            <div class="col-auto">
+                <label class="form-label mb-0">Supplier</label>
+                <select name="supplierId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    @if (Model.SupplierId is int sel && Model.Suppliers.All(s => s.Id != sel))
+                    {
+                        <option value="@sel" selected>#@sel (no movers in this run)</option>
+                    }
+                    @foreach (var s in Model.Suppliers)
+                    {
+                        <option value="@s.Id" selected="@(Model.SupplierId == s.Id)">@s.Name</option>
+                    }
+                </select>
+            </div>
+        </form>
+    }
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sellers" type="button" role="tab">
+                Top @Model.TopSellers.Count sellers (changed)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#dead" type="button" role="tab">
+                @Model.DeadInStock.Count zero-sale in KS stock (changed)
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="sellers" role="tabpanel">
+            <p class="text-muted small">Changed proposals from the latest run, highest 30-day units sold first.</p>
+            @await Html.PartialAsync("_MoverTable", Model.TopSellers)
+        </div>
+        <div class="tab-pane fade" id="dead" role="tabpanel">
+            <p class="text-muted small">Changed proposals with <strong>zero 90-day sales</strong> but locally-held (KS) stock — stuck inventory being re-priced, most stock first.</p>
+            @await Html.PartialAsync("_MoverTable", Model.DeadInStock)
+        </div>
+    </div>
+}

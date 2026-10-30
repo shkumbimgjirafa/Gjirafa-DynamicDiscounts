@@ -1,0 +1,417 @@
+@model DashboardViewModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Impact Dashboard";
+    var cur = ViewData.CurrencyCode();
+    // Weekly general profit trend (SR realized profit) — the bar chart that replaces the daily line charts.
+    var weekLabels = JsonSerializer.Serialize(Model.WeeklyProfit.Select(w => w.WeekStart.ToString("MM-dd")));
+    var weekProfit = JsonSerializer.Serialize(Model.WeeklyProfit.Select(w => Math.Round(w.Profit, 0)));
+
+    // One approval × one window (7/30/90d): realized profit total BEFORE → AFTER, plus a per-day delta that
+    // compares fairly even while the after-window is still filling. "before"/"after" are totals (SR margin);
+    // beforeRate = before/W, afterRate = after/daysElapsed. Null (un-refreshed) renders as "—".
+    void ProfitCell(int w, decimal? before, decimal? after, int elapsed)
+    {
+        if (before is null || after is null)
+        {
+            <td class="text-end text-muted">—</td>
+            return;
+        }
+        var days = Math.Max(1, Math.Min(w, elapsed));
+        var deltaPerDay = after.Value / days - before.Value / w;
+        var matured = elapsed >= w;
+        <td class="text-end">
+            <div><span class="text-muted">@before.Value.ToString("N0")</span> → <strong>@after.Value.ToString("N0")</strong></div>
+            <small class="@(deltaPerDay >= 0 ? "text-success" : "text-danger")">@deltaPerDay.ToString("+#,##0;-#,##0")/day</small>
+            @if (!matured)
+            {
+                <small class="text-muted"> · @elapsed/@w d</small>
+            }
+        </td>
+    }
+}
+
+<h1 class="h3">Impact Dashboard</h1>
+<p class="text-muted">Goal: hold sales volume, lift margin <strong>+@(Model.TargetMarginLiftPct)%</strong> (relative). Baseline = earliest runs.</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card h-100 @(Model.MarginLiftPct >= Model.TargetMarginLiftPct ? "border-success" : "border-warning")">
+            <div class="card-body">
+                <h6 class="text-muted">Margin lift vs baseline</h6>
+                <div class="fs-3">@(Model.MarginLiftPct?.ToString("+0.#;-0.#") ?? "–")%</div>
+                <small class="text-muted">target +@(Model.TargetMarginLiftPct)% · now @(Model.Recent?.MarginPct.ToString("0.#") ?? "–")% vs @(Model.Baseline?.MarginPct.ToString("0.#") ?? "–")%</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 @(Model.VolumeChangePct >= 0 ? "border-success" : "border-warning")">
+            <div class="card-body">
+                <h6 class="text-muted">Volume vs baseline</h6>
+                <div class="fs-3">@(Model.VolumeChangePct?.ToString("+0.#;-0.#") ?? "–")%</div>
+                <small class="text-muted">@(Model.Recent?.UnitsPerDay.ToString("0.#") ?? "–") units/day vs @(Model.Baseline?.UnitsPerDay.ToString("0.#") ?? "–")</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted">Net revenue / day (7d basis)</h6>
+                <div class="fs-3">@(Model.Recent?.NetRevenuePerDay.ToString("N0") ?? "–") @cur</div>
+                <small class="text-muted">baseline @(Model.Baseline?.NetRevenuePerDay.ToString("N0") ?? "–") @cur · excl. VAT</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 @(Model.LastRun?.Status == RunStatus.Failed || Model.RecentFailedRuns > 0 ? "border-danger" : "")">
+            <div class="card-body">
+                <h6 class="text-muted">Last run</h6>
+                @if (Model.LastRun is null)
+                {
+                    <div class="fs-5">No runs yet</div>
+                    <small class="text-muted">use Schedule → Run now</small>
+                }
+                else
+                {
+                    <div class="fs-5">#@Model.LastRun.Id — @Model.LastRun.Status</div>
+                    <small class="text-muted">@Model.LastRun.StartedUtc.ToString("u") · @Model.LastRun.SkuCount SKUs · @Model.LastRun.ErrorCount errors</small>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12"><div class="card"><div class="card-body">
+        <h6 class="mb-1">Weekly profit — @cur <small class="text-muted">realized gross profit from the sales report (SUM margin), by week</small></h6>
+        @if (Model.WeeklyProfit.Any())
+        {
+            <canvas id="profitWeekChart" height="90"></canvas>
+        }
+        else
+        {
+            <div class="text-muted py-4 text-center"><small>No weekly profit yet — the first bar lands once the current week records sales in the report. (Nothing in demo mode.)</small></div>
+        }
+    </div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-5">
+        <div class="card h-100"><div class="card-body">
+            <h6>Attribution — algorithms driving changes (last run)</h6>
+            <table class="table table-sm">
+                <thead><tr><th>Signal</th><th class="text-end">Changed SKUs</th><th class="text-end">Avg |Δ%|</th></tr></thead>
+                <tbody>
+                @foreach (var a in Model.AlgorithmAttribution)
+                {
+                    <tr><td title="@a.AlgorithmCode">@ReasonCodeText.Describe(a.AlgorithmCode)</td>
+                        <td class="text-end">@a.ChangedProposals</td>
+                        <td class="text-end">@a.AvgAbsChangePct.ToString("0.##")%</td></tr>
+                }
+                @if (!Model.AlgorithmAttribution.Any()) { <tr><td colspan="3" class="text-muted">No changed proposals yet.</td></tr> }
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100"><div class="card-body">
+            <h6>Attribution — by price band (last run)</h6>
+            <table class="table table-sm">
+                <thead><tr><th>Band</th><th class="text-end">Changed</th><th class="text-end">Avg Δ%</th></tr></thead>
+                <tbody>
+                @foreach (var b in Model.BandAttribution)
+                {
+                    <tr><td>@b.BandName</td><td class="text-end">@b.ChangedProposals</td>
+                        <td class="text-end">@b.AvgChangePct.ToString("+0.##;-0.##")%</td></tr>
+                }
+                @if (!Model.BandAttribution.Any()) { <tr><td colspan="3" class="text-muted">No changed proposals yet.</td></tr> }
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+    <div class="col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <h6>Health flags</h6>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Skipped — missing cost</span>
+                    <span class="badge @(Model.MissingCostSkus > 0 ? "bg-warning text-dark" : "bg-success")">@Model.MissingCostSkus</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>SKUs at guardrail clamps</span>
+                    <span class="badge bg-secondary">@Model.GuardrailClampedSkus</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Failed runs (last @DashboardViewModel.RecentRunsWindow)</span>
+                    <span class="badge @(Model.RecentFailedRuns > 0 ? "bg-danger" : "bg-success")">@Model.RecentFailedRuns</span>
+                </li>
+            </ul>
+            @if (Model.MissingCostSampleSkus.Any())
+            {
+                <small class="text-muted d-block mt-2">Missing cost examples:
+                    @foreach (var sku in Model.MissingCostSampleSkus)
+                    {
+                        <a asp-controller="Sku" asp-action="Details" asp-route-id="@sku" class="me-1">@sku</a>
+                    }
+                </small>
+            }
+        </div></div>
+    </div>
+</div>
+
+<h2 class="h4 mt-4">Dead stock — is it clearing?</h2>
+@if (Model.DeadStock.IsApprovedBatch)
+{
+    <p class="text-muted"><small>Tracking the <strong>approved batch we pushed live</strong> — @Model.DeadStock.DeadSkus.ToString("N0") SKUs@(Model.DeadStock.PushedUtc is null ? "" : $", pushed {Model.DeadStock.PushedUtc:MMM d}") · <strong>day @Model.DeadStock.TrackingDayNumber of @Model.DeadStock.TrackingWindowDays</strong>. <strong>Sold since push</strong> counts units sold on either Kosovo platform since the push@(Model.DeadStock.SalesRefreshedUtc is null ? "" : $" (sales refreshed {Model.DeadStock.SalesRefreshedUtc:MMM d, HH:mm} UTC)"); a SKU that sells drops out of the dead set on the next run. Only the approved SKUs are shown — not the un-approved dead-stock population.</small></p>
+}
+else
+{
+    <p class="text-muted"><small><strong>In the tunnel</strong>, <strong>avg depth</strong> and the table cover the latest run's markdown batch@(Model.DeadStock.BatchRunId is null ? "" : $" (run #{Model.DeadStock.BatchRunId})") — the SKUs we're clearing — matched to the latest snapshot@(Model.DeadStock.SnapshotDate is null ? "" : $" ({Model.DeadStock.SnapshotDate:MMM d})"). <strong>Sold since</strong> and <strong>sell-through</strong> look wider — at every dead-stock SKU marked down in the recent runs — because an item that actually sells stops being “dead”, so it only shows as sold once it has left the batch.</small></p>
+}
+
+@if (!Model.DeadStock.HasData)
+{
+    <div class="alert alert-light border" role="alert">
+        <span class="text-muted">No dead-stock SKUs flagged in the retained runs for this layer yet.</span>
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="text-muted">@(Model.DeadStock.IsApprovedBatch ? "Approved batch" : "In the tunnel")</h6>
+                <div class="fs-3">@Model.DeadStock.DeadSkus.ToString("N0")<small class="text-muted fs-6"> SKUs</small></div>
+                <small class="text-muted">@Model.DeadStock.StockUnits.ToString("N0") units · @Model.DeadStock.StockCost.ToString("N0") @cur tied up at cost</small>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100 @(Model.DeadStock.MovingSkus > 0 ? "border-success" : "")"><div class="card-body">
+                <h6 class="text-muted">@(Model.DeadStock.IsApprovedBatch ? "Sold since push" : "Sold since markdown (30d)")</h6>
+                <div class="fs-3">@Model.DeadStock.MovingSkus.ToString("N0")<small class="text-muted fs-6"> SKUs</small></div>
+                <small class="text-muted">@Model.DeadStock.MovingUnits30.ToString("N0") units · @Model.DeadStock.MovingNet30.ToString("N0") @cur excl. VAT · @(Model.DeadStock.IsApprovedBatch ? "since push" : "recent markdowns")</small>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="text-muted">Sell-through</h6>
+                <div class="fs-3">@Model.DeadStock.SellThroughPct.ToString("0.#")%</div>
+                <small class="text-muted">@(Model.DeadStock.IsApprovedBatch ? "of the batch has sold ≥1 unit" : "of dead stock marked down in recent runs") (@Model.DeadStock.CohortSkus.ToString("N0"))</small>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="text-muted">Avg markdown depth</h6>
+                <div class="fs-3">@Model.DeadStock.AvgDiscountFraction.ToString("P0")</div>
+                <small class="text-muted">average discount off shelf across the batch</small>
+            </div></div>
+        </div>
+    </div>
+
+    @if (Model.DeadStock.IsApprovedBatch && Model.DeadStockMovers.Any())
+    {
+        <div class="card mb-3 border-success"><div class="card-body">
+            <h6 class="mb-0">Sold since push — @Model.DeadStockMovers.Count SKUs moving</h6>
+            <small class="text-muted">Approved-batch SKUs with at least one sale since the push (@(Model.DeadStock.PushedUtc is null ? "" : $"{Model.DeadStock.PushedUtc:MMM d}")), most units first.</small>
+            <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle">
+                <thead><tr>
+                    <th>SKU</th><th>Product</th><th>Brand</th>
+                    <th class="text-end">Pushed</th><th class="text-end">Sold</th><th class="text-end">Net excl. VAT</th><th class="text-end">Stock</th>
+                </tr></thead>
+                <tbody>
+                @foreach (var r in Model.DeadStockMovers)
+                {
+                    <tr>
+                        <td><a asp-controller="Sku" asp-action="Details" asp-route-id="@r.Sku">@r.Sku</a></td>
+                        <td class="text-truncate" style="max-width:280px" title="@r.ProductName">@r.ProductName</td>
+                        <td>@r.Brand</td>
+                        <td class="text-end">@r.PushedPrice.ToString("N2")</td>
+                        <td class="text-end fw-semibold text-success">@r.SoldUnits</td>
+                        <td class="text-end">@r.SoldNet.ToString("N2")</td>
+                        <td class="text-end">@r.StockAtPush</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            </div>
+        </div></div>
+    }
+
+    @if (Model.DeadStock.IsApprovedBatch && Model.DeadStock.SoldOutCount > 0)
+    {
+        <div class="card mb-3 border-success"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h6 class="mb-0">Sold out — @Model.DeadStock.SoldOutCount.ToString("N0") SKUs cleared</h6>
+                    <small class="text-muted">Approved-batch SKUs that had local stock at push and now have <strong>0</strong> — fully cleared.</small>
+                </div>
+                <a class="btn btn-sm btn-outline-success" asp-action="DeadStockSoldOutCsv"
+                   title="Cleared SKUs that still have a live discount at the pushed price — the discounts to delete. Excludes any whose promo is already gone or re-priced.">⭳ Download CSV</a>
+            </div>
+            <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle">
+                <thead><tr>
+                    <th>SKU</th><th>Product</th><th>Brand</th>
+                    <th class="text-end">Pushed</th><th class="text-end">Stock at push</th><th class="text-end">Sold</th><th class="text-end">Net excl. VAT</th>
+                </tr></thead>
+                <tbody>
+                @foreach (var r in Model.DeadStock.SoldOut)
+                {
+                    <tr>
+                        <td><a asp-controller="Sku" asp-action="Details" asp-route-id="@r.Sku">@r.Sku</a></td>
+                        <td class="text-truncate" style="max-width:280px" title="@r.ProductName">@r.ProductName</td>
+                        <td>@r.Brand</td>
+                        <td class="text-end">@r.PushedPrice.ToString("N2")</td>
+                        <td class="text-end">@r.StockAtPush</td>
+                        <td class="text-end fw-semibold text-success">@r.SoldUnits</td>
+                        <td class="text-end">@r.SoldNet.ToString("N2")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            </div>
+            @if (Model.DeadStock.SoldOutCount > Model.DeadStock.SoldOut.Count)
+            {
+                <small class="text-muted">Showing top @Model.DeadStock.SoldOut.Count of @Model.DeadStock.SoldOutCount.ToString("N0") cleared. The CSV lists only those whose pushed discount is still live — the discounts to delete.</small>
+            }
+        </div></div>
+    }
+
+    <div class="card mb-4"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">@(Model.DeadStock.IsApprovedBatch ? "Approved batch — top capital at risk" : "Dead stock we marked down")@(Model.DeadStock.BatchRunId is null ? "" : $" — run #{Model.DeadStock.BatchRunId}")</h6>
+            <a asp-controller="Proposals" asp-action="Index" asp-route-Algorithm="DEAD_STOCK" class="small">See all in Proposals →</a>
+        </div>
+        <small class="text-muted">Sorted by capital at risk (stock × cost). @(Model.DeadStock.IsApprovedBatch ? "\"Sold\" = units sold since the push — 0 until the item moves." : "Units 7d/30d = sales recorded since — 0 until the item revives.")</small>
+        <div class="table-responsive mt-2">
+        @if (Model.DeadStock.IsApprovedBatch)
+        {
+            <table class="table table-sm align-middle">
+                <thead><tr>
+                    <th>SKU</th><th>Product</th><th>Brand</th>
+                    <th class="text-end">Pre-push</th><th class="text-end">Pushed</th><th class="text-end">Discount</th>
+                    <th class="text-end">Sold</th><th class="text-end">Stock</th>
+                </tr></thead>
+                <tbody>
+                @foreach (var r in Model.DeadStockMarkdown)
+                {
+                    <tr>
+                        <td><a asp-controller="Sku" asp-action="Details" asp-route-id="@r.Sku">@r.Sku</a></td>
+                        <td class="text-truncate" style="max-width:280px" title="@r.ProductName">@r.ProductName</td>
+                        <td>@r.Brand</td>
+                        <td class="text-end text-muted">@r.CurrentPrice.ToString("N2")</td>
+                        <td class="text-end fw-semibold">@r.NewPrice.ToString("N2")</td>
+                        <td class="text-end">@r.DiscountFraction.ToString("P0")</td>
+                        <td class="text-end @(r.Qty30 > 0 ? "fw-semibold text-success" : "")">@r.Qty30</td>
+                        <td class="text-end">@r.Stock</td>
+                    </tr>
+                }
+                @if (!Model.DeadStockMarkdown.Any()) { <tr><td colspan="8" class="text-muted">No items in this batch.</td></tr> }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <table class="table table-sm align-middle">
+                <thead><tr>
+                    <th>SKU</th><th>Product</th><th>Brand</th><th class="text-center">Stage</th>
+                    <th class="text-end">Current</th><th class="text-end">New</th><th class="text-end">Discount</th>
+                    <th class="text-end">Units 7d</th><th class="text-end">Units 30d</th><th class="text-end">Stock</th>
+                </tr></thead>
+                <tbody>
+                @foreach (var r in Model.DeadStockMarkdown)
+                {
+                    <tr>
+                        <td><a asp-controller="Sku" asp-action="Details" asp-route-id="@r.Sku">@r.Sku</a></td>
+                        <td class="text-truncate" style="max-width:260px" title="@r.ProductName">@r.ProductName</td>
+                        <td>@r.Brand</td>
+                        <td class="text-center"><span class="badge bg-secondary" title="Dead-stock age stage">@r.Stage</span></td>
+                        <td class="text-end text-muted">@r.CurrentPrice.ToString("N2")</td>
+                        <td class="text-end fw-semibold">@r.NewPrice.ToString("N2")</td>
+                        <td class="text-end">@r.DiscountFraction.ToString("P0")</td>
+                        <td class="text-end @(r.Qty7 > 0 ? "fw-semibold text-success" : "")">@r.Qty7</td>
+                        <td class="text-end @(r.Qty30 > 0 ? "fw-semibold text-success" : "")">@r.Qty30</td>
+                        <td class="text-end">@r.Stock</td>
+                    </tr>
+                }
+                @if (!Model.DeadStockMarkdown.Any()) { <tr><td colspan="10" class="text-muted">No dead-stock markdowns in the latest run.</td></tr> }
+                </tbody>
+            </table>
+        }
+        </div>
+        @if (Model.DeadStock.BatchTotal > Model.DeadStockMarkdown.Count)
+        {
+            <small class="text-muted">Showing top @Model.DeadStockMarkdown.Count of @Model.DeadStock.BatchTotal.ToString("N0") marked-down SKUs — <a asp-controller="Proposals" asp-action="Index" asp-route-Algorithm="DEAD_STOCK">see all in Proposals</a>.</small>
+        }
+    </div></div>
+}
+
+<h2 class="h4 mt-4">Did the bet pay off? — by approval</h2>
+<p class="text-muted"><small>Each approval is a batch of prices that went live. Profit is the sales-report realized gross profit (@cur) for that batch's SKUs — the window <em>before</em> the approval vs the same window <em>after</em>. "After" grows until the window fully elapses (7 / 30 / 90 days); the per-day figure compares fairly in the meantime. Correlational — not drift-adjusted.</small></p>
+
+@if (!Model.Approvals.Any())
+{
+    <div class="alert alert-light border" role="alert">
+        <span class="text-muted">No approvals recorded yet — approve a batch on the Proposals page and it lands here, with its realized profit before vs after.</span>
+    </div>
+}
+else
+{
+    <div class="card mb-4"><div class="card-body table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr>
+                <th>Approval</th>
+                <th>When (UTC)</th>
+                <th class="text-end">SKUs</th>
+                <th class="text-end">Price&nbsp;↑/↓</th>
+                <th class="text-end">7d profit before → after</th>
+                <th class="text-end">30d profit before → after</th>
+                <th class="text-end">90d profit before → after</th>
+            </tr></thead>
+            <tbody>
+            @foreach (var a in Model.Approvals)
+            {
+                var elapsed = (int)(DateTime.UtcNow.Date - a.ApprovedUtc.Date).TotalDays;
+                <tr>
+                    <td>#@a.Id<br><small class="text-muted">run #@a.SourceRunId</small></td>
+                    <td><small>@a.ApprovedUtc.ToString("yyyy-MM-dd HH:mm")</small><br><small class="text-muted">@a.ApprovedBy</small></td>
+                    <td class="text-end">@a.SkuCount.ToString("N0")</td>
+                    <td class="text-end"><span class="text-success">@a.IncreaseCount.ToString("N0")&nbsp;↑</span><br><span class="text-danger">@a.DecreaseCount.ToString("N0")&nbsp;↓</span></td>
+                    @{ ProfitCell(7, a.Profit7Before, a.Profit7After, elapsed); }
+                    @{ ProfitCell(30, a.Profit30Before, a.Profit30After, elapsed); }
+                    @{ ProfitCell(90, a.Profit90Before, a.Profit90After, elapsed); }
+                </tr>
+            }
+            </tbody>
+        </table>
+        <small class="text-muted">A window showing "—" hasn't been refreshed from the sales report yet (the profit refresh runs hourly). "n/W d" = days elapsed of the window so far.</small>
+    </div></div>
+}
+
+<p class="text-muted"><small>Drill into any SKU from the Proposals page or via <code>/Sku/Details/&lt;SKU&gt;</code>.</small></p>
+
+@section Scripts {
+<script>
+    const profitCanvas = document.getElementById('profitWeekChart');
+    if (profitCanvas) {
+        new Chart(profitCanvas, {
+            type: 'bar',
+            data: {
+                labels: @Html.Raw(weekLabels),
+                datasets: [{ label: 'Profit (@cur)', data: @Html.Raw(weekProfit), backgroundColor: '#198754' }]
+            },
+            options: {
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ctx.parsed.y.toLocaleString() + ' @cur' } }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Week beginning' } },
+                    y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() } }
+                }
+            }
+        });
+    }
+</script>
+}

@@ -1,0 +1,103 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using PricingTool.Core.Options;
+using PricingTool.Data;
+using PricingTool.Data.Services;
+using PricingTool.Web.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Load .env (gitignored) for local source-database credentials. When SOURCE_DB_HOST is
+// filled in, this builds the SourceReadOnly connection string and turns off demo mode.
+EnvFileLoader.ApplyDotEnv(builder);
+
+builder.Services.AddPricingTool(builder.Configuration);
+builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
+builder.Services.AddSingleton<RunLauncher>();
+
+// Liveness/readiness endpoint for the container orchestrator (see k8s probes). Kept
+// dependency-free so it answers as soon as Kestrel is up, independent of DB health.
+builder.Services.AddHealthChecks();
+
+// Behind the nginx ingress, TLS is terminated upstream and the original scheme/IP arrive
+// in X-Forwarded-* headers. Trust them so request.Scheme is "https" (correct redirect/
+// cookie behaviour). The proxy is an in-cluster pod, not loopback, so the default known-
+// network restrictions must be cleared — the ingress is the only path in.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
+// Multi-layer: session holds the selected layer; CurrentLayerService resolves it per request.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<CurrentLayerService>();
+builder.Services.AddSession(o =>
+{
+    o.Cookie.IsEssential = true;
+    o.IdleTimeout = TimeSpan.FromDays(7);
+});
+
+// Authentication: real Gjirafa Porta SSO (OpenID Connect) when configured, else the DevAuthHandler
+// no-auth shim for local dev. Authorization is the local Users allowlist (email → Analyst/Manager);
+// the [Authorize(Roles = ...)] markers on the controllers enforce it. See PortaAuthExtensions.
+builder.Services.AddPortaAuthentication(builder.Configuration);
+
+var app = builder.Build();
+
+// Must run before anything that inspects the scheme/host (redirects, cookies, etc.).
+app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
+}
+
+// In production the nginx ingress terminates TLS and force-redirects http->https; the
+// container only listens on plain HTTP, so an in-app redirect would loop and break the
+// kubelet probes. Locally, Kestrel has an https port, so keep the redirect for dev parity.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseStaticFiles();
+app.UseRouting();
+app.UseSession();
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Open, dependency-free health endpoint for k8s probes.
+app.MapHealthChecks("/healthz");
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// Migrate + seed on startup (bands, schedule defaults, demo history, and the initial Porta admin).
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<PricingToolDbContext>();
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+    await DbInitializer.MigrateWithRetryAsync(db, startupLogger);
+
+    var options = scope.ServiceProvider.GetRequiredService<IOptions<PricingEngineOptions>>().Value;
+    await DbSeeder.SeedCoreAsync(db, options);
+
+    // Seed the initial Manager (admin@example.test by default) so the app is usable before anyone is
+    // added via the Users admin screen. Only inserts when the Users table is empty.
+    var porta = scope.ServiceProvider.GetRequiredService<IOptions<PricingTool.Web.Options.PortaOptions>>().Value;
+    await DbSeeder.SeedInitialUserAsync(db, porta.InitialAdminEmail);
+
+    if (options.UseDemoData)
+    {
+        await scope.ServiceProvider.GetRequiredService<DemoHistoryBackfill>().EnsureBackfilledAsync();
+        await scope.ServiceProvider.GetRequiredService<DemoOutcomeSeeder>().EnsureSeededAsync();
+    }
+}
+
+app.Run();

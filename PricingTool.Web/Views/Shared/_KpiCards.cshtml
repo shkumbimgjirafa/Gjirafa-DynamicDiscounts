@@ -1,0 +1,41 @@
+@model IReadOnlyList<PricingTool.Core.Services.WindowProfit>
+@{
+    var cur = ViewData.CurrencyCode();
+}
+@if (Model is not null && Model.Count > 0)
+{
+    <p class="text-muted small mb-2">
+        Projected impact of the proposed prices if each trailing window sells the same units again
+        (naive baseline = current price). Profit &amp; margin are VAT-net; only SKUs with a known cost count.
+    </p>
+    <div class="row g-3 mb-4">
+        @foreach (var w in Model)
+        {
+            var up = w.ProfitDelta >= 0;
+            <div class="col-md-4">
+                <div class="card h-100 @(up ? "border-success" : "border-warning")">
+                    <div class="card-body">
+                        <h6 class="text-muted">Profit &amp; margin · @(w.WindowDays)d</h6>
+                        <div class="fs-4 @(up ? "text-success" : "text-danger")">
+                            @w.ProfitDelta.ToString("+#,##0;-#,##0;0") @cur
+                            @if (w.ProfitDeltaPct.HasValue)
+                            {
+                                <small class="text-muted">(@w.ProfitDeltaPct.Value.ToString("+0.#;-0.#")%)</small>
+                            }
+                        </div>
+                        <small class="text-muted d-block">
+                            profit @w.ProfitNow.ToString("N0") → @w.ProfitProposed.ToString("N0") @cur
+                        </small>
+                        <small class="text-muted d-block">
+                            margin @(w.MarginNowPct?.ToString("0.#") ?? "–")% → @(w.MarginProposedPct?.ToString("0.#") ?? "–")%
+                            @if (w.MarginDeltaPp.HasValue)
+                            {
+                                <text>(@w.MarginDeltaPp.Value.ToString("+0.#;-0.#")pp)</text>
+                            }
+                        </small>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

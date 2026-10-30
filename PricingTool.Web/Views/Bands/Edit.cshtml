@@ -1,0 +1,234 @@
+@model BandEditModel
+@{
+    ViewData["Title"] = $"Band — {Model.Name}";
+    var isManager = User.IsInRole("Manager");
+    var fieldsDisabled = isManager ? null : "disabled";
+    var cur = ViewData.CurrencyCode();
+}
+
+<h1 class="h3">@(isManager ? "Edit" : "View") band: @Model.Name</h1>
+@if (!isManager)
+{
+    <div class="alert alert-info">Read-only — the Manager role is required to edit configuration.</div>
+}
+
+<form method="post">
+    <input type="hidden" asp-for="Id" />
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <label class="form-label">Name</label>
+            <input asp-for="Name" class="form-control" disabled="@fieldsDisabled" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Min cost / PPTCV (@cur, incl.)</label>
+            <input asp-for="MinPrice" type="number" step="0.01" class="form-control" disabled="@fieldsDisabled" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Max cost / PPTCV (@cur, excl.)</label>
+            <input asp-for="MaxPrice" type="number" step="0.01" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="MaxPrice" class="text-danger"></span>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Margin floor %</label>
+            <input asp-for="MarginFloorPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="MarginFloorPct" class="text-danger"></span>
+            <small class="text-muted">hard min margin on net price</small>
+            @if (Model.FloorMirrorsToLayers.Count > 0)
+            {
+                <small class="d-block text-muted">saving also applies it to @string.Join(" and ", Model.FloorMirrorsToLayers)</small>
+            }
+            else if (Model.FloorMirroredFromLayer is not null)
+            {
+                <small class="d-block text-warning">mirrored from @Model.FloorMirroredFromLayer — a change here is overwritten next time that band is saved</small>
+            }
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Target margin %</label>
+            <input asp-for="TargetMarginPct" type="number" step="0.1" class="form-control" placeholder="off" disabled="@fieldsDisabled" />
+            <span asp-validation-for="TargetMarginPct" class="text-danger"></span>
+            <small class="text-muted">blank = off; nudges algorithm-silent SKUs to this blended margin</small>
+        </div>
+    </div>
+
+    <h5>Dead-stock markdown</h5>
+    <p class="text-muted small mb-2">Progressive markdown for locally-held stock with no sales in the no-sale window (Algorithm 7), per band — paced from the live discount: it opens one step below the current price (or at the start discount) and deepens one step per period once the previous drop is applied, never a catch-up jump.</p>
+    <div class="row g-3 mb-4">
+        <div class="col-md-2">
+            <label class="form-label">No-sale window</label>
+            <select asp-for="DeadStockNoSaleWindowDays" class="form-select" disabled="@fieldsDisabled">
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+            </select>
+            <span asp-validation-for="DeadStockNoSaleWindowDays" class="text-danger"></span>
+            <small class="text-muted">defines "dead": zero sales this long</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Min stock age (days)</label>
+            <input asp-for="DeadStockMinStockAgeDays" type="number" step="1" min="0" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockMinStockAgeDays" class="text-danger"></span>
+            <small class="text-muted">oldest unit must be this old (skips fresh stock)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Start discount %</label>
+            <input asp-for="DeadStockStartDiscountPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStartDiscountPct" class="text-danger"></span>
+            <small class="text-muted">minimum opening drop</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Step discount %</label>
+            <input asp-for="DeadStockStepDiscountPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStepDiscountPct" class="text-danger"></span>
+            <small class="text-muted">added each period (pp)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Period (days)</label>
+            <input asp-for="DeadStockPeriodDays" type="number" step="1" min="1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockPeriodDays" class="text-danger"></span>
+            <small class="text-muted">no-sale days at the applied price per step</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Floor (% of cost)</label>
+            <input asp-for="DeadStockFloorCostPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockFloorCostPct" class="text-danger"></span>
+            <small class="text-muted">stage 1 "3–6 months" (min stock age and up): may run below margin floor, down to this</small>
+        </div>
+    </div>
+    <p class="text-muted small mb-2">The floor deepens — and the step/period may change — as the stock ages. Each stage below starts at its age threshold and replaces the previous stage's floor, step and period. Ages must increase, floors must not.</p>
+
+    <h6 class="mb-2">Stage 2 — "6–12 months"</h6>
+    <div class="row g-3 mb-3">
+        <div class="col-md-2">
+            <label class="form-label">Age (days)</label>
+            <input asp-for="DeadStockStage2AgeDays" type="number" step="1" min="1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage2AgeDays" class="text-danger"></span>
+            <small class="text-muted">starts here (default 180)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Floor (% of cost)</label>
+            <input asp-for="DeadStockStage2FloorCostPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage2FloorCostPct" class="text-danger"></span>
+            <small class="text-muted">may clear below cost (default 80)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Step discount %</label>
+            <input asp-for="DeadStockStage2StepDiscountPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage2StepDiscountPct" class="text-danger"></span>
+            <small class="text-muted">added each period (pp)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Period (days)</label>
+            <input asp-for="DeadStockStage2PeriodDays" type="number" step="1" min="1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage2PeriodDays" class="text-danger"></span>
+            <small class="text-muted">no-sale days at applied price per step</small>
+        </div>
+    </div>
+
+    <h6 class="mb-2">Stage 3 — "12–36 months"</h6>
+    <div class="row g-3 mb-3">
+        <div class="col-md-2">
+            <label class="form-label">Age (days)</label>
+            <input asp-for="DeadStockStage3AgeDays" type="number" step="1" min="1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage3AgeDays" class="text-danger"></span>
+            <small class="text-muted">starts here (default 360)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Floor (% of cost)</label>
+            <input asp-for="DeadStockStage3FloorCostPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage3FloorCostPct" class="text-danger"></span>
+            <small class="text-muted">may clear below cost (default 60)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Step discount %</label>
+            <input asp-for="DeadStockStage3StepDiscountPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage3StepDiscountPct" class="text-danger"></span>
+            <small class="text-muted">added each period (pp)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Period (days)</label>
+            <input asp-for="DeadStockStage3PeriodDays" type="number" step="1" min="1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage3PeriodDays" class="text-danger"></span>
+            <small class="text-muted">no-sale days at applied price per step</small>
+        </div>
+    </div>
+
+    <h6 class="mb-2">Stage 4 — "36 months+"</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-md-2">
+            <label class="form-label">Age (days)</label>
+            <input asp-for="DeadStockStage4AgeDays" type="number" step="1" min="1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage4AgeDays" class="text-danger"></span>
+            <small class="text-muted">starts here (default 1080 = 3 years)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Floor (% of cost)</label>
+            <input asp-for="DeadStockStage4FloorCostPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage4FloorCostPct" class="text-danger"></span>
+            <small class="text-muted">deepest clearance floor (default 40)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Step discount %</label>
+            <input asp-for="DeadStockStage4StepDiscountPct" type="number" step="0.1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage4StepDiscountPct" class="text-danger"></span>
+            <small class="text-muted">added each period (pp)</small>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Period (days)</label>
+            <input asp-for="DeadStockStage4PeriodDays" type="number" step="1" min="1" class="form-control" disabled="@fieldsDisabled" />
+            <span asp-validation-for="DeadStockStage4PeriodDays" class="text-danger"></span>
+            <small class="text-muted">no-sale days at applied price per step</small>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <label class="form-label">Psychological rounding</label>
+            <select asp-for="RoundingConvention" class="form-select" disabled="@fieldsDisabled">
+                <option value="0">None</option>
+                <option value="1">.99 endings</option>
+                <option value="2">.95 endings</option>
+                <option value="3">Whole number</option>
+                <option value="4">995-style (5 @cur steps; 1000→995)</option>
+                <option value="5">…99 endings (whole-currency; e.g. 6199, 9999)</option>
+                <option value="6">.50 endings (e.g. 47.50, 149.50)</option>
+                <option value="7">Gj50 charm (Weber-scaled .50; e.g. 47.50, 99.50, 999.50)</option>
+                <option value="8">Gjm charm (Gj50 Weber logic, .99 ending; .x9 grid under €5)</option>
+                <option value="9">Gj50 charm — whole-currency MKD/ALL (Weber, …50; e.g. 1 150, 6 150, …9 950)</option>
+                <option value="10">Gjm charm — whole-currency MKD/ALL (Weber, …90 or …50; e.g. 1 190, 6 990, …9 990)</option>
+            </select>
+        </div>
+        <div class="col-md-2 form-check align-self-end mb-2 ms-3">
+            <input asp-for="RoundingEnabled" class="form-check-input" disabled="@fieldsDisabled" />
+            <label asp-for="RoundingEnabled" class="form-check-label">Rounding enabled</label>
+        </div>
+    </div>
+
+    <h5>Algorithms (weight 0–100; weight × vote confidence decides the blend)</h5>
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <table class="table table-sm align-middle" style="max-width: 720px">
+        <thead class="table-light"><tr><th>Enabled</th><th>Algorithm</th><th style="width:220px">Weight</th></tr></thead>
+        <tbody>
+        @for (var i = 0; i < Model.Algorithms.Count; i++)
+        {
+            <tr>
+                <td>
+                    <input type="hidden" asp-for="Algorithms[i].Code" />
+                    <input type="hidden" asp-for="Algorithms[i].DisplayName" />
+                    <input asp-for="Algorithms[i].Enabled" class="form-check-input" disabled="@fieldsDisabled" />
+                </td>
+                <td>@Model.Algorithms[i].DisplayName <br /><small class="text-muted">@Model.Algorithms[i].Code</small></td>
+                <td>
+                    <input asp-for="Algorithms[i].Weight" type="number" min="0" max="100" class="form-control form-control-sm" disabled="@fieldsDisabled" />
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    @if (isManager)
+    {
+        <button class="btn btn-primary">Save band</button>
+    }
+    <a class="btn btn-outline-secondary" asp-action="Index">Back</a>
+</form>

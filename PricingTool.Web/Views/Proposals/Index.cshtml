@@ -1,0 +1,559 @@
+@using System.Globalization
+@model ProposalsViewModel
+@{
+    ViewData["Title"] = "Proposals Review";
+    var f = Model.Filter;
+    var isManager = User.IsInRole("Manager");
+    var cur = ViewData.CurrencyCode();
+    var inv = CultureInfo.InvariantCulture;
+
+    // Active sort, resolved the same way the controller does, so the header arrow matches the result.
+    var (sortCol, sortDesc) = ProposalQuery.ParseSort(f.Sort);
+    string Arrow(string key) => sortCol == key ? (sortDesc ? " ▼" : " ▲") : "";
+
+    // Display text for the id-backed searchable dropdowns (Supplier / Band): the selected option's name,
+    // or "#id" if a filter carried an id that isn't in this run's option list (rare, cross-run link).
+    var supplierDisplay = f.SupplierId is int selSup
+        ? (Model.Suppliers.FirstOrDefault(s => s.Id == selSup)?.Name ?? $"#{selSup}")
+        : "";
+    var bandDisplay = f.BandId is int selBand
+        ? (Model.Bands.FirstOrDefault(b => b.Id == selBand)?.Name ?? $"#{selBand}")
+        : "";
+
+    // A clickable, sortable column header. Clicking toggles this column's direction (see the sort JS).
+    void SortHead(string key, string label, string cls = "", string title = "")
+    {
+        <th class="@cls" title="@title">
+            <a href="#" class="sort-link text-reset text-decoration-none" data-col="@key">@label<span class="text-primary">@Arrow(key)</span></a>
+        </th>
+    }
+
+    // A stacked min/max numeric column filter, bound to the GET filter form via the form= attribute.
+    void Range(string minName, decimal? minVal, string maxName, decimal? maxVal)
+    {
+        <input type="number" step="any" form="filterForm" name="@minName" value="@(minVal?.ToString(inv))" placeholder="min" class="form-control form-control-sm cf" />
+        <input type="number" step="any" form="filterForm" name="@maxName" value="@(maxVal?.ToString(inv))" placeholder="max" class="form-control form-control-sm cf" />
+    }
+
+    // Integer twin of Range for the snapshot-backed unit-count columns (local stock, 7d/30d sales).
+    void IntRange(string minName, int? minVal, string maxName, int? maxVal)
+    {
+        <input type="number" step="1" min="0" form="filterForm" name="@minName" value="@(minVal?.ToString(inv))" placeholder="min" class="form-control form-control-sm cf" />
+        <input type="number" step="1" min="0" form="filterForm" name="@maxName" value="@(maxVal?.ToString(inv))" placeholder="max" class="form-control form-control-sm cf" />
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center">
+    <h1 class="h3">Proposals Review</h1>
+    @if (Model.Run is not null)
+    {
+        <div class="text-muted">
+            Run <strong>#@Model.Run.Id</strong> (@Model.Run.Status) — started @Model.Run.StartedUtc.ToString("u"),
+            @Model.Run.SkuCount SKUs, @Model.Run.SkippedCount skipped, @Model.Run.ErrorCount errors
+        </div>
+    }
+</div>
+
+@if (Model.Run is null)
+{
+    <div class="alert alert-info mt-3">No pricing runs yet. Go to <a asp-controller="Schedule" asp-action="Index">Schedule</a> and hit <em>Run now</em>.</div>
+    return;
+}
+
+@await Html.PartialAsync("_ProposalKpiCards", Model.Kpis)
+
+@* Slim top bar: run/status/dead-stock/algorithm + actions. The per-column filters live in the table
+   header (Excel-style) and post to THIS form via the HTML5 form="filterForm" attribute. *@
+<form method="get" id="filterForm" class="row g-2 align-items-end my-3">
+    <input type="hidden" name="Sort" id="sortField" value="@f.Sort" />
+    <div class="col-auto">
+        <label class="form-label mb-0">Run</label>
+        <select name="RunId" class="form-select form-select-sm" onchange="this.form.submit()">
+            @foreach (var run in Model.RecentRuns)
+            {
+                <option value="@run.Id" selected="@(run.Id == Model.Run.Id)">#@run.Id — @run.StartedUtc.ToString("MM-dd HH:mm") (@run.Status)</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">Status</label>
+        <select name="Status" class="form-select form-select-sm" onchange="this.form.submit()">
+            @foreach (var s in new[] { "Pending", "Approved", "Rejected", "Pushed", "Skipped", "All" })
+            {
+                <option value="@s" selected="@(f.Status == s)">@s</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">Dead stock</label>
+        <select name="DeadStockStage" class="form-select form-select-sm" onchange="this.form.submit()" title="Dead-stock age stage stamped on the run (stage thresholds are per band)">
+            <option value="">All</option>
+            <option value="-1" selected="@(f.DeadStockStage == -1)">Any stage</option>
+            <option value="1" selected="@(f.DeadStockStage == 1)">Stage 1 — 3–6 months</option>
+            <option value="2" selected="@(f.DeadStockStage == 2)">Stage 2 — 6–12 months</option>
+            <option value="3" selected="@(f.DeadStockStage == 3)">Stage 3 — 12–36 months</option>
+            <option value="4" selected="@(f.DeadStockStage == 4)">Stage 4 — 36 months+</option>
+            <option value="0" selected="@(f.DeadStockStage == 0)">Not dead</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">New products</label>
+        <select name="NewProduct" class="form-select form-select-sm" onchange="this.form.submit()" title="Platform-new products (inside the MarkAsNew window)">
+            <option value="">All</option>
+            <option value="only" selected="@(f.NewProduct == "only")">New only</option>
+            <option value="exclude" selected="@(f.NewProduct == "exclude")">Hide new</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">Algorithm</label>
+        <select name="Algorithm" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">All</option>
+            @foreach (var code in Model.AlgorithmCodes)
+            {
+                <option value="@code" selected="@(f.Algorithm == code)">@code</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto form-check mb-1">
+        @* Hidden fallback so UN-checking actually submits ChangedOnly=false (posted AFTER the checkbox). *@
+        <input class="form-check-input" type="checkbox" name="ChangedOnly" value="true" checked="@f.ChangedOnly" id="changedOnly" onchange="this.form.submit()" />
+        <input type="hidden" name="ChangedOnly" value="false" />
+        <label class="form-check-label" for="changedOnly">Changed only</label>
+    </div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Apply</button></div>
+    <div class="col-auto"><button class="btn btn-sm btn-outline-success" formaction="@Url.Action("Export")" formmethod="get">Export CSV</button></div>
+    @* "Export all": same full filtered set, planning-spreadsheet layout. *@
+    <div class="col-auto"><button class="btn btn-sm btn-outline-success" formaction="@Url.Action("ExportAll")" formmethod="get">Export all</button></div>
+    @* "Normal changes only": presets the Max |Δ%| filter (id=maxAbs, in the Δ% column) then exports. *@
+    <div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-success"
+        formaction="@Url.Action("Export")" formmethod="get"
+        onclick="document.getElementById('maxAbs').value='@Model.ConfirmationThresholdPct.ToString("0.##", inv)';">Export normal (≤@(Model.ConfirmationThresholdPct)%)</button></div>
+    <div class="col-auto text-muted"><small>@Model.TotalCount match · showing first @Model.Proposals.Count · @Model.ApprovedCount approved in run · sort/filter &amp; export cover the full set</small></div>
+</form>
+
+<form method="post" id="reviewForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="runId" value="@Model.Run.Id" />
+    @* Every applied filter, mirrored so Approve-all-filtered / Reject / Push act on the same set. *@
+    @await Html.PartialAsync("_ProposalFilterHiddenFields", f)
+
+    @if (isManager)
+    {
+        <div class="mb-2 d-flex gap-2">
+            <button type="submit" class="btn btn-sm btn-success" formaction="@Url.Action("Approve")">Approve selected</button>
+            <button type="submit" class="btn btn-sm btn-outline-success" formaction="@Url.Action("ApproveAll")"
+                    onclick="return confirm('Approve ALL @Model.TotalCount proposals matching the current filter?');">Approve all (filtered)</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger" formaction="@Url.Action("Reject")">Reject selected</button>
+            <button type="submit" class="btn btn-sm btn-warning ms-auto" formaction="@Url.Action("Push")"
+                    onclick="return confirm('Push all @Model.ApprovedCount APPROVED proposals of run #@Model.Run.Id to the integration point? This is the explicit live-price step.');">
+                ⬆ Push @Model.ApprovedCount approved
+            </button>
+        </div>
+    }
+
+    <table class="table table-sm table-hover align-middle proposals-grid">
+        <thead class="table-light">
+            <tr>
+                @if (isManager) { <th><input type="checkbox" id="checkAll" /></th> }
+                @{ SortHead("productid", "Product ID"); }
+                @{ SortHead("sku", "SKU"); }
+                @{ SortHead("name", "Product name"); }
+                @{ SortHead("brand", "Brand"); }
+                @{ SortHead("supplier", "Supplier"); }
+                @{ SortHead("band", "Band"); }
+                @{ SortHead("cost", $"Cost {cur}", "text-end"); }
+                @{ SortHead("old", $"Old {cur}", "text-end"); }
+                @{ SortHead("anchor", $"Anchor {cur}", "text-end"); }
+                @{ SortHead("current", $"Current {cur}", "text-end"); }
+                @{ SortHead("proposed", $"Proposed {cur}", "text-end"); }
+                @{ SortHead("prevmargin", "Prev margin", "text-end", "(current − cost) ÷ current"); }
+                @{ SortHead("newmargin", "New margin", "text-end", "(proposed − cost) ÷ proposed"); }
+                @{ SortHead("abschange", "Δ%", "text-end", "Sorts by |Δ%| — magnitude of the change"); }
+                @{ SortHead("localstock", "Local stock", "text-end", "Units on hand in the local warehouse (run snapshot)"); }
+                @{ SortHead("qty7", "7d sales", "text-end", "Units sold, trailing 7 days (run snapshot)"); }
+                @{ SortHead("qty30", "30d sales", "text-end", "Units sold, trailing 30 days (run snapshot)"); }
+                @{ SortHead("discountids", "Active discount IDs", "", "Active customer-facing campaign discount ids at run time (best deal first)"); }
+                <th>Reasons</th>
+                <th>Guardrails</th>
+                @{ SortHead("status", "Status"); }
+            </tr>
+            @* Excel-style per-column filter row. Inputs bind to #filterForm via the form= attribute. *@
+            <tr class="col-filter">
+                @if (isManager) { <th></th> }
+                <th></th>
+                <th><input type="search" form="filterForm" name="Sku" value="@f.Sku" class="form-control form-control-sm cf" placeholder="SKU…" /></th>
+                <th><input type="search" form="filterForm" name="ProductName" value="@f.ProductName" class="form-control form-control-sm cf" placeholder="name…" /></th>
+                <th>
+                    @* Searchable dropdown: type to filter the suggestions or pick one; the filter itself
+                       stays a substring match, so a partial brand still works. Auto-submits on change. *@
+                    <input type="search" form="filterForm" name="Brand" value="@f.Brand" list="brandOptions"
+                           class="form-control form-control-sm cf" placeholder="brand…" autocomplete="off"
+                           onchange="document.getElementById('filterForm').submit()" />
+                    <datalist id="brandOptions">
+                        @foreach (var b in Model.Brands) { <option value="@b"></option> }
+                    </datalist>
+                </th>
+                <th>
+                    @if (Model.Suppliers.Any() || f.SupplierId.HasValue)
+                    {
+                        @* Searchable dropdown backed by a hidden id: the visible box searches supplier names,
+                           the JS resolver writes the chosen supplier's id into the posted field. Empty = All. *@
+                        <input type="hidden" form="filterForm" name="SupplierId" id="SupplierId" value="@(f.SupplierId?.ToString(inv))" />
+                        <input type="search" form="filterForm" class="form-control form-control-sm cf lookup"
+                               list="supplierOptions" data-target="SupplierId" value="@supplierDisplay"
+                               placeholder="supplier…" autocomplete="off" />
+                        <datalist id="supplierOptions">
+                            @if (f.SupplierId is int selSupOpt && Model.Suppliers.All(s => s.Id != selSupOpt))
+                            {
+                                <option value="#@selSupOpt" data-id="@selSupOpt"></option>
+                            }
+                            @foreach (var s in Model.Suppliers)
+                            {
+                                <option value="@s.Name" data-id="@s.Id"></option>
+                            }
+                        </datalist>
+                    }
+                </th>
+                <th>
+                    @* Searchable dropdown backed by a hidden id (same pattern as Supplier). Empty = All. *@
+                    <input type="hidden" form="filterForm" name="BandId" id="BandId" value="@(f.BandId?.ToString(inv))" />
+                    <input type="search" form="filterForm" class="form-control form-control-sm cf lookup"
+                           list="bandOptions" data-target="BandId" value="@bandDisplay"
+                           placeholder="band…" autocomplete="off" />
+                    <datalist id="bandOptions">
+                        @foreach (var band in Model.Bands)
+                        {
+                            <option value="@band.Name" data-id="@band.Id"></option>
+                        }
+                    </datalist>
+                </th>
+                <th class="text-end">@{ Range("CostMin", f.CostMin, "CostMax", f.CostMax); }</th>
+                <th class="text-end">@{ Range("OldMin", f.OldMin, "OldMax", f.OldMax); }</th>
+                <th class="text-end">@{ Range("AnchorMin", f.AnchorMin, "AnchorMax", f.AnchorMax); }</th>
+                <th class="text-end">@{ Range("CurrentMin", f.CurrentMin, "CurrentMax", f.CurrentMax); }</th>
+                <th class="text-end">@{ Range("ProposedMin", f.ProposedMin, "ProposedMax", f.ProposedMax); }</th>
+                <th class="text-end">@{ Range("PrevMarginMin", f.PrevMarginMin, "PrevMarginMax", f.PrevMarginMax); }</th>
+                <th class="text-end">@{ Range("NewMarginMin", f.NewMarginMin, "NewMarginMax", f.NewMarginMax); }</th>
+                <th class="text-end">
+                    @* Signed Δ% range (actual change, not magnitude): negative = drop, positive = rise. *@
+                    <input type="number" step="any" form="filterForm" name="MinChangePct" value="@(f.MinChangePct?.ToString(inv))" placeholder="min" class="form-control form-control-sm cf" title="Min Δ% (signed — e.g. 0 keeps only price rises)" />
+                    <input type="number" step="any" form="filterForm" name="MaxChangePct" value="@(f.MaxChangePct?.ToString(inv))" placeholder="max" class="form-control form-control-sm cf" title="Max Δ% (signed — e.g. -20 keeps only drops of 20% or more)" />
+                    @* Hidden magnitude cap behind the "Export normal (≤X%)" button (set via id=maxAbs). *@
+                    <input type="hidden" form="filterForm" name="MaxAbsChangePct" id="maxAbs" value="@(f.MaxAbsChangePct?.ToString(inv))" />
+                </th>
+                <th class="text-end">@{ IntRange("LocalStockMin", f.LocalStockMin, "LocalStockMax", f.LocalStockMax); }</th>
+                <th class="text-end">@{ IntRange("Qty7Min", f.Qty7Min, "Qty7Max", f.Qty7Max); }</th>
+                <th class="text-end">@{ IntRange("Qty30Min", f.Qty30Min, "Qty30Max", f.Qty30Max); }</th>
+                <th>
+                    <select form="filterForm" name="DiscountIds" class="form-select form-select-sm cf" onchange="document.getElementById('filterForm').submit()">
+                        <option value="" selected="@(string.IsNullOrEmpty(f.DiscountIds))">All</option>
+                        <option value="blank" selected="@(f.DiscountIds == "blank")">Blank</option>
+                        <option value="nonblank" selected="@(f.DiscountIds == "nonblank")">Has ids</option>
+                    </select>
+                </th>
+                <th>
+                    @* Reasons column filter — GjirafaMall only: the SKUs shared with the same-country
+                       Gjirafa50 layer adopt Gj50's price verbatim (SYNCED_TO_GJ50) and Mall never prices
+                       them itself, so "Hide Gj50 products" leaves only the rows this layer decided. *@
+                    @if (Model.ShowGj50SyncFilter)
+                    {
+                        <select form="filterForm" name="Gj50Sync" class="form-select form-select-sm cf"
+                                title="Gjirafa50 products: rows that adopted Gjirafa50's price (SYNCED_TO_GJ50)"
+                                onchange="document.getElementById('filterForm').submit()">
+                            <option value="" selected="@(string.IsNullOrEmpty(f.Gj50Sync))">All</option>
+                            <option value="exclude" selected="@(f.Gj50Sync == "exclude")">Hide Gj50 products</option>
+                            <option value="only" selected="@(f.Gj50Sync == "only")">Only Gj50 products</option>
+                        </select>
+                    }
+                </th>
+                <th>
+                    @* Searchable dropdown over the fixed guardrail-flag vocabulary; still a substring match. *@
+                    <input type="search" form="filterForm" name="Guardrails" value="@f.Guardrails" list="guardrailOptions"
+                           class="form-control form-control-sm cf" placeholder="flag…" autocomplete="off"
+                           onchange="document.getElementById('filterForm').submit()" />
+                    <datalist id="guardrailOptions">
+                        @foreach (var (code, text) in ReasonCodeText.GuardrailCatalog) { <option value="@code" label="@text"></option> }
+                    </datalist>
+                </th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var p in Model.Proposals)
+        {
+            var band = Model.Bands.FirstOrDefault(b => b.Id == p.PriceBandId);
+            var bandName = band?.Name ?? "–";
+            var large = Math.Abs(p.ChangePct) > Model.ConfirmationThresholdPct;
+            // Margins are cost-over-price: null when cost or the price is unknown/zero.
+            decimal? prevMargin = p.Pptcv.HasValue && p.CurrentPrice > 0 ? (p.CurrentPrice - p.Pptcv.Value) / p.CurrentPrice : (decimal?)null;
+            decimal? newMargin = p.Pptcv.HasValue && p.ProposedPriceValue > 0 ? (p.ProposedPriceValue - p.Pptcv.Value) / p.ProposedPriceValue : (decimal?)null;
+            var overridden = p.ManualOverrideUtc != null;
+            var belowCost = p.Pptcv.HasValue && p.ProposedPriceValue < p.Pptcv.Value;
+            // Diagnostic (computed — NOT an engine guardrail action): the CURRENT price already sits below
+            // this band's margin floor. The engine only tags MARGIN_FLOOR_CLAMPED when it clamped the
+            // proposed price UP to the floor; a margin-target trim (or any move) landing above the floor
+            // leaves the below-floor starting state unlabeled, so this surfaces it. Same logic drives the
+            // CSV export's CurrentBelowFloor column (see ReasonCodeText.IsCurrentBelowFloor).
+            var currentBelowFloor = ReasonCodeText.IsCurrentBelowFloor(
+                p.Pptcv, p.CurrentPrice, band?.MarginFloorPct, p.GuardrailFlags, p.ReasonCodes);
+            var canEdit = isManager && (p.Status == ProposalStatus.Pending || p.Status == ProposalStatus.Approved);
+            <tr class="@(large ? "table-warning" : "")">
+                @if (isManager)
+                {
+                    <td>
+                        @if (p.Status == ProposalStatus.Pending || p.Status == ProposalStatus.Approved)
+                        {
+                            <input type="checkbox" name="ids" value="@p.Id" class="rowCheck" data-large="@large.ToString().ToLower()" />
+                        }
+                    </td>
+                }
+                <td class="text-muted">@(p.ProductId?.ToString() ?? "–")</td>
+                <td>
+                    <a asp-controller="Sku" asp-action="Details" asp-route-id="@p.Sku">@p.Sku</a>
+                    @if (p.IsNewProduct || ReasonCodeText.IsNewProduct(p.ReasonCodes, p.GuardrailFlags))
+                    {
+                        <span class="badge bg-info text-dark ms-1" title="New product (inside the MarkAsNew window)">NEW</span>
+                    }
+                    @if (p.DeadStockStage != PricingTool.Core.Domain.DeadStockStage.None)
+                    {
+                        <span class="badge bg-warning text-dark ms-1" title="Dead stock stage @((byte)p.DeadStockStage) — the markdown floor for this age tier is set per band">@DeadStockStageText.Label(p.DeadStockStage)</span>
+                    }
+                </td>
+                <td><small class="text-muted d-inline-block text-truncate" style="max-width:220px;vertical-align:middle" title="@p.ProductName">@(p.ProductName ?? "–")</small></td>
+                <td><small>@(p.Brand ?? "–")</small></td>
+                <td><small>@(p.SupplierName ?? "–")</small></td>
+                <td><small>@bandName</small></td>
+                <td class="text-end">@(p.Pptcv.HasValue ? p.Pptcv.Value.ToString("0.00") : "–")</td>
+                <td class="text-end text-muted">@p.OldPrice.ToString("0.00")</td>
+                <td class="text-end">@p.AnchorPrice.ToString("0.00")</td>
+                <td class="text-end">@p.CurrentPrice.ToString("0.00")</td>
+                <td class="text-end fw-bold proposed-cell" data-id="@p.Id">
+                    <span class="proposed-val">@p.ProposedPriceValue.ToString("0.00")</span>
+                    @if (canEdit)
+                    {
+                        <a href="#" class="edit-price ms-1 text-decoration-none" title="Override this price">✎</a>
+                    }
+                    @if (overridden)
+                    {
+                        <span class="ovr-badge badge @(belowCost ? "bg-danger" : "bg-info text-dark") ms-1"
+                              title="Manually overridden by @p.ManualOverrideBy@(p.EngineProposedPrice.HasValue ? $" (engine: {p.EngineProposedPrice.Value.ToString("0.00", inv)})" : "")">✎</span>
+                    }
+                </td>
+                <td class="text-end text-muted">@(prevMargin.HasValue ? (prevMargin.Value * 100).ToString("0.0") + "%" : "–")</td>
+                <td class="text-end newmargin-cell @(newMargin.HasValue && prevMargin.HasValue ? (newMargin.Value >= prevMargin.Value ? "text-success" : "text-danger") : "")">@(newMargin.HasValue ? (newMargin.Value * 100).ToString("0.0") + "%" : "–")</td>
+                <td class="text-end delta-cell @(p.ChangePct > 0 ? "text-success" : p.ChangePct < 0 ? "text-danger" : "text-muted")">
+                    @p.ChangePct.ToString("+0.##;-0.##;0")%
+                    @if (large) { <span title="Exceeds ±@Model.ConfirmationThresholdPct% — requires confirmation">⚠</span> }
+                </td>
+                @{ var hasSales = Model.Sales.TryGetValue(p.Sku, out var sales); }
+                <td class="text-end">@(hasSales ? sales.LocalStock.ToString() : "–")</td>
+                <td class="text-end">@(hasSales ? sales.Qty7.ToString() : "–")</td>
+                <td class="text-end">@(hasSales ? sales.Qty30.ToString() : "–")</td>
+                <td><small class="text-muted">@(string.IsNullOrEmpty(p.ActiveDiscountIds) ? "–" : p.ActiveDiscountIds)</small></td>
+                <td>
+                    @{ var synced = ReasonCodeText.HasCode(PricingTool.Core.Domain.GuardrailFlags.SyncedToGj50, p.ReasonCodes); }
+                    @foreach (var (code, text) in ReasonCodeText.DescribeList(p.ReasonCodes, ReasonCodeText.NewProductCode))
+                    {
+                        @if (code == PricingTool.Core.Domain.GuardrailFlags.SyncedToGj50)
+                        {
+                            <span class="badge bg-info text-dark border" title="@code">@text</span>
+                        }
+                        else if (synced)
+                        {
+                            <span class="badge bg-light text-primary border border-primary" title="Gjirafa50's decision that set the adopted price (@code)">Gj50 · @text</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-light text-dark border" title="@code">@text</span>
+                        }
+                    }
+                </td>
+                <td>
+                    @if (currentBelowFloor)
+                    {
+                        <span class="badge bg-warning text-dark" title="Current price yields @((prevMargin!.Value * 100m).ToString("0.0", inv))% margin — below this band's @(band!.MarginFloorPct.ToString("0.#", inv))% floor. The proposed price restores a healthier margin.">⚠ Current below margin floor</span>
+                    }
+                    @foreach (var (code, text) in ReasonCodeText.DescribeList(p.GuardrailFlags))
+                    {
+                        <span class="badge bg-secondary" title="@code">@text</span>
+                    }
+                </td>
+                <td class="status-cell"><span class="badge @(p.Status switch {
+                        ProposalStatus.Approved => "bg-success",
+                        ProposalStatus.Rejected => "bg-danger",
+                        ProposalStatus.Pushed => "bg-primary",
+                        ProposalStatus.Skipped => "bg-warning text-dark",
+                        _ => "bg-secondary" })">@p.Status</span></td>
+            </tr>
+        }
+        @if (!Model.Proposals.Any())
+        {
+            <tr><td colspan="@(isManager ? 22 : 21)" class="text-muted">Nothing matches the current filter.</td></tr>
+        }
+        </tbody>
+    </table>
+</form>
+
+@section Scripts {
+<style>
+    .proposals-grid .col-filter th { padding: .15rem .25rem; vertical-align: top; }
+    .proposals-grid .col-filter .cf { font-size: .72rem; padding: .05rem .3rem; height: auto; margin-bottom: 2px; }
+    .proposals-grid thead .sort-link { cursor: pointer; white-space: nowrap; }
+    .proposals-grid thead .sort-link:hover { text-decoration: underline !important; }
+</style>
+<script>
+    document.getElementById('checkAll')?.addEventListener('change', e =>
+        document.querySelectorAll('.rowCheck').forEach(c => c.checked = e.target.checked));
+
+    // Column-header sort: toggle this column's direction, then submit the GET filter form.
+    document.querySelectorAll('.sort-link').forEach(a => a.addEventListener('click', e => {
+        e.preventDefault();
+        const col = a.dataset.col;
+        const field = document.getElementById('sortField');
+        field.value = (field.value === col + '_desc') ? col + '_asc' : col + '_desc';
+        document.getElementById('filterForm').submit();
+    }));
+
+    // Id-backed searchable dropdowns (Supplier, Band): a <datalist> search box whose chosen option's id is
+    // mirrored into a hidden field the filter form posts. Empty box clears the filter (All). A typed value
+    // that matches no option is rejected (red border) rather than silently ignored, so you can't filter by a
+    // supplier/band that doesn't exist. The visible box is bound to filterForm (never the review POST form),
+    // and Enter commits without letting the surrounding form submit.
+    document.querySelectorAll('input.lookup').forEach(inp => {
+        const dl = document.getElementById(inp.getAttribute('list'));
+        const hidden = document.getElementById(inp.dataset.target);
+        const commit = () => {
+            const txt = inp.value.trim();
+            if (txt === '') { hidden.value = ''; return true; }
+            const opt = [...dl.options].find(o => o.value.toLowerCase() === txt.toLowerCase());
+            if (!opt) { inp.classList.add('is-invalid'); return false; }
+            inp.value = opt.value;            // normalise casing to the canonical option text
+            hidden.value = opt.dataset.id;
+            return true;
+        };
+        inp.addEventListener('input', () => inp.classList.remove('is-invalid'));
+        inp.addEventListener('change', () => { if (commit()) document.getElementById('filterForm').submit(); });
+        inp.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); if (commit()) document.getElementById('filterForm').submit(); }
+        });
+    });
+
+    // Large-change confirmation (server enforces it too): if any selected row exceeds the
+    // threshold, ask once and set the confirmLarge flag the server requires.
+    document.getElementById('reviewForm')?.addEventListener('submit', e => {
+        const action = e.submitter?.getAttribute('formaction') || '';
+        if (!action.includes('Approve')) return;
+        const selectedLarge = [...document.querySelectorAll('.rowCheck:checked')]
+            .filter(c => c.dataset.large === 'true').length;
+        const approvingAll = action.includes('ApproveAll');
+        if (selectedLarge > 0 || approvingAll) {
+            if (!confirm('Selection may include changes beyond ±@(Model.ConfirmationThresholdPct)%. Confirm large price changes?')) {
+                e.preventDefault();
+                return;
+            }
+            let cl = document.getElementById('confirmLarge');
+            if (!cl) {
+                cl = document.createElement('input');
+                cl.type = 'hidden'; cl.name = 'confirmLarge'; cl.id = 'confirmLarge';
+                document.getElementById('reviewForm').appendChild(cl);
+            }
+            cl.value = 'true';
+        }
+    });
+
+    // ---- Inline Proposed-price override (Manager) ------------------------------------------------
+    (function () {
+        const url = '@Url.Action("OverridePrice")';
+        const thr = @Model.ConfirmationThresholdPct.ToString(inv);
+        const token = () => document.querySelector('#reviewForm input[name="__RequestVerificationToken"]')?.value ?? '';
+        const runId = () => document.querySelector('#reviewForm input[name="runId"]')?.value ?? '';
+        const fmt2 = n => Number(n).toFixed(2);
+
+        const statusClass = s => ({
+            Approved: 'bg-success', Rejected: 'bg-danger', Pushed: 'bg-primary', Skipped: 'bg-warning text-dark'
+        }[s] || 'bg-secondary');
+
+        function applyOverride(cell, d) {
+            const row = cell.closest('tr');
+            cell.querySelector('.proposed-val').textContent = fmt2(d.proposedPrice);
+
+            let badge = cell.querySelector('.ovr-badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'ovr-badge badge ms-1';
+                badge.textContent = '✎';
+                cell.appendChild(badge);
+            }
+            badge.classList.toggle('bg-danger', !!d.belowCost);
+            badge.classList.toggle('bg-info', !d.belowCost);
+            badge.classList.toggle('text-dark', !d.belowCost);
+            badge.title = 'Manually overridden' + (d.enginePrice != null ? ' (engine: ' + fmt2(d.enginePrice) + ')' : '');
+
+            const v = Number(d.changePct);
+            const deltaCell = row.querySelector('.delta-cell');
+            if (deltaCell) {
+                deltaCell.classList.remove('text-success', 'text-danger', 'text-muted');
+                deltaCell.classList.add(v > 0 ? 'text-success' : (v < 0 ? 'text-danger' : 'text-muted'));
+                deltaCell.textContent = (v === 0 ? '0' : (v > 0 ? '+' : '') + v.toFixed(2)) + '%' + (Math.abs(v) > thr ? ' ⚠' : '');
+            }
+
+            const mCell = row.querySelector('.newmargin-cell');
+            if (mCell) {
+                mCell.classList.remove('text-success', 'text-danger');
+                mCell.textContent = (d.newMarginPct == null) ? '–' : Number(d.newMarginPct).toFixed(1) + '%';
+                if (d.belowCost) mCell.classList.add('text-danger');
+            }
+
+            const sBadge = row.querySelector('.status-cell .badge');
+            if (sBadge) { sBadge.textContent = d.status; sBadge.className = 'badge ' + statusClass(d.status); }
+
+            const chk = row.querySelector('.rowCheck');
+            if (chk) chk.dataset.large = (Math.abs(v) > thr) ? 'true' : 'false';
+            row.classList.toggle('table-warning', Math.abs(v) > thr);
+        }
+
+        document.querySelectorAll('.edit-price').forEach(btn => btn.addEventListener('click', e => {
+            e.preventDefault();
+            const cell = btn.closest('.proposed-cell');
+            if (cell.querySelector('.price-edit')) return;
+
+            const hidden = cell.querySelectorAll('.proposed-val, .edit-price, .ovr-badge');
+            const orig = cell.querySelector('.proposed-val').textContent.trim();
+            const wrap = document.createElement('span');
+            wrap.className = 'price-edit d-inline-flex gap-1 align-items-center';
+            wrap.innerHTML =
+                '<input type="number" step="0.01" min="0" class="form-control form-control-sm text-end" style="width:82px" value="' + orig + '">' +
+                '<button type="button" class="btn btn-sm btn-success py-0 px-1 save">✓</button>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 cancel">✕</button>';
+            hidden.forEach(n => n.classList.add('d-none'));
+            cell.appendChild(wrap);
+            const input = wrap.querySelector('input');
+            input.focus(); input.select();
+
+            const close = () => { wrap.remove(); hidden.forEach(n => n.classList.remove('d-none')); };
+            wrap.querySelector('.cancel').addEventListener('click', close);
+            input.addEventListener('keydown', ev => {
+                if (ev.key === 'Enter') { ev.preventDefault(); wrap.querySelector('.save').click(); }
+                else if (ev.key === 'Escape') { close(); }
+            });
+
+            wrap.querySelector('.save').addEventListener('click', async () => {
+                const price = input.value;
+                if (!price || Number(price) <= 0) { input.classList.add('is-invalid'); return; }
+                const body = new URLSearchParams({ __RequestVerificationToken: token(), runId: runId(), id: cell.dataset.id, price });
+                let resp;
+                try {
+                    resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+                } catch (err) { alert('Override failed: ' + err); return; }
+                if (!resp.ok) {
+                    let er = {}; try { er = await resp.json(); } catch (_) { }
+                    alert(er.error || ('Override failed (' + resp.status + ')'));
+                    return;
+                }
+                applyOverride(cell, await resp.json());
+                close();
+            });
+        }));
+    })();
+</script>
+}

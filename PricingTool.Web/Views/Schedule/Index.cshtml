@@ -1,0 +1,134 @@
+@model ScheduleViewModel
+@{
+    ViewData["Title"] = "Schedule";
+    var isManager = User.IsInRole("Manager");
+}
+
+<h1 class="h3">Recalculation Schedule</h1>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card"><div class="card-body">
+            <h6>Scheduled runs</h6>
+            <form method="post" asp-action="Save" class="row g-2 align-items-end">
+                @Html.AntiForgeryToken()
+                <div class="col-auto">
+                    <label class="form-label mb-0">Run time (UTC, HH:mm)</label>
+                    <input name="runTimeUtc" value="@Model.RunTimeUtc" class="form-control" style="width:120px"
+                           pattern="^([01]?\d|2[0-3]):[0-5]\d$" disabled="@(isManager ? null : "disabled")" />
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0">Cadence (hours)</label>
+                    <input name="cadenceHours" type="number" min="1" max="720" value="@Model.CadenceHours"
+                           class="form-control" style="width:110px" disabled="@(isManager ? null : "disabled")" />
+                    <div class="form-text">24 = daily · 360 = every 15 days · max 720 (30 days)</div>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 d-block">New products</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" asp-for="IgnoreNewProducts"
+                               disabled="@(isManager ? null : "disabled")" />
+                        <label class="form-check-label" asp-for="IgnoreNewProducts">New Products ignored?</label>
+                    </div>
+                    <div class="form-text" style="max-width:220px">Ticked = held at current price (today's behaviour). Untick to price new products in the run.</div>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 d-block">Discounts</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" asp-for="DiscountOptimization"
+                               disabled="@(isManager ? null : "disabled")" />
+                        <label class="form-check-label" asp-for="DiscountOptimization">Discount optimization</label>
+                    </div>
+                    <div class="form-text" style="max-width:240px">Ticked = runs trim over-deep discounts using the table on the <a asp-controller="Bands" asp-action="Index" asp-fragment="discount-optimization">Price Bands</a> tab. Off by default.</div>
+                </div>
+                @if (isManager)
+                {
+                    <div class="col-auto"><button class="btn btn-primary">Save</button></div>
+                }
+            </form>
+            <hr />
+            <dl class="row mb-0">
+                <dt class="col-sm-5">Next scheduled run</dt><dd class="col-sm-7">@Model.NextRunUtc.ToString("u") <small class="text-muted">(needs the Engine worker running)</small></dd>
+                <dt class="col-sm-5">Last scheduled run</dt><dd class="col-sm-7">@(Model.LastScheduledRunUtc?.ToString("u") ?? "never")</dd>
+            </dl>
+        </div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="card"><div class="card-body">
+            <h6>On-demand</h6>
+            <p class="text-muted mb-2">Runs the full pricing cycle immediately (pull → snapshot → propose). Produces proposals only — live prices are untouched until a Manager pushes.</p>
+            <div class="d-flex gap-2">
+                <form method="post" asp-action="RunNow">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-warning" @(Model.RunInProgress ? "disabled" : "")>
+                        @(Model.RunInProgress ? "Run in progress…" : "▶ Run now")
+                    </button>
+                </form>
+                @if (Model.RunInProgress)
+                {
+                    <form method="post" asp-action="Stop"
+                          onsubmit="return confirm('Stop the pricing run in progress? It halts at the next SKU and lands as Failed.');">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-outline-danger">■ Stop run</button>
+                    </form>
+                }
+            </div>
+        </div></div>
+    </div>
+</div>
+
+<div class="card mb-4"><div class="card-body">
+    <h6>Pricing mode</h6>
+    @if (Model.FloorAndRoundingOnly)
+    {
+        <p class="mb-2">
+            <span class="badge bg-secondary">Algorithms OFF</span>
+            Runs change prices via the <strong>margin floor + rounding only</strong> — the demand/inventory
+            algorithms are skipped. Each SKU keeps its current price unless it falls below the floor or isn't on the rounding grid.
+        </p>
+    }
+    else
+    {
+        <p class="mb-2">
+            <span class="badge bg-success">Algorithms ON</span>
+            Runs use the full algorithm roster, then the margin floor and rounding.
+        </p>
+    }
+    @if (isManager)
+    {
+        <form method="post" asp-action="SetPricingMode">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="floorAndRoundingOnly" value="@((!Model.FloorAndRoundingOnly).ToString().ToLowerInvariant())" />
+            <button class="btn btn-sm @(Model.FloorAndRoundingOnly ? "btn-outline-success" : "btn-outline-secondary")"
+                    @(Model.RunInProgress ? "disabled" : "")>
+                @(Model.FloorAndRoundingOnly ? "Turn algorithms back on" : "Disable algorithms (floor + rounding only)")
+            </button>
+        </form>
+    }
+</div></div>
+
+<h5>Recent runs</h5>
+<table class="table table-sm table-hover">
+    <thead class="table-light">
+        <tr><th>#</th><th>Started (UTC)</th><th>Finished</th><th>Status</th><th>Trigger</th>
+            <th class="text-end">SKUs</th><th class="text-end">Proposals</th><th class="text-end">Skipped</th><th class="text-end">Errors</th><th>Error</th></tr>
+    </thead>
+    <tbody>
+    @foreach (var run in Model.RecentRuns)
+    {
+        <tr class="@(run.Status == RunStatus.Failed ? "table-danger" : run.Status == RunStatus.SucceededWithErrors ? "table-warning" : "")">
+            <td><a asp-controller="Proposals" asp-action="Index" asp-route-runId="@run.Id">@run.Id</a></td>
+            <td>@run.StartedUtc.ToString("u")</td>
+            <td>@(run.FinishedUtc?.ToString("HH:mm:ss") ?? "–")</td>
+            <td>@run.Status</td>
+            <td>@run.TriggeredBy @(run.IsOnDemand ? "(on demand)" : "")</td>
+            <td class="text-end">@run.SkuCount</td>
+            <td class="text-end">@run.ProposalCount</td>
+            <td class="text-end">@run.SkippedCount</td>
+            <td class="text-end">@run.ErrorCount</td>
+            <td><small class="text-muted">@run.ErrorMessage</small></td>
+        </tr>
+    }
+    @if (!Model.RecentRuns.Any()) { <tr><td colspan="10" class="text-muted">No runs yet.</td></tr> }
+    </tbody>
+</table>

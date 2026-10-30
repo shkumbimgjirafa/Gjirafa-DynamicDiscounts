@@ -1,0 +1,14 @@
+@{
+    ViewData["Title"] = "Access denied";
+    Layout = "_AuthLayout";
+}
+
+<h1 class="h4 mb-1">Access denied</h1>
+<p class="text-muted small mb-4">
+    You signed in successfully, but your account is not authorized for this application
+    (or has been deactivated). Contact a manager to request access.
+</p>
+
+<a class="btn btn-outline-secondary w-100" asp-controller="Account" asp-action="Login">
+    Back to sign in
+</a>

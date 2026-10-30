@@ -1,0 +1,190 @@
+@model SkuDetailsViewModel
+@{
+    ViewData["Title"] = $"SKU {Model.Sku}";
+    var cur = ViewData.CurrencyCode();
+}
+
+@{
+    var latestProposal = Model.Proposals.FirstOrDefault()?.Proposal;
+    var isNewProduct = latestProposal is not null
+        && ReasonCodeText.IsNewProduct(latestProposal.ReasonCodes, latestProposal.GuardrailFlags);
+}
+<h1 class="h3">
+    SKU drill-down: <code>@Model.Sku</code>
+    @if (isNewProduct)
+    {
+        <span class="badge bg-info text-dark align-middle ms-2" title="Inside the platform MarkAsNew window — the engine holds the current price, no discount.">NEW PRODUCT — price held</span>
+    }
+    @if (latestProposal is not null && latestProposal.DeadStockStage != PricingTool.Core.Domain.DeadStockStage.None)
+    {
+        <span class="badge bg-warning text-dark align-middle ms-2" title="Dead stock stage @((byte)latestProposal.DeadStockStage) on the latest run — the markdown may run below the margin floor, down to this age tier's per-band cost floor.">DEAD STOCK — @DeadStockStageText.Label(latestProposal.DeadStockStage)</span>
+    }
+</h1>
+
+@if (Model.Latest is not null)
+{
+    <dl class="row mb-4">
+        <dt class="col-sm-2">Latest snapshot</dt><dd class="col-sm-10">@Model.Latest.SnapshotDate.ToString("yyyy-MM-dd")</dd>
+        <dt class="col-sm-2">Prices</dt>
+        <dd class="col-sm-10">Old (shelf) @(Model.Latest.OldPrice?.ToString("0.00") ?? "–") @cur · <strong>Anchor</strong> @(Model.Latest.AnchorPrice?.ToString("0.00") ?? "–") @cur · Current @(Model.Latest.CurrentPrice?.ToString("0.00") ?? "–") @cur
+            · Discount @(Model.Latest.CurrentDiscountPct?.ToString("P1") ?? "–")</dd>
+        <dt class="col-sm-2">Cost / margin</dt>
+        <dd class="col-sm-10">PPTCV @(Model.Latest.Pptcv?.ToString("0.00") ?? "NULL ⚠") · GrossMargin @(Model.Latest.GrossMargin?.ToString("0.##") ?? "NULL")%</dd>
+        <dt class="col-sm-2">Supplier</dt>
+        <dd class="col-sm-10">@(Model.Latest.SupplierName ?? "–")@(Model.Latest.SupplierId is int sid ? $" (store #{sid})" : "")</dd>
+        <dt class="col-sm-2">Stock</dt>
+        <dd class="col-sm-10">Local @Model.Latest.LocalWarehouseStock · Supplier @Model.Latest.SupplierWarehouseStock</dd>
+        <dt class="col-sm-2">Sales (7/30/90d)</dt>
+        <dd class="col-sm-10">@Model.Latest.Qty7 / @Model.Latest.Qty30 / @Model.Latest.Qty90 units ·
+            @Model.Latest.Net7.ToString("0.00") / @Model.Latest.Net30.ToString("0.00") / @Model.Latest.Net90.ToString("0.00") @cur net (excl. VAT)</dd>
+    </dl>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+        <h6>Net sales — monthly
+            <small class="text-muted">— net revenue (VAT-excl) per month, last 24 months</small>
+        </h6>
+        <div id="nsStatus" class="text-muted small mb-1">Loading…</div>
+        <div style="position:relative;height:300px"><canvas id="netSalesChart"></canvas></div>
+    </div></div></div>
+    <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+        <h6>Price → gross profit
+            <small class="text-muted">— each point is one week's sales; bubble size = units; Y is the actual VAT-net profit at that week's real cost (last 365d)</small>
+        </h6>
+        <div id="ppStatus" class="text-muted small mb-1">Loading…</div>
+        <div style="position:relative;height:300px"><canvas id="priceProfitChart"></canvas></div>
+    </div></div></div>
+</div>
+
+<h5>Run-by-run decisions</h5>
+@foreach (var item in Model.Proposals)
+{
+    <div class="card mb-2">
+        <div class="card-header py-1 d-flex justify-content-between">
+            <span>Run <a asp-controller="Proposals" asp-action="Index" asp-route-runId="@item.Run.Id">#@item.Run.Id</a>
+                — @item.Run.StartedUtc.ToString("u")</span>
+            <span>
+                @item.Proposal.CurrentPrice.ToString("0.00")
+                @if (item.Proposal.RawWeightedPrice is decimal raw)
+                {
+                    <text>→ <span class="text-muted" title="Weighted blend of the algorithm votes, before guardrails and rounding">@raw.ToString("0.00")</span></text>
+                }
+                → <strong>@item.Proposal.ProposedPriceValue.ToString("0.00") @cur</strong>
+                (@item.Proposal.ChangePct.ToString("+0.##;-0.##;0")%)
+                <span class="badge @(item.Proposal.Status switch {
+                    ProposalStatus.Approved => "bg-success", ProposalStatus.Rejected => "bg-danger",
+                    ProposalStatus.Pushed => "bg-primary", ProposalStatus.Skipped => "bg-warning text-dark",
+                    _ => "bg-secondary" })">@item.Proposal.Status</span>
+            </span>
+        </div>
+        <div class="card-body py-2">
+            @if (item.Proposal.Status == ProposalStatus.Skipped)
+            {
+                <small class="text-muted">Skipped: @ReasonCodeText.Describe(item.Proposal.SkipReason ?? "")</small>
+            }
+            else if (item.Proposal.Votes.Any())
+            {
+                <table class="table table-sm mb-1">
+                    <thead><tr><th>Algorithm</th><th class="text-end">Suggested @cur</th><th class="text-end">Confidence</th>
+                        <th class="text-end">Weight</th><th class="text-end">Effective</th><th>Reason</th></tr></thead>
+                    <tbody>
+                    @foreach (var vote in item.Proposal.Votes.OrderByDescending(v => v.EffectiveWeight))
+                    {
+                        <tr>
+                            <td><small>@vote.AlgorithmCode</small></td>
+                            <td class="text-end">@vote.SuggestedPrice.ToString("0.00")</td>
+                            <td class="text-end">@vote.Confidence.ToString("0.00")</td>
+                            <td class="text-end">@vote.BandWeight</td>
+                            <td class="text-end">@vote.EffectiveWeight.ToString("0.#")</td>
+                            <td><small>@vote.ReasonText</small></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                @if (item.Proposal.GuardrailFlags.Length > 0)
+                {
+                    <small>Guardrails:
+                        @foreach (var (code, text) in ReasonCodeText.DescribeList(item.Proposal.GuardrailFlags))
+                        {
+                            <span class="badge bg-secondary" title="@code">@text</span>
+                        }
+                    </small>
+                }
+            }
+            else
+            {
+                <small class="text-muted">No algorithm voted — price unchanged.</small>
+            }
+        </div>
+    </div>
+}
+@if (!Model.Proposals.Any()) { <p class="text-muted">No pricing decisions recorded for this SKU yet.</p> }
+
+@section Scripts {
+<script>
+    // Both SKU-details charts are built from one on-demand source query (nothing stored); the page is
+    // already rendered, so this fills the charts asynchronously.
+    fetch('@Url.Action("SalesHistoryData", "Sku", new { id = Model.Sku })')
+        .then(r => r.json())
+        .then(d => {
+            // Historic monthly net sales (VAT-excl revenue).
+            const ns = d.monthlyNetSales || [];
+            const nsStatus = document.getElementById('nsStatus');
+            if (ns.length === 0) {
+                nsStatus.textContent = d.monthlyMessage || 'No sales history.';
+            } else {
+                nsStatus.textContent = '';
+                new Chart(document.getElementById('netSalesChart'), {
+                    type: 'bar',
+                    data: { labels: ns.map(m => m.label),
+                        datasets: [{ label: 'Net sales @cur', data: ns.map(m => m.netSales), backgroundColor: '#19875488' }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { tooltip: { callbacks: {
+                            label: function (c) {
+                                const u = ns[c.dataIndex] ? ns[c.dataIndex].units : 0;
+                                return '@cur ' + c.parsed.y + (u ? ' (' + u + ' u)' : '');
+                            } } } },
+                        scales: { x: { ticks: { maxTicksLimit: 12 } }, y: { beginAtZero: true } }
+                    }
+                });
+            }
+
+            // Price → gross profit scatter.
+            const pts = d.pricePoints || [];
+            const ppStatus = document.getElementById('ppStatus');
+            if (pts.length === 0) {
+                ppStatus.textContent = d.priceMessage || 'No sales history to plot.';
+            } else {
+                ppStatus.textContent = '';
+                const data = pts.map(p => ({ x: p.x, y: p.y, r: Math.min(20, 4 + Math.sqrt(p.units)) }));
+                const datasets = [{ label: 'Weekly price → profit', data, backgroundColor: '#0d6efd55', borderColor: '#0d6efd' }];
+                if (d.currentPrice) {
+                    const ys = pts.map(p => p.y).concat(0);
+                    datasets.push({ type: 'line', label: 'Current price', borderColor: '#dc3545', borderDash: [4, 4], pointRadius: 0, fill: false,
+                        data: [{ x: d.currentPrice, y: Math.min(...ys) }, { x: d.currentPrice, y: Math.max(...ys) }] });
+                }
+                new Chart(document.getElementById('priceProfitChart'), {
+                    type: 'bubble',
+                    data: { datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { tooltip: { callbacks: {
+                            label: function (c) {
+                                return '@cur ' + c.parsed.x + ' → ' + c.parsed.y + (c.raw.units ? ' (' + c.raw.units + ' u)' : '');
+                            } } } },
+                        scales: {
+                            x: { title: { display: true, text: 'Unit price (@cur)' } },
+                            y: { title: { display: true, text: 'Gross profit (@cur, VAT-net)' } }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(() => {
+            document.getElementById('nsStatus').textContent = 'Could not load sales history.';
+            document.getElementById('ppStatus').textContent = 'Could not load sales history.';
+        });
+</script>
+}

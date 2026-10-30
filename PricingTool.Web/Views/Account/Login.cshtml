@@ -1,0 +1,21 @@
+@{
+    ViewData["Title"] = "Sign in";
+    Layout = "_AuthLayout";
+    var returnUrl = ViewData["ReturnUrl"] as string ?? "/";
+    var error = Context.Request.Query["error"].ToString();
+}
+
+<h1 class="h4 mb-1">⚡ Dynamic <span style="color:#A94E00;">Pricing</span></h1>
+<p class="text-muted small mb-4">Sign in with your Gjirafa account to continue.</p>
+
+@if (error == "access_denied")
+{
+    <div class="alert alert-danger small py-2">
+        Access denied. Your account is not authorized for this application.
+        Contact a manager to request access.
+    </div>
+}
+
+<a class="btn btn-success w-100" asp-controller="Account" asp-action="SignIn" asp-route-returnUrl="@returnUrl">
+    Sign in with Porta
+</a>

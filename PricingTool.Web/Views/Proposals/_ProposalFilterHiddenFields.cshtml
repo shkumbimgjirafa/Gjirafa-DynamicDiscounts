@@ -1,0 +1,14 @@
+@model ProposalsFilter
+@* Hidden mirror of every ProposalsFilter field, so the POST review actions (Approve / Reject / Push /
+   Approve-all-filtered) act on the EXACT filter the user applied. Driven off ToRouteValues() so there's a
+   single source of truth for the field set — add a filter field once (there) and it flows here too. *@
+@foreach (var kv in Model.ToRouteValues())
+{
+    if (kv.Value is not null)
+    {
+        @* Force a string value: a raw bool here triggers Razor's boolean-attribute minimisation
+           (true → value="value", false → attribute dropped). Convert.ToString also renders decimals
+           with an invariant '.' separator so they round-trip regardless of server culture. *@
+        <input type="hidden" name="@kv.Key" value="@Convert.ToString(kv.Value, System.Globalization.CultureInfo.InvariantCulture)" />
+    }
+}

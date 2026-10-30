@@ -1,0 +1,407 @@
+@using System.Globalization
+@using PricingTool.Data.Services
+@model BandsIndexViewModel
+@{
+    ViewData["Title"] = "Price Bands";
+    var cur = ViewData.CurrencyCode();
+    var conventionNames = new Dictionary<int, string> { [0] = "None", [1] = ".99 endings", [2] = ".95 endings", [3] = $"Whole {cur}", [4] = $"995-style (5 {cur} steps)", [5] = "…99 (whole-currency)", [6] = ".50 endings", [7] = "Gj50 charm (Weber .50)", [8] = "Gjm charm (Weber .99)", [9] = "Gj50 charm (Weber …50, MKD/ALL)", [10] = "Gjm charm (Weber …90/…50, MKD/ALL)" };
+    string Pct(decimal? frac) => frac is decimal f ? (f * 100).ToString("0.0") + "%" : "—";
+    string PctOf(decimal? pct) => pct is decimal p ? p.ToString("0.0") + "%" : "—";
+    string Signed(decimal? v) => v is decimal x ? (x >= 0 ? "+" : "−") + Math.Abs(x).ToString("N0") : "—";
+    var tImpact = Model.TargetImpact;
+}
+
+<h1 class="h3">Price Bands</h1>
+<div class="alert alert-warning">
+    <strong>Placeholder boundaries.</strong> Bands 2–7 must be confirmed with the team before go-live (open decision #3).
+</div>
+
+@if (User.IsInRole("Manager") && Model.MatchSourceLayerName is not null)
+{
+    <form method="post" asp-action="MatchToKs" class="card card-body bg-light border-primary-subtle mb-3"
+          onsubmit="return confirm('Copy @Model.MatchSourceLayerName target margins (plus the uplift) and margin floors onto every band of this layer? Takes effect on the next run.');">
+        @Html.AntiForgeryToken()
+        <div class="d-flex flex-wrap align-items-end gap-3">
+            <div class="flex-grow-1" style="min-width: 320px; max-width: 560px">
+                <label class="form-label mb-0 fw-bold">Match to @Model.MatchSourceLayerName</label>
+                <div class="form-text mt-0">
+                    Copies @Model.MatchSourceLayerName's <strong>target margins</strong> (plus the uplift) and
+                    <strong>margin floors</strong> onto this layer, band by band. The band price ranges, rounding
+                    and dead-stock rules are left as they are — those differ by currency. Applies on the next run.
+                </div>
+            </div>
+            <div>
+                <label for="uplift" class="form-label mb-0 small">Add to target margin</label>
+                <div class="input-group input-group-sm" style="width: 120px">
+                    <input id="uplift" type="number" name="targetMarginUpliftPct" min="-50" max="50" step="0.5"
+                           value="@Model.MatchDefaultUpliftPct.ToString("0.##", CultureInfo.InvariantCulture)"
+                           class="form-control text-end" />
+                    <span class="input-group-text">pp</span>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Match to @Model.MatchSourceLayerName</button>
+        </div>
+    </form>
+}
+
+@if (Model.RunId is not null)
+{
+    <p class="text-muted small mb-2">
+        <strong>Pricing %</strong> and <strong>Current %</strong> are the actual band-blended margins from run
+        <strong>#@Model.RunId</strong> (@Model.RunStartedUtc?.ToString("yyyy-MM-dd HH:mm") UTC), over priced SKUs with a
+        known cost. Pricing % is at the anchor/list price (PPTCV vs FinalPrice); Current % is at today's live price.
+        <strong>Target margin</strong> is the goal you set — the guardrail tones Pricing % toward it.
+        @if (tImpact is not null)
+        {
+            <br /><span><strong>30d margin</strong> is the margin each band actually earned on everything it sold in the
+            last 30 days (to the @Model.TargetImpactSnapshotDate?.ToString("yyyy-MM-dd") snapshot, both storefronts of the
+            country) — the same figure as the sales report. <strong>Target impact</strong> is the extra profit, excl. VAT,
+            if those same units had sold at the band's target margin — moving only the SKUs the engine prices; held ones
+            (clearance pins, dead-stock holds, new products, synced to Gjirafa50 —
+            @(tImpact.HeldSharePct is decimal held ? held.ToString("0.0") + "%" : "none") of the sales) keep what they made.
+            Its total shows the margin the layer would have made: the sales-weighted version of the Target margin total
+            (which weights every SKU in the catalogue once).</span>
+        }
+    </p>
+}
+else
+{
+    <p class="text-muted small mb-2">No completed run yet for this layer — Pricing %/Current % populate after the next run.</p>
+}
+
+<table class="table table-hover align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Band</th>
+            <th class="text-end" title="Band-blended margin at the anchor/list price: (FinalPrice − PPTCV) / FinalPrice">Pricing %</th>
+            <th class="text-end" title="Band-blended margin at today's live price: (CurrentPrice − PPTCV) / CurrentPrice">Current %</th>
+            <th class="text-end">Target margin</th>
+            <th class="text-end">Margin floor</th>
+            <th class="text-end" title="Margin actually earned on the band's last 30 days of sales: (revenue − cost) / revenue (both storefronts of the country)">30d margin</th>
+            <th class="text-end" title="Extra profit if the same 30 days' units had sold at the band's target margin (revenue = cost ÷ (1 − target)), vs what they actually made. Only SKUs the engine prices move; held ones keep their result. Excl. VAT.">Target impact</th>
+            <th>Rounding</th><th class="text-end">Algorithms on</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var band in Model.Bands)
+    {
+        var m = Model.Margins.GetValueOrDefault(band.Id);
+        var ti = tImpact?.Bands.GetValueOrDefault(band.Id);
+        <tr>
+            <td><strong>@band.Name</strong></td>
+            <td class="text-end">@Pct(m?.PricingPct)</td>
+            <td class="text-end">@Pct(m?.CurrentPct)</td>
+            <td class="text-end">@(band.TargetMarginPct.HasValue ? band.TargetMarginPct.Value.ToString("0.#") + "%" : "—")</td>
+            <td class="text-end">@band.MarginFloorPct.ToString("0.#")%</td>
+            <td class="text-end">@PctOf(ti?.MarginPct)</td>
+            <td class="text-end @(ti?.Impact is decimal imp ? (imp >= 0 ? "text-success" : "text-danger") : "")">@Signed(ti?.Impact)</td>
+            <td>@(conventionNames.GetValueOrDefault(band.RoundingConvention, "?")) @(band.RoundingEnabled ? "" : "(off)")</td>
+            <td class="text-end">@band.AlgorithmSettings.Count(s => s.Enabled) / @band.AlgorithmSettings.Count</td>
+            <td><a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@band.Id">
+                @(User.IsInRole("Manager") ? "Edit" : "View")</a></td>
+        </tr>
+    }
+    </tbody>
+    @if (Model.RunId is not null)
+    {
+        <tfoot class="table-light fw-bold">
+            <tr>
+                <td>Total</td>
+                <td class="text-end">@Pct(Model.TotalPricingPct)</td>
+                <td class="text-end">@Pct(Model.TotalCurrentPct)</td>
+                <td class="text-end" title="Blend of the per-band target margins weighted by list price across the whole catalogue — every SKU counts once, sold or not. See Target impact for the sales-weighted margin.">@Pct(Model.TotalTargetPct)</td>
+                <td class="text-end" title="Anchor-revenue-weighted blend of the per-band margin floors">@Pct(Model.TotalFloorPct)</td>
+                <td class="text-end">@PctOf(tImpact?.MarginPct)</td>
+                <td class="text-end" title="Margin the layer would have made on the last 30 days' units had every band with a target earned it (bands without one keep their actual result)">
+                    @if (tImpact is { AnyTarget: true })
+                    {
+                        <span class="@(tImpact.Impact >= 0 ? "text-success" : "text-danger")">@Signed(tImpact.Impact)</span>
+                        <div class="small fw-normal">→ <strong>@PctOf(tImpact.MarginAtTargetPct)</strong> margin</div>
+                    }
+                </td>
+                <td colspan="3"></td>
+            </tr>
+        </tfoot>
+    }
+</table>
+
+<h2 class="h4 mt-4" id="discount-optimization">Discount optimization</h2>
+<p class="text-muted small mb-2">
+    Trims over-deep displayed discounts. A price whose discount off the shelf (Old) price falls in a range has that
+    discount reduced by the range's <strong>Trim %</strong> — a share <em>of the discount</em>, not points: 25% off
+    with an 18% trim shows 20.5% off. The raised price never goes above the anchor, and dead stock, clearance-locked,
+    synced and new products are never touched.
+    @if (Model.DiscountOptimizationEnabled)
+    {
+        <span class="badge text-bg-success">ON for this layer</span> <text>— runs apply this table.</text>
+    }
+    else
+    {
+        <span class="badge text-bg-secondary">OFF for this layer</span> <text>— tick <em>Discount optimization</em> on the
+        <a asp-controller="Schedule" asp-action="Index">Schedule</a> page for runs to apply it. The impact below works either way.</text>
+    }
+</p>
+
+<form method="post" asp-action="SaveDiscountTrims" id="trim-form" class="mb-3">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap gap-4 align-items-start">
+        <table class="table table-sm align-middle mb-0" style="max-width: 420px">
+            <thead class="table-light">
+                <tr>
+                    <th>Discount range</th>
+                    <th class="text-end">Trim %</th>
+                    <th class="text-end" title="What the trim does to a discount in the middle of the range">Example</th>
+                </tr>
+            </thead>
+            <tbody>
+            @for (var i = 0; i < Model.DiscountTrims.Count; i++)
+            {
+                var rule = Model.DiscountTrims[i];
+                var mid = rule.MaxDiscountPct is decimal mx ? (rule.MinDiscountPct + mx) / 2m : rule.MinDiscountPct + 5m;
+                <tr>
+                    <td>@rule.ToRange().Label</td>
+                    <td class="text-end">
+                        <input type="hidden" name="trims[@i].Id" value="@rule.Id" />
+                        <div class="input-group input-group-sm ms-auto" style="width: 110px">
+                            <input type="number" name="trims[@i].TrimPct" min="0" max="100" step="0.5"
+                                   value="@rule.TrimPct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                   class="form-control text-end trim-input" data-rule-id="@rule.Id"
+                                   data-mid="@mid.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" />
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </td>
+                    <td class="text-end text-muted small trim-example"></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        <div>
+            <label for="impact-scope" class="form-label mb-0 small">SKUs the impact covers</label>
+            <select id="impact-scope" class="form-select form-select-sm mb-2" style="width: 240px"
+                    title="Sold in the last 30 days = the same SKUs the Target impact column prices (both storefronts of the country)">
+                <option value="true" selected>Sold in the last 30 days</option>
+                <option value="false">Every priced SKU</option>
+            </select>
+            <label for="impact-basis" class="form-label mb-0 small">Units the impact assumes</label>
+            <select id="impact-basis" class="form-select form-select-sm" style="width: 240px">
+                <option value="Sold30Days" selected>Sold in the last 30 days</option>
+                <option value="Sold90Days">Sold in the last 90 days</option>
+                <option value="LocalStock">All local stock sells</option>
+            </select>
+            <div class="mt-2 d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="impact-calc">Calculate impact</button>
+                @if (User.IsInRole("Manager"))
+                {
+                    <button class="btn btn-sm btn-primary">Save inputs</button>
+                }
+            </div>
+            <div class="form-text" style="max-width: 260px">
+                <strong>Calculate impact</strong> shows what the inputs as typed would do — nothing is saved until you press Save.
+            </div>
+        </div>
+    </div>
+</form>
+
+<div id="discount-impact" class="mb-4"><div class="text-muted small">Calculating impact…</div></div>
+
+<h2 class="h4 mt-4">Dead stock</h2>
+
+<p class="text-muted small mb-2">
+    Per-band dead-stock rules the guardrail applies — the config that used to sit in the Bands table
+    above, grouped here. <strong>Floors</strong> are the % of cost each age stage may clear at,
+    <strong>stage ages</strong> the day thresholds where S1→S2→S3→S4 begin, and
+    <strong>step · period</strong> the markdown taken each period within a stage.
+</p>
+<table class="table table-hover align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Band</th>
+            <th class="text-end" title="Zero-sale window that flags a SKU as dead">No-sale window</th>
+            <th class="text-end" title="Minimum age of locally-held stock before it counts">Min stock age</th>
+            <th class="text-end" title="Opening markdown once a SKU is flagged dead">Start discount</th>
+            <th class="text-end" title="Per-stage floor as % of cost (S1→S2→S3→S4)">Floors (S1→S4)</th>
+            <th class="text-end" title="Stage age thresholds in days (S1/S2/S3/S4 onset)">Stage ages</th>
+            <th class="text-end" title="Markdown step per period, per stage (S1→S2→S3→S4)">Step · period (S1→S4)</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var band in Model.Bands)
+    {
+        <tr>
+            <td><strong>@band.Name</strong></td>
+            <td class="text-end">@band.DeadStockNoSaleWindowDays d</td>
+            <td class="text-end">≥@band.DeadStockMinStockAgeDays d</td>
+            <td class="text-end">≥@band.DeadStockStartDiscountPct.ToString("0.#")%</td>
+            <td class="text-end">@band.DeadStockFloorCostPct.ToString("0.#")→@band.DeadStockStage2FloorCostPct.ToString("0.#")→@band.DeadStockStage3FloorCostPct.ToString("0.#")→@band.DeadStockStage4FloorCostPct.ToString("0.#")% cost</td>
+            <td class="text-end">@band.DeadStockMinStockAgeDays/@band.DeadStockStage2AgeDays/@band.DeadStockStage3AgeDays/@band.DeadStockStage4AgeDays d</td>
+            <td class="text-end">@band.DeadStockStepDiscountPct.ToString("0.#")pp·@band.DeadStockPeriodDays d→@band.DeadStockStage2StepDiscountPct.ToString("0.#")pp·@band.DeadStockStage2PeriodDays d→@band.DeadStockStage3StepDiscountPct.ToString("0.#")pp·@band.DeadStockStage3PeriodDays d→@band.DeadStockStage4StepDiscountPct.ToString("0.#")pp·@band.DeadStockStage4PeriodDays d</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+@if (Model.RunId is not null)
+{
+    <p class="text-muted small mb-2">
+        The dead-stock cut of run <strong>#@Model.RunId</strong>: SKUs with zero sales in the band's
+        no-sale window, locally-held stock past the min age. Counts split by age stage —
+        <strong>S1</strong> "3–6 months", <strong>S2</strong> "6–12 months",
+        <strong>S3</strong> "12–36 months", <strong>S4</strong> "36 months+" (thresholds per band;
+        hover a count). The blended floor is the cost-weighted average of the per-stage floors — how
+        much of cost the guardrail would let these SKUs clear at. Runs before 2026-07-03 predate stage
+        stamping and show empty here.
+    </p>
+    <table class="table table-hover align-middle" style="max-width: 1100px">
+        <thead class="table-light">
+            <tr>
+                <th>Band</th>
+                <th class="text-end">Dead SKUs</th>
+                <th class="text-end">S1</th>
+                <th class="text-end">S2</th>
+                <th class="text-end">S3</th>
+                <th class="text-end">S4</th>
+                <th class="text-end" title="Blended margin of the dead SKUs at the anchor/list price">Pricing %</th>
+                <th class="text-end" title="Blended margin of the dead SKUs at today's live price">Current %</th>
+                <th class="text-end" title="Blended margin of the dead SKUs at this run's proposed price">Proposed %</th>
+                <th class="text-end" title="Cost-weighted average of the per-stage dead-stock floors (% of cost)">Blended floor</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var band in Model.Bands)
+        {
+            var d = Model.DeadStock.GetValueOrDefault(band.Id);
+            <tr>
+                <td><strong>@band.Name</strong></td>
+                <td class="text-end">@(d?.SkuCount ?? 0)</td>
+                <td class="text-end" title="3–6 months: @band.DeadStockMinStockAgeDays–@band.DeadStockStage2AgeDays d (floor @band.DeadStockFloorCostPct.ToString("0.#")% of cost, step @band.DeadStockStepDiscountPct.ToString("0.#")pp / @band.DeadStockPeriodDays d)">@(d?.Stage1Count ?? 0)</td>
+                <td class="text-end" title="6–12 months: @band.DeadStockStage2AgeDays–@band.DeadStockStage3AgeDays d (floor @band.DeadStockStage2FloorCostPct.ToString("0.#")% of cost, step @band.DeadStockStage2StepDiscountPct.ToString("0.#")pp / @band.DeadStockStage2PeriodDays d)">@(d?.Stage2Count ?? 0)</td>
+                <td class="text-end" title="12–36 months: @band.DeadStockStage3AgeDays–@band.DeadStockStage4AgeDays d (floor @band.DeadStockStage3FloorCostPct.ToString("0.#")% of cost, step @band.DeadStockStage3StepDiscountPct.ToString("0.#")pp / @band.DeadStockStage3PeriodDays d)">@(d?.Stage3Count ?? 0)</td>
+                <td class="text-end" title="36 months+: @band.DeadStockStage4AgeDays+ d (floor @band.DeadStockStage4FloorCostPct.ToString("0.#")% of cost, step @band.DeadStockStage4StepDiscountPct.ToString("0.#")pp / @band.DeadStockStage4PeriodDays d)">@(d?.Stage4Count ?? 0)</td>
+                <td class="text-end">@Pct(d?.PricingPct)</td>
+                <td class="text-end">@Pct(d?.CurrentPct)</td>
+                <td class="text-end">@Pct(d?.ProposedPct)</td>
+                <td class="text-end">@(d?.BlendedFloorOfCostPct is decimal bf ? (bf * 100).ToString("0.#") + "% of cost" : "—")</td>
+            </tr>
+        }
+        </tbody>
+        <tfoot class="table-light fw-bold">
+            <tr>
+                <td>Total</td>
+                <td class="text-end">@Model.TotalDeadCount</td>
+                <td class="text-end">@Model.TotalDeadStage1</td>
+                <td class="text-end">@Model.TotalDeadStage2</td>
+                <td class="text-end">@Model.TotalDeadStage3</td>
+                <td class="text-end">@Model.TotalDeadStage4</td>
+                <td class="text-end">@Pct(Model.TotalDeadPricingPct)</td>
+                <td class="text-end">@Pct(Model.TotalDeadCurrentPct)</td>
+                <td class="text-end">@Pct(Model.TotalDeadProposedPct)</td>
+                <td class="text-end">@(Model.TotalDeadBlendedFloorOfCostPct is decimal tbf ? (tbf * 100).ToString("0.#") + "% of cost" : "—")</td>
+            </tr>
+        </tfoot>
+    </table>
+}
+
+<h2 class="h4 mt-4">Elasticity constants (Algorithm 5 — fitted price elasticity)</h2>
+<p class="text-muted small mb-2">
+    Engine-wide constants, identical across all bands and layers. Read-only — these are compiled into the
+    engine (gate thresholds in <code>ElasticityGate</code>, fit window in <code>ElasticityFitService</code>);
+    changing them requires a code change, not config.
+</p>
+<table class="table table-sm align-middle" style="max-width: 760px">
+    <thead class="table-light"><tr><th>Constant</th><th class="text-end">Value</th><th>What it gates</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>Fit window</td>
+            <td class="text-end">@ElasticityFitService.DefaultWindowDays days</td>
+            <td>Trailing transaction history used to fit each SKU (≈ a full seasonal cycle).</td>
+        </tr>
+        <tr>
+            <td>Min observations</td>
+            <td class="text-end">@ElasticityGate.MinObservations weekly buckets</td>
+            <td>Fewer than this many weeks of history → no fit (the "4 weeks required" rule).</td>
+        </tr>
+        <tr>
+            <td>Min distinct price points</td>
+            <td class="text-end">@ElasticityGate.MinDistinctPricePoints</td>
+            <td>Need real price movement, not one price repeated.</td>
+        </tr>
+        <tr>
+            <td>Min price range ratio</td>
+            <td class="text-end">@ElasticityGate.MinPriceRangeRatio.ToString("0.00")×</td>
+            <td>max/min price spread ≥ this (≥5% spread) so the slope is identifiable.</td>
+        </tr>
+        <tr>
+            <td>Min R²</td>
+            <td class="text-end">@ElasticityGate.MinR2.ToString("0.00")</td>
+            <td>Fit must explain at least this much variance.</td>
+        </tr>
+        <tr>
+            <td>Magnitude bounds |E|</td>
+            <td class="text-end">@ElasticityGate.MinMagnitude.ToString("0.00") – @ElasticityGate.MaxMagnitude.ToString("0.#")</td>
+            <td>Reject near-zero noise and implausibly steep collinear artifacts; coefficient must be negative.</td>
+        </tr>
+        <tr>
+            <td>Elastic region</td>
+            <td class="text-end">E &lt; −1.0</td>
+            <td>Only elastic SKUs are acted on; inelastic-but-usable values are stored for analysis only.</td>
+        </tr>
+        <tr>
+            <td>Confidence z</td>
+            <td class="text-end">@ElasticityGate.ElasticConfidenceZ.ToString("0.0000")</td>
+            <td>One-sided ≈90% CI: act only when E + z·SE ≤ −1, excluding noisy near-unit fits.</td>
+        </tr>
+        <tr>
+            <td>Profit-max price</td>
+            <td class="text-end">cost × E/(E+1)</td>
+            <td>Voted price for confidently-elastic demand, then clamped into [margin floor, anchor].</td>
+        </tr>
+    </tbody>
+</table>
+
+@section Scripts {
+<script>
+(function () {
+    const form = document.getElementById('trim-form');
+    const out = document.getElementById('discount-impact');
+    const basis = document.getElementById('impact-basis');
+    const scope = document.getElementById('impact-scope');
+    const inputs = Array.from(form.querySelectorAll('.trim-input'));
+    const url = '@Url.Action("DiscountImpact")';
+
+    // Live example per row: the middle of the range, before and after the typed trim.
+    function examples() {
+        inputs.forEach(function (i) {
+            const mid = parseFloat(i.dataset.mid);
+            const trim = Math.min(Math.max(parseFloat(i.value) || 0, 0), 100);
+            const cell = i.closest('tr').querySelector('.trim-example');
+            cell.textContent = trim > 0
+                ? mid.toFixed(0) + '% → ' + (mid * (1 - trim / 100)).toFixed(1) + '%'
+                : 'not trimmed';
+        });
+    }
+
+    async function load() {
+        const p = new URLSearchParams();
+        inputs.forEach(function (i) { p.append('trim[' + i.dataset.ruleId + ']', i.value || '0'); });
+        p.append('basis', basis.value);
+        p.append('soldOnly', scope.value);
+        out.innerHTML = '<div class="text-muted small">Calculating impact…</div>';
+        try {
+            const res = await fetch(url + '?' + p.toString());
+            out.innerHTML = res.ok
+                ? await res.text()
+                : '<div class="text-danger small">Could not calculate the impact (HTTP ' + res.status + ').</div>';
+        } catch (e) {
+            out.innerHTML = '<div class="text-danger small">Could not calculate the impact.</div>';
+        }
+    }
+
+    document.getElementById('impact-calc').addEventListener('click', load);
+    basis.addEventListener('change', load);
+    scope.addEventListener('change', load);
+    inputs.forEach(function (i) { i.addEventListener('input', examples); });
+    examples();
+    load();
+})();
+</script>
+}

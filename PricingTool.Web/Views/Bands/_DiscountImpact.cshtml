@@ -1,0 +1,185 @@
+@using PricingTool.Core.Services
+@model PricingTool.Data.Services.DiscountImpactReport?
+@if (Model is null)
+{
+    <div class="alert alert-light border small mb-0">
+        No successful run yet for this layer — the impact appears after the next run.
+    </div>
+}
+else
+{
+    var r = Model.Result;
+    var t = r.Total;
+    var cur = Model.Currency;
+    string Money(decimal v) => v.ToString("N0");
+    string Signed(decimal v) => (v >= 0 ? "+" : "−") + Math.Abs(v).ToString("N0");
+    string Pct(decimal? v) => v is decimal x ? x.ToString("0.0") + "%" : "—";
+    string SignedPct(decimal? v) => v is decimal x ? (x >= 0 ? "+" : "−") + Math.Abs(x).ToString("0.0") + "%" : "—";
+    var basisText = Model.Basis switch
+    {
+        ImpactUnitsBasis.Sold30Days => "units sold in the last 30 days",
+        ImpactUnitsBasis.Sold90Days => "units sold in the last 90 days",
+        _ => "all local stock",
+    };
+    var layerSkusText = Model.SoldOnly ? "SKUs sold in the last 30 days" : "priced SKUs";
+    var csvUrl = Url.Action("DiscountImpactCsv") + Context.Request.QueryString;
+
+    <div class="row g-2 mb-3">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100"><div class="card-body py-2">
+                <div class="text-muted small">SKUs affected</div>
+                <div class="fs-4">@t.SkusAffected.ToString("N0")</div>
+                <div class="small text-muted"><strong>@Pct(r.SkuSharePct)</strong> of the layer's @r.LayerSkus.ToString("N0") @layerSkusText</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100"><div class="card-body py-2">
+                <div class="text-muted small">Revenue affected</div>
+                <div class="fs-4">@Pct(r.RevenueSharePct)</div>
+                <div class="small text-muted">@Money(t.RevenueNow) @cur of @Money(r.LayerRevenue) @cur</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100 border-success"><div class="card-body py-2">
+                <div class="text-muted small">Extra profit</div>
+                <div class="fs-4 text-success">@Signed(t.ExtraProfit) @cur</div>
+                <div class="small text-muted"><strong>@SignedPct(t.ProfitChangePct)</strong> on these SKUs · <strong>@SignedPct(r.ExtraOfLayerProfitPct)</strong> of the layer's profit</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100"><div class="card-body py-2">
+                <div class="text-muted small">Average price change</div>
+                <div class="fs-4">@SignedPct(t.AvgPriceChangePct)</div>
+                <div class="small text-muted">discount @Pct(t.AvgDiscountBeforePct) → @Pct(t.AvgDiscountAfterPct) on average</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-2">
+        <thead class="table-light">
+            <tr>
+                <th>Discount range</th>
+                <th class="text-end">Trim</th>
+                <th class="text-end" title="SKUs whose current discount falls in the range and that the trim may touch">SKUs in range</th>
+                <th class="text-end" title="SKUs whose price the trim raises">Affected</th>
+                <th class="text-end" title="Affected as a share of the layer's @layerSkusText">% of layer</th>
+                <th class="text-end" title="Left alone on purpose: dead stock, clearance-locked, synced to Gjirafa50, new products, held prices">Exempt</th>
+                <th class="text-end">Discount now → after</th>
+                <th class="text-end" title="Revenue-weighted">Price change</th>
+                <th class="text-end">Units</th>
+                <th class="text-end">Profit now</th>
+                <th class="text-end">Profit after</th>
+                <th class="text-end">Extra profit</th>
+                <th class="text-end">Profit change</th>
+                <th class="text-end">Margin now → after</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var line in r.Ranges)
+        {
+            if (line.TrimPct is not > 0m)
+            {
+                <tr class="text-muted">
+                    <td>@line.Label</td>
+                    <td class="text-end">0%</td>
+                    <td colspan="12">not trimmed</td>
+                </tr>
+                continue;
+            }
+            <tr>
+                <td><strong>@line.Label</strong></td>
+                <td class="text-end">@line.TrimPct?.ToString("0.##")%</td>
+                <td class="text-end">@line.SkusInRange.ToString("N0")</td>
+                <td class="text-end">@line.SkusAffected.ToString("N0")</td>
+                <td class="text-end">@Pct(r.LayerSkus > 0 ? (decimal)line.SkusAffected / r.LayerSkus * 100m : null)</td>
+                <td class="text-end text-muted">@line.SkusExempt.ToString("N0")</td>
+                <td class="text-end">@Pct(line.AvgDiscountBeforePct) → @Pct(line.AvgDiscountAfterPct)</td>
+                <td class="text-end">@SignedPct(line.AvgPriceChangePct)</td>
+                <td class="text-end">@line.Units.ToString("N0")</td>
+                <td class="text-end">@Money(line.CurrentProfit)</td>
+                <td class="text-end">@Money(line.NewProfit)</td>
+                <td class="text-end text-success fw-semibold">@Signed(line.ExtraProfit)</td>
+                <td class="text-end">@SignedPct(line.ProfitChangePct)</td>
+                <td class="text-end">@Pct(line.MarginNowPct) → @Pct(line.MarginAfterPct)</td>
+            </tr>
+        }
+        </tbody>
+        <tfoot class="table-light fw-bold">
+            <tr>
+                <td>Total</td>
+                <td></td>
+                <td class="text-end">@t.SkusInRange.ToString("N0")</td>
+                <td class="text-end">@t.SkusAffected.ToString("N0")</td>
+                <td class="text-end">@Pct(r.SkuSharePct)</td>
+                <td class="text-end text-muted">@t.SkusExempt.ToString("N0")</td>
+                <td class="text-end">@Pct(t.AvgDiscountBeforePct) → @Pct(t.AvgDiscountAfterPct)</td>
+                <td class="text-end">@SignedPct(t.AvgPriceChangePct)</td>
+                <td class="text-end">@t.Units.ToString("N0")</td>
+                <td class="text-end">@Money(t.CurrentProfit)</td>
+                <td class="text-end">@Money(t.NewProfit)</td>
+                <td class="text-end text-success">@Signed(t.ExtraProfit)</td>
+                <td class="text-end">@SignedPct(t.ProfitChangePct)</td>
+                <td class="text-end">@Pct(t.MarginNowPct) → @Pct(t.MarginAfterPct)</td>
+            </tr>
+        </tfoot>
+    </table>
+    </div>
+
+    <p class="text-muted small mb-3">
+        @if (Model.SoldOnly)
+        {
+            <text>Only SKUs that sold in the last 30 days (both storefronts of the country) are counted — the same
+            SKUs the Target impact column prices.</text>
+        }
+        Profit now = today's price, profit after = the trimmed price, both over the same quantity
+        (<strong>@basisText</strong>) — it assumes all of it still sells at the higher price, so this is the
+        ceiling, not a forecast. Profit is in @cur excluding @Model.VatRatePct.ToString("0.#")% VAT, before the
+        engine's charm rounding.
+        Today's prices from run <strong>#@Model.RunId</strong> (@Model.RunStartedUtc.ToString("yyyy-MM-dd HH:mm") UTC),
+        units from the @Model.SnapshotDate.ToString("yyyy-MM-dd") snapshot.
+        @if (t.SkusCappedAtAnchor > 0)
+        {
+            <text>@t.SkusCappedAtAnchor.ToString("N0") of the affected SKUs stop short of the full trim because the price may not go above the anchor.</text>
+        }
+    </p>
+
+    @if (r.Skus.Count > 0)
+    {
+        <div class="d-flex align-items-baseline gap-3 mb-1">
+            <h3 class="h6 mb-0">Biggest gains</h3>
+            <a class="small" href="@csvUrl">Download all @r.Skus.Count.ToString("N0") affected SKUs (CSV)</a>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm align-middle" style="max-width: 1100px">
+            <thead class="table-light">
+                <tr>
+                    <th>SKU</th><th>Product</th>
+                    <th class="text-end">Old</th><th class="text-end">Now</th><th class="text-end">New</th>
+                    <th class="text-end">Discount now → after</th>
+                    <th class="text-end">Units</th><th class="text-end">Extra profit</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var s in r.Skus.Take(25))
+            {
+                <tr>
+                    <td><a asp-controller="Sku" asp-action="Details" asp-route-id="@s.Sku">@s.Sku</a></td>
+                    <td class="text-truncate" style="max-width: 320px" title="@s.ProductName">@s.ProductName</td>
+                    <td class="text-end text-muted">@s.OldPrice.ToString("N2")</td>
+                    <td class="text-end">@s.CurrentPrice.ToString("N2")</td>
+                    <td class="text-end fw-semibold">@s.NewPrice.ToString("N2")@(s.CappedAtAnchor ? "*" : "")</td>
+                    <td class="text-end">@Pct(s.DiscountBeforePct) → @Pct(s.DiscountAfterPct)</td>
+                    <td class="text-end">@s.Units.ToString("N0")</td>
+                    <td class="text-end text-success">@Signed(s.ExtraProfit)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        </div>
+        @if (r.Skus.Any(s => s.CappedAtAnchor))
+        {
+            <p class="text-muted small">* stopped at the anchor — the full trim would have priced above it.</p>
+        }
+    }
+}

@@ -1,0 +1,93 @@
+@model IReadOnlyList<PricingTool.Data.Entities.User>
+@using PricingTool.Data.Services
+@{
+    ViewData["Title"] = "Users";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Users</h1>
+    <span class="text-muted small">Porta sign-in is allowed only for accounts listed here.</span>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Add user</div>
+    <div class="card-body">
+        <form asp-action="Create" method="post" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small mb-1">Email</label>
+                <input name="email" type="email" class="form-control" placeholder="name@gjirafa.com" required />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Name (optional)</label>
+                <input name="name" type="text" class="form-control" placeholder="Full name" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Role</label>
+                <select name="role" class="form-select">
+                    <option value="@PricingRoles.Analyst">@PricingRoles.Analyst</option>
+                    <option value="@PricingRoles.Manager">@PricingRoles.Manager</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-success w-100">Add</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<table class="table table-sm align-middle">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Name</th>
+            <th style="width: 160px;">Role</th>
+            <th style="width: 110px;">Status</th>
+            <th>Last login (UTC)</th>
+            <th style="width: 130px;"></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var u in Model)
+    {
+        <tr class="@(u.Active ? "" : "text-muted")">
+            <td>@u.Email</td>
+            <td>@(string.IsNullOrWhiteSpace(u.Name) ? "—" : u.Name)</td>
+            <td>
+                <form asp-action="SetRole" method="post" class="d-flex gap-1">
+                    <input type="hidden" name="id" value="@u.Id" />
+                    <select name="role" class="form-select form-select-sm">
+                        <option value="@PricingRoles.Analyst" selected="@(u.Role == PricingRoles.Analyst)">@PricingRoles.Analyst</option>
+                        <option value="@PricingRoles.Manager" selected="@(u.Role == PricingRoles.Manager)">@PricingRoles.Manager</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Save</button>
+                </form>
+            </td>
+            <td>
+                @if (u.Active)
+                {
+                    <span class="badge bg-success">Active</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">Inactive</span>
+                }
+            </td>
+            <td>@(u.LastLoginUtc?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+            <td>
+                <form asp-action="SetActive" method="post">
+                    <input type="hidden" name="id" value="@u.Id" />
+                    <input type="hidden" name="active" value="@((!u.Active).ToString().ToLower())" />
+                    @if (u.Active)
+                    {
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                    }
+                    else
+                    {
+                        <button type="submit" class="btn btn-sm btn-outline-success">Activate</button>
+                    }
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
