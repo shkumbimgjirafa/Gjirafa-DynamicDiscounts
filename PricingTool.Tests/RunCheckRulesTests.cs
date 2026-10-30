@@ -62,6 +62,7 @@ public class RunCheckRulesTests
     {
         Assert.Contains("change-over-20", Codes(Row(39.50m, current: 52.50m)));
         Assert.Contains("off-charm", Codes(Row(49.37m)));
+        Assert.Contains(RunCheckRules.Evaluate(Row(49.50m, cost: null)), h => h is { Code: "no-cost", Severity: Severity.Warn });    // missing cost: margin unknown
         var mall = Row(13.184m, current: 16.48m, cost: 10m) with { Rounding = RoundingConvention.GjmCharm };              // GjirafaMall's …49 / …99 grid
         Assert.Contains("off-charm", Codes(mall));
         Assert.DoesNotContain("off-charm", Codes(mall with { Price = 13.49m }));
