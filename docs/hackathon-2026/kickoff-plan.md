@@ -110,6 +110,13 @@ aspirational and the engine is rules plus statistics.
 
 ## 3. Before Friday (the user does these; no code)
 
+**Kickoff answers (Fri 30 Oct, recorded as they come in):**
+- **NOP replica:** allowed. We read it with our own read-only connection (connection string in
+  user-secrets only). This replaces "exports only" for everything that lives on the replica: the
+  engine's source dataset, sales lines, WMS check-ins, the discount schema and the active discounts.
+  Writes to any shop DB stay forbidden; the publisher still writes only to `shop_sandbox`.
+- Tool DB (Approvals, band history, elasticity), API key, baseline framing: pending.
+
 The user expects the open questions (data rules, API key, warehouse access) to be answered at the
 **kickoff on Fri 16:00**. Collect the answers there before the first data step. The schedule is
 built so nothing before Fri 19:00 needs the API key, and the data step has an export fallback if

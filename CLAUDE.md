@@ -15,10 +15,13 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
 
 ## Hard rules (the hackathon's, and ours)
 
-- **No live systems.** Never connect to the prod tool DB, the NOP replica, or any shop database, and
-  never read the main repo's `.env` or `k8s/`. All data comes from LocalDB `PricingToolHackathon`,
-  loaded from labelled exports in `data/` (git-ignored, never committed). Every loaded table has a
-  row in `hk.DataSources`.
+- **Data access (kickoff answer, Fri 30 Oct):** we may **read** the NOP replica with our own
+  read-only connection. Its connection string lives only in user-secrets
+  (`ConnectionStrings:SourceReadOnly`), never in a tracked file. Nothing ever **writes** to a shop
+  database, and the main repo's `.env` and `k8s/` are never read from this repo. Data copied into
+  LocalDB `PricingToolHackathon` gets a row in `hk.DataSources` (source, time, row count); files in
+  `data/` are git-ignored, never committed. Queries against the replica must be light: time them,
+  filter by date and layer, never scan full history.
 - **No secrets in tracked files.** The Anthropic API key and any credentials live in
   `dotnet user-secrets` or env vars. Never create `.env`, `k8s/`, a pipeline or a Dockerfile here.
   Before every commit, `git grep -i -E "password|pwd=|api[_-]?key|secret"` must find nothing real.
