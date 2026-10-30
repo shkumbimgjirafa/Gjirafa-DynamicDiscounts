@@ -12,6 +12,12 @@ historical sales — profit-first: hold sales volume, lift margin 25%+.
 **The engine never writes to live platform prices.** It writes proposals to its own database.
 Pushing approved prices to the platform is a separate, explicit, Manager-triggered step.
 
+## Hackathon build
+
+This repository is the Gjirafa AI Hackathon 2026 build (Track A): two AI agents and a NOP discount publisher on top of the
+calculator below. What's new, how to run it in five steps, where the AI's output becomes a decision, what is mocked or
+unfinished, and how every figure reproduces: [`HACKATHON.md`](HACKATHON.md).
+
 ## Layers (multi-store)
 
 The tool is **multi-layer**: a *layer* is a Brand × Country combination, and everything — the
