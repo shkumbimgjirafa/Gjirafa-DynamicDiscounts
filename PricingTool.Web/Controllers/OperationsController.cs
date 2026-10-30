@@ -115,7 +115,7 @@ public class OperationsController : Controller
         return RedirectToAction(nameof(TimeSheet));
     }
 
-    public async Task<IActionResult> Cycle()
+    public async Task<IActionResult> Cycle([FromServices] IKillSwitch killSwitch)
     {
         var since = DateOnly.FromDateTime(DateTime.Now).AddDays(-6);
         return View(new CycleViewModel
@@ -123,7 +123,7 @@ public class OperationsController : Controller
             Steps = await _ai.DailyCycleSteps.AsNoTracking().Where(s => s.CycleDate >= since)
                 .OrderByDescending(s => s.CycleDate).ThenBy(s => s.Id).ToListAsync(),
             Cycle = _options.Cycle,
-            AgentEnabled = _options.Enabled,
+            AgentEnabled = !(await killSwitch.GetAsync()).Stopped,
         });
     }
 

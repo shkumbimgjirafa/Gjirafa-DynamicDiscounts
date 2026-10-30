@@ -49,6 +49,7 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<MoneyLedger>();
         services.AddScoped<TimeSheetExporter>();
         services.AddScoped<DailyCycle>();
+        services.AddScoped<ExceptionsInbox>();
         services.AddScoped<AgentToolLog>();
         services.AddScoped<AgentDataTools>();
         services.AddScoped<QueryDataService>();

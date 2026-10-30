@@ -25,6 +25,9 @@ else
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);
+// The publisher's switches, shown on the Agent page. Only the options: the web's own push stays the CSV export.
+builder.Services.Configure<PricingTool.NopIntegration.PublisherOptions>(
+    builder.Configuration.GetSection(PricingTool.NopIntegration.PublisherOptions.SectionName));
 builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
 builder.Services.AddSingleton<RunLauncher>();
 

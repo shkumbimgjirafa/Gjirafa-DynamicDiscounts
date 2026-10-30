@@ -1,0 +1,147 @@
+@model AgentStatusViewModel
+@using PricingTool.Agent.Alpha
+@{
+    ViewData["Title"] = "Agent";
+    var isManager = User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager);
+    var ks = Model.KillSwitch;
+    var pub = Model.Publisher;
+    string ModeBadge(AutonomyMode m) => m switch
+    {
+        AutonomyMode.Autonomous => "bg-success", AutonomyMode.ApproveFirst => "bg-primary", _ => "bg-secondary",
+    };
+    string PassBadge(string status) => status switch
+    {
+        "Succeeded" => "bg-success", "Failed" => "bg-danger", "Running" => "bg-primary", _ => "bg-secondary",
+    };
+}
+
+<h1 class="h3">Agent</h1>
+<p class="text-muted">
+    Alpha · pricing agent sets each band's floor and target per main category; code enforces the limits, and only what is
+    outside them waits for a person. The switches below are the ones a person holds. Every change is in the audit log (category Agent).
+</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-4">
+        <div class="card h-100 @(ks.Stopped ? "border-danger" : "border-success")">
+            <div class="card-body">
+                <h2 class="h6">Kill switch</h2>
+                @if (ks.Stopped)
+                {
+                    <p class="mb-2"><span class="badge bg-danger">Stopped</span> @ks.Reason</p>
+                }
+                else
+                {
+                    <p class="mb-2"><span class="badge bg-success">Running</span> the agents and the publisher may act</p>
+                }
+                <p class="small text-muted">Stops every agent call, Alpha's pass, the run checker (runs stay blocked, so nothing is exported)
+                    and the publisher at once. Held items can still be reviewed and a publish rolled back.</p>
+                @if (isManager && !ks.ByConfiguration)
+                {
+                    <form method="post" asp-action="SetKillSwitch">
+                        <input type="hidden" name="stop" value="@(ks.Stopped ? "false" : "true")" />
+                        <button type="submit" class="btn btn-sm @(ks.Stopped ? "btn-outline-success" : "btn-danger")">
+                            @(ks.Stopped ? "Release the kill switch" : "Pull the kill switch")
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h6">Publishing</h2>
+                <p class="mb-1">Publishing to: <strong>@(pub.IsSandbox ? "sandbox" : "LIVE shop")</strong>
+                    @if (pub.IsSandbox) { <span class="text-muted small">(shop_sandbox_*; the live shop is never touched)</span> }</p>
+                <p class="mb-1">Layers allowed:
+                    @if (pub.EnabledLayers.Count > 0) { <span>@string.Join(", ", pub.EnabledLayers.Select(Model.LayerName))</span> }
+                    else if (pub.IsSandbox) { <span>every layer (sandbox)</span> }
+                    else { <span class="text-danger">none (EnabledLayers is empty)</span> }
+                </p>
+                <p class="mb-1">Canary:
+                    @if (pub.Canary.Enabled)
+                    {
+                        <span>on: '@pub.Canary.Category', at most @pub.Canary.MaxSkus SKUs per publish</span>
+                    }
+                    else
+                    {
+                        <span>off</span>
+                    }
+                </p>
+                <p class="small text-muted mb-0">Set in configuration (<code>Publisher</code>), never in code: GO-LIVE.md.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card h-100 @(Model.Waiting > 0 ? "border-warning" : "")">
+            <div class="card-body">
+                <h2 class="h6">Waiting for you</h2>
+                <p class="display-6 mb-1">@Model.Waiting</p>
+                <p class="small text-muted">Held decisions, blocked runs, stopped or rolled-back publishes, failed cycle steps.</p>
+                <a class="btn btn-sm btn-outline-primary" asp-action="Exceptions">Open the exceptions inbox</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 class="h5">Autonomy per layer</h2>
+<p class="small text-muted">Off: no pass. Approve-first: every change waits for one click. Autonomous: changes within the limits apply
+    by themselves and only what is outside them waits. A layer without a setting is approve-first.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Layer</th><th>Mode</th>@if (isManager) { <th>Change</th> }</tr></thead>
+    <tbody>
+    @foreach (var l in Model.Layers)
+    {
+        <tr>
+            <td>@l.Name</td>
+            <td><span class="badge @ModeBadge(l.Mode)">@l.Mode</span></td>
+            @if (isManager)
+            {
+                <td>
+                    <form method="post" asp-action="SetMode" class="d-flex gap-2">
+                        <input type="hidden" name="layerId" value="@l.LayerId" />
+                        <select name="mode" class="form-select form-select-sm w-auto">
+                            @foreach (var m in Enum.GetValues<AutonomyMode>())
+                            {
+                                <option value="@m" selected="@(m == l.Mode)">@m</option>
+                            }
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Set</button>
+                    </form>
+                </td>
+            }
+        </tr>
+    }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">Recent passes</h2>
+<table class="table table-sm align-middle">
+    <thead><tr><th>#</th><th>Agent</th><th>Layer</th><th>Mode</th><th>Status</th><th>Started</th>
+        <th class="text-end">Applied</th><th class="text-end">Held</th><th class="text-end">Rejected</th><th class="text-end">Pending</th><th>Summary</th></tr></thead>
+    <tbody>
+    @foreach (var p in Model.RecentPasses)
+    {
+        <tr>
+            <td>@p.Id</td>
+            <td>@p.Source</td>
+            <td>@Model.LayerName(p.LayerId)</td>
+            <td>@p.Mode</td>
+            <td><span class="badge @PassBadge(p.Status)">@p.Status</span></td>
+            <td>@p.StartedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+            <td class="text-end">@p.Applied</td>
+            <td class="text-end">@p.Held</td>
+            <td class="text-end">@p.Rejected</td>
+            <td class="text-end">@p.Pending</td>
+            <td class="small text-break">@(p.Summary ?? p.Error)</td>
+        </tr>
+    }
+    @if (Model.RecentPasses.Count == 0)
+    {
+        <tr><td colspan="11" class="text-muted">No real passes yet.</td></tr>
+    }
+    </tbody>
+</table>

@@ -5,8 +5,9 @@ using PricingTool.Data.Entities;
 
 namespace PricingTool.Agent.Alpha;
 
-/// <summary>Whether the agents and the publisher may act right now, and if not, why.</summary>
-public sealed record KillSwitchState(bool Stopped, string Reason)
+/// <summary>Whether the agents and the publisher may act right now, and if not, why.
+/// <paramref name="ByConfiguration"/>: stopped by <c>Agent:Enabled = false</c>, which releasing at runtime can't override.</summary>
+public sealed record KillSwitchState(bool Stopped, string Reason, bool ByConfiguration = false)
 {
     public static readonly KillSwitchState Running = new(false, "");
 }
@@ -41,7 +42,7 @@ public sealed class KillSwitch : IKillSwitch
 {
     public const string SettingKey = "Agent.Enabled";
 
-    internal static readonly KillSwitchState OffInConfig = new(true, "Agent:Enabled is off in configuration");
+    internal static readonly KillSwitchState OffInConfig = new(true, "Agent:Enabled is off in configuration", ByConfiguration: true);
 
     private readonly PricingToolDbContext _db;
     private readonly AgentOptions _options;

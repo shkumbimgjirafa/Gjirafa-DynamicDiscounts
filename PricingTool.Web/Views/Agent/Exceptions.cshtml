@@ -1,0 +1,139 @@
+@model PricingTool.Agent.Operations.InboxSnapshot
+@{
+    ViewData["Title"] = "Exceptions";
+    var isManager = User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager);
+    string Pct(decimal? v) => v is { } x ? x.ToString("0.##") + "%" : "-";
+}
+
+<h1 class="h3">Exceptions <span class="badge @(Model.WaitingCount > 0 ? "bg-danger" : "bg-success") align-middle">@Model.WaitingCount waiting</span></h1>
+<p class="text-muted">Only what needs a person. On a normal day this page is empty. Everything here is also in the audit log once decided.</p>
+
+<h2 class="h5 mt-4">Decisions waiting (@Model.Decisions.Count)</h2>
+<p class="small text-muted">Held on a limit a person may lift (the weekly step size), or pending in approve-first mode. Approving writes it like an
+    automatic change; the hard minimum floor, target at or above the floor and the holdout still apply, and a decision whose starting values changed
+    since its pass is refused.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>#</th><th>Layer</th><th>Band</th><th>Category</th><th>Change</th><th>Why it waits</th><th>Agent's reason</th>
+        @if (isManager) { <th></th> }</tr></thead>
+    <tbody>
+    @foreach (var w in Model.Decisions)
+    {
+        var d = w.Decision;
+        <tr>
+            <td>@d.Id</td>
+            <td>@Model.LayerName(d.LayerId)</td>
+            <td>@w.BandName</td>
+            <td>@d.Category</td>
+            <td class="text-nowrap">
+                <span class="badge bg-secondary">@d.Action</span>
+                floor @Pct(d.CurrentFloorPct) → <strong>@Pct(d.ProposedFloorPct)</strong>,
+                target @Pct(d.CurrentTargetPct) → <strong>@Pct(d.ProposedTargetPct)</strong>
+                @if (d.Confidence is { } c) { <span class="small text-muted">(confidence @c.ToString("0.00"))</span> }
+            </td>
+            <td><span class="badge @(d.Status == "Held" ? "bg-warning text-dark" : "bg-primary")">@d.Status</span>
+                @if (d.Limit is not null) { <code>@d.Limit</code> }
+                <div class="small text-muted">@d.LimitDetail</div></td>
+            <td class="small text-break" style="max-width: 32rem">@d.Reason</td>
+            @if (isManager)
+            {
+                <td class="text-nowrap">
+                    <form method="post" asp-action="Approve" class="d-inline"
+                          onsubmit="return confirm('Apply decision #@d.Id: floor @Pct(d.CurrentFloorPct) to @Pct(d.ProposedFloorPct), target @Pct(d.CurrentTargetPct) to @Pct(d.ProposedTargetPct)?');">
+                        <input type="hidden" name="decisionId" value="@d.Id" />
+                        <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                    </form>
+                    <form method="post" asp-action="Reject" class="d-inline">
+                        <input type="hidden" name="decisionId" value="@d.Id" />
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
+                    </form>
+                </td>
+            }
+        </tr>
+    }
+    @if (Model.Decisions.Count == 0)
+    {
+        <tr><td colspan="8" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">Runs the checker blocked (@Model.BlockedRuns.Count)</h2>
+<p class="small text-muted">The latest check of each run in the last 7 days. A blocked run is not exported or published. A check skipped by the kill switch also leaves its run blocked.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Check</th><th>Run</th><th>Layer</th><th>Status</th><th class="text-end">Flagged</th><th class="text-end">Blocks</th><th>Notes</th></tr></thead>
+    <tbody>
+    @foreach (var c in Model.BlockedRuns)
+    {
+        <tr>
+            <td>#@c.Id</td><td>#@c.RunId</td><td>@Model.LayerName(c.LayerId)</td><td>@c.Status</td>
+            <td class="text-end">@c.RowsFlagged</td><td class="text-end">@c.Blocks</td>
+            <td class="small text-break">@(c.Error ?? c.Notes)</td>
+        </tr>
+    }
+    @if (Model.BlockedRuns.Count == 0)
+    {
+        <tr><td colspan="7" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">Publishing (@Model.Publishes.Count(p => p.NeedsAPerson) waiting)</h2>
+<p class="small text-muted">Publishes in the last 7 days that were stopped by a switch, rolled back or failed (waiting), and published batches with SKUs the publisher left out (listed only).</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Batch</th><th>Layer</th><th>Status</th><th>Target</th><th>When</th><th class="text-end">Requested</th><th class="text-end">Skipped</th><th>Why</th></tr></thead>
+    <tbody>
+    @foreach (var p in Model.Publishes)
+    {
+        var b = p.Batch;
+        <tr class="@(p.NeedsAPerson ? "table-warning" : "")">
+            <td>#@b.Id</td><td>@Model.LayerName(b.LayerId)</td><td>@b.Status</td><td>@b.Target</td>
+            <td>@b.StartedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+            <td class="text-end">@b.Requested</td><td class="text-end">@b.Skipped</td>
+            <td class="small text-break">
+                @b.Note
+                @foreach (var (kind, count) in p.Exceptions) { <span class="badge bg-light text-dark border">@kind × @count</span> }
+            </td>
+        </tr>
+    }
+    @if (Model.Publishes.Count == 0)
+    {
+        <tr><td colspan="8" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">Prices the checker held back (@Model.RunsWithHeldPrices.Count runs, listed only)</h2>
+<p class="small text-muted">Runs whose latest check was a warn: the warned prices were left out of the export and the rest went ahead. Normal operation; review the rows if a number looks off.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Check</th><th>Run</th><th>Layer</th><th class="text-end">Flagged</th><th class="text-end">Held (warn)</th><th class="text-end">Fixed</th><th>Notes</th></tr></thead>
+    <tbody>
+    @foreach (var c in Model.RunsWithHeldPrices)
+    {
+        <tr>
+            <td>#@c.Id</td><td>#@c.RunId</td><td>@Model.LayerName(c.LayerId)</td>
+            <td class="text-end">@c.RowsFlagged.ToString("N0")</td><td class="text-end">@c.Warns.ToString("N0")</td><td class="text-end">@c.Fixed</td>
+            <td class="small text-break">@c.Notes</td>
+        </tr>
+    }
+    @if (Model.RunsWithHeldPrices.Count == 0)
+    {
+        <tr><td colspan="7" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
+<h2 class="h5 mt-4">Daily cycle steps that failed (@Model.FailedSteps.Count)</h2>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Day</th><th>Step</th><th>Started</th><th>Error</th></tr></thead>
+    <tbody>
+    @foreach (var s in Model.FailedSteps)
+    {
+        <tr><td>@s.CycleDate.ToString("yyyy-MM-dd")</td><td><code>@s.Step</code></td><td>@s.StartedUtc.ToLocalTime().ToString("HH:mm:ss")</td>
+            <td class="small text-break">@(s.Error ?? s.Detail)</td></tr>
+    }
+    @if (Model.FailedSteps.Count == 0)
+    {
+        <tr><td colspan="4" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
