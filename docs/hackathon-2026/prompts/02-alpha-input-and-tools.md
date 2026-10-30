@@ -1,10 +1,11 @@
-# Prompt 02: Fri 21:30–00:30, Alpha's input, data tools and query_data
+# Prompt 02: Alpha's input, data tools and query_data
 
-Paste into the build session after prompt 01 (with 01b) is done and committed.
+Detail for the block after prompt 01. The build session reads it itself when it gets there
+(`CLAUDE.md`: keep going, never wait); nobody needs to paste it.
 
 ---
 
-Next block: plan section 6, row "🏠 Fri 21:30–00:30". Re-read `CLAUDE.md` and plan section 5 from
+Block: plan section 6, the row "Claude client + pricing-agent tools + `query_data`". Re-read `CLAUDE.md` and plan section 5 from
 "Agent data tools" to "`SafetyLimits`", plus "`query_data(sql)`". Pull first: the data session has
 added `docs/hackathon-2026/agent-data-dictionary.md` and the `agent.*` views
 (`docs/hackathon-2026/exports/agent_views.sql`, already applied to `PricingToolHackathon`).
@@ -45,7 +46,8 @@ added `docs/hackathon-2026/agent-data-dictionary.md` and the `agent.*` views
    inside, "do the reasoning, not the arithmetic") + `agent-data-dictionary.md`. Keep it in the repo
    under `PricingTool.Agent/Prompts/`.
 
-**Not in this block:** the decision loop and `SafetyLimits` (Sat 08:00), publishing (Sat 10:30).
+**Not in this block:** the decision loop and `SafetyLimits`, and publishing; they're the next
+blocks in section 6, so start them as soon as this one is done.
 
 **Done when:** the scorecard builds for layers 1 and 4 in seconds; the tools and `query_data` work
 through MCP in one real Claude Code call; a bad query (an `UPDATE`, two statements, a 10-second

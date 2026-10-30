@@ -115,4 +115,10 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
   and writes prompts). Stage explicit paths only (`git add -- <files>`), never `git add -A` or
   `git commit -a`, so neither sweeps up the other's unfinished work.
 - A plan block is done when its "Done when" column in section 6 is true; say plainly what isn't.
+- **Keep going; never wait.** The times in section 6 are a guide, not a gate. When a block is done,
+  commit, add its line to `hours.md`, and start the next block straight away, without waiting for
+  the clock or for a new prompt. If `docs/hackathon-2026/prompts/` has a file for that block, read
+  it first; it adds detail, it isn't permission. If something you need is missing (data still
+  loading, a decision only the user can make), say so in one line and work on the next thing you
+  can do. Stop only when everything you can do is done.
 - When a number looks off, say so and check it before building on it.
