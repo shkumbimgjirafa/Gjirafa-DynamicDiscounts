@@ -264,6 +264,24 @@ public class RunCheckerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_superseded_export_cannot_be_marked_pushed()
+    {
+        Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);
+        await Checker().CheckAsync(Run);
+        await Export();
+        await Export();                                                                   // the run re-exported, e.g. after a fix
+        var older = await _db.ExportBatches.MinAsync(b => b.Id);
+        var newer = await _db.ExportBatches.MaxAsync(b => b.Id);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Exporter().MarkPushedAsync(older, "team push (test)"));
+
+        Assert.Contains($"superseded by export #{newer}", ex.Message);
+        Assert.Empty(_tool.Approvals);
+        await Exporter().MarkPushedAsync(newer, "team push (test)");
+        Assert.Single(_tool.Approvals);
+    }
+
+    [Fact]
     public async Task An_unchecked_run_is_not_exported()
     {
         Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);

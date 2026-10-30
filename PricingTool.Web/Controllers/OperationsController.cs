@@ -44,8 +44,15 @@ public class OperationsController : Controller
     public async Task<IActionResult> MarkPushed(long exportBatchId, [FromServices] CheckedExport export)
     {
         var by = $"{_options.Cycle.PushedBy}, marked by {User.Identity?.Name ?? "unknown"}";
-        var approvalId = await export.MarkPushedAsync(exportBatchId, by);
-        TempData["Message"] = $"Export #{exportBatchId} recorded as pushed (approval #{approvalId}). The ledger measures it at 7 and 30 days.";
+        try
+        {
+            var approvalId = await export.MarkPushedAsync(exportBatchId, by);
+            TempData["Message"] = $"Export #{exportBatchId} recorded as pushed (approval #{approvalId}). The ledger measures it at 7 and 30 days.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
         return RedirectToAction(nameof(Ledger));
     }
 

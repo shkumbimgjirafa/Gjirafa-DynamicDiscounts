@@ -301,9 +301,17 @@ switch (command)
         await scope.ServiceProvider.MigrateAgentDbAsync();
         var batchId = long.Parse(positional[0]);
         var by = Opt("--by") ?? host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.Cycle.PushedBy;
-        var approvalId = await scope.ServiceProvider.GetRequiredService<CheckedExport>().MarkPushedAsync(batchId, by);
-        Console.WriteLine($"Export batch #{batchId} recorded as pushed by {by}: approval #{approvalId}. The ledger measures it at 7 and 30 days.");
-        return 0;
+        try
+        {
+            var approvalId = await scope.ServiceProvider.GetRequiredService<CheckedExport>().MarkPushedAsync(batchId, by);
+            Console.WriteLine($"Export batch #{batchId} recorded as pushed by {by}: approval #{approvalId}. The ledger measures it at 7 and 30 days.");
+            return 0;
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
     }
 
     case "ledger":

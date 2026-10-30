@@ -161,6 +161,12 @@ public sealed class CheckedExport
     {
         var batch = await _db.ExportBatches.SingleAsync(b => b.Id == exportBatchId, ct);
         if (batch.ApprovalId is { } existing) return existing;
+        // A run re-exported (e.g. after a fix to the holdout) has a newer file; only that one may start a measurement.
+        var newer = await _db.ExportBatches.Where(b => b.LayerId == batch.LayerId && b.RunId == batch.RunId && b.Id > batch.Id)
+            .MaxAsync(b => (long?)b.Id, ct);
+        if (newer is { } n)
+            throw new InvalidOperationException(
+                $"Export #{batch.Id} of run #{batch.RunId} is superseded by export #{n}; mark #{n} as pushed instead.");
 
         var items = (await File.ReadAllLinesAsync(batch.FilePath, ct)).Skip(1).Where(l => l.Length > 0).Select(ParseLine).ToList();
         var now = _clock.GetUtcNow().UtcDateTime;
