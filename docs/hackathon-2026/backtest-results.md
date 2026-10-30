@@ -89,8 +89,9 @@ never ran, so it isn't scored by it.
 **Verdict: FAIL on both bases.** The margin is within ±0.5 pt of 15.1 %; the share kept is under the 70–80 % required:
 69 % on our base (the SKUs in scope, normal-day revenue-weighted, rate window 26 Aug – 22 Sep: 21.6 %), 67 % on the hand
 plan's own base computed from today's data (Mall's own SKUs, booked margin, 6 Sep – 6 Oct: 22.3 %). The hand plan's
-notes of 7 Oct put that base at 20.5 %; today's data says 22.3 % for the same definition (late cancellations and cost
-corrections since). The bar stays where it is.
+20.5 % (computed 7 Oct by an ad-hoc analysis, vendor scope and Gjirafa50-listed flag as of that day) can't be reproduced
+exactly from hk; on hk's tool scope the same window gives 22.3 %. Cause of the difference not established. The bar stays
+where it is.
 
 The first run showed a real gap: no strategy spent a margin floor on volume (all stayed at 19–21 %), and the rules
 pointed a margin goal at max-gross-profit. The planner now has spend-to-margin, and the rules call a margin goal on a
