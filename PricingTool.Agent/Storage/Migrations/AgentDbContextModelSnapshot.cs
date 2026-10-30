@@ -878,6 +878,56 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.ToTable("CategoryPause", "ai");
                 });
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.CostObservation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long?>("DecisionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ObservedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal>("Pptcv")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("ProcessedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("PublishBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedUtc");
+
+                    b.HasIndex("LayerId", "Sku");
+
+                    b.ToTable("CostObservation", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.DailyCycleStep", b =>
                 {
                     b.Property<long>("Id")

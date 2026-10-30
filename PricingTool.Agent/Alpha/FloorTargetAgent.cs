@@ -194,6 +194,8 @@ public sealed class FloorTargetAgent
         if (d is null) return new(false, $"Decision #{decisionId} doesn't exist.");
         if (d.Status is not (DecisionStatus.Held or DecisionStatus.Pending))
             return new(false, $"Decision #{d.Id} is {d.Status}: there is nothing to approve.");
+        if (d.Source != Source)
+            return new(false, $"Decision #{d.Id} is the {d.Source}'s, not a floor/target decision: it is handled, not approved.");
         if (await _db.AgentPasses.AsNoTracking().AnyAsync(p => p.Id == d.PassId && p.IsTest, ct))
             return new(false, $"Decision #{d.Id} comes from a test pass; test passes never apply.");
         if (d.Action == "keep")

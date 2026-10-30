@@ -134,5 +134,24 @@ public class AgentController : Controller
         return RedirectToAction(nameof(Exceptions));
     }
 
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> HandleCostHold(long decisionId)
+    {
+        var d = await _ai.AgentDecisions.SingleOrDefaultAsync(x => x.Id == decisionId && x.Source == "CostWatcher" && x.Status == DecisionStatus.Held);
+        if (d is null)
+        {
+            TempData["Error"] = $"Decision #{decisionId} is not a cost-watcher hold.";
+            return RedirectToAction(nameof(Exceptions));
+        }
+        d.Status = DecisionStatus.Handled;
+        d.ReviewedBy = Who;
+        d.ReviewedUtc = DateTime.UtcNow;
+        await _ai.SaveChangesAsync();
+        TempData["Message"] = $"Cost-watcher hold #{d.Id} marked handled.";
+        return RedirectToAction(nameof(Exceptions));
+    }
+
     private string Who => User.Identity?.Name ?? "unknown";
 }

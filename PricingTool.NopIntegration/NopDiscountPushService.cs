@@ -54,6 +54,10 @@ public static class NopPublisherServiceCollectionExtensions
         services.Configure<PublisherOptions>(config.GetSection(PublisherOptions.SectionName));
         services.AddSingleton<IShopCacheInvalidator, ShopCacheInvalidator>();
         services.AddScoped<NopDiscountWriter>();
+        services.Configure<CostWatch.CostWatcherOptions>(config.GetSection(CostWatch.CostWatcherOptions.SectionName));
+        services.AddScoped<CostWatch.ICostPublisher, CostWatch.WriterCostPublisher>();
+        services.AddScoped<CostWatch.CostWatcher>();
+        services.AddScoped<CostWatch.ReplicaCostFeed>();
         if (config.GetValue<bool>("Publisher:ReplaceCsvPush"))
             services.AddScoped<IPricePushService, NopDiscountPushService>();
         return services;

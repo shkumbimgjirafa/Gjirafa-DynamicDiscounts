@@ -153,6 +153,36 @@
     </tbody>
 </table>
 
+<h2 class="h5 mt-4">Cost watcher holds (@Model.CostHolds.Count)</h2>
+<p class="small text-muted">A cost rose and put a price under its floor, but the watcher didn't just raise it: the jump looks like a data error,
+    the cost has passed the shelf price (the regular price needs changing; our discount, if any, was ended), or a cheaper discount we didn't
+    create wins. Mark one handled once dealt with.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>#</th><th>Layer</th><th>When</th><th>Why</th><th>What the watcher found</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var d in Model.CostHolds)
+    {
+        <tr class="table-warning">
+            <td>@d.Id</td><td>@Model.LayerName(d.LayerId)</td><td>@d.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+            <td><span class="badge bg-light text-dark border">@d.Limit</span></td><td class="small text-break">@d.Reason</td>
+            <td>
+                @if (User.IsInRole("Manager"))
+                {
+                    <form method="post" asp-action="HandleCostHold" class="d-inline">
+                        <input type="hidden" name="decisionId" value="@d.Id" />
+                        <button class="btn btn-sm btn-outline-secondary">Handled</button>
+                    </form>
+                }
+            </td>
+        </tr>
+    }
+    @if (Model.CostHolds.Count == 0)
+    {
+        <tr><td colspan="6" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
 <h2 class="h5 mt-4">Campaign briefs held (@Model.HeldBriefs.Count)</h2>
 <p class="small text-muted">Briefs from Nova over a cap a person may lift (too many mini-campaigns at once on a layer). Nothing is planned or
     published from a held brief.</p>

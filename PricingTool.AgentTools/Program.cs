@@ -26,6 +26,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   ask --agent <role> [--schema <file>] "<question>"               one real Claude Code call with the data tools
 //   alpha-pass <layer> [--mode Autonomous|ApproveFirst|Off] [--test] Alpha's weekly floor/target pass for one layer
 //   nova-pass <layer> [--test]                                       Nova's weekly campaign pass for one layer (briefs, results)
+//   cost-watch [--poll] [--inject <layer> <sku> <cost>]              one cost watch: optionally poll the replica, or inject a labelled
+//                                                                   [INJECTED-TEST] cost (with --test its records go to the test DB)
 //   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
 //   publish-canary <layer> --run <id> --category <c> [--max n] [--rollback]   publish a run's sample, show the rows
 //   publish-rollback <batch id>                                     restore what a publish batch changed
@@ -72,6 +74,11 @@ if (testRun)
     Environment.SetEnvironmentVariable(key.Replace(":", "__"), testDb);
     Console.Error.WriteLine($"Test run: the agents' records go to {new SqlConnectionStringBuilder(testDb).InitialCatalog}.");
 }
+
+// Only the cost watch reads the replica (its read-only connection is in user-secrets, shared with the engine and web);
+// no other command, and never the MCP server the agents use, loads it.
+if (command == "cost-watch")
+    builder.Configuration.AddUserSecrets("gjirafa-hackathon-pricing-agent-2026");
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);
@@ -298,6 +305,38 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "cost-watch":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var sp = scope.ServiceProvider;
+        if (args.Contains("--poll"))
+        {
+            var f = await sp.GetRequiredService<PricingTool.NopIntegration.CostWatch.ReplicaCostFeed>().PollAsync();
+            Console.WriteLine($"Replica: {f.Refreshed} of {f.Countries} countries refreshed, {f.SkusRead} costs read, {f.Observations} moved, {f.ReplicaMs} ms {f.Note}");
+        }
+        if (Array.IndexOf(args, "--inject") is var at and >= 0)
+        {
+            var db = sp.GetRequiredService<AgentDbContext>();
+            db.CostObservations.Add(new CostObservation
+            {
+                LayerId = int.Parse(args[at + 1]), Sku = args[at + 2], Pptcv = decimal.Parse(args[at + 3], System.Globalization.CultureInfo.InvariantCulture),
+                ObservedUtc = DateTime.UtcNow, Source = "[INJECTED-TEST] cost-watch --inject",
+            });
+            await db.SaveChangesAsync();
+            Console.WriteLine($"Injected [INJECTED-TEST] cost {args[at + 3]} for {args[at + 2]} on layer {args[at + 1]}.");
+        }
+        var r = await sp.GetRequiredService<PricingTool.NopIntegration.CostWatch.CostWatcher>().WatchAsync();
+        Console.WriteLine($"Cost watch: {r.Observed} observations, {r.Raised} raised, {r.Held} held, {r.Ended} ended, {r.NoAction} no action {r.Skipped}");
+        foreach (var o in await sp.GetRequiredService<AgentDbContext>().CostObservations.AsNoTracking().OrderByDescending(o => o.Id).Take(5).ToListAsync())
+        {
+            var d = o.DecisionId is { } id ? await sp.GetRequiredService<AgentDbContext>().AgentDecisions.AsNoTracking().SingleAsync(x => x.Id == id) : null;
+            Console.WriteLine($"  #{o.Id} {o.Sku} cost {o.Pptcv:0.00} ({o.Source}): {o.Outcome} batch {o.PublishBatchId} {d?.Reason}");
+        }
+        return 0;
+    }
+
     case "nova-pass":
     {
         using var host = builder.Build();
@@ -450,7 +489,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

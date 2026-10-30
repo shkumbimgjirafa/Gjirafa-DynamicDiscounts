@@ -6,6 +6,7 @@ using PricingTool.Core.Options;
 using PricingTool.Data;
 using PricingTool.Data.Services;
 using PricingTool.Engine;
+using PricingTool.NopIntegration;
 
 var runOnce = args.Contains("--run-now");
 var hackathonHost = args.Contains("--hackathon-host");
@@ -45,8 +46,12 @@ builder.Services.Configure<WeeklyPcsReportOptions>(builder.Configuration.GetSect
 if (hackathon)
 {
     builder.Services.AddPricingAgent(builder.Configuration);
+    builder.Services.AddNopPublisher(builder.Configuration);
     if (hackathonHost)
+    {
         builder.Services.AddHostedService<DailyCycleWorker>();
+        builder.Services.AddHostedService<CostWatcherWorker>();
+    }
 }
 else if (!runOnce && !fitElasticity && !weeklyReport)
 {

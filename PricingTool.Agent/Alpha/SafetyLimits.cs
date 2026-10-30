@@ -11,6 +11,8 @@ public static class DecisionStatus
     public const string Rejected = "Rejected";
     /// <summary>Approve-first mode: within the limits, waiting for one click.</summary>
     public const string Pending = "Pending";
+    /// <summary>A cost-watcher hold a person has dealt with (outside the tool: the cost checked, the regular price changed).</summary>
+    public const string Handled = "Handled";
 }
 
 /// <summary>One proposed floor/target change with everything the limits need to judge it.</summary>

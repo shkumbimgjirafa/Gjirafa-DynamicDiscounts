@@ -184,7 +184,15 @@ public sealed class DailyCycle
             var (path, bytes, removed) = await With((DatabaseMaintenance m) => m.BackupAsync(ct));
             return (StepStatus.Succeeded, $"{path} ({bytes / 1024.0 / 1024 / 1024:0.00} GB); {removed} old backups removed (keeping {c.KeepBackups})");
         });
-        yield return new Step("cost-watcher", _ => Task.FromResult((StepStatus.NotBuilt, "CostWatcher (its own 15-minute loop) is not built yet")));
+        yield return new Step("cost-watcher", async ct =>
+        {
+            // The watcher runs on its own 15-minute loop in the engine host; this step reports its last day.
+            var since = _clock.GetUtcNow().UtcDateTime.AddDays(-1);
+            var done = await _db.CostObservations.AsNoTracking().Where(o => o.ProcessedUtc >= since).GroupBy(o => o.Outcome)
+                .Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
+            var waiting = await _db.CostObservations.CountAsync(o => o.ProcessedUtc == null, ct);
+            return (StepStatus.Succeeded, $"cost watcher, last 24 h: {(done.Count == 0 ? "no cost moves" : string.Join(", ", done.Select(d => $"{d.Count} {d.Key}")))}; {waiting} waiting");
+        });
         foreach (var layer in c.Layers)
             yield return new Step($"nova-L{layer}", async ct =>
             {

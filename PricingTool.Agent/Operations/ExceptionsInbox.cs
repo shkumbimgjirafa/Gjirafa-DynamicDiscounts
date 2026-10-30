@@ -36,12 +36,15 @@ public sealed class InboxSnapshot
     /// <summary>Band × categories paused after an automatic rollback, until a person releases them.</summary>
     public IReadOnlyList<CategoryPause> Pauses { get; init; } = Array.Empty<CategoryPause>();
 
+    /// <summary>The cost watcher's holds (a data-error cost jump, a cost above the shelf price, a cheaper team discount), real only.</summary>
+    public IReadOnlyList<AgentDecision> CostHolds { get; init; } = Array.Empty<AgentDecision>();
+
     /// <summary>Campaign briefs held on a cap a person may lift (too many mini-campaigns at once), real passes only.</summary>
     public IReadOnlyList<CampaignBrief> HeldBriefs { get; init; } = Array.Empty<CampaignBrief>();
 
     public IReadOnlyDictionary<int, string> LayerNames { get; init; } = new Dictionary<int, string>();
 
-    public int WaitingCount => Decisions.Count + BlockedRuns.Count + Publishes.Count(p => p.NeedsAPerson) + FailedSteps.Count + Pauses.Count + HeldBriefs.Count;
+    public int WaitingCount => Decisions.Count + BlockedRuns.Count + Publishes.Count(p => p.NeedsAPerson) + FailedSteps.Count + Pauses.Count + HeldBriefs.Count + CostHolds.Count;
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";
 }
@@ -71,7 +74,7 @@ public sealed class ExceptionsInbox
         var since = now.AddDays(-RecentDays);
 
         var decisions = await _ai.AgentDecisions.AsNoTracking()
-            .Where(d => (d.Status == DecisionStatus.Held || d.Status == DecisionStatus.Pending)
+            .Where(d => (d.Status == DecisionStatus.Held || d.Status == DecisionStatus.Pending) && d.Source == FloorTargetAgent.Source
                         && _ai.AgentPasses.Any(p => p.Id == d.PassId && !p.IsTest))
             .OrderBy(d => d.LayerId).ThenBy(d => d.BandId).ThenBy(d => d.Category)
             .ToListAsync(ct);
@@ -104,6 +107,9 @@ public sealed class ExceptionsInbox
                 .ToList(),
             FailedSteps = failed,
             Pauses = await _ai.CategoryPauses.AsNoTracking().Where(p => p.ReleasedUtc == null).OrderByDescending(p => p.Id).ToListAsync(ct),
+            CostHolds = await _ai.AgentDecisions.AsNoTracking()
+                .Where(d => d.Status == DecisionStatus.Held && d.Source == "CostWatcher" && _ai.AgentPasses.Any(p => p.Id == d.PassId && !p.IsTest))
+                .OrderByDescending(d => d.Id).ToListAsync(ct),
             HeldBriefs = await _ai.CampaignBriefs.AsNoTracking().Where(b => b.Status == BriefStatus.Held && !b.IsTest).OrderByDescending(b => b.Id).ToListAsync(ct),
             LayerNames = await _tool.Layers.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.DisplayName, ct),
         };
