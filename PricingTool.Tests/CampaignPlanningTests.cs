@@ -209,6 +209,7 @@ public class CampaignPlanningTests : IDisposable
     {
         public Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<CampaignCandidate>>(Enumerable.Range(0, 40).Select(i => C($"S{i}", 100m, 100m, 60m, category: i < 4 ? "Sport" : "Kozmetikë"))
+                .Append(C("THIN", 100m, 100m, 97.5m, perDay: 3m))                                         // 2.5 % margin today
                 .Append(new CampaignCandidate("DEAD", null, "Kozmetikë", "Brand", 100m, 70m, 60m, 1m, 5, 0, DeadStock: true, FollowsGj50: false)).ToList());
     }
 
@@ -348,6 +349,30 @@ public class CampaignPlanningTests : IDisposable
         Assert.Contains(said, t => t.Contains("raises the minimum margin from 5% to 30%"));                  // 60 % is after the campaign: not applied
         Assert.Contains(said, t => t.Contains("kept out by a person's rule") && t.Contains("exclude-brand Brand"));
         Assert.DoesNotContain(said, t => t.Contains("exclude-category"));                                   // the removed rule
+    }
+
+    [Fact]
+    public async Task The_minimum_margin_never_goes_under_the_code_floor_from_the_brief_or_the_review()
+    {
+        var (planning, _, brief) = Setup();
+        brief.MinMarginPct = 0m;                                                                            // the model asked for none
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "volume-at-no-loss", ["explanation"] = "Volume." });
+        Says(new JsonObject { ["decision"] = "adjust", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = 0.5m, ["message"] = "Go deeper." });
+        Says(new JsonObject { ["strategy"] = "volume-at-no-loss", ["explanation"] = "Volume." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: false);
+
+        Assert.Equal(3m, (await _db.CampaignBriefs.SingleAsync()).MinMarginPct);                           // stored: the cost watcher uses it
+        var said = await _db.CampaignMessages.Where(m => m.From == "code").Select(m => m.Text).ToListAsync();
+        Assert.Contains(said, t => t.Contains("Minimum margin 0% raised to 3%"));
+        Assert.Contains(said, t => t.Contains("Minimum margin 0.5% raised to 3%"));
+        var planIds = r.Plans.Select(p => p.Id).ToList();
+        var lines = await _db.CampaignPlanLines.Where(l => planIds.Contains(l.PlanId)).ToListAsync();
+        Assert.NotEmpty(lines);
+        Assert.DoesNotContain(lines, l => l.Sku == "THIN");                                                // any discount would take it under 3 %
+        Assert.All(lines, l => Assert.True((l.CampaignPrice - l.Cost) / l.CampaignPrice >= 0.03m, $"{l.Sku}: {l.CampaignPrice} on cost {l.Cost}"));
     }
 
     [Fact]

@@ -107,6 +107,15 @@ public sealed class CampaignPlanning
         var ruleMinMargin = rules.Where(r => r.Kind == ChatRuleKinds.MinCampaignMargin)
             .Select(r => decimal.TryParse(r.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : 0m).DefaultIfEmpty(0m).Max();
         var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct, rules);
+        // The model sets the brief's minimum margin; code never lets it under the floor. Stored on the brief, so the cost watcher
+        // judges the live campaign on the same value.
+        var marginFloor = _options.Campaigns.MinMarginFloorPct;
+        if (brief.MinMarginPct < marginFloor)
+        {
+            await SayAsync(brief, null, 1, "code", $"Minimum margin {brief.MinMarginPct:0.#}% raised to {marginFloor:0.#}%: no campaign SKU goes under the code floor.", null, ct);
+            brief.MinMarginPct = marginFloor;
+            await _db.SaveChangesAsync(ct);
+        }
         if (ruleMinMargin > brief.MinMarginPct)
             await SayAsync(brief, null, 1, "code", $"A person's rule raises the minimum margin from {brief.MinMarginPct:0.#}% to {ruleMinMargin:0.#}% for these days.", null, ct);
         // A goal a person set for the calendar campaign is binding: Nova can't change it, and a plan short of it waits for a person.
@@ -183,6 +192,11 @@ public sealed class CampaignPlanning
                 plan.Status = PlanStatus.Held;
                 await SayAsync(brief, plan.Id, round, "code", "The adjustment is out of range: the plan waits for a person.", null, ct);
                 break;
+            }
+            if (adjusted.MinMargin < marginFloor)
+            {
+                await SayAsync(brief, plan.Id, round, "code", $"Minimum margin {adjusted.MinMargin:0.#}% raised to {marginFloor:0.#}%: no campaign SKU goes under the code floor.", null, ct);
+                adjusted = (adjusted.Goal, adjusted.MaxDepth, marginFloor);
             }
             var depthCap = _options.Campaigns.MaxDepthPct;
             if (adjusted.MaxDepth > depthCap)

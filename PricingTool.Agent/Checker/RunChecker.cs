@@ -21,8 +21,9 @@ public sealed record RunCheckResult(long? CheckId, string Verdict, string Status
 /// the flagged rows, at most <see cref="AgentOptions.RunCheckerModelCap"/>, highest impact first; code turns
 /// that into each row's outcome and the run's verdict:
 /// <list type="bullet">
-/// <item>the model may confirm a block, downgrade it to a warn with a reason, escalate a row to a block, or
-///   propose a fixed price, which is used only if it passes every rule;</item>
+/// <item>the model may confirm a block, escalate a row to a block, or propose a fixed price, which is used only if it
+///   passes every rule; it can't lift a rule's block (they are the firm pricing rules and the data-scale checks), so a
+///   run with a block stays blocked whatever the model says;</item>
 /// <item>rows over the cap keep their rule severity, and the check says how many;</item>
 /// <item>any final block → verdict block (export and publish stop); any warn → warn (those rows stay out);
 ///   else pass. No valid answer, or the kill switch off → block.</item>
@@ -123,8 +124,8 @@ public sealed class RunChecker
         return await FinishAsync(check, sw, "Succeeded", null, rows, notes);
     }
 
-    /// <summary>Code's decision for a reviewed row. A fixed price counts only if no rule above info fires on it;
-    /// a downgrade from block needs a reason; anything the model escalates becomes a block.</summary>
+    /// <summary>Code's decision for a reviewed row. A fixed price counts only if no rule above info fires on it; a rule's
+    /// block stays a block; anything the model escalates becomes a block.</summary>
     internal static string Decide(Flagged f, CheckAnswerViolation v, AgentRunCheckRow row)
     {
         if (v.FixPrice is { } fix and > 0)
@@ -139,7 +140,6 @@ public sealed class RunChecker
                 string.Join("; ", again.Where(h => h.Severity != Severity.Info).Select(h => h.Code)), 2000)!;
         }
         if (v.Severity == Severity.Block) return Severity.Block;
-        if (f.RuleSeverity == Severity.Block && v.Severity == Severity.Warn && !string.IsNullOrWhiteSpace(v.Reason)) return Severity.Warn;
         if (f.RuleSeverity == Severity.Info && v.Severity == Severity.Warn) return Severity.Warn;
         return f.RuleSeverity;
     }

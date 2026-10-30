@@ -21,6 +21,10 @@ public class CampaignLimitOptions
 
     /// <summary>A campaign starts at least this many days after the brief (time to plan, publish and veto).</summary>
     public int LeadDays { get; set; } = 3;
+
+    /// <summary>The lowest minimum margin a campaign may keep on any SKU, whatever the brief or the campaign agent's review
+    /// says: code raises a lower one to this. The cost watcher's 3 % minimum.</summary>
+    public decimal MinMarginFloorPct { get; set; } = 3m;
 }
 
 /// <summary>A brief as the campaign agent wrote it, with what code needs to judge it.</summary>

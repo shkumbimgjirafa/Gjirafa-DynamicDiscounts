@@ -43,8 +43,9 @@ the floor and down to 40 % of cost by design; `DEAD_STOCK_HARD_FLOOR_CLAMPED` pr
 
 Return exactly one violation per row you were given, with:
 - `severity`: `block` or `warn`.
-  - Confirm a block as `block`, or downgrade it to `warn` when the numbers show it is not an error
-    (say which numbers in `reason`).
+  - Confirm a block as `block`. Code keeps every block a block (below cost, above the ceiling and the
+    scale checks are firm rules), so when the numbers show the rule misfired, say which numbers in
+    `reason` for the person who reviews it, and propose a `fix_price` if you can name one.
   - Keep a warn as `warn`, or raise it to `block` when the row looks like a data error that could reach
     customers.
 - `reason`: one or two sentences a pricing manager can check, naming the figures.

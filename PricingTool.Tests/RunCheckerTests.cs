@@ -185,7 +185,7 @@ public class RunCheckerTests : IDisposable
     }
 
     [Fact]
-    public async Task A_block_may_be_downgraded_with_a_reason_and_a_warn_may_be_raised()
+    public async Task A_block_stays_a_block_whatever_the_model_says_and_a_warn_may_be_raised()
     {
         Injected(5, "INJ-BELOWCOST", 19.50m, 22.50m, 25m);
         Injected(4, "INJ-UNCHARMED", 49.37m, 50.50m, 30m);
@@ -196,7 +196,7 @@ public class RunCheckerTests : IDisposable
         var result = await Checker().CheckAsync(Run);
 
         var rows = await _db.AgentRunCheckRows.ToDictionaryAsync(r => r.Sku);
-        Assert.Equal(Severity.Warn, rows["INJ-BELOWCOST"].FinalSeverity);
+        Assert.Equal(Severity.Block, rows["INJ-BELOWCOST"].FinalSeverity);                                // the model's warn doesn't lift it
         Assert.Equal(Severity.Block, rows["INJ-UNCHARMED"].FinalSeverity);
         Assert.Equal(Severity.Block, result.Verdict);
     }
