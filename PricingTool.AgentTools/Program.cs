@@ -25,10 +25,13 @@ using PricingTool.NopIntegration.Sandbox;
 //   query [--agent <role>] [--timeout <s>] "<sql>"                  run query_data with its guardrails
 //   ask --agent <role> [--schema <file>] "<question>"               one real Claude Code call with the data tools
 //   alpha-pass <layer> [--mode Autonomous|ApproveFirst|Off] [--test] Alpha's weekly floor/target pass for one layer
-//   nova-pass <layer> [--test]                                       Nova's weekly campaign pass for one layer (briefs, results)
+//   nova-pass <layer> [--test] [--preview]                           Nova's weekly campaign pass for one layer (briefs, results);
+//                                                                   --preview prints the prompt it would send, no call
 //   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
-//   campaign-goal <calendar id> <gross-profit|margin|units> <value> [--by <who>]  a person's binding goal for a campaign
+//   lesson <Nova|Alpha> "<text>" [--layer <id>] [--by <who>]       teach an agent: kept in every pass's prompt until retired
+//   lessons [<Nova|Alpha>] | lesson-retire <id> [--by <who>]        list the active lessons, or retire one
+//   campaign-goal <calendar id> <gross-profit|margin|units> <value> [--by <who>] [--note "<why>"]  a person's binding goal
 //   cost-watch [--poll] [--inject <layer> <sku> <cost>]              one cost watch: optionally poll the replica, or inject a labelled
 //                                                                   [INJECTED-TEST] cost (with --test its records go to the test DB)
 //   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
@@ -308,13 +311,36 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "lesson":
+    case "lessons":
+    case "lesson-retire":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        var book = new PricingTool.Agent.Campaigns.LessonBook(db);
+        if (command == "lesson")
+        {
+            var l = await book.AddAsync(positional[0], Opt("--layer") is { } ly ? int.Parse(ly) : null, positional[1], Opt("--by") ?? "user");
+            Console.WriteLine($"Lesson #{l.Id} for {l.Agent} ({(l.LayerId is null ? "every layer" : $"layer {l.LayerId}")}): {l.Text}");
+        }
+        else if (command == "lesson-retire")
+            Console.WriteLine(await book.RetireAsync(long.Parse(positional[0]), Opt("--by") ?? "user") ? $"Lesson #{positional[0]} retired." : "No such active lesson.");
+        var agentFilter = command == "lessons" && positional.Count > 0 ? positional[0] : null;
+        foreach (var l in await db.AgentLessons.AsNoTracking().Where(l => l.RetiredUtc == null && (agentFilter == null || l.Agent == agentFilter))
+                     .OrderBy(l => l.Id).ToListAsync())
+            Console.WriteLine($"#{l.Id} {l.Agent} {(l.LayerId is null ? "all" : $"L{l.LayerId}")} {l.Source} {l.CreatedUtc:yyyy-MM-dd} {l.CreatedBy}: {l.Text}");
+        return 0;
+    }
+
     case "campaign-goal":
     {
         using var host = builder.Build();
         using var scope = host.Services.CreateScope();
         await scope.ServiceProvider.MigrateAgentDbAsync();
         var n = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignCalendar>()
-            .SetGoalAsync(long.Parse(positional[0]), positional[1], decimal.Parse(positional[2], System.Globalization.CultureInfo.InvariantCulture), Opt("--by") ?? "user");
+            .SetGoalAsync(long.Parse(positional[0]), positional[1], decimal.Parse(positional[2], System.Globalization.CultureInfo.InvariantCulture), Opt("--by") ?? "user", Opt("--note"));
         Console.WriteLine($"Goal set on calendar #{positional[0]}: {positional[1]} {positional[2]}; {n} open brief(s) updated.");
         return 0;
     }
@@ -384,6 +410,11 @@ switch (command)
         using var host = builder.Build();
         using var scope = host.Services.CreateScope();
         await scope.ServiceProvider.MigrateAgentDbAsync();
+        if (args.Contains("--preview"))
+        {
+            Console.WriteLine(await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignAgent>().PreviewPromptAsync(int.Parse(positional[0])));
+            return 0;
+        }
         var sw = Stopwatch.StartNew();
         var r = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignAgent>().RunPassAsync(int.Parse(positional[0]), args.Contains("--test"));
         Console.WriteLine($"Nova pass #{r.PassId}: {r.Status} in {sw.Elapsed.TotalSeconds:0} s, {r.Briefs.Count} briefs, {r.ResultsWritten} results {r.Error}");
@@ -531,7 +562,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

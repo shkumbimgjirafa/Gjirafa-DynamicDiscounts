@@ -37,6 +37,7 @@ public class AgentDbContext : DbContext
     public DbSet<CampaignPlan> CampaignPlans => Set<CampaignPlan>();
     public DbSet<CampaignPlanLine> CampaignPlanLines => Set<CampaignPlanLine>();
     public DbSet<CampaignMessage> CampaignMessages => Set<CampaignMessage>();
+    public DbSet<AgentLesson> AgentLessons => Set<AgentLesson>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -255,6 +256,18 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Pptcv).HasPrecision(18, 4);
             e.Property(x => x.Source).HasMaxLength(200);
             e.Property(x => x.Outcome).HasMaxLength(40);
+        });
+
+        builder.Entity<AgentLesson>(e =>
+        {
+            e.ToTable("AgentLesson");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Agent, x.LayerId });
+            e.Property(x => x.Agent).HasMaxLength(20);
+            e.Property(x => x.Text).HasMaxLength(2000);
+            e.Property(x => x.Source).HasMaxLength(20);
+            e.Property(x => x.CreatedBy).HasMaxLength(200);
+            e.Property(x => x.RetiredBy).HasMaxLength(200);
         });
 
         builder.Entity<CampaignResult>(e =>

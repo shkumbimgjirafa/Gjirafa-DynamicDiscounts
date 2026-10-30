@@ -306,6 +306,22 @@ public sealed class PricingDataReader
             r => new CategoryRuleRow(Id(r, 0), r.GetString(1), r.IsDBNull(2) ? null : r.GetDecimal(2), r.IsDBNull(3) ? null : r.GetDecimal(3),
                 r.GetString(4), r.GetDateTime(5)), ct);
 
+    /// <summary>Gross profit on normal days (no campaign of the layer running) in [from, to): the business-size yardstick,
+    /// counted the way the campaign segments count the 28 days before a campaign.</summary>
+    public async Task<decimal> GetNormalDayGrossProfitAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        (await QueryAsync("""
+            SELECT ISNULL(SUM(s.GrossProfit), 0) FROM agent.SalesLines s
+            WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To
+              AND NOT EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND s.SaleDate BETWEEN c.StartDate AND c.EndDate)
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r => r.GetDecimal(0), ct)).Single();
+
     /// <summary>The layer's first day of sales lines (comparison windows before it have no data).</summary>
     public async Task<DateOnly?> GetFirstSaleDayAsync(int layerId, CancellationToken ct = default) =>
         (await QueryAsync("SELECT MIN(SaleDate) FROM agent.SalesLines WHERE LayerId = @L", p => p.AddWithValue("@L", layerId),

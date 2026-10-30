@@ -21,7 +21,12 @@ public sealed record PlanResult(string Strategy, PlanTotals Totals, IReadOnlyLis
 
 /// <summary>The brief as code plans it.</summary>
 public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct,
-    decimal VatRatePct, decimal EventLift, IReadOnlyCollection<string> ExcludedBrands);
+    decimal VatRatePct, decimal EventLift, IReadOnlyCollection<string> ExcludedBrands)
+{
+    /// <summary>Expected gross profit of SKUs the goal covers but this plan doesn't price (GjirafaMall SKUs that take Gjirafa50's
+    /// price), counted toward a gross-profit goal and named in the feasibility text.</summary>
+    public decimal GrossProfitOutsidePlan { get; init; }
+}
 
 /// <summary>
 /// <c>PlanCampaign</c>'s arithmetic (plan section 5): code computes, the agent chooses among the strategies and explains.
@@ -155,17 +160,19 @@ public static class CampaignPlanner
 
     private static (bool, string) Feasibility(PlanSpec spec, PlanTotals t)
     {
+        var outside = spec.GoalType == "gross-profit" ? spec.GrossProfitOutsidePlan : 0m;
         var (actual, unit) = spec.GoalType switch
         {
-            "gross-profit" => (t.GrossProfit, "EUR gross profit"),
+            "gross-profit" => (t.GrossProfit + outside, "EUR gross profit"),
             "units" => (t.Units, "units"),
             "margin" => (t.MarginPct, "% margin"),
             _ => (0m, spec.GoalType),
         };
         if (t.MarginPct < spec.MinMarginPct)
             return (false, $"The blended margin of {t.MarginPct:0.0}% stays under the brief's minimum of {spec.MinMarginPct:0.#}% even with the discounts made shallower.");
+        var counted = outside > 0 ? $" ({t.GrossProfit:N0} from this plan plus {outside:N0} from the SKUs that take Gjirafa50's price)" : "";
         return actual >= spec.GoalValue
-            ? (true, $"{spec.GoalValue:N0} {unit} is reachable: the plan expects {actual:N0}.")
-            : (false, $"{spec.GoalValue:N0} {unit} is not reachable within the limits: the best this strategy expects is {actual:N0}.");
+            ? (true, $"{spec.GoalValue:N0} {unit} is reachable: the plan expects {actual:N0}{counted}.")
+            : (false, $"{spec.GoalValue:N0} {unit} is not reachable within the limits: the best this strategy expects is {actual:N0}{counted}.");
     }
 }

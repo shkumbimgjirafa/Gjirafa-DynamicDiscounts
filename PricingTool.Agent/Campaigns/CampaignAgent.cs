@@ -66,6 +66,15 @@ public sealed class CampaignAgent
     /// <summary>Test seam: the prompt's data block (trends, history, results), so a test needs no SQL.</summary>
     internal Func<int, DateOnly, CancellationToken, Task<string>>? InputSource { get; set; }
 
+    /// <summary>The prompt a pass would send for the layer today, built from the same data, with no model call and nothing stored.</summary>
+    public async Task<string> PreviewPromptAsync(int layerId, CancellationToken ct = default)
+    {
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId).OrderBy(c => c.StartDate).ToListAsync(ct);
+        return BuildPrompt(layerId, today, calendar, new Dictionary<long, string>(), await (InputSource ?? DataBlockAsync)(layerId, today, ct),
+            await new LessonBook(_db, _clock).NovaBlockAsync(layerId, ct));
+    }
+
     /// <param name="isTest">Demo or injected test: stored and labelled; never puts anything on the calendar and writes no result.</param>
     public async Task<NovaPassResult> RunPassAsync(int layerId, bool isTest = false, CancellationToken ct = default)
     {
@@ -90,7 +99,8 @@ public sealed class CampaignAgent
         foreach (var c in toReview)
             measured[c.Id] = JsonSerializer.Serialize(await _tools.GetCampaignResultsAsync(new AgentToolContext(AgentRole.Nova, $"code:nova-pass-{pass.Id}"), c.Id, ct), Json);
 
-        var prompt = BuildPrompt(layerId, today, calendar, measured, await (InputSource ?? DataBlockAsync)(layerId, today, ct));
+        var prompt = BuildPrompt(layerId, today, calendar, measured, await (InputSource ?? DataBlockAsync)(layerId, today, ct),
+            await new LessonBook(_db, _clock).NovaBlockAsync(layerId, ct));
         var call = await _client.CallAsync(new AgentCallRequest(AgentRole.Nova,
             isTest ? $"[INJECTED-TEST] campaign-briefs L{layerId}" : $"campaign-briefs L{layerId}",
             prompt, Path.Combine(PromptsDirectory, "campaign-agent-rules.md"))
@@ -202,7 +212,7 @@ public sealed class CampaignAgent
     }
 
     private string BuildPrompt(int layerId, DateOnly today, IReadOnlyList<CampaignCalendarEntry> calendar, IReadOnlyDictionary<long, string> measured,
-        string dataBlock)
+        string dataBlock, string lessons)
     {
         var o = _options.Campaigns;
         var holdouts = _options.Limits.Holdouts.TryGetValue(layerId.ToString(CultureInfo.InvariantCulture), out var h) && h.Count > 0 ? string.Join(", ", h) : "none";
@@ -221,6 +231,7 @@ public sealed class CampaignAgent
                           (c.GoalType is null ? "no goal" : $"{c.GoalType} {c.GoalValue:0.##}" + (c.GoalSetBy is null ? "" : $" (set by a person, binding: {c.GoalSetBy})"))
                           + $" | {c.Context ?? "-"}");
         sb.AppendLine();
+        sb.AppendLine(lessons);
         sb.AppendLine(dataBlock);
         if (measured.Count > 0)
         {
@@ -253,7 +264,7 @@ public sealed class CampaignAgent
             sb.AppendLine($"{g.Key} | {u0:0} | {Change(u0, u1)} | {p0:0} | {Change(p0, p1)} | {(n0 > 0 ? 100m * p0 / n0 : 0):0.0} | {sv:0} | {(sv > 0 ? 100m * dv / sv : 0):0}");
         }
         sb.AppendLine();
-        sb.AppendLine(await PastWindowsAsync(layerId, today, ct));
+        sb.AppendLine(await CampaignAnchorsAsync(layerId, today, ct));
         var depth = await _tools.GetDepthEffectAsync(layerId, ct);
         sb.AppendLine("Campaign history (code): event lift by campaign type, units vs normal days at normal depth: " +
                       (depth.EventLiftByType.Count == 0 ? "not measured" : string.Join(", ", depth.EventLiftByType.Select(e => $"{e.Key} x{e.Value:0.0}"))) + ".");
@@ -265,30 +276,55 @@ public sealed class CampaignAgent
         static string Change(decimal now, decimal ly) => ly > 0 ? $"{100m * (now - ly) / ly:+0;-0}%" : "n/a";
     }
 
-    /// <summary>For each campaign type on the calendar in the next 60 days: its past windows with their days and gross profit
-    /// (all products, Gjirafa50-listed included), the anchor for a goal.</summary>
-    private async Task<string> PastWindowsAsync(int layerId, DateOnly today, CancellationToken ct)
+    /// <summary>
+    /// The anchors for a goal, computed by code: for each campaign type on the calendar in the next 60 days its past windows,
+    /// and every campaign of the last 180 days, each with its days and gross profit (all products, Gjirafa50-listed included)
+    /// and that gross profit scaled to today's business: normal-day gross profit per day now (28 days ending the lag ago)
+    /// against the 28 days before the campaign. A campaign of 2024 says little about a shop that has grown since.
+    /// </summary>
+    private async Task<string> CampaignAnchorsAsync(int layerId, DateOnly today, CancellationToken ct)
     {
         var windows = await _reader.GetCampaignWindowsAsync(layerId, new DateOnly(2000, 1, 1), today.AddDays(60), ct);
         var entries = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId && c.SourceCampaignId != null)
             .ToDictionaryAsync(c => c.SourceCampaignId!.Value, ct);
+        var seg = (await _reader.GetCampaignSegmentsAsync(layerId, null, today, ct)).GroupBy(r => r.CampaignId).ToDictionary(g => g.Key, g =>
+            (Gp: g.Where(r => r.Segment == 0).Sum(r => r.GrossProfit), Net: g.Where(r => r.Segment == 0).Sum(r => r.NetRevenue),
+             Before: g.Where(r => r.Segment == 1).Sum(r => r.GrossProfit)));
+        int NormalDays(DateOnly from, DateOnly to) =>
+            Enumerable.Range(0, Math.Max(0, to.DayNumber - from.DayNumber)).Select(from.AddDays).Count(d => !windows.Any(w => d >= w.StartDate && d <= w.EndDate));
+        var now = DateWindow.Ending(today, 28, _options.Scorecard.LagDays);
+        var nowDays = NormalDays(now.From, now.To);
+        var nowPerDay = nowDays > 0 ? await _reader.GetNormalDayGrossProfitAsync(layerId, now.From, now.To, ct) / nowDays : 0m;
+
+        string Line(CampaignWindow w)
+        {
+            var days = w.EndDate.DayNumber - w.StartDate.DayNumber + 1;
+            var (g, n, before) = seg[w.CampaignId];
+            var beforeDays = NormalDays(w.StartDate.AddDays(-28), w.StartDate);
+            var thenPerDay = beforeDays > 0 ? before / beforeDays : 0m;
+            var scale = thenPerDay > 0 && nowPerDay > 0 ? nowPerDay / thenPerDay : (decimal?)null;
+            var note = entries.TryGetValue(w.CampaignId, out var e) && (e.Context is not null || !e.Representative)
+                ? $" [{(e.Representative ? "" : "NOT REPRESENTATIVE, don't anchor on it: ")}{e.Context}]" : "";
+            return $"{w.Name} {w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd} ({days} days): GP {g:N0} ({g / days:N0}/day), net revenue {n:N0}; " +
+                   (thenPerDay > 0 ? $"x{g / days / thenPerDay:0.0} the normal days before it ({thenPerDay:N0}/day)" : "no normal days before it in the data") +
+                   (scale is { } s ? $"; scaled to today's business (x{s:0.00}): GP {g * s:N0} ({g * s / days:N0}/day), estimated" : "") + note;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Business size now: normal-day gross profit {nowPerDay:N0}/day ({now}, {nowDays} normal days; booked COGS, EUR VAT excl., all products).");
         var upcoming = windows.Where(w => w.EndDate >= today).Select(w => CampaignMath.TypeOf(w.Name)).ToHashSet();
-        if (upcoming.Count == 0) return "Past windows of upcoming campaigns: no calendar campaign in the next 60 days.";
-        var gp = (await _reader.GetCampaignSegmentsAsync(layerId, null, today, ct)).Where(r => r.Segment == 0)
-            .GroupBy(r => r.CampaignId).ToDictionary(g => g.Key, g => (Gp: g.Sum(r => r.GrossProfit), Net: g.Sum(r => r.NetRevenue)));
-        var sb = new StringBuilder("Past windows of upcoming campaign types (booked COGS, EUR VAT excl., all products incl. Gjirafa50-listed):\n");
+        sb.AppendLine("Past windows of upcoming campaign types (all products incl. Gjirafa50-listed):");
+        if (upcoming.Count == 0) sb.AppendLine("- no calendar campaign in the next 60 days");
         foreach (var type in upcoming)
         {
-            var past = windows.Where(w => w.EndDate < today && CampaignMath.TypeOf(w.Name) == type && gp.ContainsKey(w.CampaignId)).ToList();
-            sb.AppendLine($"- {type}: " + (past.Count == 0 ? "no past window" : string.Join("; ", past.Select(w =>
-            {
-                var days = w.EndDate.DayNumber - w.StartDate.DayNumber + 1;
-                var (g, n) = gp[w.CampaignId];
-                var note = entries.TryGetValue(w.CampaignId, out var e) && (e.Context is not null || !e.Representative)
-                    ? $" [{(e.Representative ? "" : "NOT REPRESENTATIVE, don't anchor on it: ")}{e.Context}]" : "";
-                return $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd} ({days} days) GP {g:N0} ({g / days:N0}/day), net revenue {n:N0}{note}";
-            }))));
+            var past = windows.Where(w => w.EndDate < today && CampaignMath.TypeOf(w.Name) == type && seg.ContainsKey(w.CampaignId)).ToList();
+            sb.AppendLine($"- {type}: " + (past.Count == 0 ? "no past window" : ""));
+            foreach (var w in past) sb.AppendLine($"  - {Line(w)}");
         }
+        sb.AppendLine("Every campaign of the last 180 days, any type (this year's scale):");
+        var recent = windows.Where(w => w.EndDate < today && w.EndDate >= today.AddDays(-180) && seg.ContainsKey(w.CampaignId)).ToList();
+        if (recent.Count == 0) sb.AppendLine("- none");
+        foreach (var w in recent) sb.AppendLine($"- {Line(w)}");
         return sb.ToString();
     }
 

@@ -84,20 +84,31 @@ public sealed class CampaignCalendar
     /// A person sets a campaign's goal: binding from now on (Nova's briefs take it as given). Open briefs for the campaign
     /// take it too, with a message in their thread. Returns the briefs it updated.
     /// </summary>
-    public async Task<int> SetGoalAsync(long calendarId, string goalType, decimal goalValue, string by, CancellationToken ct = default)
+    public async Task<int> SetGoalAsync(long calendarId, string goalType, decimal goalValue, string by, string? note = null, CancellationToken ct = default)
     {
         if (!CampaignLimits.GoalTypes.Contains(goalType) || goalValue <= 0)
             throw new ArgumentException($"Goal '{goalType}' {goalValue}: one of {string.Join(", ", CampaignLimits.GoalTypes)}, and positive.");
         var entry = await _db.CampaignCalendar.SingleAsync(c => c.Id == calendarId, ct);
         var now = _clock.GetUtcNow().UtcDateTime;
-        (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = (goalType, goalValue, $"{by}, {_clock.GetLocalNow():yyyy-MM-dd}");
+        var setBy = $"{by}, {_clock.GetLocalNow():yyyy-MM-dd}" + (string.IsNullOrWhiteSpace(note) ? "" : $": {note.Trim()}");
+        (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = (goalType, goalValue, setBy.Length > 200 ? setBy[..200] : setBy);
         var open = await _db.CampaignBriefs.Where(b => b.CalendarId == calendarId && !b.IsTest && (b.Status == BriefStatus.Proposed || b.Status == BriefStatus.Planned)).ToListAsync(ct);
+        // Where Nova had proposed a different goal, the override is a correction it keeps in mind on later passes.
+        foreach (var b in open.Where(b => b.GoalType != goalType || Math.Abs(b.GoalValue - goalValue) > 0.1m * goalValue).Take(1))
+            _db.AgentLessons.Add(new AgentLesson
+            {
+                Agent = CampaignAgent.Source, LayerId = entry.LayerId, Source = LessonSource.Correction, CreatedBy = by, CreatedUtc = now,
+                Text = $"{entry.Name}: you proposed {b.GoalType} {b.GoalValue:N0}; a person set {goalType} {goalValue:N0}" +
+                       (string.IsNullOrWhiteSpace(note) ? "." : $" ({note.Trim()}).") +
+                       " Check your next goals against this year's comparable campaigns before proposing them.",
+            });
         foreach (var b in open)
         {
             _db.CampaignMessages.Add(new CampaignMessage
             {
                 BriefId = b.Id, From = by, CreatedUtc = now,
-                Text = $"Goal set by a person: {goalType} {goalValue:N0} (was {b.GoalType} {b.GoalValue:N0}). Binding for this campaign.",
+                Text = $"Goal set by a person: {goalType} {goalValue:N0} (was {b.GoalType} {b.GoalValue:N0}). Binding for this campaign."
+                       + (string.IsNullOrWhiteSpace(note) ? "" : $" {note.Trim()}"),
             });
             (b.GoalType, b.GoalValue) = (goalType, goalValue);
         }

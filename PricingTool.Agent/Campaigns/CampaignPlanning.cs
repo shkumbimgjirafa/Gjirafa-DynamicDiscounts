@@ -95,7 +95,8 @@ public sealed class CampaignPlanning
         var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct);
         var days = brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1;
         // GjirafaMall SKUs that take Gjirafa50's price aren't planned here, but they sell during the campaign: their expected
-        // gross profit at today's price with the event lift, so a whole-Mall goal can be compared.
+        // gross profit at today's price with the event lift counts toward a gross-profit goal, which (like the past windows
+        // Nova anchors on) covers the whole Mall.
         var followersGp = Math.Round(followers.Sum(c => c.UnitsPerDay * days * (eventLift ?? 1m) * (c.CurrentPrice - c.Cost)) / (1m + layer.VatRatePct / 100m), 0);
 
         var plans = new List<CampaignPlan>();
@@ -103,12 +104,12 @@ public sealed class CampaignPlanning
         {
             var spec = new PlanSpec(brief.CalendarId ?? brief.Id, brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1, brief.GoalType, brief.GoalValue,
                 brief.MinMarginPct, Math.Min(brief.MaxDepthPct, _options.Campaigns.MaxDepthPct), layer.VatRatePct, eventLift ?? 1m,
-                ExcludedBrands(brief.Exclusions));
+                ExcludedBrands(brief.Exclusions)) { GrossProfitOutsidePlan = followersGp };
             var results = CampaignPlanner.Strategies.Select(s => CampaignPlanner.Plan(s, spec, candidates, depth, bands, _options.Campaigns.MaxSkusPerCampaign, leftOutBefore)).ToList();
             var basis = $"{candidates.Count:N0} SKUs in scope with stock and normal-day sales ({today.AddDays(-42):yyyy-MM-dd}..{today.AddDays(-15):yyyy-MM-dd}, campaign days left out); " +
                         $"{liftNote}; extra depth: {(depth.B is { } b ? $"b = {b} within-campaign fit" : "no fit, no extra units from depth")}; estimated." +
-                        (followers.Count > 0 ? $" Not planned here: {followers.Count:N0} SKUs that take Gjirafa50's price, expected gross profit {followersGp:N0} at today's prices with the event lift; " +
-                                               "for a goal that includes them, add it to a plan's gross profit." : "");
+                        (followers.Count > 0 ? $" Not planned here: {followers.Count:N0} SKUs that take Gjirafa50's price, expected gross profit {followersGp:N0} at today's prices " +
+                                               "with the event lift; it counts toward the gross-profit goal (whole Mall, as the past windows), estimated." : "");
             await SayAsync(brief, null, round, "code", $"Round {round}: three plans computed. {basis}\n{Describe(results, brief)}", null, ct);
 
             var choice = await AskAlphaAsync(brief, results, basis, round, ct);

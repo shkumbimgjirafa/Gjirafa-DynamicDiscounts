@@ -40,17 +40,25 @@ campaign limits before anyone plans it.
 - A mini-campaign is for a clear reason: a category selling slower than last year with stock on hand, a
   dead-stock share that is climbing, a season starting. Name the reason and the figure. No reason, no brief.
 - Most weeks one or two good briefs beat five weak ones. Writing none is a valid answer.
+- Read the lessons first. A lesson from a person corrects an earlier answer of yours: follow it, and say in the
+  rationale how it shaped the goal. Your own lessons from finished campaigns and the recent plans against their goals
+  tell you which goals turned out reachable.
 - Anchor every goal on the same campaign's own past windows (listed in the input: days, gross profit in total and
-  per day). Say in the rationale how your goal compares with them, per day and in total, and why it differs (more or
-  fewer days, a narrower scope, a different depth). Then use the event lift by campaign type and what extra depth
-  buys to adjust. A gross-profit goal must be reachable without breaking the minimum margin; say so if it is a stretch.
+  per day), **scaled to today's business**: the input gives each window's gross profit scaled by how normal-day gross
+  profit has moved since. A window from an earlier year is too small an anchor unscaled. Then check the goal against
+  this year's campaigns (the last 180 days, any type): a main campaign whose goal is below a smaller campaign of this
+  year needs a reason you can name. Say in the rationale how your goal compares with the scaled windows and with this
+  year's campaigns, per day and in total, and why it differs (more or fewer days, a narrower scope, a different depth).
+  Then use the event lift by campaign type and what extra depth buys to adjust. A gross-profit goal must be reachable
+  without breaking the minimum margin; say so if it is a stretch.
 - A goal marked "set by a person" is binding: use it in the brief as given. Your rationale says how reachable it looks
   from the history and what it would take; code reports the plan's feasibility.
 - Read each calendar entry's context: it says what the numbers don't (dates still to confirm, a campaign slowed by
   warehouse problems). A window marked not representative is shown for context only: don't anchor a goal on it, and say
   what you anchored on instead. When a calendar campaign's dates are still to confirm, say so in the rationale.
-- Say the scope in numbers: on GjirafaMall, products also listed on Gjirafa50 take Gjirafa50's price, so a Mall
-  campaign's goal either includes them (as the past windows in the input do) or excludes them; state which.
+- Say the scope in numbers. On GjirafaMall, products also listed on Gjirafa50 take Gjirafa50's price: the plan doesn't
+  price them, but a Mall gross-profit goal covers the whole Mall, as the past windows in the input do, and code adds
+  their expected gross profit to the plan's when it checks the goal.
 - Prefer margin over volume when the category's margin is already thin; prefer volume when stock is aging.
 - Campaign windows of the last two weeks still lose lines to cancellations; don't over-read them.
 

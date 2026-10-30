@@ -77,6 +77,20 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public void Gross_profit_from_skus_outside_the_plan_counts_toward_a_whole_mall_goal()
+    {
+        var candidates = Enumerable.Range(0, 20).Select(i => C($"S{i}", 100m, 100m, 60m)).ToList();
+        var alone = CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: 1m), candidates, Depth, NoRounding, 5000, new Dictionary<string, int>());
+        var goal = alone.Totals.GrossProfit + 500m;
+        Assert.False(CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: goal), candidates, Depth, NoRounding, 5000, new Dictionary<string, int>()).Feasible);
+        var whole = CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: goal) with { GrossProfitOutsidePlan = 600m }, candidates, Depth, NoRounding, 5000,
+            new Dictionary<string, int>());
+        Assert.True(whole.Feasible);
+        Assert.Contains("take Gjirafa50's price", whole.Feasibility);
+        Assert.Equal(alone.Totals.GrossProfit, whole.Totals.GrossProfit);                      // the plan's own totals stay its own
+    }
+
+    [Fact]
     public void The_strategies_trade_profit_for_volume_and_the_minimum_margin_holds()
     {
         var candidates = Enumerable.Range(0, 50).Select(i => C($"S{i}", 100m, 100m, 60m)).ToList();

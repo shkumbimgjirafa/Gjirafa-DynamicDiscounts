@@ -26,6 +26,7 @@ public class CampaignAgentTests : IDisposable
     private readonly AgentDbContext _db;
     private readonly PricingToolDbContext _tool;
     private readonly Queue<string> _answers = new();
+    private readonly List<string> _prompts = new();
     private long _blackFriday;
     private long _finished;
 
@@ -60,8 +61,11 @@ public class CampaignAgentTests : IDisposable
     {
         private readonly CampaignAgentTests _t;
         public Runner(CampaignAgentTests t) => _t = t;
-        public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default) =>
-            Task.FromResult(new ProcessResult(0, _t._answers.Dequeue(), "", false, TimeSpan.FromSeconds(30)));
+        public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default)
+        {
+            _t._prompts.Add(spec.StandardInput);
+            return Task.FromResult(new ProcessResult(0, _t._answers.Dequeue(), "", false, TimeSpan.FromSeconds(30)));
+        }
     }
 
     private sealed class Clock : TimeProvider
@@ -159,8 +163,18 @@ public class CampaignAgentTests : IDisposable
         Assert.Contains(await _db.CampaignMessages.Where(m => m.BriefId == brief.Id).ToListAsync(), m => m.Text.Contains("Goal set by a person"));
         await Assert.ThrowsAsync<ArgumentException>(() => calendar.SetGoalAsync(_blackFriday, "revenue", 1m, "user"));
 
+        // Nova learns: the override is stored as a correction, and a person's lesson, the correction and its own lesson from the
+        // finished campaign all reach the next pass's prompt.
+        var correction = await _db.AgentLessons.SingleAsync();
+        Assert.Equal((CampaignAgent.Source, LessonSource.Correction, (int?)Layer), (correction.Agent, correction.Source, correction.LayerId));
+        await new LessonBook(_db).AddAsync(CampaignAgent.Source, null, "Black Friday goals start from this year's Për ty, not from 2024.", "user");
+
         ModelSays(Layer, Brief("calendar", _blackFriday, "Black Friday 2026", "all", null, "2026-11-27", "2026-11-30"));
         var next = (await Nova().RunPassAsync(Layer)).Briefs.Single();
+        Assert.Contains("Black Friday goals start from this year's Për ty", _prompts[^1]);
+        Assert.Contains("a correction", _prompts[^1]);
+        Assert.Contains("Kozmetikë sells on depth; keep it short.", _prompts[^1]);
+        Assert.Contains("retires them):\n- none yet", _prompts[0].ReplaceLineEndings("\n"));                     // the first pass had none
         Assert.Equal((BriefStatus.Proposed, 57456m), (next.Status, next.GoalValue));
         Assert.Contains("Goal set by a person", next.LimitDetail);
         Assert.Equal(57456m, (await _db.CampaignCalendar.SingleAsync(c => c.Id == _blackFriday)).GoalValue);
