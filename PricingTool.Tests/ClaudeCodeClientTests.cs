@@ -1,0 +1,350 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using PricingTool.Agent;
+using PricingTool.Agent.ClaudeCode;
+using PricingTool.Agent.Storage;
+
+namespace PricingTool.Tests;
+
+/// <summary>
+/// The Claude Code client against a fake process: the command line it builds (isolation flags, model per
+/// role, prompt on stdin), the child environment, schema validation with one retry, typed failures, the
+/// kill switch, and the AiCallLog row written for every attempt.
+/// </summary>
+public class ClaudeCodeClientTests : IDisposable
+{
+    private const string Schema = """
+        {"type":"object","properties":{"action":{"enum":["raise","lower","keep"]},"confidence":{"type":"number","minimum":0,"maximum":1}},
+         "required":["action","confidence"],"additionalProperties":false}
+        """;
+
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "pt-agent-tests-" + Guid.NewGuid().ToString("N"));
+    private readonly string _systemPrompt;
+    private readonly AgentDbContext _db;
+
+    public ClaudeCodeClientTests()
+    {
+        Directory.CreateDirectory(_dir);
+        _systemPrompt = Path.Combine(_dir, "rules.md");
+        File.WriteAllText(_systemPrompt, "You are a test agent.");
+        _db = new AgentDbContext(new DbContextOptionsBuilder<AgentDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+    }
+
+    public void Dispose()
+    {
+        _db.Dispose();
+        try { Directory.Delete(_dir, recursive: true); } catch (IOException) { }
+    }
+
+    private sealed class FakeRunner : IProcessRunner
+    {
+        private readonly Queue<Func<ProcessSpec, ProcessResult>> _results = new();
+        public List<ProcessSpec> Calls { get; } = new();
+        public FakeRunner Returns(ProcessResult r) { _results.Enqueue(_ => r); return this; }
+        public FakeRunner Throws(Exception ex) { _results.Enqueue(_ => throw ex); return this; }
+
+        public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default)
+        {
+            Calls.Add(spec);
+            return Task.FromResult(_results.Dequeue()(spec));
+        }
+    }
+
+    private static ProcessResult Ok(string envelope) => new(0, envelope, "", false, TimeSpan.FromMilliseconds(1234));
+
+    /// <summary>The shape <c>claude -p --output-format json</c> prints.</summary>
+    private static string Envelope(string? result = null, string? structured = null, bool isError = false, string subtype = "success")
+    {
+        var o = new JsonObject
+        {
+            ["type"] = "result", ["subtype"] = subtype, ["is_error"] = isError,
+            ["duration_ms"] = 1100, ["duration_api_ms"] = 900, ["num_turns"] = 1,
+            ["result"] = result ?? "", ["session_id"] = "s", ["total_cost_usd"] = 0.0123m,
+            ["usage"] = new JsonObject
+            {
+                ["input_tokens"] = 120, ["cache_creation_input_tokens"] = 300,
+                ["cache_read_input_tokens"] = 4000, ["output_tokens"] = 45,
+            },
+            ["modelUsage"] = new JsonObject { ["claude-sonnet-5-5"] = new JsonObject { ["costUSD"] = 0.0123m } },
+        };
+        if (structured is not null) o["structured_output"] = JsonNode.Parse(structured);
+        return o.ToJsonString();
+    }
+
+    private ClaudeCodeClient Client(FakeRunner runner, bool enabled = true) =>
+        new(Options.Create(new AgentOptions
+        {
+            Enabled = enabled,
+            RuntimeDirectory = Path.Combine(_dir, "runtime"),
+            TimeoutSeconds = 60,
+            MaxBudgetUsdPerCall = 1.5m,
+        }), runner, _db, NullLogger<ClaudeCodeClient>.Instance);
+
+    private AgentCallRequest Request(AgentRole role = AgentRole.RunChecker, string? schema = Schema) =>
+        new(role, "unit-test", "Judge these rows: [secret-free test prompt]", _systemPrompt) { JsonSchema = schema };
+
+    [Fact]
+    public async Task Builds_an_isolated_headless_command_with_the_prompt_on_stdin()
+    {
+        var runner = new FakeRunner().Returns(Ok(Envelope(structured: """{"action":"keep","confidence":0.8}""")));
+
+        await Client(runner).CallAsync(Request(AgentRole.Alpha));
+
+        var spec = Assert.Single(runner.Calls);
+        var args = spec.Arguments.ToList();
+        Assert.Equal("claude", spec.FileName);
+        Assert.Equal(Path.Combine(_dir, "runtime"), spec.WorkingDirectory);
+        Assert.Contains("-p", args);
+        Assert.Equal("json", args[args.IndexOf("--output-format") + 1]);
+        Assert.Equal("opus", args[args.IndexOf("--model") + 1]);              // Alpha reasons on opus
+        Assert.Equal(_systemPrompt, args[args.IndexOf("--system-prompt-file") + 1]);
+        Assert.Equal("", args[args.IndexOf("--setting-sources") + 1]);       // no user/project/local settings
+        Assert.Equal("", args[args.IndexOf("--tools") + 1]);                 // no built-in tools
+        Assert.Contains("--strict-mcp-config", args);
+        Assert.Contains("--disable-slash-commands", args);
+        Assert.Contains("--no-session-persistence", args);
+        Assert.Equal("1.5", args[args.IndexOf("--max-budget-usd") + 1]);
+        Assert.Equal(Schema, args[args.IndexOf("--json-schema") + 1]);
+        Assert.DoesNotContain("--bare", args);                               // --bare can't use the subscription login
+        Assert.DoesNotContain("--mcp-config", args);
+        Assert.Equal("Judge these rows: [secret-free test prompt]", spec.StandardInput);
+        Assert.DoesNotContain(args, a => a.Contains("Judge these rows"));
+        Assert.Equal(TimeSpan.FromSeconds(60), spec.Timeout);
+    }
+
+    [Fact]
+    public void The_run_checker_uses_sonnet_and_our_mcp_tools_are_passed_only_when_given()
+    {
+        var client = Client(new FakeRunner());
+        var spec = client.BuildProcessSpec(Request() with
+        {
+            McpConfigFile = Path.Combine(_dir, "mcp.json"),
+            AllowedTools = new[] { "mcp__pricing__query_data", "mcp__pricing__get_current_config" },
+            MaxBudgetUsd = 0.25m,
+        }, _dir);
+
+        var args = spec.Arguments.ToList();
+        Assert.Equal("sonnet", args[args.IndexOf("--model") + 1]);
+        Assert.Equal(Path.Combine(_dir, "mcp.json"), args[args.IndexOf("--mcp-config") + 1]);
+        Assert.Equal("mcp__pricing__query_data,mcp__pricing__get_current_config", args[args.IndexOf("--allowedTools") + 1]);
+        Assert.Equal("0.25", args[args.IndexOf("--max-budget-usd") + 1]);
+    }
+
+    [Fact]
+    public void The_child_environment_drops_the_parent_sessions_claude_and_anthropic_variables()
+    {
+        var parent = new System.Collections.Hashtable
+        {
+            ["PATH"] = "C:\\bin",
+            ["USERPROFILE"] = "C:\\Users\\x",
+            ["CLAUDECODE"] = "1",
+            ["CLAUDE_CODE_ENTRYPOINT"] = "desktop",
+            ["CLAUDE_CODE_SIMPLE"] = "1",
+            ["ANTHROPIC_API_KEY"] = "must-not-pass",
+            ["ANTHROPIC_BASE_URL"] = "http://localhost:1234",
+            ["MCP_CONNECTION_NONBLOCKING"] = "1",
+            ["CLAUDE_CODE_OAUTH_TOKEN"] = "server-login",
+            ["CLAUDE_CODE_GIT_BASH_PATH"] = "C:\\Git\\bin\\bash.exe",
+        };
+
+        var env = ClaudeCodeClient.ChildEnvironment(parent);
+
+        Assert.Equal("C:\\bin", env["PATH"]);
+        Assert.Equal("C:\\Users\\x", env["USERPROFILE"]);
+        Assert.Equal("server-login", env["CLAUDE_CODE_OAUTH_TOKEN"]);
+        Assert.Equal("C:\\Git\\bin\\bash.exe", env["CLAUDE_CODE_GIT_BASH_PATH"]);
+        Assert.Equal("false", env["ENABLE_CLAUDEAI_MCP_SERVERS"]);
+        foreach (var dropped in new[] { "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SIMPLE", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "MCP_CONNECTION_NONBLOCKING" })
+            Assert.False(env.ContainsKey(dropped), dropped);
+    }
+
+    [Fact]
+    public async Task A_valid_structured_answer_succeeds_and_is_logged_with_its_cost()
+    {
+        var runner = new FakeRunner().Returns(Ok(Envelope(structured: """{"action":"raise","confidence":0.9}""")));
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.Succeeded, result.Status);
+        Assert.Equal("raise", result.Output!.Value.GetProperty("action").GetString());
+        var row = Assert.Single(await _db.AiCallLog.ToListAsync());
+        Assert.Equal(result.CallLogIds.Single(), row.Id);
+        Assert.Equal("RunChecker", row.Agent);
+        Assert.Equal("unit-test", row.Purpose);
+        Assert.Equal(1, row.Attempt);
+        Assert.Equal("sonnet", row.Model);
+        Assert.Equal("claude-sonnet-5-5", row.ModelIds);
+        Assert.Equal((120, 45, 4000, 300), (row.InputTokens, row.OutputTokens, row.CacheReadTokens, row.CacheCreationTokens));
+        Assert.Equal(0.0123m, row.CostUsd);
+        Assert.Equal((1100, 900, 1), (row.DurationMs!.Value, row.DurationApiMs!.Value, row.NumTurns!.Value));
+        Assert.Equal(1234, row.LatencyMs);
+        Assert.True(row.Success);
+        Assert.Equal("Succeeded", row.Status);
+        Assert.Null(row.Error);
+        Assert.Equal(Request().Prompt.Length, row.PromptChars);
+    }
+
+    [Fact]
+    public async Task A_json_answer_in_the_result_text_is_accepted_when_there_is_no_structured_output()
+    {
+        var runner = new FakeRunner().Returns(Ok(Envelope(result: "```json\n{\"action\":\"keep\",\"confidence\":0.5}\n```")));
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(0.5, result.Output!.Value.GetProperty("confidence").GetDouble());
+    }
+
+    [Fact]
+    public async Task An_answer_that_breaks_the_schema_is_retried_once_and_then_succeeds()
+    {
+        var runner = new FakeRunner()
+            .Returns(Ok(Envelope(structured: """{"action":"double it","confidence":3}""")))
+            .Returns(Ok(Envelope(structured: """{"action":"lower","confidence":0.6}""")));
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, runner.Calls.Count);
+        var rows = await _db.AiCallLog.OrderBy(r => r.Attempt).ToListAsync();
+        Assert.Equal(new[] { "InvalidOutput", "Succeeded" }, rows.Select(r => r.Status));
+        Assert.Contains("Schema check failed", rows[0].Error);
+        Assert.Contains("double it", rows[0].Output);                         // what the model said, for the audit
+        Assert.Equal(result.CallLogIds, rows.Select(r => r.Id));
+    }
+
+    [Fact]
+    public async Task Two_invalid_answers_end_in_a_typed_failure_with_no_output()
+    {
+        var runner = new FakeRunner()
+            .Returns(Ok(Envelope(result: "I think you should raise it.")))
+            .Returns(Ok(Envelope(structured: """{"action":"raise"}""")));
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.InvalidOutput, result.Status);
+        Assert.Null(result.Output);
+        Assert.Null(result.Deserialize<JsonElement?>());
+        Assert.NotNull(result.Error);
+        Assert.Equal(2, await _db.AiCallLog.CountAsync(r => !r.Success));
+    }
+
+    [Fact]
+    public async Task A_claude_code_error_is_retried_then_reported_as_cli_error()
+    {
+        var runner = new FakeRunner()
+            .Returns(new ProcessResult(1, Envelope(result: "API Error: 529 overloaded", isError: true, subtype: "error_during_execution"), "", false, TimeSpan.FromSeconds(2)))
+            .Returns(new ProcessResult(1, "", "Error: something broke before the answer", false, TimeSpan.FromSeconds(1)));
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.CliError, result.Status);
+        Assert.Contains("something broke", result.Error);
+        var rows = await _db.AiCallLog.OrderBy(r => r.Attempt).ToListAsync();
+        Assert.Equal(2, rows.Count);
+        Assert.Contains("overloaded", rows[0].Error);
+        Assert.Equal(0.0123m, rows[0].CostUsd);                               // a failed call still has a cost
+        Assert.Null(rows[1].CostUsd);
+    }
+
+    [Fact]
+    public async Task Not_logged_in_is_reported_plainly_and_not_retried()
+    {
+        // What Claude Code 2.1.205 prints when the machine has no subscription login (seen 2026-10-30).
+        var notLoggedIn = new JsonObject
+        {
+            ["type"] = "result", ["subtype"] = "success", ["is_error"] = true, ["duration_ms"] = 47, ["duration_api_ms"] = 0,
+            ["num_turns"] = 1, ["result"] = "Not logged in · Please run /login", ["total_cost_usd"] = 0,
+        }.ToJsonString();
+        var runner = new FakeRunner().Returns(new ProcessResult(1, notLoggedIn, "", false, TimeSpan.FromMilliseconds(1600)));
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.CliError, result.Status);
+        Assert.Contains("claude auth login", result.Error);
+        Assert.Single(runner.Calls);
+        var row = Assert.Single(await _db.AiCallLog.ToListAsync());
+        Assert.Equal(0, row.InputTokens + row.OutputTokens);
+    }
+
+    [Fact]
+    public async Task A_timeout_is_a_typed_failure_and_is_logged()
+    {
+        var killed = new ProcessResult(-1, "", "", true, TimeSpan.FromSeconds(60));
+        var runner = new FakeRunner().Returns(killed).Returns(killed);
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.TimedOut, result.Status);
+        Assert.Contains("60 s", result.Error);
+        Assert.All(await _db.AiCallLog.ToListAsync(), r => Assert.Equal("TimedOut", r.Status));
+    }
+
+    [Fact]
+    public async Task A_missing_executable_is_not_retried()
+    {
+        var runner = new FakeRunner().Throws(new System.ComponentModel.Win32Exception(2, "The system cannot find the file specified."));
+
+        var result = await Client(runner).CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.CliError, result.Status);
+        Assert.Contains("could not start", result.Error);
+        Assert.Single(runner.Calls);
+        Assert.Single(await _db.AiCallLog.ToListAsync());
+    }
+
+    [Fact]
+    public async Task The_kill_switch_makes_no_call_and_writes_no_row()
+    {
+        var runner = new FakeRunner();
+
+        var result = await Client(runner, enabled: false).CallAsync(Request());
+
+        Assert.Equal(AgentCallStatus.Disabled, result.Status);
+        Assert.Empty(runner.Calls);
+        Assert.Empty(await _db.AiCallLog.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Free_text_calls_return_the_answer_as_a_string()
+    {
+        var runner = new FakeRunner().Returns(Ok(Envelope(result: "Floors held this week.")));
+
+        var result = await Client(runner).CallAsync(Request(AgentRole.Chat, schema: null));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("Floors held this week.", result.Output!.Value.GetString());
+        Assert.DoesNotContain("--json-schema", runner.Calls.Single().Arguments);
+    }
+
+    [Fact]
+    public async Task A_runtime_folder_under_a_claude_md_is_refused()
+    {
+        var repo = Path.Combine(_dir, "repo");
+        Directory.CreateDirectory(repo);
+        File.WriteAllText(Path.Combine(repo, "CLAUDE.md"), "repo instructions");
+        var client = new ClaudeCodeClient(Options.Create(new AgentOptions
+        {
+            Enabled = true,
+            RuntimeDirectory = Path.Combine(repo, "runtime"),
+        }), new FakeRunner(), _db, NullLogger<ClaudeCodeClient>.Instance);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => client.CallAsync(Request()));
+        Assert.Contains("not isolated", ex.Message);
+    }
+
+    [Fact]
+    public void The_envelope_parser_ignores_noise_before_the_result_object()
+    {
+        var parsed = ClaudeCodeEnvelope.TryParse("warning: something\n" + Envelope(result: "x"));
+
+        Assert.NotNull(parsed);
+        Assert.Equal("x", parsed!.Result);
+        Assert.Null(ClaudeCodeEnvelope.TryParse("not json at all"));
+        Assert.Null(ClaudeCodeEnvelope.TryParse("{\"type\":\"system\"}"));
+    }
+}

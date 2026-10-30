@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using PricingTool.Agent;
 using PricingTool.Core.Options;
 using PricingTool.Data;
 using PricingTool.Data.Services;
@@ -23,6 +24,7 @@ else
 }
 
 builder.Services.AddPricingTool(builder.Configuration);
+builder.Services.AddPricingAgent(builder.Configuration);
 builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
 builder.Services.AddSingleton<RunLauncher>();
 
@@ -93,6 +95,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<PricingToolDbContext>();
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
     await DbInitializer.MigrateWithRetryAsync(db, startupLogger);
+    await scope.ServiceProvider.MigrateAgentDbAsync();
 
     var options = scope.ServiceProvider.GetRequiredService<IOptions<PricingEngineOptions>>().Value;
     if (app.Environment.IsEnvironment("Hackathon"))
