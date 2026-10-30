@@ -1,0 +1,18 @@
+# Exported company data stays local, never committed
+data/
+PricingTool.Web/exports/
+*.bak
+*.csv
+*.log
+
+# Secrets never live in the repo
+.env
+.env.*
+appsettings.*.local.json
+
+# Build output
+bin/
+obj/
+.vs/
+*.user
+TestResults/
