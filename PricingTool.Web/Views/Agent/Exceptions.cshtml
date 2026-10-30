@@ -153,6 +153,28 @@
     </tbody>
 </table>
 
+<h2 class="h5 mt-4">Campaign briefs held (@Model.HeldBriefs.Count)</h2>
+<p class="small text-muted">Briefs from Nova over a cap a person may lift (too many mini-campaigns at once on a layer). Nothing is planned or
+    published from a held brief.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>#</th><th>Layer</th><th>Campaign</th><th>Dates</th><th>Scope</th><th>Goal</th><th>Why it waits</th><th>Nova's rationale</th></tr></thead>
+    <tbody>
+    @foreach (var b in Model.HeldBriefs)
+    {
+        <tr class="table-warning">
+            <td>@b.Id</td><td>@Model.LayerName(b.LayerId)</td><td>@b.Name</td>
+            <td>@b.StartDate.ToString("yyyy-MM-dd")..@b.EndDate.ToString("yyyy-MM-dd")</td>
+            <td>@b.ScopeKind @b.ScopeValue</td><td>@b.GoalType @b.GoalValue.ToString("0.##")</td>
+            <td class="small">@b.LimitDetail</td><td class="small text-break">@b.Rationale</td>
+        </tr>
+    }
+    @if (Model.HeldBriefs.Count == 0)
+    {
+        <tr><td colspan="8" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
 <h2 class="h5 mt-4">Daily cycle steps that failed (@Model.FailedSteps.Count)</h2>
 <table class="table table-sm align-middle">
     <thead><tr><th>Day</th><th>Step</th><th>Started</th><th>Error</th></tr></thead>

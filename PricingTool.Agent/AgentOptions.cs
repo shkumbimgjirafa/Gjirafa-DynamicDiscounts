@@ -86,6 +86,9 @@ public class AgentOptions
     /// <summary>How applied decisions are measured and when one is rolled back (see <see cref="Operations.OutcomeTracker"/>).</summary>
     public OutcomeOptions Outcomes { get; set; } = new();
 
+    /// <summary>The caps code puts on every campaign brief and plan (see <see cref="Campaigns.CampaignLimits"/>).</summary>
+    public Campaigns.CampaignLimitOptions Campaigns { get; set; } = new();
+
     /// <summary>The owner's email for the organisers' time sheet (column B). Kept in user-secrets, never in a
     /// tracked file; empty leaves the column blank.</summary>
     public string TimeSheetOwnerEmail { get; set; } = "";
@@ -133,6 +136,9 @@ public class CycleOptions
 
     /// <summary>The day of the week Alpha's floor/target pass runs.</summary>
     public DayOfWeek AlphaDay { get; set; } = DayOfWeek.Monday;
+
+    /// <summary>The day of the week Nova's campaign pass runs (after Alpha's when both are on the same day).</summary>
+    public DayOfWeek NovaDay { get; set; } = DayOfWeek.Monday;
 
     /// <summary>Local time ("HH:mm") from which a running engine host starts the new day's cycle. A host that
     /// starts later in the day (at log-on) runs the cycle straight away.</summary>

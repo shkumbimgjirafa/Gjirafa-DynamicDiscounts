@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "layer": { "type": "integer", "enum": [1, 4] },
+    "briefs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": { "enum": ["calendar", "mini"] },
+          "calendarId": { "type": ["integer", "null"] },
+          "name": { "type": "string", "maxLength": 120 },
+          "scopeKind": { "enum": ["all", "category", "brand"] },
+          "scopeValue": { "type": ["string", "null"], "maxLength": 200 },
+          "startDate": { "type": "string", "description": "yyyy-MM-dd" },
+          "endDate": { "type": "string", "description": "yyyy-MM-dd" },
+          "goalType": { "enum": ["gross-profit", "margin", "units"] },
+          "goalValue": { "type": "number", "minimum": 0 },
+          "minMarginPct": { "type": "number", "minimum": 0, "maximum": 60 },
+          "maxDepthPct": { "type": "number", "minimum": 0, "maximum": 60 },
+          "exclusions": { "type": "array", "items": { "type": "string", "maxLength": 200 } },
+          "rationale": { "type": "string", "maxLength": 1000 },
+          "evidenceRefs": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["kind", "calendarId", "name", "scopeKind", "scopeValue", "startDate", "endDate", "goalType", "goalValue",
+                     "minMarginPct", "maxDepthPct", "exclusions", "rationale", "evidenceRefs"],
+        "additionalProperties": false
+      }
+    },
+    "resultsReview": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "calendarId": { "type": "integer" },
+          "lesson": { "type": "string", "maxLength": 800 }
+        },
+        "required": ["calendarId", "lesson"],
+        "additionalProperties": false
+      }
+    },
+    "summary": { "type": "string", "maxLength": 1500 }
+  },
+  "required": ["layer", "briefs", "resultsReview", "summary"],
+  "additionalProperties": false
+}

@@ -25,6 +25,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   query [--agent <role>] [--timeout <s>] "<sql>"                  run query_data with its guardrails
 //   ask --agent <role> [--schema <file>] "<question>"               one real Claude Code call with the data tools
 //   alpha-pass <layer> [--mode Autonomous|ApproveFirst|Off] [--test] Alpha's weekly floor/target pass for one layer
+//   nova-pass <layer> [--test]                                       Nova's weekly campaign pass for one layer (briefs, results)
 //   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
 //   publish-canary <layer> --run <id> --category <c> [--max n] [--rollback]   publish a run's sample, show the rows
 //   publish-rollback <batch id>                                     restore what a publish batch changed
@@ -297,6 +298,21 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "nova-pass":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var sw = Stopwatch.StartNew();
+        var r = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignAgent>().RunPassAsync(int.Parse(positional[0]), args.Contains("--test"));
+        Console.WriteLine($"Nova pass #{r.PassId}: {r.Status} in {sw.Elapsed.TotalSeconds:0} s, {r.Briefs.Count} briefs, {r.ResultsWritten} results {r.Error}");
+        foreach (var b in r.Briefs)
+            Console.WriteLine($"  [{b.Status}{(b.Limit is null ? "" : " " + b.Limit)}] {b.Kind} '{b.Name}' {b.ScopeKind} {b.ScopeValue} {b.StartDate:yyyy-MM-dd}..{b.EndDate:yyyy-MM-dd} " +
+                              $"goal {b.GoalType} {b.GoalValue:0.##}, min margin {b.MinMarginPct:0.#}%, max depth {b.MaxDepthPct:0.#}%\n      {b.Rationale}" +
+                              (b.LimitDetail is null ? "" : $"\n      code: {b.LimitDetail}"));
+        return r.Status is "Succeeded" or "Skipped" ? 0 : 1;
+    }
+
     case "campaign-data":
     {
         using var host = builder.Build();
@@ -434,7 +450,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

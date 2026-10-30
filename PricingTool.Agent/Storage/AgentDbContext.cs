@@ -31,6 +31,8 @@ public class AgentDbContext : DbContext
     public DbSet<AgentOutcome> AgentOutcomes => Set<AgentOutcome>();
     public DbSet<CategoryPause> CategoryPauses => Set<CategoryPause>();
     public DbSet<CampaignCalendarEntry> CampaignCalendar => Set<CampaignCalendarEntry>();
+    public DbSet<CampaignBrief> CampaignBriefs => Set<CampaignBrief>();
+    public DbSet<CampaignResult> CampaignResults => Set<CampaignResult>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -173,6 +175,36 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Status).HasMaxLength(20);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.Notes).HasMaxLength(2000);
+        });
+
+        builder.Entity<CampaignBrief>(e =>
+        {
+            e.ToTable("CampaignBrief");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.PassId);
+            e.HasIndex(x => x.CalendarId);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Kind).HasMaxLength(20);
+            e.Property(x => x.ScopeKind).HasMaxLength(20);
+            e.Property(x => x.ScopeValue).HasMaxLength(200);
+            e.Property(x => x.GoalType).HasMaxLength(20);
+            e.Property(x => x.GoalValue).HasPrecision(18, 2);
+            e.Property(x => x.MinMarginPct).HasPrecision(9, 2);
+            e.Property(x => x.MaxDepthPct).HasPrecision(9, 2);
+            e.Property(x => x.Exclusions).HasMaxLength(4000);
+            e.Property(x => x.Rationale).HasMaxLength(2000);
+            e.Property(x => x.EvidenceRefs).HasMaxLength(4000);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Limit).HasMaxLength(40);
+            e.Property(x => x.LimitDetail).HasMaxLength(500);
+        });
+
+        builder.Entity<CampaignResult>(e =>
+        {
+            e.ToTable("CampaignResult");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.CalendarId);
+            e.Property(x => x.Lesson).HasMaxLength(2000);
         });
 
         builder.Entity<CategoryPause>(e =>

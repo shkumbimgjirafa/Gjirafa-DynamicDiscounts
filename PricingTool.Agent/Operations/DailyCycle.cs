@@ -185,7 +185,15 @@ public sealed class DailyCycle
             return (StepStatus.Succeeded, $"{path} ({bytes / 1024.0 / 1024 / 1024:0.00} GB); {removed} old backups removed (keeping {c.KeepBackups})");
         });
         yield return new Step("cost-watcher", _ => Task.FromResult((StepStatus.NotBuilt, "CostWatcher (its own 15-minute loop) is not built yet")));
-        yield return new Step("nova", _ => Task.FromResult((StepStatus.NotBuilt, "Nova's weekly campaign pass is not built yet")));
+        foreach (var layer in c.Layers)
+            yield return new Step($"nova-L{layer}", async ct =>
+            {
+                if (day.DayOfWeek != c.NovaDay) return (StepStatus.Skipped, $"Nova's campaign pass runs on {c.NovaDay}s");
+                var r = await With((Campaigns.CampaignAgent n) => n.RunPassAsync(layer, ct: ct));
+                return (r.Status is "Succeeded" or "Skipped" ? StepStatus.Succeeded : StepStatus.Failed,
+                    $"pass #{r.PassId} {r.Status}: {r.Briefs.Count} briefs ({r.Count(BriefStatus.Proposed)} proposed, {r.Count(BriefStatus.Held)} held, " +
+                    $"{r.Count(BriefStatus.Rejected)} rejected), {r.ResultsWritten} campaign results {r.Error}");
+            });
     }
 
     /// <summary>Runs one step's work in its own DI scope (disposed afterwards).</summary>
