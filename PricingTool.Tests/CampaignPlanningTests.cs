@@ -329,6 +329,28 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public async Task A_persons_rules_keep_skus_out_and_raise_the_minimum_margin_on_their_days_only()
+    {
+        var (planning, _, brief) = Setup();
+        _db.ChatRules.AddRange(
+            new ChatRule { Kind = ChatRuleKinds.ExcludeBrand, Value = "Brand", FromDate = brief.StartDate, ToDate = brief.EndDate, Instruction = "test", CreatedBy = "user" },
+            new ChatRule { Kind = ChatRuleKinds.MinCampaignMargin, Value = "30", FromDate = brief.StartDate.AddDays(-1), ToDate = brief.StartDate, Instruction = "test", CreatedBy = "user" },
+            new ChatRule { Kind = ChatRuleKinds.MinCampaignMargin, Value = "60", FromDate = brief.EndDate.AddDays(1), ToDate = brief.EndDate.AddDays(9), Instruction = "test", CreatedBy = "user" },  // after the campaign
+            new ChatRule { Kind = ChatRuleKinds.ExcludeCategory, Value = "Kozmetikë", FromDate = brief.StartDate, ToDate = brief.EndDate, Instruction = "test", CreatedBy = "user",
+                RemovedUtc = DateTime.UtcNow, RemovedBy = "user" });                                                                                                     // removed
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "visible", ["explanation"] = "Visible." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        await planning.PlanAsync(brief.Id, publish: false);
+
+        var said = await _db.CampaignMessages.Where(m => m.From == "code").Select(m => m.Text).ToListAsync();
+        Assert.Contains(said, t => t.Contains("raises the minimum margin from 5% to 30%"));                  // 60 % is after the campaign: not applied
+        Assert.Contains(said, t => t.Contains("kept out by a person's rule") && t.Contains("exclude-brand Brand"));
+        Assert.DoesNotContain(said, t => t.Contains("exclude-category"));                                   // the removed rule
+    }
+
+    [Fact]
     public async Task A_person_goal_met_only_on_the_median_goes_ahead_and_waits_for_that_person()
     {
         var (planning, publisher, brief) = Setup();

@@ -53,6 +53,7 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<Campaigns.CampaignAgent>();
         services.AddScoped<Campaigns.ICampaignCandidateSource, Campaigns.SqlCampaignCandidateSource>();
         services.AddScoped<Campaigns.CampaignPlanning>();
+        services.AddScoped<Chat.AgentChat>();
         services.AddScoped<TimeSheetExporter>();
         services.AddScoped<DailyCycle>();
         services.AddScoped<ExceptionsInbox>();

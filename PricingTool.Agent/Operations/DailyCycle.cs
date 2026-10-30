@@ -193,6 +193,12 @@ public sealed class DailyCycle
             var waiting = await _db.CostObservations.CountAsync(o => o.ProcessedUtc == null, ct);
             return (StepStatus.Succeeded, $"cost watcher, last 24 h: {(done.Count == 0 ? "no cost moves" : string.Join(", ", done.Select(d => $"{d.Count} {d.Key}")))}; {waiting} waiting");
         });
+        yield return new Step("weekly-report", async ct =>
+        {
+            if (day.DayOfWeek != c.NovaDay) return (StepStatus.Skipped, $"The weekly report is written on {c.NovaDay}s");
+            var r = await With((Chat.AgentChat chat) => chat.WeeklyReportAsync(ct));
+            return (StepStatus.Succeeded, $"weekly report posted as the first message of conversation {r.ConversationId}");
+        });
         foreach (var layer in c.Layers)
             yield return new Step($"nova-L{layer}", async ct =>
             {

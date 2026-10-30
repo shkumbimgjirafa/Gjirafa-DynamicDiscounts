@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reply", "askAlpha", "brief", "rule"],
+  "properties": {
+    "reply": { "type": "string" },
+    "askAlpha": { "type": ["string", "null"] },
+    "brief": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["layer", "name", "scopeKind", "scopeValue", "startDate", "endDate", "goalType", "goalValue", "minMarginPct", "maxDepthPct", "rationale"],
+      "properties": {
+        "layer": { "type": "integer", "enum": [1, 4] },
+        "name": { "type": "string" },
+        "scopeKind": { "type": "string", "enum": ["all", "category", "brand"] },
+        "scopeValue": { "type": ["string", "null"] },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "goalType": { "type": "string", "enum": ["gross-profit", "margin", "units"] },
+        "goalValue": { "type": "number" },
+        "minMarginPct": { "type": "number" },
+        "maxDepthPct": { "type": "number" },
+        "rationale": { "type": "string" }
+      }
+    },
+    "rule": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["layer", "kind", "value", "fromDate", "toDate"],
+      "properties": {
+        "layer": { "type": ["integer", "null"] },
+        "kind": { "type": "string", "enum": ["exclude-brand", "exclude-category", "min-campaign-margin"] },
+        "value": { "type": "string" },
+        "fromDate": { "type": "string" },
+        "toDate": { "type": "string" }
+      }
+    }
+  }
+}

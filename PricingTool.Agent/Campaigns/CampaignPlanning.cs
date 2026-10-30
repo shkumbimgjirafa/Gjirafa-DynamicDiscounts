@@ -101,7 +101,14 @@ public sealed class CampaignPlanning
         var backtest = await (BacktestSource ?? (async (l, c) => await _tools.ReplayCampaignsAsync(l, c)))(layer.Id, ct);
         var calibration = backtest?.For(eventLift is not null);
         var bands = (await _bands.GetBandsAsync(layer.Id, ct)).ToDictionary(b => b.BandId);
-        var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct);
+        // People's rules from the chat that cover the campaign's days: they only tighten (exclusions, a higher minimum margin).
+        var rules = (await _db.ChatRules.AsNoTracking().Where(r => r.RemovedUtc == null && (r.LayerId == null || r.LayerId == layer.Id)).ToListAsync(ct))
+            .Where(r => r.ActiveOn(brief.StartDate, brief.EndDate)).ToList();
+        var ruleMinMargin = rules.Where(r => r.Kind == ChatRuleKinds.MinCampaignMargin)
+            .Select(r => decimal.TryParse(r.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : 0m).DefaultIfEmpty(0m).Max();
+        var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct, rules);
+        if (ruleMinMargin > brief.MinMarginPct)
+            await SayAsync(brief, null, 1, "code", $"A person's rule raises the minimum margin from {brief.MinMarginPct:0.#}% to {ruleMinMargin:0.#}% for these days.", null, ct);
         // A goal a person set for the calendar campaign is binding: Nova can't change it, and a plan short of it waits for a person.
         var personGoal = brief.Kind == "calendar" && calendar?.GoalSetBy is { } setBy && calendar.GoalType == brief.GoalType ? setBy : null;
         var days = brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1;
@@ -114,7 +121,7 @@ public sealed class CampaignPlanning
         for (var round = 1; round <= MaxRounds; round++)
         {
             var spec = new PlanSpec(brief.CalendarId ?? brief.Id, brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1, brief.GoalType, brief.GoalValue,
-                brief.MinMarginPct, Math.Min(brief.MaxDepthPct, _options.Campaigns.MaxDepthPct), layer.VatRatePct, eventLift ?? 1m,
+                Math.Max(brief.MinMarginPct, ruleMinMargin), Math.Min(brief.MaxDepthPct, _options.Campaigns.MaxDepthPct), layer.VatRatePct, eventLift ?? 1m,
                 ExcludedBrands(brief.Exclusions)) { GrossProfitOutsidePlan = followersGp, Calibration = calibration, InSampleCalibration = backtest?.InSampleCalibration };
             var results = CampaignPlanner.Strategies.Select(s => CampaignPlanner.Plan(s, spec, candidates, depth, bands, _options.Campaigns.MaxSkusPerCampaign, leftOutBefore)).ToList();
             var basis = $"{candidates.Count:N0} SKUs in scope with stock and normal-day sales ({today.AddDays(-42):yyyy-MM-dd}..{today.AddDays(-15):yyyy-MM-dd}, campaign days left out); " +
@@ -261,7 +268,7 @@ public sealed class CampaignPlanning
     }
 
     private async Task<(List<CampaignCandidate>, Dictionary<string, int>, List<CampaignCandidate> Followers)> CandidatesAsync(CampaignBrief brief, int layerId,
-        bool isMall, DateOnly today, CancellationToken ct)
+        bool isMall, DateOnly today, CancellationToken ct, IReadOnlyList<ChatRule>? rules = null)
     {
         var all = await _candidates.LoadAsync(layerId, today.AddDays(-42), today.AddDays(-14), ct);
         var holdouts = _options.Limits.Holdouts.TryGetValue(layerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
@@ -273,6 +280,12 @@ public sealed class CampaignPlanning
         {
             if (brief.ScopeKind == "category" && !string.Equals(c.Category, brief.ScopeValue, StringComparison.OrdinalIgnoreCase)) continue;
             if (brief.ScopeKind == "brand" && !string.Equals(c.Brand, brief.ScopeValue, StringComparison.OrdinalIgnoreCase)) continue;
+            if (rules?.FirstOrDefault(r => r.Kind == ChatRuleKinds.ExcludeBrand && string.Equals(r.Value, c.Brand, StringComparison.OrdinalIgnoreCase)
+                                           || r.Kind == ChatRuleKinds.ExcludeCategory && string.Equals(r.Value, c.Category, StringComparison.OrdinalIgnoreCase)) is { } kept)
+            {
+                Out($"kept out by a person's rule #{kept.Id} ({kept.Kind} {kept.Value})");
+                continue;
+            }
             if (c.DeadStock) { Out("dead stock or clearance lock (its own lane)"); continue; }
             if (isMall && c.FollowsGj50)
             {

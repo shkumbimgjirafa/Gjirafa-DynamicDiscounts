@@ -38,6 +38,8 @@ public class AgentDbContext : DbContext
     public DbSet<CampaignPlanLine> CampaignPlanLines => Set<CampaignPlanLine>();
     public DbSet<CampaignMessage> CampaignMessages => Set<CampaignMessage>();
     public DbSet<AgentLesson> AgentLessons => Set<AgentLesson>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<ChatRule> ChatRules => Set<ChatRule>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -258,6 +260,27 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Pptcv).HasPrecision(18, 4);
             e.Property(x => x.Source).HasMaxLength(200);
             e.Property(x => x.Outcome).HasMaxLength(40);
+        });
+
+        builder.Entity<ChatMessage>(e =>
+        {
+            e.ToTable("ChatMessage");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ConversationId);
+            e.Property(x => x.From).HasMaxLength(20);
+            e.Property(x => x.Author).HasMaxLength(256);
+            e.Property(x => x.Text).HasMaxLength(8000);
+        });
+
+        builder.Entity<ChatRule>(e =>
+        {
+            e.ToTable("ChatRule");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Kind).HasMaxLength(40);
+            e.Property(x => x.Value).HasMaxLength(200);
+            e.Property(x => x.Instruction).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(256);
+            e.Property(x => x.RemovedBy).HasMaxLength(256);
         });
 
         builder.Entity<AgentLesson>(e =>
