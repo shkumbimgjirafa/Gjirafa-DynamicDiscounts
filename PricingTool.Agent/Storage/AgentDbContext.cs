@@ -25,6 +25,9 @@ public class AgentDbContext : DbContext
     public DbSet<PublishException> PublishExceptions => Set<PublishException>();
     public DbSet<AgentRunCheck> AgentRunChecks => Set<AgentRunCheck>();
     public DbSet<AgentRunCheckRow> AgentRunCheckRows => Set<AgentRunCheckRow>();
+    public DbSet<DailyCycleStep> DailyCycleSteps => Set<DailyCycleStep>();
+    public DbSet<ExportBatch> ExportBatches => Set<ExportBatch>();
+    public DbSet<MoneyLedgerEntry> MoneyLedger => Set<MoneyLedgerEntry>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -109,6 +112,40 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Proof).HasMaxLength(500);
             e.Property(x => x.Comment).HasMaxLength(1000);
             e.Property(x => x.Source).HasMaxLength(20);
+        });
+
+        builder.Entity<DailyCycleStep>(e =>
+        {
+            e.ToTable("DailyCycleStep");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Step).HasMaxLength(40);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Detail).HasMaxLength(2000);
+            e.Property(x => x.Error).HasMaxLength(2000);
+            e.HasIndex(x => new { x.CycleDate, x.Step });
+        });
+
+        builder.Entity<ExportBatch>(e =>
+        {
+            e.ToTable("ExportBatch");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.FilePath).HasMaxLength(500);
+            e.Property(x => x.PushedBy).HasMaxLength(256);
+            e.Property(x => x.ExpectedGp30Eur).HasPrecision(18, 2);
+            e.HasIndex(x => x.RunId);
+        });
+
+        builder.Entity<MoneyLedgerEntry>(e =>
+        {
+            e.ToTable("MoneyLedgerEntry");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Source).HasMaxLength(30);
+            e.Property(x => x.ExpectedEur).HasPrecision(18, 2);
+            e.Property(x => x.ExpectedBasis).HasMaxLength(500);
+            e.Property(x => x.Measured7Eur).HasPrecision(18, 2);
+            e.Property(x => x.Measured30Eur).HasPrecision(18, 2);
+            e.Property(x => x.Evidence).HasMaxLength(2000);
+            e.HasIndex(x => new { x.Source, x.RefId }).IsUnique();
         });
 
         builder.Entity<AgentRunCheck>(e =>

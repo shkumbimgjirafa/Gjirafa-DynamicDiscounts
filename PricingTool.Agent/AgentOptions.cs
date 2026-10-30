@@ -64,6 +64,9 @@ public class AgentOptions
         Path.GetFullPath(string.IsNullOrWhiteSpace(ToolsExecutable) ? "PricingTool.AgentTools.exe" : ToolsExecutable,
             AppContext.BaseDirectory);
 
+    /// <summary>The daily cycle on the laptop (prompt 05).</summary>
+    public CycleOptions Cycle { get; set; } = new();
+
     /// <summary>At most this many flagged rows go to the run checker's one call per run (highest impact first).</summary>
     public int RunCheckerModelCap { get; set; } = 150;
 
@@ -111,6 +114,42 @@ public class ScorecardOptions
     /// <summary>A line counts as at the floor when its margin is within the tolerance below and this many
     /// points above the floor.</summary>
     public decimal AtFloorBandPp { get; set; } = 1.0m;
+}
+
+public class CycleOptions
+{
+    private static string Local(string name) =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PricingToolAgent", name);
+
+    /// <summary>The layers the cycle runs, in order (Gjirafa50 first: GjirafaMall adopts its prices).</summary>
+    public List<int> Layers { get; set; } = new() { 4, 1 };
+
+    /// <summary>The day of the week Alpha's floor/target pass runs.</summary>
+    public DayOfWeek AlphaDay { get; set; } = DayOfWeek.Monday;
+
+    /// <summary>Where the checked exports go for the team's push (outside the repo).</summary>
+    public string ExportDirectory { get; set; } = "";
+    public string BackupDirectory { get; set; } = "";
+    public string TimeSheetDirectory { get; set; } = "";
+    public int KeepBackups { get; set; } = 7;
+
+    /// <summary>Local engine runs whose proposals are kept per layer (imported prod runs are never touched).</summary>
+    public int KeepRunsPerLayer { get; set; } = 2;
+    public decimal SizeWarningGb { get; set; } = 8m;
+
+    /// <summary>The newest days of sales lines are re-pulled every day: late cancellations still remove lines.</summary>
+    public int SalesLateWindowDays { get; set; } = 14;
+
+    /// <summary>Products and the discount snapshot are reloaded when older than this (they change slowly; a full
+    /// reload is the heaviest replica read).</summary>
+    public int SnapshotRefreshDays { get; set; } = 7;
+
+    /// <summary>Who pushes the exports and owns the measurement, for the Approval record.</summary>
+    public string PushedBy { get; set; } = "pricing tool (team push)";
+
+    public string ExportDir() => string.IsNullOrWhiteSpace(ExportDirectory) ? Local("exports") : ExportDirectory;
+    public string BackupDir() => string.IsNullOrWhiteSpace(BackupDirectory) ? Local("backups") : BackupDirectory;
+    public string TimeSheetDir() => string.IsNullOrWhiteSpace(TimeSheetDirectory) ? Local("timesheet") : TimeSheetDirectory;
 }
 
 public class SafetyLimitOptions

@@ -32,7 +32,7 @@ public class RunCheckerTests : IDisposable
         _db = new AgentDbContext(new DbContextOptionsBuilder<AgentDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         _db.Database.EnsureCreated();
         _tool = new PricingToolDbContext(new DbContextOptionsBuilder<PricingToolDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        _tool.Layers.Add(new Layer { Id = 4, Brand = "Gjirafa50", CountryCode = "KS", DisplayName = "Gjirafa50 — Kosovo", OperationalDatabase = "GjirafaEcommerce", StoreId = 2, Currency = "EUR" });
+        _tool.Layers.Add(new Layer { Id = 4, Brand = "Gjirafa50", CountryCode = "KS", DisplayName = "Gjirafa50 — Kosovo", OperationalDatabase = "GjirafaEcommerce", StoreId = 2, Currency = "EUR", VatRatePct = 18m });
         _tool.PriceBands.Add(new PriceBand { Id = 26, LayerId = 4, Name = "10–50", MinPrice = 10, MaxPrice = 50, MarginFloorPct = 13, TargetMarginPct = 23,
             RoundingConvention = (int)RoundingConvention.Gj50Charm, RoundingEnabled = true });
         _tool.PricingRuns.Add(new PricingRun { Id = Run, LayerId = 4, Status = RunStatus.Succeeded, StartedUtc = new DateTime(2026, 10, 30, 16, 6, 0) });
@@ -98,7 +98,18 @@ public class RunCheckerTests : IDisposable
         return new RunChecker(_tool, _db, client, options, NullLogger<RunChecker>.Instance);
     }
 
-    private Task<ExportResult> Export() => new CheckedExport(_tool, _db).ExportAsync(Run, Path.Combine(_dir, "exports"));
+    private sealed class Holdouts : IHoldoutLookup
+    {
+        public HashSet<long> Ids { get; } = new();
+        public Task<IReadOnlySet<long>> HoldoutProposalIdsAsync(long runId, int layerId, IReadOnlyCollection<string> categories, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlySet<long>>(Ids);
+    }
+
+    private readonly Holdouts _holdouts = new();
+
+    private CheckedExport Exporter() => new(_tool, _db, _holdouts, Options.Create(new AgentOptions()));
+
+    private Task<ExportResult> Export() => Exporter().ExportAsync(Run, Path.Combine(_dir, "exports"));
 
     [Fact]
     public async Task Injected_bad_rows_block_the_run_and_the_block_stops_the_export()
@@ -219,6 +230,28 @@ public class RunCheckerTests : IDisposable
         Assert.Contains("3 flagged rows over the cap of 1", check.Notes);
         Assert.Equal(1, await _db.AgentRunCheckRows.CountAsync(r => r.ModelSeverity != null));
         Assert.Equal(Severity.Warn, (await _db.AgentRunCheckRows.SingleAsync(r => r.Sku == "INJ-UNCHARMED")).FinalSeverity);
+    }
+
+    [Fact]
+    public async Task The_holdout_is_left_out_and_a_pushed_export_becomes_the_tools_approval_once()
+    {
+        Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);
+        Injected(7, "INJ-HOLDOUT", 24.50m, 25.50m, 15m);
+        _holdouts.Ids.Add(7);
+        _tool.DailySnapshots.Add(new DailySnapshot { LayerId = 4, SnapshotDate = new DateTime(2026, 10, 30), Sku = "INJ-OK", Qty30 = 10 });
+        _tool.SaveChanges();
+        await Checker().CheckAsync(Run);                                                  // nothing flagged: no model call
+
+        var export = await Export();
+
+        Assert.Equal((1, 1), (export.Rows, export.LeftOutHoldout));
+        var batch = await _db.ExportBatches.SingleAsync();
+        Assert.Equal(Math.Round((49.50m - 52.50m) / 1.18m * 10, 2), batch.ExpectedGp30Eur);   // estimated, for reference only
+        var approvalId = await Exporter().MarkPushedAsync(batch.Id, "team push (test)");
+        Assert.Equal(approvalId, await Exporter().MarkPushedAsync(batch.Id, "team push (test)"));   // idempotent
+        var approval = await _tool.Approvals.Include(a => a.Items).SingleAsync();
+        Assert.Equal((Run, 1, 0, 1), (approval.SourceRunId, approval.SkuCount, approval.IncreaseCount, approval.DecreaseCount));
+        Assert.Equal(("INJ-OK", 52.50m, 49.50m), (approval.Items[0].Sku, approval.Items[0].OldPrice, approval.Items[0].NewPrice));
     }
 
     [Fact]

@@ -11,12 +11,19 @@
 
   <!-- The agents' fixed rules ship next to the app. The data dictionary is the data session's file in docs/,
        linked (not copied) so there is one source. -->
+  <!-- The replica queries the daily cycle runs (ported from docs/hackathon-2026/exports/). -->
   <ItemGroup>
-    <None Update="Prompts\**" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\docs\hackathon-2026\agent-data-dictionary.md" Link="Prompts\agent-data-dictionary.md" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Operations\Sql\*.sql" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Prompts\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\docs\hackathon-2026\agent-data-dictionary.md" Link="Prompts\agent-data-dictionary.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\docs\hackathon-2026\Time-sheet-template-hours-saved.xlsx" Link="Templates\Time-sheet-template-hours-saved.xlsx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="JsonSchema.Net" Version="9.5.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.16">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

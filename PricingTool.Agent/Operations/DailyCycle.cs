@@ -1,0 +1,197 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using PricingTool.Agent.Alpha;
+using PricingTool.Agent.Checker;
+using PricingTool.Agent.Storage;
+using PricingTool.Data;
+using PricingTool.Data.Entities;
+using PricingTool.Data.Services;
+
+namespace PricingTool.Agent.Operations;
+
+public static class StepStatus
+{
+    public const string Running = "Running";
+    public const string Succeeded = "Succeeded";
+    public const string Warning = "Warning";
+    public const string Skipped = "Skipped";
+    public const string Failed = "Failed";
+    public const string NotBuilt = "NotBuilt";
+
+    /// <summary>A step in one of these states is done for the day and is not run again.</summary>
+    public static bool IsDone(string s) => s is Succeeded or Warning or Skipped or NotBuilt;
+}
+
+/// <summary>
+/// The laptop's daily cycle for the 30 days (plan section 5 "Live operation on the laptop", prompt 05), one job
+/// per day: size check → incremental hk refresh → engine runs (Gjirafa50 first) → Alpha's pass (weekly, on its
+/// day) → run checks → exports for the team's push → money ledger → time-sheet export → retention → backup.
+/// Each step writes its own <c>ai.DailyCycleStep</c> row, and a failing step doesn't stop the rest. Idempotent
+/// per day: a second start resumes the steps not done yet; a failed step is retried at most
+/// <see cref="MaxAttemptsPerDay"/> times a day (so a failing AI step can't turn into a stream of paid calls).
+/// </summary>
+public sealed class DailyCycle
+{
+    public const int MaxAttemptsPerDay = 3;
+
+    private readonly IServiceProvider _sp;
+    private readonly AgentDbContext _db;
+    private readonly AgentOptions _options;
+    private readonly ILogger<DailyCycle> _logger;
+    private readonly TimeProvider _clock;
+
+    public DailyCycle(IServiceProvider sp, AgentDbContext db, IOptions<AgentOptions> options, ILogger<DailyCycle> logger, TimeProvider? clock = null)
+    {
+        _sp = sp;
+        _db = db;
+        _options = options.Value;
+        _logger = logger;
+        _clock = clock ?? TimeProvider.System;
+    }
+
+    public sealed record Step(string Name, Func<CancellationToken, Task<(string Status, string Detail)>> Run);
+
+    /// <summary>Tests only: the steps to run instead of the real ones.</summary>
+    internal Func<DateOnly, IEnumerable<Step>>? StepSource { get; set; }
+
+    public DateOnly Today() => DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+
+    public async Task<IReadOnlyList<DailyCycleStep>> RunAsync(DateOnly? date = null, CancellationToken ct = default)
+    {
+        var day = date ?? Today();
+        foreach (var step in (StepSource ?? Steps)(day))
+        {
+            var history = await _db.DailyCycleSteps.AsNoTracking().Where(s => s.CycleDate == day && s.Step == step.Name).ToListAsync(ct);
+            if (history.Any(s => StepStatus.IsDone(s.Status)) || history.Count(s => s.Status == StepStatus.Failed) >= MaxAttemptsPerDay)
+                continue;
+
+            var row = new DailyCycleStep { CycleDate = day, Step = step.Name, StartedUtc = _clock.GetUtcNow().UtcDateTime, Status = StepStatus.Running };
+            _db.DailyCycleSteps.Add(row);
+            await _db.SaveChangesAsync(ct);
+            try
+            {
+                var (status, detail) = await step.Run(ct);
+                row.Status = status;
+                row.Detail = Truncate(detail);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                row.Status = StepStatus.Failed;
+                row.Error = Truncate(ex.GetBaseException().Message);
+                _logger.LogError(ex, "Daily cycle {Day}: step {Step} failed; the cycle goes on.", day, step.Name);
+            }
+            row.FinishedUtc = _clock.GetUtcNow().UtcDateTime;
+            _db.ChangeTracker.Clear();
+            _db.DailyCycleSteps.Update(row);
+            await _db.SaveChangesAsync(CancellationToken.None);
+            _logger.LogInformation("Daily cycle {Day}: {Step} {Status} {Detail}", day, step.Name, row.Status, row.Detail ?? row.Error);
+        }
+        return await _db.DailyCycleSteps.AsNoTracking().Where(s => s.CycleDate == day).OrderBy(s => s.Id).ToListAsync(ct);
+    }
+
+    /// <summary>The steps in order. Each resolves its services in its own scope, so one step's failure or
+    /// tracked state never leaks into the next.</summary>
+    public IEnumerable<Step> Steps(DateOnly day)
+    {
+        var c = _options.Cycle;
+        yield return new Step("size-check", async ct =>
+        {
+            var (gb, warn) = await With((DatabaseMaintenance m) => m.SizeAsync(ct));
+            return (warn ? StepStatus.Warning : StepStatus.Succeeded,
+                $"{gb:0.00} GB used of LocalDB's 10 GB" + (warn ? $": over the {c.SizeWarningGb} GB warning line" : ""));
+        });
+        yield return new Step("refresh-hk", async ct =>
+        {
+            var results = await With((HkRefresher h) => h.RefreshAsync(ct));
+            return (StepStatus.Succeeded, string.Join("; ", results.Select(r =>
+                r.Mode == "kept" ? $"{r.Table} kept ({r.Note})" : $"{r.Table} {r.Mode} {r.Rows:N0} rows, replica {r.ReplicaMs / 1000.0:0.0} s")));
+        });
+        foreach (var layer in c.Layers)
+            yield return new Step($"engine-L{layer}", async ct =>
+            {
+                if (await TodaysRunAsync(layer, day, ct) is { } done)
+                    return (StepStatus.Skipped, $"already ran today: run #{done.Id}");
+                using var scope = _sp.CreateScope();
+                var run = await scope.ServiceProvider.GetRequiredService<PricingRunOrchestrator>().ExecuteRunAsync("daily cycle", isOnDemand: false, layer, ct);
+                var ok = run.Status is RunStatus.Succeeded or RunStatus.SucceededWithErrors;
+                return (ok ? StepStatus.Succeeded : StepStatus.Failed,
+                    $"run #{run.Id} {run.Status}: {run.SkuCount:N0} SKUs, {run.ProposalCount:N0} proposals, {run.ErrorCount} errors {run.ErrorMessage}");
+            });
+        foreach (var layer in c.Layers)
+            yield return new Step($"alpha-L{layer}", async ct =>
+            {
+                if (day.DayOfWeek != c.AlphaDay) return (StepStatus.Skipped, $"Alpha's pass runs on {c.AlphaDay}s");
+                var r = await With((FloorTargetAgent a) => a.RunPassAsync(layer, ct: ct));
+                var detail = $"pass #{r.PassId} {r.Status}: {r.Decisions.Count(d => d.Status == DecisionStatus.Applied && d.Action != "keep")} changed, " +
+                             $"{r.Count(DecisionStatus.Held)} held, {r.Count(DecisionStatus.Rejected)} rejected, {r.Count(DecisionStatus.Pending)} pending {r.Error}";
+                return (r.Status == "Succeeded" || r.Status == "Skipped" ? StepStatus.Succeeded : StepStatus.Failed, detail);
+            });
+        foreach (var layer in c.Layers)
+            yield return new Step($"check-L{layer}", async ct =>
+            {
+                var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
+                var r = await With((RunChecker k) => k.CheckAsync(run.Id, ct: ct));
+                return (r.Status == "Succeeded" ? StepStatus.Succeeded : StepStatus.Failed,
+                    $"check #{r.CheckId} of run #{run.Id}: verdict {r.Verdict}, {r.Flagged:N0} flagged, {r.Sent} judged; {r.Blocks} block, {r.Warns} warn, {r.Fixed} fixed {r.Error}");
+            });
+        foreach (var layer in c.Layers)
+            yield return new Step($"export-L{layer}", async ct =>
+            {
+                var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
+                var r = await With((CheckedExport x) => x.ExportAsync(run.Id, c.ExportDir(), ct));
+                return (r.Exported ? StepStatus.Succeeded : StepStatus.Warning, r.Reason + (r.FilePath is null ? "" : $" File: {r.FilePath}"));
+            });
+        yield return new Step("ledger", async ct =>
+        {
+            var (added, measured, s) = await With(async (MoneyLedger ledger) =>
+            {
+                var (a, m) = await ledger.UpdateAsync(ct);
+                return (a, m, await ledger.SummaryAsync(ct));
+            });
+            return (StepStatus.Succeeded, $"{added} new applied sets, {measured} windows measured; measured 30-day total {s.Measured30Eur:0} EUR " +
+                                          $"over {s.Entries} entries ({s.Measured30} measured at 30 days; unmeasured count as 0)");
+        });
+        yield return new Step("time-sheet", async ct =>
+        {
+            var r = await With((TimeSheetExporter t) => t.ExportAsync(ct));
+            return (StepStatus.Succeeded, $"{r.Exported} rows exported to {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before");
+        });
+        yield return new Step("retention", async ct =>
+        {
+            var (proposals, snapshots) = await With((DatabaseMaintenance m) => m.RetentionAsync(ct));
+            return (StepStatus.Succeeded, $"deleted {proposals:N0} proposals and {snapshots:N0} snapshot rows of older local runs (keeping {c.KeepRunsPerLayer} per layer and the imported prod runs)");
+        });
+        yield return new Step("backup", async ct =>
+        {
+            var (path, bytes, removed) = await With((DatabaseMaintenance m) => m.BackupAsync(ct));
+            return (StepStatus.Succeeded, $"{path} ({bytes / 1024.0 / 1024 / 1024:0.00} GB); {removed} old backups removed (keeping {c.KeepBackups})");
+        });
+        yield return new Step("cost-watcher", _ => Task.FromResult((StepStatus.NotBuilt, "CostWatcher (its own 15-minute loop) is not built yet")));
+        yield return new Step("nova", _ => Task.FromResult((StepStatus.NotBuilt, "Nova's weekly campaign pass is not built yet")));
+    }
+
+    /// <summary>Runs one step's work in its own DI scope (disposed afterwards).</summary>
+    private async Task<TResult> With<T, TResult>(Func<T, Task<TResult>> work) where T : notnull
+    {
+        using var scope = _sp.CreateScope();
+        return await work(scope.ServiceProvider.GetRequiredService<T>());
+    }
+
+    /// <summary>Today's successful engine run for the layer (local day), if there is one.</summary>
+    private async Task<PricingRun?> TodaysRunAsync(int layer, DateOnly day, CancellationToken ct)
+    {
+        var start = day.ToDateTime(TimeOnly.MinValue);
+        var startUtc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(start, DateTimeKind.Unspecified), _clock.LocalTimeZone);
+        using var scope = _sp.CreateScope();
+        var tool = scope.ServiceProvider.GetRequiredService<PricingToolDbContext>();
+        return await tool.PricingRuns.AsNoTracking()
+            .Where(r => r.LayerId == layer && r.StartedUtc >= startUtc && r.StartedUtc < startUtc.AddDays(1)
+                        && (r.Status == RunStatus.Succeeded || r.Status == RunStatus.SucceededWithErrors)
+                        && tool.ProposedPrices.Any(p => p.PricingRunId == r.Id))
+            .OrderByDescending(r => r.Id).FirstOrDefaultAsync(ct);
+    }
+
+    private static string? Truncate(string? s) => s is null || s.Length <= 2000 ? s : s[..2000];
+}
