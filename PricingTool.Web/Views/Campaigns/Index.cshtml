@@ -1,0 +1,81 @@
+@model CampaignsViewModel
+@using PricingTool.Agent.Storage
+@{
+    ViewData["Title"] = "Campaigns";
+    var isManager = User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager);
+    string Goal(string? type, decimal? value) => type is null ? "no goal" : type == "margin" ? $"margin {value:0.0}%" : $"{type} {value:N0}";
+    string PlanBadge(string? s) => s switch
+    {
+        PlanStatus.Published => "bg-success", PlanStatus.Held => "bg-warning text-dark", PlanStatus.Stopped => "bg-secondary",
+        PlanStatus.Accepted => "bg-primary", _ => "bg-light text-dark",
+    };
+}
+
+<h1 class="h3">Campaigns</h1>
+<p class="text-muted">
+    Nova (campaign agent) writes a brief for each calendar campaign and proposes mini-campaigns; Alpha (pricing agent) answers with a plan code
+    computed; an accepted plan is published as time-boxed discounts (the sandbox during the hackathon). A campaign published ahead of its start
+    can be stopped until it goes live. Every expected figure is an estimate; measured results appear once a campaign has ended.
+</p>
+@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
+@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+
+@foreach (var (title, rows, hint) in new[]
+{
+    ("Live", Model.Live, "Running today."),
+    ("Coming up", Model.ComingUp, "Published campaigns can be stopped until their first day."),
+    ("Done (last 120 days)", Model.Done, "Measured on the booked sales lines; the last two weeks still lose lines to cancellations."),
+})
+{
+    <h2 class="h5 mt-4">@title (@rows.Count)</h2>
+    <p class="small text-muted">@hint</p>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Campaign</th><th>Layer</th><th>Dates</th><th>Type</th><th>Goal</th><th>Plan</th><th>Expected</th><th>Result</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in rows)
+        {
+            <tr>
+                <td>
+                    <a asp-action="Detail" asp-route-id="@r.Entry.Id">@r.Entry.Name</a>
+                    @if (r.Entry.GoalSetBy is not null) { <span class="badge bg-info text-dark" title="@r.Entry.GoalSetBy">goal set by a person</span> }
+                    @if (!r.Entry.Representative) { <span class="badge bg-light text-dark" title="@r.Entry.Context">not representative</span> }
+                </td>
+                <td>@Model.LayerName(r.Entry.LayerId)</td>
+                <td class="text-nowrap">@r.Entry.StartDate.ToString("dd MMM")–@r.Entry.EndDate.ToString("dd MMM yyyy")</td>
+                <td>@r.Entry.Type</td>
+                <td>@Goal(r.Brief?.GoalType ?? r.Entry.GoalType, r.Brief?.GoalValue ?? r.Entry.GoalValue)</td>
+                <td>
+                    @if (r.Plan is { } p)
+                    {
+                        <span class="badge @PlanBadge(p.Status)">@p.Status</span>
+                        @if (!string.IsNullOrEmpty(p.GoalVerdict)) { <span class="small">@p.GoalVerdict</span> }
+                        @if (r.Batch?.RolledBackUtc is not null) { <span class="small text-muted">rolled back</span> }
+                    }
+                    else if (r.Brief is { } b) { <span class="small">brief @b.Status</span> }
+                    else { <span class="small text-muted">no brief yet</span> }
+                </td>
+                <td class="small">
+                    @if (r.Plan is { } p2)
+                    {
+                        <span>@p2.DiscountedSkus.ToString("N0") SKUs at @p2.AverageDepthPct.ToString("0.0")%, GP @p2.ExpectedGrossProfit.ToString("N0"), margin @p2.ExpectedMarginPct.ToString("0.0")%</span>
+                    }
+                </td>
+                <td class="small">@(r.Result is { } res ? (res.Provisional ? "measured, provisional" : "measured") : "")</td>
+                <td>
+                    @if (isManager && r.CanStop(Model.Today))
+                    {
+                        <form method="post" asp-action="Stop" onsubmit="return confirm('Stop @r.Entry.Name before it goes live? Its publish is rolled back.');">
+                            <input type="hidden" name="planId" value="@r.Plan!.Id" />
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Goes live @r.Entry.StartDate.ToString("ddd dd MMM") unless you stop it">Stop</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (rows.Count == 0)
+        {
+            <tr><td colspan="9" class="text-muted">None.</td></tr>
+        }
+        </tbody>
+    </table>
+}

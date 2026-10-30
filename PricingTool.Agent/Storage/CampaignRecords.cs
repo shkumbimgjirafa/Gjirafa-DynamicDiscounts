@@ -132,6 +132,8 @@ public static class PlanStatus
     public const string Held = "held";
     public const string Superseded = "superseded";
     public const string Published = "published";
+    /// <summary>A person stopped it in the veto window, before it went live: its publish rolled back.</summary>
+    public const string Stopped = "stopped";
 }
 
 /// <summary>

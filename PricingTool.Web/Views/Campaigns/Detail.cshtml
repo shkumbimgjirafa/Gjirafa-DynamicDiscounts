@@ -1,0 +1,116 @@
+@model CampaignDetailViewModel
+@using PricingTool.Agent.Storage
+@{
+    var e = Model.Entry;
+    ViewData["Title"] = e.Name;
+    var isManager = User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager);
+    var latest = Model.Plans.FirstOrDefault();
+    var latestBatch = latest?.PublishBatchId is { } bid && Model.Batches.TryGetValue(bid, out var b0) ? b0 : null;
+    string Goal(string? type, decimal? value) => type is null ? "no goal" : type == "margin" ? $"margin {value:0.0}%" : $"{type} {value:N0}";
+    string FromBadge(string from) => from switch
+    {
+        "Nova" => "bg-info text-dark", "Alpha" => "bg-primary", "code" => "bg-secondary", _ => "bg-warning text-dark",
+    };
+}
+
+<p><a asp-action="Index">&larr; Campaigns</a></p>
+<h1 class="h3">@e.Name</h1>
+<p class="text-muted">
+    @Model.LayerName · @e.StartDate.ToString("ddd dd MMM") – @e.EndDate.ToString("ddd dd MMM yyyy") · @e.Type · scope @e.ScopeKind @e.ScopeValue ·
+    goal @Goal(e.GoalType, e.GoalValue)
+    @if (e.GoalSetBy is not null) { <span class="badge bg-info text-dark">set by a person: @e.GoalSetBy</span> }
+</p>
+@if (e.Context is not null) { <div class="alert alert-light small"><strong>Context:</strong> @e.Context</div> }
+@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
+
+@if (latest is not null)
+{
+    <div class="card mb-3 @(latest.WaitsForPerson || latest.Status == PlanStatus.Held ? "border-warning" : "")">
+        <div class="card-body">
+            <h2 class="h6">Plan #@latest.Id: @latest.Strategy, <span class="badge bg-light text-dark">@latest.Status</span>
+                @if (!string.IsNullOrEmpty(latest.GoalVerdict)) { <span class="badge bg-light text-dark">@latest.GoalVerdict</span> }</h2>
+            <p class="mb-1">@latest.DiscountedSkus.ToString("N0") of @latest.SkusInScope.ToString("N0") SKUs discounted at @latest.AverageDepthPct.ToString("0.0")% on average;
+                @latest.HoldoutSkus.ToString("N0") SKUs are the campaign holdout. Expected: @latest.ExpectedUnits.ToString("N0") units,
+                net revenue @latest.ExpectedNetRevenue.ToString("N0"), gross profit @latest.ExpectedGrossProfit.ToString("N0")
+                (without any discount @latest.GrossProfitWithoutDiscounts.ToString("N0")), margin @latest.ExpectedMarginPct.ToString("0.0")% <span class="text-muted">(estimated)</span>.</p>
+            <p class="small mb-1"><strong>Goal:</strong> @latest.Feasibility</p>
+            <p class="small text-muted mb-1"><strong>Basis:</strong> @latest.Basis</p>
+            @if (latestBatch is not null)
+            {
+                <p class="small mb-1">Publish batch #@latestBatch.Id (@latestBatch.Target): @latestBatch.Status@(latestBatch.RolledBackUtc is not null ? ", rolled back" : "").</p>
+            }
+            @if (latest.WaitsForPerson || latest.Status == PlanStatus.Held)
+            {
+                <p class="mb-0"><a asp-controller="Agent" asp-action="Exceptions">It waits for you in the exceptions inbox.</a></p>
+            }
+            @if (isManager && latest.Status == PlanStatus.Published && latestBatch is { RolledBackUtc: null } && e.StartDate > Model.Today)
+            {
+                <form method="post" asp-action="Stop" class="mt-2" onsubmit="return confirm('Stop @e.Name before it goes live? Its publish is rolled back.');">
+                    <input type="hidden" name="planId" value="@latest.Id" />
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Stop before it goes live (@e.StartDate.ToString("ddd dd MMM"))</button>
+                </form>
+            }
+        </div>
+    </div>
+}
+
+@if (Model.Result is { } result)
+{
+    <h2 class="h5 mt-3">Result @(result.Provisional ? "(provisional: late cancellations still post)" : "")</h2>
+    <p class="small"><strong>Nova's lesson:</strong> @result.Lesson</p>
+    <pre class="small bg-light p-2 text-wrap">@result.Measured</pre>
+}
+
+<h2 class="h5 mt-3">The thread</h2>
+<p class="small text-muted">Nova's brief, the plans code computed, Alpha's choice and Nova's answer, and what code and people said, oldest first.</p>
+@foreach (var m in Model.Thread)
+{
+    <div class="mb-2">
+        <span class="badge @FromBadge(m.From)">@m.From</span>
+        <span class="small text-muted">round @m.Round@(m.PlanId is { } pid ? $" · plan #{pid}" : "") · @m.CreatedUtc.ToLocalTime().ToString("dd MMM HH:mm")</span>
+        <div class="small" style="white-space: pre-wrap">@m.Text</div>
+    </div>
+}
+@if (Model.Thread.Count == 0) { <p class="text-muted small">No thread yet: no brief has been planned.</p> }
+
+<h2 class="h5 mt-3">Briefs (@Model.Briefs.Count)</h2>
+<table class="table table-sm align-middle">
+    <thead><tr><th>#</th><th>Status</th><th>Dates</th><th>Goal</th><th>Min margin</th><th>Max depth</th><th>Rationale</th></tr></thead>
+    <tbody>
+    @foreach (var br in Model.Briefs)
+    {
+        <tr>
+            <td>@br.Id</td><td>@br.Status</td><td class="text-nowrap">@br.StartDate.ToString("dd MMM")–@br.EndDate.ToString("dd MMM")</td>
+            <td>@Goal(br.GoalType, br.GoalValue)</td><td>@br.MinMarginPct.ToString("0.#")%</td><td>@br.MaxDepthPct.ToString("0.#")%</td>
+            <td class="small text-break">@br.Rationale @if (br.LimitDetail is not null) { <br /><span class="text-muted">code: @br.LimitDetail</span> }</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+@if (Model.TopLines.Count > 0)
+{
+    <h2 class="h5 mt-3">The plan's biggest contributors</h2>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>SKU</th><th>Category</th><th class="text-end">Regular</th><th class="text-end">Today</th><th class="text-end">Campaign</th><th class="text-end">Depth</th><th class="text-end">Units</th><th class="text-end">GP</th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.TopLines)
+        {
+            <tr><td>@l.Sku</td><td>@l.Category</td><td class="text-end">@l.RegularPrice.ToString("0.00")</td><td class="text-end">@l.CurrentPrice.ToString("0.00")</td>
+                <td class="text-end">@l.CampaignPrice.ToString("0.00")</td><td class="text-end">@l.DepthPct.ToString("0.0")%</td>
+                <td class="text-end">@l.ExpectedUnits.ToString("0.0")</td><td class="text-end">@l.ExpectedGrossProfit.ToString("N0")</td></tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (Model.PastWindows.Count > 0)
+{
+    <h2 class="h5 mt-3">The same campaign before</h2>
+    <ul class="small">
+        @foreach (var w in Model.PastWindows)
+        {
+            <li>@w.Name, @w.Start.ToString("dd MMM yyyy")–@w.End.ToString("dd MMM")@(w.Representative ? "" : " (not representative)")@(w.Context is null ? "" : $": {w.Context}")</li>
+        }
+    </ul>
+}

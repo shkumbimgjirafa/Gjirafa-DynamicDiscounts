@@ -25,9 +25,12 @@ else
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);
-// The publisher's switches, shown on the Agent page. Only the options: the web's own push stays the CSV export.
+// The publisher's switches, shown on the Agent page. The web's own push stays the CSV export; the writer is here only so a
+// person can roll a publish back (the Campaigns tab's veto window); publishing runs in the engine host and AgentTools.
 builder.Services.Configure<PricingTool.NopIntegration.PublisherOptions>(
     builder.Configuration.GetSection(PricingTool.NopIntegration.PublisherOptions.SectionName));
+builder.Services.AddSingleton<PricingTool.NopIntegration.IShopCacheInvalidator, PricingTool.NopIntegration.ShopCacheInvalidator>();
+builder.Services.AddScoped<PricingTool.NopIntegration.NopDiscountWriter>();
 builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
 builder.Services.AddSingleton<RunLauncher>();
 
