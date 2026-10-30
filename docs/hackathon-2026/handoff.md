@@ -1,0 +1,1 @@
+#done prompt 05 · 2026-10-30 19:58 · commits bbf00fd..d4fa055 · not met: cost watcher and Nova not built (NotBuilt steps); Task Scheduler task not registered (the user's one command in GO-LIVE-LAPTOP.md); raise, minutes-before and owner email not set; the first cycle's two exports have no time-sheet row (it ran the older build)
