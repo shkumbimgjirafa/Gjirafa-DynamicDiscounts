@@ -11,12 +11,14 @@ using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 using PricingTool.AgentTools;
+using PricingTool.Data;
 
 // PricingTool.AgentTools: the agents' data tools as an MCP server, plus commands to check them by hand.
 //   mcp --agent <Alpha|Nova|RunChecker|Chat> [--call-tag <tag>]   stdio MCP server (Claude Code starts it)
 //   scorecard <layer> [<layer> ...]                                 print Alpha's scorecard and how long it took
 //   query [--agent <role>] [--timeout <s>] "<sql>"                  run query_data with its guardrails
 //   ask --agent <role> [--schema <file>] "<question>"               one real Claude Code call with the data tools
+//   alpha-pass <layer> [--mode Autonomous|ApproveFirst|Off] [--test] Alpha's weekly floor/target pass for one layer
 // Settings come from appsettings.json next to the executable (the hackathon DB; no secrets).
 
 var command = args.FirstOrDefault() ?? "";
@@ -38,6 +40,7 @@ if (Opt("--timeout") is { } timeout)
 if (command == "ask" && Environment.ProcessPath is { } self)
     builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Agent:ToolsExecutable"] = self });
 
+builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);
 builder.Services.AddSingleton(new AgentToolContext(role, Opt("--call-tag") ?? (command == "mcp" ? null : "cli")));
 
@@ -98,7 +101,27 @@ switch (command)
         return result.Succeeded ? 0 : 1;
     }
 
+    case "alpha-pass":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var layer = int.Parse(positional[0]);
+        if (Opt("--mode") is { } mode)
+            await scope.ServiceProvider.GetRequiredService<AgentModeStore>().SetAsync(layer, Enum.Parse<AutonomyMode>(mode, true), "cli");
+        var sw = Stopwatch.StartNew();
+        var result = await scope.ServiceProvider.GetRequiredService<FloorTargetAgent>().RunPassAsync(layer, isTest: args.Contains("--test"));
+        Console.WriteLine($"Pass #{result.PassId}: {result.Status} in {sw.Elapsed.TotalSeconds:0} s {result.Error}");
+        Console.WriteLine($"Applied {result.Count("Applied")} (changed {result.Decisions.Count(d => d.Status == "Applied" && d.Action != "keep")}), " +
+                          $"held {result.Count("Held")}, rejected {result.Count("Rejected")}, pending {result.Count("Pending")}");
+        foreach (var d in result.Decisions.OrderBy(d => d.BandId).ThenBy(d => d.Category))
+            Console.WriteLine($"#{d.Id} B{d.BandId} {d.Category} | {d.Status} {d.Action} floor {d.CurrentFloorPct:0.##}->{d.ProposedFloorPct:0.##} " +
+                              $"target {d.CurrentTargetPct:0.##}->{d.ProposedTargetPct:0.##} conf {d.Confidence:0.##} {d.Limit}\n    {d.Reason}" +
+                              (d.LimitDetail is null ? "" : $"\n    [limit] {d.LimitDetail}"));
+        return result.Status == "Succeeded" ? 0 : 1;
+    }
+
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass ... (see Program.cs)");
         return 2;
 }

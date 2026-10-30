@@ -3,12 +3,18 @@ using PricingTool.Agent.Tools;
 
 namespace PricingTool.Agent.Alpha;
 
+/// <summary>Where a pass gets its scorecard (a seam for tests).</summary>
+public interface IAlphaInputSource
+{
+    Task<AlphaScorecard> BuildAsync(int layerId, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Builds Alpha's scorecard for one layer (no AI): the last <see cref="ScorecardOptions.WindowDays"/> days
 /// ending <see cref="ScorecardOptions.LagDays"/> days ago, against the same weeks of last year, per band ×
 /// category. The SQL aggregates, <see cref="AlphaScorecard.Build"/> does the rest of the arithmetic.
 /// </summary>
-public sealed class AlphaInputBuilder
+public sealed class AlphaInputBuilder : IAlphaInputSource
 {
     private readonly PricingDataReader _reader;
     private readonly ScorecardOptions _options;

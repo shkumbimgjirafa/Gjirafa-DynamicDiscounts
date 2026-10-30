@@ -42,6 +42,7 @@ public class PricingToolDbContext : DbContext
     public DbSet<DeadStockEpisode> DeadStockEpisodes => Set<DeadStockEpisode>();
     public DbSet<DeadStockDailyKpi> DeadStockDailyKpis => Set<DeadStockDailyKpi>();
     public DbSet<PricingRunBandTarget> PricingRunBandTargets => Set<PricingRunBandTarget>();
+    public DbSet<BandCategoryRule> BandCategoryRules => Set<BandCategoryRule>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -181,6 +182,18 @@ public class PricingToolDbContext : DbContext
             e.Property(x => x.MaxPrice).HasPrecision(18, 2);
             e.Property(x => x.MarginFloorPct).HasPrecision(9, 4);
             e.Property(x => x.TargetMarginPct).HasPrecision(9, 4);
+        });
+
+        builder.Entity<BandCategoryRule>(e =>
+        {
+            e.ToTable("BandCategoryRules");
+            e.HasIndex(x => new { x.LayerId, x.BandId, x.Category }).IsUnique();
+            e.HasOne<Layer>().WithMany().HasForeignKey(x => x.LayerId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PriceBand>().WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Category).HasMaxLength(200);
+            e.Property(x => x.MarginFloorPct).HasPrecision(9, 4);
+            e.Property(x => x.TargetMarginPct).HasPrecision(9, 4);
+            e.Property(x => x.UpdatedBy).HasMaxLength(256);
         });
 
         builder.Entity<DiscountTrimRule>(e =>

@@ -69,6 +69,17 @@ public class AgentOptions
     /// <summary>Guardrails of the agents' own SQL (see <see cref="Tools.QueryDataService"/>).</summary>
     public QueryDataOptions QueryData { get; set; } = new();
 
+    /// <summary>The limits code enforces on every floor/target decision (see <see cref="Alpha.SafetyLimits"/>).</summary>
+    public SafetyLimitOptions Limits { get; set; } = new();
+
+    /// <summary>The owner's email for the organisers' time sheet (column B). Kept in user-secrets, never in a
+    /// tracked file; empty leaves the column blank.</summary>
+    public string TimeSheetOwnerEmail { get; set; } = "";
+
+    /// <summary>Alpha's weekly pass: one call per layer, with tools, so it gets more time and budget.</summary>
+    public int AlphaPassTimeoutSeconds { get; set; } = 900;
+    public decimal AlphaPassMaxBudgetUsd { get; set; } = 5m;
+
     public string ResolveRuntimeDirectory() =>
         string.IsNullOrWhiteSpace(RuntimeDirectory)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -96,6 +107,34 @@ public class ScorecardOptions
     /// <summary>A line counts as at the floor when its margin is within the tolerance below and this many
     /// points above the floor.</summary>
     public decimal AtFloorBandPp { get; set; } = 1.0m;
+}
+
+public class SafetyLimitOptions
+{
+    /// <summary>How far a floor or a target may move from its value 7 days earlier, in percentage points.</summary>
+    public decimal MaxStepPpPerWeek { get; set; } = 1.0m;
+
+    /// <summary>The lowest floor allowed on any layer without its own entry in <see cref="HardMinFloorPct"/>.
+    /// Above zero, so a floor always keeps the price above cost.</summary>
+    public decimal DefaultHardMinFloorPct { get; set; } = 5m;
+
+    /// <summary>Per-layer hard minimum floor, keyed by layer id ("1", "4").</summary>
+    public Dictionary<string, decimal> HardMinFloorPct { get; set; } = new();
+
+    /// <summary>Holdout categories per layer id: never changed by an agent; the control group.</summary>
+    public Dictionary<string, List<string>> Holdouts { get; set; } = new();
+
+    /// <summary>Anything outside these is malformed and rejected.</summary>
+    public decimal MaxFloorPct { get; set; } = 60m;
+    public decimal MaxTargetPct { get; set; } = 80m;
+
+    public decimal HardMinFloorFor(int layerId) =>
+        Math.Max(0.5m, HardMinFloorPct.TryGetValue(layerId.ToString(System.Globalization.CultureInfo.InvariantCulture), out var v)
+            ? v : DefaultHardMinFloorPct);
+
+    public bool IsHoldout(int layerId, string category) =>
+        Holdouts.TryGetValue(layerId.ToString(System.Globalization.CultureInfo.InvariantCulture), out var list)
+        && list.Any(c => string.Equals(c.Trim(), category.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
 public class QueryDataOptions

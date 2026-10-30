@@ -32,6 +32,9 @@ public static class AgentServiceCollectionExtensions
         services.AddSingleton(new AgentDataSource(config.GetConnectionString("PricingToolDb")!));
         services.AddSingleton<PricingDataReader>();
         services.AddSingleton<AlphaInputBuilder>();
+        services.AddSingleton<IAlphaInputSource>(sp => sp.GetRequiredService<AlphaInputBuilder>());
+        services.AddScoped<AgentModeStore>();
+        services.AddScoped<FloorTargetAgent>();
         services.AddScoped<AgentToolLog>();
         services.AddScoped<AgentDataTools>();
         services.AddScoped<QueryDataService>();

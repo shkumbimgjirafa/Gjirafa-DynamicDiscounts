@@ -56,6 +56,7 @@ public sealed record AlphaScorecard
     public required DateWindow Window { get; init; }
     public required DateWindow LastYear { get; init; }
     public required int ThinDataUnits { get; init; }
+    public required IReadOnlyList<BandConfigRow> Bands { get; init; }
     public required IReadOnlyList<CampaignWindow> CampaignsExcluded { get; init; }
     public EngineRunRef? StockRun { get; init; }
     public required IReadOnlyList<ScorecardRow> Rows { get; init; }
@@ -96,6 +97,7 @@ public sealed record AlphaScorecard
             Window = window,
             LastYear = lastYear,
             ThinDataUnits = options.ThinDataUnits,
+            Bands = bands,
             CampaignsExcluded = campaigns,
             StockRun = stockRun,
             Rows = rows,

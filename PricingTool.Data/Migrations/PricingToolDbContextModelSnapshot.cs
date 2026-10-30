@@ -376,6 +376,54 @@ namespace PricingTool.Data.Migrations
                     b.ToTable("BandAlgorithmSettings", "PricingTool");
                 });
 
+            modelBuilder.Entity("PricingTool.Data.Entities.BandCategoryRule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long?>("AgentDecisionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("BandId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("MarginFloorPct")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal?>("TargetMarginPct")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("LayerId", "BandId", "Category")
+                        .IsUnique();
+
+                    b.ToTable("BandCategoryRules", "PricingTool");
+                });
+
             modelBuilder.Entity("PricingTool.Data.Entities.DailyLayerKpi", b =>
                 {
                     b.Property<long>("Id")
@@ -1668,6 +1716,21 @@ namespace PricingTool.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("PriceBand");
+                });
+
+            modelBuilder.Entity("PricingTool.Data.Entities.BandCategoryRule", b =>
+                {
+                    b.HasOne("PricingTool.Data.Entities.PriceBand", null)
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PricingTool.Data.Entities.Layer", null)
+                        .WithMany()
+                        .HasForeignKey("LayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PricingTool.Data.Entities.DailyLayerKpi", b =>

@@ -43,6 +43,9 @@ public sealed record AgentCallRequest(AgentRole Role, string Purpose, string Pro
 
     /// <summary>Overrides <see cref="AgentOptions.MaxBudgetUsdPerCall"/> for this call.</summary>
     public decimal? MaxBudgetUsd { get; init; }
+
+    /// <summary>Overrides <see cref="AgentOptions.TimeoutSeconds"/> for this call (a pass with tools takes longer).</summary>
+    public int? TimeoutSeconds { get; init; }
 }
 
 /// <summary>

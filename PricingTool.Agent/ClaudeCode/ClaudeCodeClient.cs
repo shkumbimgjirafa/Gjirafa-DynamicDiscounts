@@ -188,7 +188,7 @@ public sealed class ClaudeCodeClient
         }
 
         return new ProcessSpec(_options.ClaudeExecutable, args, runtimeDirectory, request.Prompt,
-            ChildEnvironment(Environment.GetEnvironmentVariables()), TimeSpan.FromSeconds(_options.TimeoutSeconds));
+            ChildEnvironment(Environment.GetEnvironmentVariables()), TimeSpan.FromSeconds(request.TimeoutSeconds ?? _options.TimeoutSeconds));
     }
 
     /// <summary>The parent's environment minus its Claude / Anthropic / MCP variables (see the class
@@ -237,7 +237,7 @@ public sealed class ClaudeCodeClient
     {
         if (process.TimedOut)
             return new Outcome(AgentCallStatus.TimedOut, null, null,
-                $"No answer within {_options.TimeoutSeconds} s; the process was killed.", null);
+                $"No answer within {process.Elapsed.TotalSeconds:0} s; the process was killed.", null);
 
         var envelope = ClaudeCodeEnvelope.TryParse(process.StandardOutput);
         if (envelope is null)
