@@ -110,7 +110,8 @@ switch (command)
         if (Opt("--mode") is { } mode)
             await scope.ServiceProvider.GetRequiredService<AgentModeStore>().SetAsync(layer, Enum.Parse<AutonomyMode>(mode, true), "cli");
         var sw = Stopwatch.StartNew();
-        var result = await scope.ServiceProvider.GetRequiredService<FloorTargetAgent>().RunPassAsync(layer, isTest: args.Contains("--test"));
+        var result = await scope.ServiceProvider.GetRequiredService<FloorTargetAgent>().RunPassAsync(layer,
+            isTest: args.Contains("--test"), injectedTestNote: Opt("--test-note"));
         Console.WriteLine($"Pass #{result.PassId}: {result.Status} in {sw.Elapsed.TotalSeconds:0} s {result.Error}");
         Console.WriteLine($"Applied {result.Count("Applied")} (changed {result.Decisions.Count(d => d.Status == "Applied" && d.Action != "keep")}), " +
                           $"held {result.Count("Held")}, rejected {result.Count("Rejected")}, pending {result.Count("Pending")}");

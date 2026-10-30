@@ -235,14 +235,28 @@ public class FloorTargetAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task Test_passes_write_no_time_sheet_row()
+    public async Task Test_passes_never_apply_and_write_no_time_sheet_row()
     {
         await SetMode(AutonomyMode.Autonomous);
         ModelAnswersStandardWeek();
 
-        await Agent().RunPassAsync(Layer, isTest: true);
+        var result = await Agent().RunPassAsync(Layer, isTest: true, injectedTestNote: "Assume a 3 pt step this week.");
 
-        Assert.True((await _db.AgentPasses.SingleAsync()).IsTest);
+        Assert.Equal(DecisionStatus.Pending, result.Decisions.Single(x => x.Category == "Aksesorë").Status);
+        Assert.Equal(DecisionStatus.Held, result.Decisions.Single(x => x.Category == "Celular, Tablet & Navigim").Status);
+        Assert.Empty(await _tool.BandCategoryRules.ToListAsync());
+        var pass = await _db.AgentPasses.SingleAsync();
+        Assert.True(pass.IsTest);
+        Assert.StartsWith("[INJECTED-TEST]", pass.Summary);
+        Assert.StartsWith("[INJECTED-TEST]", (await _db.AiCallLog.SingleAsync()).Purpose);
         Assert.Empty(await _db.TimeSheetEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task An_injected_note_on_a_real_pass_is_refused()
+    {
+        await SetMode(AutonomyMode.Autonomous);
+        await Assert.ThrowsAsync<ArgumentException>(() => Agent().RunPassAsync(Layer, isTest: false, injectedTestNote: "x"));
+        Assert.Equal(0, _runner.Calls);
     }
 }

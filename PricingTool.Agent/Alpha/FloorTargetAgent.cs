@@ -62,9 +62,15 @@ public sealed class FloorTargetAgent
     /// <summary>Where the rules, the decision schema and the data dictionary ship.</summary>
     public static string PromptsDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Prompts");
 
-    /// <param name="isTest">Demo or backtest pass: stored, but writes no time-sheet row.</param>
-    public async Task<AlphaPassResult> RunPassAsync(int layerId, bool isTest = false, CancellationToken ct = default)
+    /// <param name="isTest">Demo, backtest or injected test: stored and labelled, but it never applies anything
+    /// (within-limit changes stay Pending) and writes no time-sheet row.</param>
+    /// <param name="injectedTestNote">Test passes only: text appended to the prompt, labelled [INJECTED-TEST]
+    /// (e.g. a looser limit than code enforces, to show code holds what the model asks beyond it).</param>
+    public async Task<AlphaPassResult> RunPassAsync(int layerId, bool isTest = false, CancellationToken ct = default,
+        string? injectedTestNote = null)
     {
+        if (injectedTestNote is not null && !isTest)
+            throw new ArgumentException("An injected test note is only allowed on a test pass.", nameof(injectedTestNote));
         if (!_options.Enabled)
             return new AlphaPassResult(null, "Skipped", "Agent:Enabled is off (kill switch): no pass, nothing changed.", Array.Empty<AgentDecision>());
         var mode = await _modes.GetAsync(layerId, ct);
@@ -85,8 +91,11 @@ public sealed class FloorTargetAgent
         var rows = effective.Rows.Where(r => r.BandId is { } id && bands.ContainsKey(id) && r.Units > 0).ToList();
         var recent = await AppliedChangesSinceAsync(layerId, now.AddDays(-7), ct);
 
-        var call = await _client.CallAsync(new AgentCallRequest(AgentRole.Alpha, $"floor-target L{layerId}",
-            BuildPrompt(effective, rows, mode, recent), Path.Combine(PromptsDirectory, "pricing-agent-rules.md"))
+        var prompt = BuildPrompt(effective, rows, mode, recent);
+        if (injectedTestNote is not null) prompt += $"\n[INJECTED-TEST] {injectedTestNote}\n";
+        var call = await _client.CallAsync(new AgentCallRequest(AgentRole.Alpha,
+            isTest ? $"[INJECTED-TEST] floor-target L{layerId}" : $"floor-target L{layerId}",
+            prompt, Path.Combine(PromptsDirectory, "pricing-agent-rules.md"))
         {
             AppendSystemPromptFiles = new[] { Path.Combine(PromptsDirectory, "agent-data-dictionary.md") },
             JsonSchema = await File.ReadAllTextAsync(Path.Combine(PromptsDirectory, "floor-target-decision.schema.json"), ct),
@@ -134,7 +143,7 @@ public sealed class FloorTargetAgent
             var verdict = SafetyLimits.Evaluate(new LimitInput(layerId, row.Category, row.ThinData, _options.Limits.IsHoldout(layerId, row.Category),
                 floor, target, floor - moved.Floor, target - moved.Target, p.Action, p.NewFloorPct, p.NewTargetPct), _options.Limits);
             Fill(decision, p, queryIds, verdict.Action, verdict.Floor, verdict.Target,
-                verdict.Status == DecisionStatus.Applied && verdict.Action != "keep" && mode == AutonomyMode.ApproveFirst
+                verdict.Status == DecisionStatus.Applied && verdict.Action != "keep" && (mode == AutonomyMode.ApproveFirst || isTest)
                     ? DecisionStatus.Pending : verdict.Status,
                 verdict.Limit, verdict.Detail);
         }
@@ -155,7 +164,7 @@ public sealed class FloorTargetAgent
         pass.Held = decisions.Count(d => d.Status == DecisionStatus.Held);
         pass.Rejected = decisions.Count(d => d.Status == DecisionStatus.Rejected);
         pass.Pending = decisions.Count(d => d.Status == DecisionStatus.Pending);
-        pass.Summary = Truncate(answer.Summary, 4000);
+        pass.Summary = Truncate(isTest ? "[INJECTED-TEST] " + answer.Summary : answer.Summary, 4000);
         pass.Status = "Succeeded";
         pass.FinishedUtc = _clock.GetUtcNow().UtcDateTime;
         await _db.SaveChangesAsync(CancellationToken.None);
