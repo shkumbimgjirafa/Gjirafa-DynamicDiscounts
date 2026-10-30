@@ -14,6 +14,8 @@ public class AgentStatusViewModel
     public PublisherOptions Publisher { get; init; } = new();
     public int Waiting { get; init; }
     public IReadOnlyList<AgentPass> RecentPasses { get; init; } = Array.Empty<AgentPass>();
+    /// <summary>Per pass: applied decisions that changed a floor or target (a pass's Applied count includes its keeps).</summary>
+    public IReadOnlyDictionary<long, int> Changed { get; init; } = new Dictionary<long, int>();
     public IReadOnlyDictionary<int, string> LayerNames { get; init; } = new Dictionary<int, string>();
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";

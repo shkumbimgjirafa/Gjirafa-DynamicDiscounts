@@ -60,12 +60,17 @@ public class ExceptionsInboxTests : IDisposable
 
         var stopped = Batch("Stopped");
         var rolledBack = Batch("RolledBack");
+        rolledBack.RoundTripChecked = 10;
+        rolledBack.RoundTripMismatches = 3;                                 // rolled back by the round-trip check
+        var canary = Batch("RolledBack");
+        canary.RoundTripChecked = 9;                                        // a clean canary a person rolled back: listed only
         var withExceptions = Batch("Published");
-        _ai.PublishBatches.AddRange(stopped, rolledBack, withExceptions, Batch("Published"));
+        _ai.PublishBatches.AddRange(stopped, rolledBack, canary, withExceptions, Batch("Published"));
         _ai.SaveChanges();
         _ai.PublishExceptions.AddRange(
             new PublishException { BatchId = withExceptions.Id, Sku = "A", Kind = "cheaper-deal", Detail = "", CreatedUtc = _recent },
-            new PublishException { BatchId = withExceptions.Id, Sku = "B", Kind = "cheaper-deal", Detail = "", CreatedUtc = _recent });
+            new PublishException { BatchId = withExceptions.Id, Sku = "B", Kind = "cheaper-deal", Detail = "", CreatedUtc = _recent },
+            new PublishException { BatchId = canary.Id, Sku = "C", Kind = "cheaper-deal", Detail = "", CreatedUtc = _recent });
 
         var today = DateOnly.FromDateTime(DateTime.Now);
         _ai.DailyCycleSteps.AddRange(
@@ -80,7 +85,8 @@ public class ExceptionsInboxTests : IDisposable
         Assert.Equal("10-50", inbox.Decisions[0].BandName);
         Assert.Equal(1101, Assert.Single(inbox.BlockedRuns).RunId);
         Assert.Equal(1102, Assert.Single(inbox.RunsWithHeldPrices).RunId);
-        Assert.Equal(3, inbox.Publishes.Count);
+        Assert.Equal(4, inbox.Publishes.Count);
+        Assert.False(inbox.Publishes.Single(p => p.Batch.Id == canary.Id).NeedsAPerson);
         Assert.Equal(("cheaper-deal", 2), Assert.Single(inbox.Publishes.Single(p => p.Batch.Id == withExceptions.Id).Exceptions));
         Assert.Equal("backup", Assert.Single(inbox.FailedSteps).Step);
         Assert.Equal(2 + 1 + 2 + 1, inbox.WaitingCount);                    // decisions + blocked run + stopped/rolled back + failed step

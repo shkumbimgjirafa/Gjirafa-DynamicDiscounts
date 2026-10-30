@@ -78,7 +78,7 @@
 </table>
 
 <h2 class="h5 mt-4">Publishing (@Model.Publishes.Count(p => p.NeedsAPerson) waiting)</h2>
-<p class="small text-muted">Publishes in the last 7 days that were stopped by a switch, rolled back or failed (waiting), and published batches with SKUs the publisher left out (listed only).</p>
+<p class="small text-muted">Publishes in the last 7 days that were stopped by a switch, failed, or rolled back because prices did not read back (waiting); a rollback asked for after a clean read-back (e.g. a canary) and published batches with SKUs the publisher left out are listed only.</p>
 <table class="table table-sm align-middle">
     <thead><tr><th>Batch</th><th>Layer</th><th>Status</th><th>Target</th><th>When</th><th class="text-end">Requested</th><th class="text-end">Skipped</th><th>Why</th></tr></thead>
     <tbody>

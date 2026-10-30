@@ -121,7 +121,8 @@
 <h2 class="h5 mt-4">Recent passes</h2>
 <table class="table table-sm align-middle">
     <thead><tr><th>#</th><th>Agent</th><th>Layer</th><th>Mode</th><th>Status</th><th>Started</th>
-        <th class="text-end">Applied</th><th class="text-end">Held</th><th class="text-end">Rejected</th><th class="text-end">Pending</th><th>Summary</th></tr></thead>
+        <th class="text-end" title="Applied decisions that changed a floor or target; keeps are applied too but change nothing">Changed</th>
+        <th class="text-end">Kept</th><th class="text-end">Held</th><th class="text-end">Rejected</th><th class="text-end">Pending</th><th>Summary</th></tr></thead>
     <tbody>
     @foreach (var p in Model.RecentPasses)
     {
@@ -132,7 +133,8 @@
             <td>@p.Mode</td>
             <td><span class="badge @PassBadge(p.Status)">@p.Status</span></td>
             <td>@p.StartedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-            <td class="text-end">@p.Applied</td>
+            <td class="text-end">@Model.Changed.GetValueOrDefault(p.Id)</td>
+            <td class="text-end">@(p.Applied - Model.Changed.GetValueOrDefault(p.Id))</td>
             <td class="text-end">@p.Held</td>
             <td class="text-end">@p.Rejected</td>
             <td class="text-end">@p.Pending</td>
@@ -141,7 +143,7 @@
     }
     @if (Model.RecentPasses.Count == 0)
     {
-        <tr><td colspan="11" class="text-muted">No real passes yet.</td></tr>
+        <tr><td colspan="12" class="text-muted">No real passes yet.</td></tr>
     }
     </tbody>
 </table>

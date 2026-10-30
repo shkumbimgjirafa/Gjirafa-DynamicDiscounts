@@ -43,13 +43,19 @@ public class AgentController : Controller
         var autonomy = new List<LayerAutonomy>();
         foreach (var l in layers) autonomy.Add(new LayerAutonomy(l.Id, l.DisplayName, await _modes.GetAsync(l.Id)));
         var inbox = await _inbox.LoadAsync();
+        var passes = await _ai.AgentPasses.AsNoTracking().Where(p => !p.IsTest).OrderByDescending(p => p.Id).Take(8).ToListAsync();
+        var passIds = passes.Select(p => p.Id).ToList();
+        var changed = await _ai.AgentDecisions.AsNoTracking()
+            .Where(d => passIds.Contains(d.PassId) && d.Status == DecisionStatus.Applied && d.Action != "keep")
+            .GroupBy(d => d.PassId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count);
         return View(new AgentStatusViewModel
         {
             KillSwitch = await _killSwitch.GetAsync(),
             Layers = autonomy,
             Publisher = _publisher,
             Waiting = inbox.WaitingCount,
-            RecentPasses = await _ai.AgentPasses.AsNoTracking().Where(p => !p.IsTest).OrderByDescending(p => p.Id).Take(8).ToListAsync(),
+            RecentPasses = passes,
+            Changed = changed,
             LayerNames = inbox.LayerNames,
         });
     }

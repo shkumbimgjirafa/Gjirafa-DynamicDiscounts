@@ -10,9 +10,10 @@ public sealed record WaitingDecision(AgentDecision Decision, string BandName);
 
 public sealed record PublishProblem(PublishBatch Batch, IReadOnlyList<(string Kind, int Count)> Exceptions)
 {
-    /// <summary>Stopped (a switch), rolled back or failed: a person should look. A published batch with a few
-    /// exceptions (e.g. a cheaper team deal) is listed but doesn't count as waiting.</summary>
-    public bool NeedsAPerson => Batch.Status is "Stopped" or "RolledBack" or "Failed";
+    /// <summary>Stopped (a switch), failed, or rolled back because prices did not read back: a person should look.
+    /// A rollback after a clean read-back was asked for by a person (e.g. a canary) and a published batch with a few
+    /// exceptions (e.g. a cheaper team deal) are listed but don't count as waiting.</summary>
+    public bool NeedsAPerson => Batch.Status is "Stopped" or "Failed" || Batch.Status == "RolledBack" && Batch.RoundTripMismatches > 0;
 }
 
 /// <summary>What the exceptions inbox shows: only what needs a person (plan section 5, "Exceptions inbox").</summary>
