@@ -109,5 +109,30 @@ public class AgentController : Controller
         return RedirectToAction(nameof(Exceptions));
     }
 
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReleasePause(long pauseId)
+    {
+        var pause = await _ai.CategoryPauses.SingleOrDefaultAsync(p => p.Id == pauseId);
+        if (pause is null || pause.ReleasedUtc is not null)
+        {
+            TempData["Error"] = $"Pause #{pauseId} is not active.";
+            return RedirectToAction(nameof(Exceptions));
+        }
+        var now = DateTime.UtcNow;
+        pause.ReleasedUtc = now;
+        pause.ReleasedBy = Who;
+        await _ai.SaveChangesAsync();
+        _db.AuditLog.Add(new PricingTool.Data.Entities.AuditLogEntry
+        {
+            LayerId = pause.LayerId, TimestampUtc = now, UserName = Who, Category = AgentModeStore.AuditCategory, Action = "Category pause released",
+            EntityType = nameof(CategoryPause), EntityId = $"{pause.BandId} {pause.Category}", OldValue = "paused", NewValue = "released",
+        });
+        await _db.SaveChangesAsync();
+        TempData["Message"] = $"Band {pause.BandId} × {pause.Category} released: the pricing agent's changes there follow the normal limits again.";
+        return RedirectToAction(nameof(Exceptions));
+    }
+
     private string Who => User.Identity?.Name ?? "unknown";
 }

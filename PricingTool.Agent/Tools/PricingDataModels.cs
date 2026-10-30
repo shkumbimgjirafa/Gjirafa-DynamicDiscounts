@@ -49,5 +49,8 @@ public sealed record ElasticityFit(string Sku, int? BandId, string Category, boo
 
 public sealed record CampaignWindow(int CampaignId, string Name, DateOnly StartDate, DateOnly EndDate, string CampaignType);
 
+/// <summary>One day's sales of a band × category (the row) and of the layer's holdout categories, booked cost, EUR VAT excl.</summary>
+public sealed record DaySales(DateOnly Day, decimal RowUnits, decimal RowGrossProfit, decimal HoldoutUnits, decimal HoldoutGrossProfit);
+
 /// <summary>Which engine run the stock figures come from.</summary>
 public sealed record EngineRunRef(long RunId, DateOnly SnapshotDate);

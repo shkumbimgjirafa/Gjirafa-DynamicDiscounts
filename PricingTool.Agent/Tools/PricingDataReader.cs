@@ -199,6 +199,39 @@ public sealed class PricingDataReader
             r => new ElasticityFit(r.GetString(0), r.IsDBNull(1) ? null : Id(r, 1), r.GetString(2), r.GetBoolean(3),
                 r.GetDecimal(4), r.GetInt32(5)), ct);
 
+    /// <summary>Per day in [<paramref name="from"/>, <paramref name="to"/>): units and gross profit of band
+    /// <paramref name="bandId"/> × <paramref name="category"/>, and of the <paramref name="holdouts"/> categories (all bands).
+    /// One query; days without sales are absent.</summary>
+    public Task<List<DaySales>> GetDailyRowAndHoldoutAsync(int layerId, int bandId, string category, IReadOnlyCollection<string> holdouts,
+        DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        QueryAsync("""
+            DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
+            WITH s AS (
+                SELECT s.SaleDate, s.Qty, s.GrossProfit,
+                       CASE WHEN s.BandId = @Band AND c.Category = @Category THEN 1 ELSE 0 END AS IsRow,
+                       CASE WHEN c.Category IN (SELECT value FROM STRING_SPLIT(@Holdouts, N'|')) THEN 1 ELSE 0 END AS IsHoldout
+                FROM agent.SalesLines s
+                CROSS APPLY (SELECT CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END AS Category) c
+                WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To)
+            SELECT s.SaleDate,
+                   ISNULL(SUM(CASE WHEN s.IsRow = 1 THEN s.Qty END), 0), ISNULL(SUM(CASE WHEN s.IsRow = 1 THEN s.GrossProfit END), 0),
+                   ISNULL(SUM(CASE WHEN s.IsHoldout = 1 THEN s.Qty END), 0), ISNULL(SUM(CASE WHEN s.IsHoldout = 1 THEN s.GrossProfit END), 0)
+            FROM s
+            WHERE s.IsRow = 1 OR s.IsHoldout = 1
+            GROUP BY s.SaleDate
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.AddWithValue("@Band", bandId);
+                p.Add("@Category", SqlDbType.NVarChar, 200).Value = category;
+                p.Add("@Holdouts", SqlDbType.NVarChar, 2000).Value = string.Join("|", holdouts);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r => new DaySales(DateOnly.FromDateTime(r.GetDateTime(0)), Convert.ToDecimal(r.GetValue(1)), r.GetDecimal(2),
+                Convert.ToDecimal(r.GetValue(3)), r.GetDecimal(4)), ct);
+
     public Task<List<CampaignWindow>> GetCampaignWindowsAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
         QueryAsync("""
             SELECT CampaignId, Name, StartDate, EndDate, CampaignType FROM agent.CampaignHistory

@@ -41,6 +41,16 @@ enforces the limits below, and anything outside them is held for a person instea
   not move them.
 - Campaigns belong to the campaign agent. Your floors are for normal days.
 
+## Past decisions and what they did
+
+- `get_past_decisions` lists earlier changes with their measured outcome: gross profit per day and
+  units per day after the change reached customers vs before, against the holdout's season. Where a
+  row you decide on had a change, say in the reason what its outcome was (or that it isn't measured
+  yet: `NotLive` means no pushed export has priced with it).
+- A change whose outcome was a drop was rolled back by code and its band × category paused: any
+  change you propose there waits for a person. Explain what you would do and why; don't repeat the
+  change that was rolled back without new evidence.
+
 ## How to judge
 
 - Compare like with like: the scorecard's window ends two weeks ago (late cancellations) and

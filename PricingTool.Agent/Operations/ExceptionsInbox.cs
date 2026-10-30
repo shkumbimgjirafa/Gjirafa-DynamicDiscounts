@@ -33,9 +33,12 @@ public sealed class InboxSnapshot
     /// <summary>Daily-cycle steps that failed and haven't succeeded since on the same day.</summary>
     public IReadOnlyList<DailyCycleStep> FailedSteps { get; init; } = Array.Empty<DailyCycleStep>();
 
+    /// <summary>Band × categories paused after an automatic rollback, until a person releases them.</summary>
+    public IReadOnlyList<CategoryPause> Pauses { get; init; } = Array.Empty<CategoryPause>();
+
     public IReadOnlyDictionary<int, string> LayerNames { get; init; } = new Dictionary<int, string>();
 
-    public int WaitingCount => Decisions.Count + BlockedRuns.Count + Publishes.Count(p => p.NeedsAPerson) + FailedSteps.Count;
+    public int WaitingCount => Decisions.Count + BlockedRuns.Count + Publishes.Count(p => p.NeedsAPerson) + FailedSteps.Count + Pauses.Count;
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";
 }
@@ -97,6 +100,7 @@ public sealed class ExceptionsInbox
                 .Where(p => p.NeedsAPerson || p.Exceptions.Count > 0)
                 .ToList(),
             FailedSteps = failed,
+            Pauses = await _ai.CategoryPauses.AsNoTracking().Where(p => p.ReleasedUtc == null).OrderByDescending(p => p.Id).ToListAsync(ct),
             LayerNames = await _tool.Layers.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.DisplayName, ct),
         };
     }

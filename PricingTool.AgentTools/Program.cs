@@ -32,6 +32,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   export-run <run id> [--out <dir>]                               the checked export for the push (refused when blocked)
 //   mark-pushed <export batch id> [--by <who>]                      record an export as pushed (an Approval): its measurement starts
 //   ledger                                                          update the money ledger and print its entries
+//   outcomes                                                        measure applied decisions (auto-rollback on a drop) and print them
+//   outcomes --probe <decision id> <yyyy-MM-dd>                     read-only: what it would measure had the change gone live that day
 //   timesheet                                                       export the hours-saved sheet (xlsx, csv, json)
 //   cycle-status [yyyy-MM-dd]                                       the daily cycle's steps for a day (default today)
 //   test-db                                                         create or migrate the test database and list what it holds
@@ -294,6 +296,28 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "outcomes":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        if (Opt("--probe") is { } probeId)
+        {
+            var day = DateOnly.Parse(args[Array.IndexOf(args, "--probe") + 2], System.Globalization.CultureInfo.InvariantCulture);
+            var sw = Stopwatch.StartNew();
+            var (f, basis) = await scope.ServiceProvider.GetRequiredService<OutcomeTracker>().ProbeAsync(long.Parse(probeId), day);
+            Console.WriteLine($"Probe (nothing written), {sw.ElapsedMilliseconds} ms: {basis}");
+            Console.WriteLine($"  GP/day {f.GpPerDayBefore:0} -> {f.GpPerDayAfter:0} (expected {f.ExpectedGpPerDayAfter:0}, {f.GpVsExpectedPct:0.0}%), " +
+                              $"units/day {f.UnitsPerDayBefore:0.0} -> {f.UnitsPerDayAfter:0.0} ({f.UnitsVsExpectedPct:0.0}%): {f.Verdict} {f.Why}");
+            return 0;
+        }
+        var r = await scope.ServiceProvider.GetRequiredService<OutcomeTracker>().UpdateAsync();
+        Console.WriteLine($"{r.Decisions} applied changes: {r.NotLive} not live yet, {r.Waiting} waiting, {r.Measured} measured, {r.RolledBack} rolled back.");
+        foreach (var x in await scope.ServiceProvider.GetRequiredService<AgentDbContext>().AgentOutcomes.AsNoTracking().OrderBy(x => x.DecisionId).ToListAsync())
+            Console.WriteLine($"  decision #{x.DecisionId} L{x.LayerId} band {x.BandId} {x.Category}: {x.Status} {x.Verdict} {x.Action}  {x.Evidence}");
+        return 0;
+    }
+
     case "mark-pushed":
     {
         using var host = builder.Build();
@@ -379,7 +403,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

@@ -94,6 +94,8 @@ public sealed class FloorTargetAgent
         var effective = card with { Rows = card.Rows.Select(r => WithOverride(r, overrides)).ToList() };
         var rows = effective.Rows.Where(r => r.BandId is { } id && bands.ContainsKey(id) && r.Units > 0).ToList();
         var recent = await AppliedChangesSinceAsync(layerId, now.AddDays(-7), ct);
+        var paused = (await _db.CategoryPauses.AsNoTracking().Where(p => p.LayerId == layerId && p.ReleasedUtc == null).ToListAsync(ct))
+            .Select(p => Key(p.BandId, p.Category)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var prompt = BuildPrompt(effective, rows, mode, recent);
         if (injectedTestNote is not null) prompt += $"\n[INJECTED-TEST] {injectedTestNote}\n";
@@ -145,7 +147,7 @@ public sealed class FloorTargetAgent
             }
 
             var verdict = SafetyLimits.Evaluate(new LimitInput(layerId, row.Category, row.ThinData, _options.Limits.IsHoldout(layerId, row.Category),
-                floor, target, floor - moved.Floor, target - moved.Target, p.Action, p.NewFloorPct, p.NewTargetPct), _options.Limits);
+                floor, target, floor - moved.Floor, target - moved.Target, p.Action, p.NewFloorPct, p.NewTargetPct, paused.Contains(key)), _options.Limits);
             Fill(decision, p, queryIds, verdict.Action, verdict.Floor, verdict.Target,
                 verdict.Status == DecisionStatus.Applied && verdict.Action != "keep" && (mode == AutonomyMode.ApproveFirst || isTest)
                     ? DecisionStatus.Pending : verdict.Status,

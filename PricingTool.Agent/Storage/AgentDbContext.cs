@@ -28,6 +28,8 @@ public class AgentDbContext : DbContext
     public DbSet<DailyCycleStep> DailyCycleSteps => Set<DailyCycleStep>();
     public DbSet<ExportBatch> ExportBatches => Set<ExportBatch>();
     public DbSet<MoneyLedgerEntry> MoneyLedger => Set<MoneyLedgerEntry>();
+    public DbSet<AgentOutcome> AgentOutcomes => Set<AgentOutcome>();
+    public DbSet<CategoryPause> CategoryPauses => Set<CategoryPause>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -134,6 +136,35 @@ public class AgentDbContext : DbContext
             e.Property(x => x.PushedBy).HasMaxLength(256);
             e.Property(x => x.ExpectedGp30Eur).HasPrecision(18, 2);
             e.HasIndex(x => x.RunId);
+        });
+
+        builder.Entity<AgentOutcome>(e =>
+        {
+            e.ToTable("AgentOutcome");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.DecisionId).IsUnique();
+            e.Property(x => x.Category).HasMaxLength(200);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Verdict).HasMaxLength(20);
+            e.Property(x => x.Action).HasMaxLength(30);
+            e.Property(x => x.Evidence).HasMaxLength(2000);
+            foreach (var p in new[] { nameof(AgentOutcome.GpPerDayBefore), nameof(AgentOutcome.GpPerDayAfter), nameof(AgentOutcome.UnitsPerDayBefore),
+                         nameof(AgentOutcome.UnitsPerDayAfter), nameof(AgentOutcome.ExpectedGpPerDayAfter) })
+                e.Property(p).HasPrecision(18, 2);
+            foreach (var p in new[] { nameof(AgentOutcome.HoldoutGpRatio), nameof(AgentOutcome.HoldoutUnitsRatio) })
+                e.Property(p).HasPrecision(12, 4);
+            foreach (var p in new[] { nameof(AgentOutcome.GpVsExpectedPct), nameof(AgentOutcome.UnitsVsExpectedPct) })
+                e.Property(p).HasPrecision(9, 2);
+        });
+
+        builder.Entity<CategoryPause>(e =>
+        {
+            e.ToTable("CategoryPause");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.LayerId, x.BandId, x.Category });
+            e.Property(x => x.Category).HasMaxLength(200);
+            e.Property(x => x.Reason).HasMaxLength(1000);
+            e.Property(x => x.ReleasedBy).HasMaxLength(256);
         });
 
         builder.Entity<MoneyLedgerEntry>(e =>

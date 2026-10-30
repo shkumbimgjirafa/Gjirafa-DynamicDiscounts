@@ -117,7 +117,7 @@ public sealed class AgentDataTools
         }, ct);
 
     /// <summary>Earlier agent decisions on real (non-test) passes, newest first: what was decided, what code
-    /// let through, and why. Measured outcomes are not here yet: the outcome tracker writes them later.</summary>
+    /// let through, why, and the outcome tracker's measurement of each applied change.</summary>
     public Task<object> GetPastDecisionsAsync(AgentToolContext ctx, int layer, int? band, string? category, CancellationToken ct = default) =>
         LoggedAsync(ctx, AgentToolNames.GetPastDecisions, new { layer, band, category }, async () =>
         {
@@ -128,17 +128,30 @@ public sealed class AgentDataTools
             var rows = await q.OrderByDescending(d => d.CreatedUtc).ThenBy(d => d.BandId)
                 .Where(d => d.Action != "keep" || d.Status != "Applied")              // changes and anything held or refused
                 .Take(MaxPastDecisions).ToListAsync(ct);
+            var ids = rows.Select(d => d.Id).ToList();
+            var outcomes = await _db.AgentOutcomes.AsNoTracking().Where(x => ids.Contains(x.DecisionId)).ToDictionaryAsync(x => x.DecisionId, ct);
+            var paused = await _db.CategoryPauses.AsNoTracking().Where(p => p.LayerId == layer && p.ReleasedUtc == null)
+                .Select(p => new { p.BandId, p.Category, p.Reason }).ToListAsync(ct);
+            object Outcome(AgentDecision d) => outcomes.TryGetValue(d.Id, out var x)
+                ? new
+                {
+                    x.Status, x.Verdict, gpVsExpectedPct = x.GpVsExpectedPct, unitsVsExpectedPct = x.UnitsVsExpectedPct,
+                    gpPerDay = x.GpPerDayBefore is null ? null : $"{x.GpPerDayBefore:0} -> {x.GpPerDayAfter:0}", x.Action, x.Evidence,
+                }
+                : d.Status == "Applied" ? new { Status = "not measured yet" } : null!;
             return (new
             {
                 note = rows.Count == 0
                     ? "No earlier changes or holds on this layer (keeps are not listed)."
-                    : "Changes and holds from earlier real passes, newest first (keeps are not listed). Measured outcomes " +
-                      "(units and gross profit before vs after) are not available yet.",
+                    : "Changes and holds from earlier real passes, newest first (keeps are not listed). outcome = the outcome tracker's " +
+                      "measurement: GP/day and units/day after the change went live vs before, against the holdout's season (NotLive: no " +
+                      "pushed export priced with it yet; Waiting: its window isn't complete).",
+                paused = paused.Select(p => new { p.BandId, p.Category, p.Reason }),
                 decisions = rows.Select(d => new
                 {
                     decisionId = d.Id, passId = d.PassId, date = d.CreatedUtc.ToString("yyyy-MM-dd"), d.BandId, d.Category, d.Action,
                     floor = $"{d.CurrentFloorPct:0.##} -> {d.ProposedFloorPct:0.##}", target = $"{d.CurrentTargetPct:0.##} -> {d.ProposedTargetPct:0.##}",
-                    d.Status, d.Limit, d.Reason, outcome = "not measured yet",
+                    d.Status, d.Limit, d.Reason, outcome = Outcome(d),
                 }),
             }, rows.Count);
         }, ct);

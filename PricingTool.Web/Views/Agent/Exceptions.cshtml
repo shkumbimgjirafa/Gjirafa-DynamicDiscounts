@@ -122,6 +122,37 @@
     </tbody>
 </table>
 
+<h2 class="h5 mt-4">Paused after an automatic rollback (@Model.Pauses.Count)</h2>
+<p class="small text-muted">The outcome tracker measured a change against the holdout and found gross profit or units at least 20 % under
+    the season-adjusted expectation, so it restored the previous floor and target and paused the band × category. While paused, every change
+    the pricing agent proposes there waits for a person. Release it when the cause is understood.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Layer</th><th>Band</th><th>Category</th><th>Paused</th><th>Why</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var p in Model.Pauses)
+    {
+        <tr class="table-warning">
+            <td>@Model.LayerName(p.LayerId)</td><td>@p.BandId</td><td>@p.Category</td>
+            <td>@p.PausedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+            <td class="small text-break">@p.Reason</td>
+            <td>
+                @if (User.IsInRole("Manager"))
+                {
+                    <form method="post" asp-action="ReleasePause" class="d-inline">
+                        <input type="hidden" name="pauseId" value="@p.Id" />
+                        <button class="btn btn-sm btn-outline-success">Release</button>
+                    </form>
+                }
+            </td>
+        </tr>
+    }
+    @if (Model.Pauses.Count == 0)
+    {
+        <tr><td colspan="6" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
 <h2 class="h5 mt-4">Daily cycle steps that failed (@Model.FailedSteps.Count)</h2>
 <table class="table table-sm align-middle">
     <thead><tr><th>Day</th><th>Step</th><th>Started</th><th>Error</th></tr></thead>

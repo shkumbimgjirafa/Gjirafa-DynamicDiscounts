@@ -157,6 +157,13 @@ public sealed class DailyCycle
             return (StepStatus.Succeeded, $"{added} new applied sets, {measured} windows measured; measured 30-day total {s.Measured30Eur:0} EUR " +
                                           $"over {s.Entries} entries ({s.Measured30} measured at 30 days; unmeasured count as 0)");
         });
+        yield return new Step("outcomes", async ct =>
+        {
+            var r = await With((OutcomeTracker t) => t.UpdateAsync(ct));
+            return (StepStatus.Succeeded, $"{r.Decisions} applied changes: {r.NotLive} not live yet (no pushed export priced with them), {r.Waiting} waiting " +
+                                          $"for their window, {r.Measured} measured; {r.RolledBack} rolled back and paused" +
+                                          (r.RollbacksWaiting > 0 ? $", {r.RollbacksWaiting} rollbacks waiting for the kill switch" : ""));
+        });
         yield return new Step("time-sheet", async ct =>
         {
             var r = await With((TimeSheetExporter t) => t.ExportAsync(ct));

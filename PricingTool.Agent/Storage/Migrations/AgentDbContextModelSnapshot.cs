@@ -124,6 +124,107 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.ToTable("AgentDecision", "ai");
                 });
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.AgentOutcome", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("ActionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("BandId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("DecisionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Evidence")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal?>("ExpectedGpPerDayAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("GpPerDayAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("GpPerDayBefore")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("GpVsExpectedPct")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
+                    b.Property<decimal?>("HoldoutGpRatio")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("decimal(12,4)");
+
+                    b.Property<decimal?>("HoldoutUnitsRatio")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("decimal(12,4)");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("LiveExportBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("LiveFromUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("MeasuredUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("UnitsPerDayAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("UnitsPerDayBefore")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("UnitsVsExpectedPct")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Verdict")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("WindowDays")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecisionId")
+                        .IsUnique();
+
+                    b.ToTable("AgentOutcome", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.AgentPass", b =>
                 {
                     b.Property<long>("Id")
@@ -513,6 +614,50 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.HasIndex("CalledAtUtc");
 
                     b.ToTable("AiCallLog", "ai");
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.CategoryPause", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("BandId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<long>("OutcomeId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("PausedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ReleasedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("ReleasedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LayerId", "BandId", "Category");
+
+                    b.ToTable("CategoryPause", "ai");
                 });
 
             modelBuilder.Entity("PricingTool.Agent.Storage.DailyCycleStep", b =>

@@ -83,6 +83,9 @@ public class AgentOptions
     /// <summary>The limits code enforces on every floor/target decision (see <see cref="Alpha.SafetyLimits"/>).</summary>
     public SafetyLimitOptions Limits { get; set; } = new();
 
+    /// <summary>How applied decisions are measured and when one is rolled back (see <see cref="Operations.OutcomeTracker"/>).</summary>
+    public OutcomeOptions Outcomes { get; set; } = new();
+
     /// <summary>The owner's email for the organisers' time sheet (column B). Kept in user-secrets, never in a
     /// tracked file; empty leaves the column blank.</summary>
     public string TimeSheetOwnerEmail { get; set; } = "";
@@ -163,6 +166,34 @@ public class CycleOptions
     public string ExportDir() => string.IsNullOrWhiteSpace(ExportDirectory) ? Local("exports") : ExportDirectory;
     public string BackupDir() => string.IsNullOrWhiteSpace(BackupDirectory) ? Local("backups") : BackupDirectory;
     public string TimeSheetDir() => string.IsNullOrWhiteSpace(TimeSheetDirectory) ? Local("timesheet") : TimeSheetDirectory;
+}
+
+public class OutcomeOptions
+{
+    /// <summary>Days measured after a decision's prices went live, against as many days before.</summary>
+    public int WindowDays { get; set; } = 14;
+
+    /// <summary>A measured window is re-measured for this many days after it closes: late cancellations still post.</summary>
+    public int RemeasureDays { get; set; } = 14;
+
+    /// <summary>Below this many units in either window (the row or the holdout) the comparison is not attributable.</summary>
+    public int MinUnits { get; set; } = 30;
+
+    /// <summary>Gross profit or units this many percent under the season-adjusted expectation is a drop.</summary>
+    public decimal DropPct { get; set; } = 20m;
+
+    /// <summary>Gross profit this many percent over the expectation is a gain (between the two: neutral).</summary>
+    public decimal GainPct { get; set; } = 5m;
+
+    /// <summary>A drop rolls the change back and pauses the band × category.</summary>
+    public bool AutoRollback { get; set; } = true;
+
+    /// <summary>No-change windows of the same band × category before the change (weekly steps), whose spread is the
+    /// normal variation: a drop must also be worse than all of them. 26 = half a year, so about a 1-in-27 false alarm.</summary>
+    public int PlaceboWindows { get; set; } = 26;
+
+    /// <summary>With fewer measurable no-change windows than this, a drop can't be told from noise: no rollback.</summary>
+    public int MinPlaceboWindows { get; set; } = 8;
 }
 
 public class SafetyLimitOptions

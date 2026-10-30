@@ -14,10 +14,11 @@ public static class DecisionStatus
 }
 
 /// <summary>One proposed floor/target change with everything the limits need to judge it.</summary>
+/// <param name="IsPaused">The band × category was paused after an automatic rollback (outcome drop): a change waits for a person.</param>
 public sealed record LimitInput(
     int LayerId, string Category, bool ThinData, bool IsHoldout,
     decimal CurrentFloor, decimal CurrentTarget, decimal FloorWeekAgo, decimal TargetWeekAgo,
-    string Action, decimal ProposedFloor, decimal ProposedTarget);
+    string Action, decimal ProposedFloor, decimal ProposedTarget, bool IsPaused = false);
 
 /// <summary>What code lets through: the status, the values to store and, when a limit acted, which one.</summary>
 public sealed record LimitVerdict(string Status, string Action, decimal Floor, decimal Target, string? Limit, string? Detail);
@@ -63,6 +64,10 @@ public static class SafetyLimits
         var hardMin = o.HardMinFloorFor(d.LayerId);
         if (d.ProposedFloor < hardMin - Epsilon)
             return Reject("hard-minimum", $"The floor may never go below {hardMin:0.##}% on this layer: {asked}.");
+
+        if (d.IsPaused)
+            return new LimitVerdict(DecisionStatus.Held, action, d.ProposedFloor, d.ProposedTarget, "paused",
+                $"Paused after an automatic rollback (its last change cost gross profit or units): a person decides here until the pause is released ({asked}).");
 
         var floorStep = Math.Abs(d.ProposedFloor - d.FloorWeekAgo);
         var targetStep = Math.Abs(d.ProposedTarget - d.TargetWeekAgo);
