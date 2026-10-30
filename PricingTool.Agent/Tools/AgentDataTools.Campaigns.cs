@@ -21,12 +21,15 @@ public sealed partial class AgentDataTools
         {
             var today = Today();
             var (byCampaign, windows) = await CampaignSegmentsAsync(layer, null, today, ct);
-            var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layer && c.SourceCampaignId != null)
-                .ToDictionaryAsync(c => c.SourceCampaignId!.Value, c => c.Id, ct);
+            var entries = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layer && c.SourceCampaignId != null)
+                .ToDictionaryAsync(c => c.SourceCampaignId!.Value, ct);
+            var calendar = entries.ToDictionary(e => e.Key, e => e.Value.Id);
+            var excluded = entries.Where(e => !e.Value.Representative).Select(e => e.Key).ToHashSet();
 
             object Row(CampaignWindow w, CampaignEffect e) => new
             {
                 calendarId = calendar.TryGetValue(w.CampaignId, out var id) ? id : (long?)null, campaign = w.Name, type = CampaignMath.TypeOf(w.Name),
+                representative = !excluded.Contains(w.CampaignId), context = entries.TryGetValue(w.CampaignId, out var en) ? en.Context : w.Notes,
                 provisional = Provisional(w, today), dates = $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd}", w.CampaignType,
                 unitsPerDayBefore = R1(e.UnitsPerDayBefore), unitsPerDayCampaign = R1(e.UnitsPerDayCampaign),
                 rawUplift = R2(e.RawUplift), seasonFactor = R2(e.SeasonFactor), uplift = R2(e.Uplift),
@@ -38,8 +41,9 @@ public sealed partial class AgentDataTools
             var rows = byCampaign.Select(c => (c.Window, Effect: CampaignMath.Read(category is null
                 ? Total(c.ByCategory.Values)
                 : c.ByCategory.TryGetValue(category, out var s) ? s : Empty(c)))).ToList();
-            var eventPlusDepth = CampaignMath.Fit(rows.Where(r => !Provisional(r.Window, today)).Select(r => r.Effect), category ?? "all categories");
-            var depth = DepthEffectFrom(byCampaign, today);
+            var eventPlusDepth = CampaignMath.Fit(rows.Where(r => !Provisional(r.Window, today) && !excluded.Contains(r.Window.CampaignId)).Select(r => r.Effect),
+                category ?? "all categories");
+            var depth = DepthEffectFrom(byCampaign, today, excluded);
             var elasticity = await MedianUsableElasticityAsync(layer, category, ct);
 
             const string basis = "Booked COGS, EUR VAT excl. uplift = units/day in the campaign over the 28 days before, divided by the same " +
@@ -47,7 +51,8 @@ public sealed partial class AgentDataTools
                                  "(Oct 2024) or follow a campaign, then uplift = rawUplift). depth = discount given / pre-discount price, both incl. " +
                                  "VAT, lines claiming over 80 % off left out (data errors); extraDepthPp = campaign depth minus normal-day depth. " +
                                  "Depth is null where under 20 % of the lines carry a discount (GjirafaMall from Nov 2025). provisional = ended " +
-                                 "in the last 14 days (cancellations still post): listed, not fitted.";
+                                 "in the last 14 days (cancellations still post): listed, not fitted. representative = false: a person said the window " +
+                                 "isn't what such a campaign normally does (see context): listed, not fitted, not an anchor for a goal.";
             return (new
             {
                 layer, category = category ?? "all", basis,
@@ -80,6 +85,7 @@ public sealed partial class AgentDataTools
                 {
                     calendarId = calendar.TryGetValue(w.CampaignId, out var id) ? id : (long?)null, w.Name, type = CampaignMath.TypeOf(w.Name),
                     dates = $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd}", w.CampaignType,
+                    context = entries.TryGetValue(w.CampaignId, out var en) ? en.Context : w.Notes,
                 }),
             }, rows.Count);
         }, ct);
@@ -89,11 +95,15 @@ public sealed partial class AgentDataTools
     {
         var today = Today();
         var (byCampaign, _) = await CampaignSegmentsAsync(layer, null, today, ct);
-        return DepthEffectFrom(byCampaign, today);
+        var excluded = (await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layer && !c.Representative && c.SourceCampaignId != null)
+            .Select(c => c.SourceCampaignId!.Value).ToListAsync(ct)).ToHashSet();
+        return DepthEffectFrom(byCampaign, today, excluded);
     }
 
-    private static DepthEffect DepthEffectFrom(List<(CampaignWindow Window, Dictionary<string, CampaignSegments> ByCategory)> byCampaign, DateOnly today) =>
-        CampaignMath.FitWithinCampaign(byCampaign.Where(c => !Provisional(c.Window, today)).SelectMany(c => c.ByCategory.Select(kv =>
+    /// <summary>The within-campaign fit over finished, representative campaigns.</summary>
+    private static DepthEffect DepthEffectFrom(List<(CampaignWindow Window, Dictionary<string, CampaignSegments> ByCategory)> byCampaign, DateOnly today,
+        IReadOnlySet<int> notRepresentative) =>
+        CampaignMath.FitWithinCampaign(byCampaign.Where(c => !Provisional(c.Window, today) && !notRepresentative.Contains(c.Window.CampaignId)).SelectMany(c => c.ByCategory.Select(kv =>
             new CampaignPoint(c.Window.CampaignId.ToString(System.Globalization.CultureInfo.InvariantCulture), CampaignMath.TypeOf(c.Window.Name),
                 CampaignMath.Read(kv.Value)))), "all categories");
 

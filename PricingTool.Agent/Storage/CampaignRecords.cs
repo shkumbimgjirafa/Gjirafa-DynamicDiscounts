@@ -43,6 +43,13 @@ public class CampaignCalendarEntry
     public string CreatedBy { get; set; } = "";
     public DateTime CreatedUtc { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>What the numbers don't show (a person's or the history's note), e.g. a campaign slowed by warehouse problems.</summary>
+    public string? Context { get; set; }
+
+    /// <summary>False when a person says this window isn't what such a campaign normally does: shown with its context, but
+    /// left out of the event lift by type and the depth fit, so no goal or plan is anchored on it.</summary>
+    public bool Representative { get; set; } = true;
 }
 
 /// <summary>Campaign brief statuses, as stored in ai.CampaignBrief.</summary>
@@ -56,6 +63,8 @@ public static class BriefStatus
     public const string Held = "held";
     /// <summary>The pricing agent planned it; the brief's thread continues on the plan.</summary>
     public const string Planned = "planned";
+    /// <summary>A newer brief for the same calendar campaign replaced it before it was planned.</summary>
+    public const string Superseded = "superseded";
 }
 
 /// <summary>
@@ -108,5 +117,81 @@ public class CampaignResult
     public string? Lesson { get; set; }
     /// <summary>Ended within the last 14 days: late cancellations still post.</summary>
     public bool Provisional { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>Campaign plan statuses, as stored in ai.CampaignPlan.</summary>
+public static class PlanStatus
+{
+    public const string Proposed = "proposed";
+    public const string Accepted = "accepted";
+    /// <summary>Nova still wanted changes after the last round: a person decides.</summary>
+    public const string Held = "held";
+    public const string Superseded = "superseded";
+    public const string Published = "published";
+}
+
+/// <summary>
+/// The pricing agent's plan for a brief (plan section 5, "PlanCampaign"): the strategy it chose among those code computed,
+/// code's expected totals and feasibility against the goal, and its explanation. One per round of the brief's thread.
+/// </summary>
+public class CampaignPlan
+{
+    public long Id { get; set; }
+    public long BriefId { get; set; }
+    public long? CalendarId { get; set; }
+    public int LayerId { get; set; }
+    public int Round { get; set; }
+    public string Strategy { get; set; } = "";
+    public int DiscountedSkus { get; set; }
+    public int SkusInScope { get; set; }
+    public int HoldoutSkus { get; set; }
+    public decimal ExpectedUnits { get; set; }
+    public decimal ExpectedNetRevenue { get; set; }
+    public decimal ExpectedGrossProfit { get; set; }
+    public decimal ExpectedMarginPct { get; set; }
+    /// <summary>The same SKUs over the same days with the campaign's traffic but no discounts.</summary>
+    public decimal GrossProfitWithoutDiscounts { get; set; }
+    public decimal AverageDepthPct { get; set; }
+    public bool Feasible { get; set; }
+    public string Feasibility { get; set; } = "";
+    /// <summary>JSON: SKUs left out, by reason.</summary>
+    public string LeftOut { get; set; } = "{}";
+    /// <summary>JSON: every strategy's totals, as code computed them for the agent.</summary>
+    public string Alternatives { get; set; } = "[]";
+    public string Explanation { get; set; } = "";
+    public string Basis { get; set; } = "";
+    public string Status { get; set; } = PlanStatus.Proposed;
+    public long? PublishBatchId { get; set; }
+    public bool IsTest { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>One discounted SKU of a plan: its campaign price and what code expects it to sell.</summary>
+public class CampaignPlanLine
+{
+    public long Id { get; set; }
+    public long PlanId { get; set; }
+    public string Sku { get; set; } = "";
+    public string Category { get; set; } = "";
+    public decimal RegularPrice { get; set; }
+    public decimal CurrentPrice { get; set; }
+    public decimal Cost { get; set; }
+    public decimal CampaignPrice { get; set; }
+    public decimal DepthPct { get; set; }
+    public decimal ExpectedUnits { get; set; }
+    public decimal ExpectedGrossProfit { get; set; }
+}
+
+/// <summary>One message in a brief's thread (plan section 5: "Every message is stored as a thread"): Nova, Alpha, code or a person.</summary>
+public class CampaignMessage
+{
+    public long Id { get; set; }
+    public long BriefId { get; set; }
+    public long? PlanId { get; set; }
+    public int Round { get; set; }
+    public string From { get; set; } = "";
+    public string Text { get; set; } = "";
+    public long? AiCallLogId { get; set; }
     public DateTime CreatedUtc { get; set; }
 }

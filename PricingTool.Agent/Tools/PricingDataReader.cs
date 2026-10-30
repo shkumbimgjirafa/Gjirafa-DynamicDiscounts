@@ -313,7 +313,7 @@ public sealed class PricingDataReader
 
     public Task<List<CampaignWindow>> GetCampaignWindowsAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
         QueryAsync("""
-            SELECT CampaignId, Name, StartDate, EndDate, CampaignType FROM agent.CampaignHistory
+            SELECT CampaignId, Name, StartDate, EndDate, CampaignType, Notes FROM agent.CampaignHistory
             WHERE LayerId = @L AND StartDate < @To AND EndDate >= @From ORDER BY StartDate
             """,
             p =>
@@ -323,7 +323,7 @@ public sealed class PricingDataReader
                 p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
             },
             r => new CampaignWindow(Id(r, 0), r.GetString(1), DateOnly.FromDateTime(r.GetDateTime(2)),
-                DateOnly.FromDateTime(r.GetDateTime(3)), r.GetString(4)), ct);
+                DateOnly.FromDateTime(r.GetDateTime(3)), r.GetString(4)) { Notes = r.IsDBNull(5) ? null : r.GetString(5) }, ct);
 
     /// <summary>An id column, whatever integer width the table uses.</summary>
     private static int Id(SqlDataReader r, int i) => Convert.ToInt32(r.GetValue(i));

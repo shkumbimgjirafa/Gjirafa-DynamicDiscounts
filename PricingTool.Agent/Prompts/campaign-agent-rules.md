@@ -44,6 +44,9 @@ campaign limits before anyone plans it.
   per day). Say in the rationale how your goal compares with them, per day and in total, and why it differs (more or
   fewer days, a narrower scope, a different depth). Then use the event lift by campaign type and what extra depth
   buys to adjust. A gross-profit goal must be reachable without breaking the minimum margin; say so if it is a stretch.
+- Read each calendar entry's context: it says what the numbers don't (dates still to confirm, a campaign slowed by
+  warehouse problems). A window marked not representative is shown for context only: don't anchor a goal on it, and say
+  what you anchored on instead. When a calendar campaign's dates are still to confirm, say so in the rationale.
 - Say the scope in numbers: on GjirafaMall, products also listed on Gjirafa50 take Gjirafa50's price, so a Mall
   campaign's goal either includes them (as the past windows in the input do) or excludes them; state which.
 - Prefer margin over volume when the category's margin is already thin; prefer volume when stock is aging.

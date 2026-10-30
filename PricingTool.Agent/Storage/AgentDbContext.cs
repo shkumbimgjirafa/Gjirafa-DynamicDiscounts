@@ -34,6 +34,9 @@ public class AgentDbContext : DbContext
     public DbSet<CampaignBrief> CampaignBriefs => Set<CampaignBrief>();
     public DbSet<CampaignResult> CampaignResults => Set<CampaignResult>();
     public DbSet<CostObservation> CostObservations => Set<CostObservation>();
+    public DbSet<CampaignPlan> CampaignPlans => Set<CampaignPlan>();
+    public DbSet<CampaignPlanLine> CampaignPlanLines => Set<CampaignPlanLine>();
+    public DbSet<CampaignMessage> CampaignMessages => Set<CampaignMessage>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -176,6 +179,8 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Status).HasMaxLength(20);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.Notes).HasMaxLength(2000);
+            e.Property(x => x.Context).HasMaxLength(2000);
+            e.Property(x => x.Representative).HasDefaultValue(true);
         });
 
         builder.Entity<CampaignBrief>(e =>
@@ -198,6 +203,45 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Status).HasMaxLength(20);
             e.Property(x => x.Limit).HasMaxLength(40);
             e.Property(x => x.LimitDetail).HasMaxLength(500);
+        });
+
+        builder.Entity<CampaignPlan>(e =>
+        {
+            e.ToTable("CampaignPlan");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.BriefId);
+            e.Property(x => x.Strategy).HasMaxLength(40);
+            foreach (var p in new[] { nameof(CampaignPlan.ExpectedUnits), nameof(CampaignPlan.ExpectedNetRevenue), nameof(CampaignPlan.ExpectedGrossProfit),
+                         nameof(CampaignPlan.GrossProfitWithoutDiscounts) })
+                e.Property(p).HasPrecision(18, 2);
+            e.Property(x => x.ExpectedMarginPct).HasPrecision(9, 2);
+            e.Property(x => x.AverageDepthPct).HasPrecision(9, 2);
+            e.Property(x => x.Feasibility).HasMaxLength(500);
+            e.Property(x => x.Explanation).HasMaxLength(2000);
+            e.Property(x => x.Basis).HasMaxLength(1000);
+            e.Property(x => x.Status).HasMaxLength(20);
+        });
+
+        builder.Entity<CampaignPlanLine>(e =>
+        {
+            e.ToTable("CampaignPlanLine");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.PlanId);
+            e.Property(x => x.Sku).HasMaxLength(400);
+            e.Property(x => x.Category).HasMaxLength(200);
+            foreach (var p in new[] { nameof(CampaignPlanLine.RegularPrice), nameof(CampaignPlanLine.CurrentPrice), nameof(CampaignPlanLine.Cost),
+                         nameof(CampaignPlanLine.CampaignPrice), nameof(CampaignPlanLine.ExpectedUnits), nameof(CampaignPlanLine.ExpectedGrossProfit) })
+                e.Property(p).HasPrecision(18, 4);
+            e.Property(x => x.DepthPct).HasPrecision(9, 2);
+        });
+
+        builder.Entity<CampaignMessage>(e =>
+        {
+            e.ToTable("CampaignMessage");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.BriefId);
+            e.Property(x => x.From).HasMaxLength(40);
+            e.Property(x => x.Text).HasMaxLength(8000);
         });
 
         builder.Entity<CostObservation>(e =>

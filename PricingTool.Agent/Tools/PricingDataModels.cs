@@ -47,7 +47,11 @@ public sealed record CostChangeRow(string Sku, int? BandId, string Category, dec
 
 public sealed record ElasticityFit(string Sku, int? BandId, string Category, bool IsUsable, decimal Coefficient, int ObservationCount);
 
-public sealed record CampaignWindow(int CampaignId, string Name, DateOnly StartDate, DateOnly EndDate, string CampaignType);
+public sealed record CampaignWindow(int CampaignId, string Name, DateOnly StartDate, DateOnly EndDate, string CampaignType)
+{
+    /// <summary>The history's own note for the window (e.g. "dates to confirm").</summary>
+    public string? Notes { get; init; }
+}
 
 /// <summary>One day's sales of a band × category (the row) and of the layer's holdout categories, booked cost, EUR VAT excl.</summary>
 public sealed record DaySales(DateOnly Day, decimal RowUnits, decimal RowGrossProfit, decimal HoldoutUnits, decimal HoldoutGrossProfit);

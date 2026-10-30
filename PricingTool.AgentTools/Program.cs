@@ -26,6 +26,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   ask --agent <role> [--schema <file>] "<question>"               one real Claude Code call with the data tools
 //   alpha-pass <layer> [--mode Autonomous|ApproveFirst|Off] [--test] Alpha's weekly floor/target pass for one layer
 //   nova-pass <layer> [--test]                                       Nova's weekly campaign pass for one layer (briefs, results)
+//   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
+//   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
 //   cost-watch [--poll] [--inject <layer> <sku> <cost>]              one cost watch: optionally poll the replica, or inject a labelled
 //                                                                   [INJECTED-TEST] cost (with --test its records go to the test DB)
 //   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
@@ -305,6 +307,34 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "campaign-note":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var e = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignCalendar>()
+            .AddContextAsync(long.Parse(positional[0]), positional[1], Opt("--by") ?? "user", args.Contains("--not-representative"));
+        Console.WriteLine($"#{e.Id} {e.Name} (layer {e.LayerId}): representative = {e.Representative}; context: {e.Context}");
+        return 0;
+    }
+
+    case "plan-campaign":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var sw = Stopwatch.StartNew();
+        var briefId = long.Parse(positional[0]);
+        var r = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignPlanning>().PlanAsync(briefId, args.Contains("--publish"));
+        Console.WriteLine($"Brief #{briefId}: {r.Status} in {sw.Elapsed.TotalSeconds:0} s {r.Error}");
+        foreach (var p in r.Plans)
+            Console.WriteLine($"  plan #{p.Id} round {p.Round} {p.Strategy} [{p.Status}]: {p.DiscountedSkus:N0}/{p.SkusInScope:N0} SKUs at {p.AverageDepthPct:0.#}%, " +
+                              $"units {p.ExpectedUnits:N0}, GP {p.ExpectedGrossProfit:N0} (no discounts {p.GrossProfitWithoutDiscounts:N0}), margin {p.ExpectedMarginPct:0.0}%. {p.Feasibility}");
+        foreach (var m in await scope.ServiceProvider.GetRequiredService<AgentDbContext>().CampaignMessages.AsNoTracking().Where(m => m.BriefId == briefId).OrderBy(m => m.Id).ToListAsync())
+            Console.WriteLine($"  [{m.Round}] {m.From}: {m.Text}");
+        return r.Status is "Failed" or "Refused" ? 1 : 0;
+    }
+
     case "cost-watch":
     {
         using var host = builder.Build();
@@ -489,7 +519,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

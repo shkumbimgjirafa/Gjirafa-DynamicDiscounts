@@ -43,10 +43,16 @@ public sealed class CampaignCalendar
                 {
                     LayerId = layer, Name = w.Name, StartDate = w.StartDate, EndDate = w.EndDate, Type = w.CampaignType, ScopeKind = "all",
                     Status = StatusOn(w.StartDate, w.EndDate, today, CampaignStatus.Planned), SourceCampaignId = w.CampaignId,
-                    CreatedBy = FromHistory, CreatedUtc = now,
+                    CreatedBy = FromHistory, CreatedUtc = now, Context = string.IsNullOrWhiteSpace(w.Notes) ? null : $"History: {w.Notes}",
                 });
                 added++;
             }
+
+        // The history's notes reach entries synced before notes were kept.
+        foreach (var layer in _options.Cycle.Layers)
+            foreach (var w in (await _reader.GetCampaignWindowsAsync(layer, new DateOnly(2000, 1, 1), today.AddYears(2), ct)).Where(w => !string.IsNullOrWhiteSpace(w.Notes)))
+                if (await _db.CampaignCalendar.FirstOrDefaultAsync(c => c.LayerId == layer && c.SourceCampaignId == w.CampaignId && c.Context == null, ct) is { } entry)
+                    entry.Context = $"History: {w.Notes}";
 
         var moved = 0;
         foreach (var c in await _db.CampaignCalendar.Where(c => c.Status != CampaignStatus.Done && c.Status != CampaignStatus.Proposed).ToListAsync(ct))
@@ -58,6 +64,20 @@ public sealed class CampaignCalendar
         }
         await _db.SaveChangesAsync(ct);
         return (added, moved);
+    }
+
+    /// <summary>
+    /// A person's context for a campaign (what the numbers don't show), appended to the entry with who and when; with
+    /// <paramref name="notRepresentative"/> the window is left out of the event lifts and the depth fit from now on.
+    /// </summary>
+    public async Task<CampaignCalendarEntry> AddContextAsync(long calendarId, string text, string by, bool notRepresentative, CancellationToken ct = default)
+    {
+        var entry = await _db.CampaignCalendar.SingleAsync(c => c.Id == calendarId, ct);
+        var line = $"{text.Trim()} ({by}, {_clock.GetLocalNow():yyyy-MM-dd})";
+        entry.Context = string.IsNullOrWhiteSpace(entry.Context) ? line : $"{entry.Context} | {line}";
+        if (notRepresentative) entry.Representative = false;
+        await _db.SaveChangesAsync(ct);
+        return entry;
     }
 
     /// <summary>Done after its last day, live on its days, otherwise as it was (planned).</summary>

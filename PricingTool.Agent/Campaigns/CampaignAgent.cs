@@ -158,6 +158,9 @@ public sealed class CampaignAgent
             }
             else if (brief.Status == BriefStatus.Proposed && brief.Kind == "calendar" && !isTest)
             {
+                // The newest brief for a calendar campaign is the one planned; an older, unplanned one is replaced.
+                foreach (var older in await _db.CampaignBriefs.Where(o => o.CalendarId == brief.CalendarId && o.Status == BriefStatus.Proposed && !o.IsTest).ToListAsync(ct))
+                    older.Status = BriefStatus.Superseded;
                 var entry = await _db.CampaignCalendar.SingleAsync(c => c.Id == brief.CalendarId, ct);
                 entry.GoalType ??= brief.GoalType;
                 entry.GoalValue ??= brief.GoalValue;
@@ -204,10 +207,10 @@ public sealed class CampaignAgent
         sb.AppendLine($"- maximum discount depth {o.MaxDepthPct:0.#}% of the regular price; at most {o.MaxSkusPerCampaign} SKUs per campaign;");
         sb.AppendLine($"- holdout categories, never in a campaign: {holdouts}.");
         sb.AppendLine();
-        sb.AppendLine("Calendar (id | name | type | dates | status | scope | goal):");
+        sb.AppendLine("Calendar (id | name | type | dates | status | scope | goal | context):");
         foreach (var c in calendar.Where(c => c.EndDate >= today.AddDays(-ReviewDays)))
             sb.AppendLine($"{c.Id} | {c.Name} | {c.Type} | {c.StartDate:yyyy-MM-dd}..{c.EndDate:yyyy-MM-dd} | {c.Status} | {c.ScopeKind}{(c.ScopeValue is null ? "" : " " + c.ScopeValue)} | " +
-                          (c.GoalType is null ? "no goal" : $"{c.GoalType} {c.GoalValue:0.##}"));
+                          (c.GoalType is null ? "no goal" : $"{c.GoalType} {c.GoalValue:0.##}") + $" | {c.Context ?? "-"}");
         sb.AppendLine();
         sb.AppendLine(dataBlock);
         if (measured.Count > 0)
@@ -258,6 +261,8 @@ public sealed class CampaignAgent
     private async Task<string> PastWindowsAsync(int layerId, DateOnly today, CancellationToken ct)
     {
         var windows = await _reader.GetCampaignWindowsAsync(layerId, new DateOnly(2000, 1, 1), today.AddDays(60), ct);
+        var entries = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId && c.SourceCampaignId != null)
+            .ToDictionaryAsync(c => c.SourceCampaignId!.Value, ct);
         var upcoming = windows.Where(w => w.EndDate >= today).Select(w => CampaignMath.TypeOf(w.Name)).ToHashSet();
         if (upcoming.Count == 0) return "Past windows of upcoming campaigns: no calendar campaign in the next 60 days.";
         var gp = (await _reader.GetCampaignSegmentsAsync(layerId, null, today, ct)).Where(r => r.Segment == 0)
@@ -270,7 +275,9 @@ public sealed class CampaignAgent
             {
                 var days = w.EndDate.DayNumber - w.StartDate.DayNumber + 1;
                 var (g, n) = gp[w.CampaignId];
-                return $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd} ({days} days) GP {g:N0} ({g / days:N0}/day), net revenue {n:N0}";
+                var note = entries.TryGetValue(w.CampaignId, out var e) && (e.Context is not null || !e.Representative)
+                    ? $" [{(e.Representative ? "" : "NOT REPRESENTATIVE, don't anchor on it: ")}{e.Context}]" : "";
+                return $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd} ({days} days) GP {g:N0} ({g / days:N0}/day), net revenue {n:N0}{note}";
             }))));
         }
         return sb.ToString();

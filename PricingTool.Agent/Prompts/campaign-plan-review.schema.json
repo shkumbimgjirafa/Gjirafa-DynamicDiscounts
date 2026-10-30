@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "decision": { "enum": ["accept", "adjust"] },
+    "goalValue": { "type": ["number", "null"] },
+    "maxDepthPct": { "type": ["number", "null"] },
+    "minMarginPct": { "type": ["number", "null"] },
+    "message": { "type": "string", "maxLength": 1000 }
+  },
+  "required": ["decision", "goalValue", "maxDepthPct", "minMarginPct", "message"],
+  "additionalProperties": false
+}

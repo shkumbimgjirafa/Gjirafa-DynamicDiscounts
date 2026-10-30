@@ -58,6 +58,7 @@ public static class NopPublisherServiceCollectionExtensions
         services.AddScoped<CostWatch.ICostPublisher, CostWatch.WriterCostPublisher>();
         services.AddScoped<CostWatch.CostWatcher>();
         services.AddScoped<CostWatch.ReplicaCostFeed>();
+        services.AddScoped<PricingTool.Agent.Campaigns.ICampaignPublisher, CampaignPublisher>();
         if (config.GetValue<bool>("Publisher:ReplaceCsvPush"))
             services.AddScoped<IPricePushService, NopDiscountPushService>();
         return services;
