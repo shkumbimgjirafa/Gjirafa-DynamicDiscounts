@@ -42,7 +42,8 @@ schedule, audit log) and its tests (692 at import, all still passing).
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
 2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (909 passed, 1 skipped: the opt-in real headless call; E17).
-3. The web app: `$env:ASPNETCORE_ENVIRONMENT='Hackathon'; dotnet run --project PricingTool.Web` → http://localhost:5058
+3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
+   engine refuse to start in any other environment)
    (Agent, Campaigns, Backtest, Exceptions tabs).
 4. The engine host (daily cycle at 07:00 plus the 15-minute cost watcher): `powershell -ExecutionPolicy Bypass -File scripts\run-laptop-host.ps1`.
 5. Reproduce the figures: `PricingTool.AgentTools backtest-snapshot`, then

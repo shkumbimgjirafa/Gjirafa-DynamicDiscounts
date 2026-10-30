@@ -10,18 +10,17 @@ using PricingTool.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Hackathon: the replica connection lives in user-secrets, which ASP.NET only loads in Development.
-// No .env is ever read in this environment (the loader walks up parent folders).
-if (builder.Environment.IsEnvironment("Hackathon"))
+// This build runs only in the Hackathon environment. Any other one falls back to appsettings.json: the local database
+// "PricingTool" (the main repo's development database, which the app migrates and seeds on start) and the .env loader.
+// On 31 Oct a start with the "http" launch profile (Development) did exactly that; it was reverted by hand.
+if (!builder.Environment.IsEnvironment("Hackathon"))
 {
-    builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
+    throw new InvalidOperationException(
+        $"This build runs only with ASPNETCORE_ENVIRONMENT=Hackathon, not '{builder.Environment.EnvironmentName}': " +
+        "dotnet run --project PricingTool.Web --launch-profile hackathon");
 }
-else
-{
-    // Load .env (gitignored) for local source-database credentials. When SOURCE_DB_HOST is
-    // filled in, this builds the SourceReadOnly connection string and turns off demo mode.
-    EnvFileLoader.ApplyDotEnv(builder);
-}
+// The replica connection lives in user-secrets, which ASP.NET only loads by itself in Development. No .env is ever read.
+builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);

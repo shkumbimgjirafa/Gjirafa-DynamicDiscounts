@@ -47,6 +47,7 @@ to production, the build sessions' AI usage of $224.91 API-equivalent, E18) and
 −2 / −1 / −0.5 (low / mid / high), and framing B assumes the test phase's rate holds once automated and extended, while its mid and high
 cases are before/after, not controlled. The pilot's holdout categories turn both into measurements.
 
-**The pilot ask.** Go live on one Kosovo layer: a least-privilege write login, one canary category first, then the
-layer, with holdout categories as the control and the money ledger measuring the difference after 14 and 30 days.
-Decide at week 8 whether to extend to all six layers.
+**The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
+publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,
+one canary category first, `GO-LIVE.md`); holdout categories kept on hand-set floors as the control, with the money
+ledger measuring the difference. That makes the go/no-go measured, not estimated.

@@ -26,6 +26,14 @@ var builder = Host.CreateApplicationBuilder(args);
 // runs one layer on demand, or the laptop's daily cycle (prompt 05) as a host (--hackathon-host) or once
 // (--cycle-once).
 var hackathon = builder.Environment.IsEnvironment("Hackathon");
+// This build runs only in the Hackathon environment: any other one would price against appsettings.json's local database
+// "PricingTool" (the main repo's development database) with the main repo's scheduler.
+if (!hackathon)
+{
+    Console.Error.WriteLine($"This build runs only with DOTNET_ENVIRONMENT=Hackathon, not '{builder.Environment.EnvironmentName}'.");
+    Environment.ExitCode = 1;
+    return;
+}
 if (hackathon)
 {
     builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
