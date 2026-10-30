@@ -41,6 +41,9 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
     /// <summary>The backtest's measure of how far this arithmetic lands from what past campaigns made; a gross-profit goal is
     /// judged on the calibrated estimate, with the range of past campaigns shown.</summary>
     public CampaignCalibration? Calibration { get; init; }
+
+    /// <summary>Shown beside a verdict on the arithmetic when there is no leave-one-out calibration for the case; never decides it.</summary>
+    public CampaignCalibration? InSampleCalibration { get; init; }
 }
 
 /// <summary>
@@ -195,8 +198,10 @@ public static class CampaignPlanner
             if (median >= spec.GoalValue) return (GoalVerdicts.Stretch, $"{spec.GoalValue:N0} {unit} is a stretch: only the median estimate clears it ({numbers}).");
             return (GoalVerdicts.NotReachable, $"{spec.GoalValue:N0} {unit} is not reachable: the median estimate falls short ({numbers}).");
         }
+        var inSample = spec.GoalType == "gross-profit" && spec.InSampleCalibration is { } ins
+            ? $"; no leave-one-out calibration for this case; in-sample calibration (not leave-one-out) suggests {actual * ins.Factor:N0} (x{ins.Factor:0.00})" : "";
         return actual >= spec.GoalValue
-            ? (GoalVerdicts.Reachable, $"{spec.GoalValue:N0} {unit} is reachable: the plan expects {actual:N0}{counted}.")
-            : (GoalVerdicts.NotReachable, $"{spec.GoalValue:N0} {unit} is not reachable within the limits: the best this strategy expects is {actual:N0}{counted}.");
+            ? (GoalVerdicts.Reachable, $"{spec.GoalValue:N0} {unit} is reachable on the arithmetic: the plan expects {actual:N0}{counted}{inSample}.")
+            : (GoalVerdicts.NotReachable, $"{spec.GoalValue:N0} {unit} is not reachable on the arithmetic: the best this strategy expects is {actual:N0}{counted}{inSample}.");
     }
 }

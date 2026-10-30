@@ -18,6 +18,10 @@ public sealed record CampaignReplayResult(int CampaignId, string Name, string Ty
     public decimal? TotalRatio => PredictedSeenGp > 0 ? Math.Round(ActualGp / PredictedSeenGp, 2) : null;
     /// <summary>Enough normal days before it to read a rate, and a person didn't mark it unrepresentative.</summary>
     public bool Usable => Representative && NormalDays >= CampaignReplay.MinNormalDays && TotalRatio is not null;
+
+    /// <summary>Scored with an event lift for its type (from another window of the type, leave-one-out); otherwise the lift fell
+    /// to the planner's default (x1). A plan is calibrated only on replays of its own case, so no event is counted twice.</summary>
+    public bool SeenType => EventLift is not null;
 }
 
 /// <summary>
@@ -26,6 +30,17 @@ public sealed record CampaignReplayResult(int CampaignId, string Name, string Ty
 /// reachable rather than a stretch.
 /// </summary>
 public sealed record CampaignCalibration(decimal Factor, decimal Conservative, int Campaigns, decimal Low, decimal High, decimal TailSharePct, string Basis);
+
+/// <summary>
+/// The backtest of a layer's campaigns: leave-one-out replays with the factors for each case (a type with an event lift, and
+/// one without), and the in-sample replays beside them for comparison only.
+/// </summary>
+public sealed record CampaignBacktest(List<CampaignReplayResult> Replays, CampaignCalibration? SeenType, CampaignCalibration? UnseenType,
+    List<CampaignReplayResult> InSample, CampaignCalibration? InSampleCalibration)
+{
+    /// <summary>The leave-one-out factor for a plan with (or without) an event lift for its type, or null with too few replays.</summary>
+    public CampaignCalibration? For(bool planHasEventLift) => planHasEventLift ? SeenType : UnseenType;
+}
 
 /// <summary>
 /// Backtest lever 7's measuring stick (plan section 5, "Backtester"): each finished campaign is replayed the way the planner
@@ -37,7 +52,7 @@ public sealed record CampaignCalibration(decimal Factor, decimal Conservative, i
 /// </summary>
 public static class CampaignReplay
 {
-    public const int LeadDays = 7, LagDays = 14, RateDays = 28, MinNormalDays = 14, MinCampaigns = 3, PercentileFrom = 8;
+    public const int LeadDays = 7, LagDays = 14, RateDays = 28, MinNormalDays = 14, MinCampaigns = 4, PercentileFrom = 8;
 
     /// <summary>The planner's rate window for a campaign starting on <paramref name="start"/>, planned <see cref="LeadDays"/> days before.</summary>
     public static DateWindow RateWindow(DateOnly start) => DateWindow.Ending(start.AddDays(-LeadDays), RateDays, LagDays);
@@ -69,17 +84,22 @@ public static class CampaignReplay
             Math.Round(tail, 0), tailSkus, seenSkus, Math.Round(predicted, 0), lift);
     }
 
-    /// <summary>The median and conservative factors over the usable replays, or null with fewer than <see cref="MinCampaigns"/>.</summary>
-    public static CampaignCalibration? Calibrate(IEnumerable<CampaignReplayResult> results, bool leaveOneOut = true)
+    /// <summary>
+    /// The median and conservative factors over the usable replays (only those of one case when <paramref name="seenType"/> is
+    /// given), or null with fewer than <see cref="MinCampaigns"/>.
+    /// </summary>
+    public static CampaignCalibration? Calibrate(IEnumerable<CampaignReplayResult> results, bool leaveOneOut = true, bool? seenType = null)
     {
-        var usable = results.Where(r => r.Usable).ToList();
+        var usable = results.Where(r => r.Usable && (seenType is null || r.SeenType == seenType)).ToList();
         if (usable.Count < MinCampaigns) return null;
         var ratios = usable.Select(r => r.TotalRatio!.Value).OrderBy(x => x).ToList();
         var tails = usable.Select(r => r.TailSharePct).OrderBy(x => x).ToList();
         var factor = Median(ratios);
         var conservative = ratios.Count >= PercentileFrom ? Percentile(ratios, 0.25m) : ratios[1];
         return new CampaignCalibration(factor, conservative, usable.Count, ratios[0], ratios[^1], Median(tails),
-            $"{(leaveOneOut ? "leave-one-out" : "in-sample")} replay of {usable.Count} past campaigns with the planner's arithmetic (actual GP / planned GP): " +
+            $"{(leaveOneOut ? "leave-one-out" : "in-sample")} replay of {usable.Count} past campaigns" +
+            (seenType switch { true => " whose type had an event lift from another window", false => " whose type had no other window (lift x1)", _ => "" }) +
+            " with the planner's arithmetic (actual GP / planned GP): " +
             $"median x{factor:0.00}, conservative x{conservative:0.00} ({(ratios.Count >= PercentileFrom ? "25th percentile" : "second-lowest")}), range x{ratios[0]:0.00}..x{ratios[^1]:0.00}; " +
             $"a median {Median(tails):0}% of a campaign's GP came from SKUs with no normal-day sales in the weeks before; estimated");
     }

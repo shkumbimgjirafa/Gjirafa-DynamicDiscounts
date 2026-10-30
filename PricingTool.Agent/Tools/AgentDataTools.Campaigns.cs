@@ -105,8 +105,7 @@ public sealed partial class AgentDataTools
     /// (event lift and depth fit refitted without the campaign scored) and in-sample beside it, with the calibration factors from
     /// the usable ones: how far planned gross profit lands from what campaigns really made. The planner uses the leave-one-out one.
     /// </summary>
-    public async Task<(List<CampaignReplayResult> Replays, CampaignCalibration? Calibration, List<CampaignReplayResult> InSample, CampaignCalibration? InSampleCalibration)>
-        ReplayCampaignsAsync(int layer, CancellationToken ct = default)
+    public async Task<CampaignBacktest> ReplayCampaignsAsync(int layer, CancellationToken ct = default)
     {
         var today = Today();
         var (byCampaign, _) = await CampaignSegmentsAsync(layer, null, today, ct);
@@ -125,7 +124,8 @@ public sealed partial class AgentDataTools
             loo.Add(CampaignReplay.Replay(w, normalDays, rows[w.CampaignId], without, representative));
             inSample.Add(CampaignReplay.Replay(w, normalDays, rows[w.CampaignId], inSampleDepth, representative));
         }
-        return (loo, CampaignReplay.Calibrate(loo), inSample, CampaignReplay.Calibrate(inSample, leaveOneOut: false));
+        return new CampaignBacktest(loo, CampaignReplay.Calibrate(loo, seenType: true), CampaignReplay.Calibrate(loo, seenType: false),
+            inSample, CampaignReplay.Calibrate(inSample, leaveOneOut: false));
     }
 
     /// <summary>The within-campaign fit over finished, representative campaigns.</summary>

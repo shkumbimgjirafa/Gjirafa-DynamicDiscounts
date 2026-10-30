@@ -271,11 +271,13 @@ public sealed class CampaignAgent
         sb.AppendLine(depth.B is { } b
             ? $"What extra depth buys on top of the event (within-campaign fit, {depth.Campaigns} campaigns): 10 pt deeper -> x{depth.DepthMultiplier(10):0.00} units, 20 pt -> x{depth.DepthMultiplier(20):0.00} (b = {b}); estimated."
             : $"What extra depth buys: {depth.Basis}.");
-        var calibration = (await _tools.ReplayCampaignsAsync(layerId, ct)).Calibration;
-        sb.AppendLine(calibration is { } cal
-            ? $"How the planner's estimates compare with what past campaigns made (backtest): {cal.Basis}. " +
-              "A plan calls a gross-profit goal reachable when its conservative estimate clears it, a stretch when only the median does."
-            : "Backtest of the planner's estimates: too few past campaigns to calibrate.");
+        var backtest = await _tools.ReplayCampaignsAsync(layerId, ct);
+        sb.AppendLine("How the planner's estimates compare with what past campaigns made (backtest, leave-one-out): " +
+                      (backtest.SeenType is { } s ? $"types with an event lift: {s.Basis}. " : $"types with an event lift: fewer than {CampaignReplay.MinCampaigns} replays, no factor. ") +
+                      (backtest.UnseenType is { } u ? $"Types without one: {u.Basis}. " : "") +
+                      (backtest.InSampleCalibration is { } i ? $"In-sample, for comparison only: x{i.Factor:0.00} (x{i.Low:0.00}..x{i.High:0.00}). " : "") +
+                      "A plan calls a gross-profit goal reachable when its conservative estimate clears it, a stretch when only the median does; " +
+                      "without a factor it judges on the arithmetic.");
         return sb.ToString();
 
         static string Change(decimal now, decimal ly) => ly > 0 ? $"{100m * (now - ly) / ly:+0;-0}%" : "n/a";

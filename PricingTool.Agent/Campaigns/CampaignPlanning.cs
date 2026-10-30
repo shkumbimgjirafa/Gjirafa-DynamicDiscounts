@@ -77,8 +77,8 @@ public sealed class CampaignPlanning
     /// <summary>Test seam: the depth effect (a fit over the campaign history needs SQL).</summary>
     internal Func<int, CancellationToken, Task<DepthEffect>>? DepthSource { get; set; }
 
-    /// <summary>Test seam: the backtest calibration (a replay of the campaign history needs SQL).</summary>
-    internal Func<int, CancellationToken, Task<CampaignCalibration?>>? CalibrationSource { get; set; }
+    /// <summary>Test seam: the backtest (a replay of the campaign history needs SQL).</summary>
+    internal Func<int, CancellationToken, Task<CampaignBacktest?>>? BacktestSource { get; set; }
 
     public async Task<PlanningResult> PlanAsync(long briefId, bool publish, CancellationToken ct = default)
     {
@@ -91,10 +91,15 @@ public sealed class CampaignPlanning
         var calendar = brief.CalendarId is { } cid ? await _db.CampaignCalendar.AsNoTracking().SingleOrDefaultAsync(c => c.Id == cid, ct) : null;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var depth = await (DepthSource ?? ((l, c) => _tools.GetDepthEffectAsync(l, c)))(layer.Id, ct);
-        var calibration = await (CalibrationSource ?? (async (l, c) => (await _tools.ReplayCampaignsAsync(l, c)).Calibration))(layer.Id, ct);
         var type = CampaignMath.TypeOf(calendar?.Name ?? brief.Name);
         var eventLift = depth.EventLift(type);
-        var liftNote = eventLift is { } el ? $"event lift x{el:0.00} (median of past {type} windows)" : $"no past {type} window: no event lift assumed (x1.00, conservative)";
+        var liftWindows = depth.EventLiftWindows.TryGetValue(type, out var lw) ? lw : 0;
+        var liftNote = eventLift is { } el ? $"event lift x{el:0.00} (median of {liftWindows} past {type} window{(liftWindows == 1 ? "" : "s")})" : $"no past {type} window: no event lift assumed (x1.00, conservative)";
+        var liftCaveat = eventLift is not null && liftWindows == 1
+            ? $" The {type} event lift rests on one past window, so the estimate's uncertainty is wider than any range shown." : "";
+        // Calibrated like for like: a plan with an event lift for its type uses the replays that had one too.
+        var backtest = await (BacktestSource ?? (async (l, c) => await _tools.ReplayCampaignsAsync(l, c)))(layer.Id, ct);
+        var calibration = backtest?.For(eventLift is not null);
         var bands = (await _bands.GetBandsAsync(layer.Id, ct)).ToDictionary(b => b.BandId);
         var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct);
         // A goal a person set for the calendar campaign is binding: Nova can't change it, and a plan short of it waits for a person.
@@ -110,13 +115,17 @@ public sealed class CampaignPlanning
         {
             var spec = new PlanSpec(brief.CalendarId ?? brief.Id, brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1, brief.GoalType, brief.GoalValue,
                 brief.MinMarginPct, Math.Min(brief.MaxDepthPct, _options.Campaigns.MaxDepthPct), layer.VatRatePct, eventLift ?? 1m,
-                ExcludedBrands(brief.Exclusions)) { GrossProfitOutsidePlan = followersGp, Calibration = calibration };
+                ExcludedBrands(brief.Exclusions)) { GrossProfitOutsidePlan = followersGp, Calibration = calibration, InSampleCalibration = backtest?.InSampleCalibration };
             var results = CampaignPlanner.Strategies.Select(s => CampaignPlanner.Plan(s, spec, candidates, depth, bands, _options.Campaigns.MaxSkusPerCampaign, leftOutBefore)).ToList();
             var basis = $"{candidates.Count:N0} SKUs in scope with stock and normal-day sales ({today.AddDays(-42):yyyy-MM-dd}..{today.AddDays(-15):yyyy-MM-dd}, campaign days left out); " +
                         $"{liftNote}; extra depth: {(depth.B is { } b ? $"b = {b} within-campaign fit" : "no fit, no extra units from depth")}; estimated." +
                         (followers.Count > 0 ? $" Not priced by the plan: {followers.Count:N0} SKUs that take Gjirafa50's price or sit in a holdout category, expected gross profit " +
                                                $"{followersGp:N0} at today's prices with the event lift; it counts toward the gross-profit goal (the whole shop, as the past windows), estimated." : "") +
-                        (calibration is { } cal ? $" Backtest calibration x{cal.Factor:0.00}: {cal.Basis}." : " No backtest calibration (too few past campaigns replayed).");
+                        (calibration is { } cal ? $" Backtest calibration x{cal.Factor:0.00}: {cal.Basis}."
+                            : $" No leave-one-out calibration for this case (fewer than {CampaignReplay.MinCampaigns} past campaigns of a type " +
+                              $"{(eventLift is not null ? "with an event lift from another window" : "without one")})." +
+                              (backtest?.InSampleCalibration is { } ins ? $" In-sample only: x{ins.Factor:0.00} (not leave-one-out; for comparison)." : "")) +
+                        liftCaveat;
             await SayAsync(brief, null, round, "code", $"Round {round}: three plans computed. {basis}\n{Describe(results, brief)}", null, ct);
 
             var choice = await AskAlphaAsync(brief, results, basis, round, ct);

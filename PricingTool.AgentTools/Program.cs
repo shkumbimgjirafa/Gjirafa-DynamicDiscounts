@@ -345,15 +345,17 @@ switch (command)
         foreach (var layer in positional.Select(int.Parse))
         {
             var sw = Stopwatch.StartNew();
-            var (replays, calibration, inSample, inSampleCalibration) = await tools.ReplayCampaignsAsync(layer);
+            var bt = await tools.ReplayCampaignsAsync(layer);
+            var (replays, inSample) = (bt.Replays, bt.InSample);
             Console.WriteLine($"Layer {layer}: {replays.Count} campaigns replayed in {sw.Elapsed.TotalSeconds:0.0} s (booked COGS, EUR VAT excl.; estimated)");
-            Console.WriteLine("campaign | days | normal days | actual GP | seen SKUs: actual GP / planned (leave-one-out) | tail SKUs: GP (share) | actual/planned LOO | in-sample | usable");
+            Console.WriteLine("campaign | days | normal days | actual GP | seen SKUs: actual GP / planned (leave-one-out) | tail SKUs: GP (share) | actual/planned LOO | lift LOO | in-sample | usable");
             foreach (var (r, s) in replays.Zip(inSample))
                 Console.WriteLine($"{r.Name} | {r.Days} | {r.NormalDays} | {r.ActualGp:N0} | {r.SeenSkus:N0}: {r.SeenActualGp:N0} / {r.PredictedSeenGp:N0} (x{r.SeenRatio:0.00}) | " +
-                                  $"{r.TailSkus:N0}: {r.TailGp:N0} ({r.TailSharePct:0.0}%) | x{r.TotalRatio:0.00} | x{s.TotalRatio:0.00} | " +
+                                  $"{r.TailSkus:N0}: {r.TailGp:N0} ({r.TailSharePct:0.0}%) | x{r.TotalRatio:0.00} | {(r.SeenType ? $"x{r.EventLift:0.00}" : "none (x1)")} | x{s.TotalRatio:0.00} | " +
                                   $"{(r.Usable ? "yes" : r.Representative ? "too few normal days" : "not representative")}");
-            Console.WriteLine(calibration is null ? "No calibration: too few usable campaigns." : $"Calibration: {calibration.Basis}.");
-            Console.WriteLine(inSampleCalibration is null ? "" : $"For comparison, {inSampleCalibration.Basis}.");
+            Console.WriteLine(bt.SeenType is { } seen ? $"Types with an event lift: {seen.Basis}." : $"Types with an event lift: fewer than {PricingTool.Agent.Campaigns.CampaignReplay.MinCampaigns} usable replays, no factor.");
+            Console.WriteLine(bt.UnseenType is { } unseen ? $"Types without one: {unseen.Basis}." : $"Types without one: fewer than {PricingTool.Agent.Campaigns.CampaignReplay.MinCampaigns} usable replays, no factor.");
+            Console.WriteLine(bt.InSampleCalibration is null ? "" : $"For comparison only, {bt.InSampleCalibration.Basis}.");
         }
         return 0;
     }

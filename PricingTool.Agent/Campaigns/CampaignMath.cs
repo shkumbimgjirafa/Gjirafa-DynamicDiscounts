@@ -58,6 +58,9 @@ public sealed record DepthEffect(decimal? B, int Campaigns, int Points, decimal 
 
     /// <summary>The event lift of a campaign type (median over its past windows), or null when none was measured.</summary>
     public decimal? EventLift(string type) => EventLiftByType.TryGetValue(type, out var v) ? v : null;
+
+    /// <summary>How many past windows each type's event lift rests on.</summary>
+    public IReadOnlyDictionary<string, int> EventLiftWindows { get; init; } = new Dictionary<string, int>();
 }
 
 /// <summary>
@@ -145,7 +148,10 @@ public static class CampaignMath
         var max = Math.Round((decimal)all.Max(p => p.D) * 100m, 1);
         var min = Math.Round((decimal)all.Min(p => p.D) * 100m, 1);
         return new DepthEffect(Math.Round((decimal)b, 3), usable.Count, n, max, min, lifts, byType,
-            basis + $"; within-campaign fit over {usable.Count} campaigns and {n} campaign x category points, extra depth {min:0.#} to {max:0.#} pt");
+            basis + $"; within-campaign fit over {usable.Count} campaigns and {n} campaign x category points, extra depth {min:0.#} to {max:0.#} pt")
+        {
+            EventLiftWindows = usable.GroupBy(g => g.First().CampaignType).ToDictionary(t => t.Key, t => t.Count()),
+        };
     }
 
     /// <summary>A campaign's type from its name: the name without the year, the month or a bracketed note

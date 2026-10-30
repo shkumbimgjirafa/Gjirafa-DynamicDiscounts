@@ -124,11 +124,29 @@ public class CampaignPlanningTests : IDisposable
         Assert.True(r.Usable);
 
         var results = new[] { 0.6m, 1.2m, 1.7m, 0.3m }.Select((k, i) => r with { CampaignId = i, PredictedSeenGp = Math.Round(1200m / k, 0) }).ToList();
-        Assert.Null(CampaignReplay.Calibrate(results.Take(2)));                                  // fewer than 3 usable
+        Assert.Null(CampaignReplay.Calibrate(results.Take(3)));                                  // fewer than 4 usable
         var cal = CampaignReplay.Calibrate(results.Append(r with { Representative = false, PredictedSeenGp = 1m }))!;
         Assert.Equal((4, 0.3m, 1.7m), (cal.Campaigns, cal.Low, cal.High));                        // the unrepresentative one left out
         Assert.Equal(0.9m, cal.Factor);                                                           // median of 0.3, 0.6, 1.2, 1.7
         Assert.Equal(0.6m, cal.Conservative);                                                     // fewer than 8: the second-lowest
+    }
+
+    [Fact]
+    public void A_campaign_scored_without_an_event_lift_does_not_move_the_factor_for_types_with_one()
+    {
+        var w = new CampaignWindow(1, "Për ty, Oct 2025", new DateOnly(2025, 10, 8), new DateOnly(2025, 10, 12), "main");
+        var r = CampaignReplay.Replay(w, 28, new[] { new ReplaySkuRow(1, "SEEN", 28m, 2800m, 560m, 50m, 4500m, 900m) },
+            Depth with { EventLiftByType = new Dictionary<string, decimal> { ["Për ty"] = 3m } }, representative: true);
+        Assert.True(r.SeenType);
+        var seen = new[] { 0.6m, 1.2m, 1.7m, 0.9m }.Select((k, i) => r with { CampaignId = i, PredictedSeenGp = Math.Round(r.ActualGp / k, 0) }).ToList();
+        var unseen = r with { CampaignId = 9, EventLift = null, PredictedSeenGp = Math.Round(r.ActualGp / 11.8m, 0) };   // its only window left out: lift x1
+        Assert.False(unseen.SeenType);
+        var all = seen.Append(unseen).ToList();
+        Assert.Equal(CampaignReplay.Calibrate(seen, seenType: true)!.Factor, CampaignReplay.Calibrate(all, seenType: true)!.Factor);
+        Assert.Null(CampaignReplay.Calibrate(all, seenType: false));                               // one unseen-type replay: no factor
+        var backtest = new CampaignBacktest(all, CampaignReplay.Calibrate(all, seenType: true), CampaignReplay.Calibrate(all, seenType: false), all, null);
+        Assert.Same(backtest.SeenType, backtest.For(planHasEventLift: true));
+        Assert.Null(backtest.For(planHasEventLift: false));
     }
 
     [Fact]
@@ -223,7 +241,7 @@ public class CampaignPlanningTests : IDisposable
         var publisher = new Publisher();
         var planning = new CampaignPlanning(_db, _tool, new Candidates(), new AgentDataTools(reader, options, new AgentToolLog(_db), _db), new BandConfigProvider(_tool),
             client, new ConfigKillSwitch(options.Value), options, NullLogger<CampaignPlanning>.Instance, publisher: publisher)
-        { DepthSource = (_, _) => Task.FromResult(Depth), CalibrationSource = (_, _) => Task.FromResult<CampaignCalibration?>(null) };
+        { DepthSource = (_, _) => Task.FromResult(Depth), BacktestSource = (_, _) => Task.FromResult<CampaignBacktest?>(null) };
         return (planning, publisher, brief);
     }
 
@@ -304,7 +322,8 @@ public class CampaignPlanningTests : IDisposable
         (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = ("gross-profit", 5000m, "user, 2026-10-30");
         brief.GoalValue = 5000m;
         await _db.SaveChangesAsync();
-        planning.CalibrationSource = (_, _) => Task.FromResult<CampaignCalibration?>(new CampaignCalibration(1000m, 0.001m, 7, 0.001m, 1000m, 44m, "test"));
+        var cal = new CampaignCalibration(1000m, 0.001m, 7, 0.001m, 1000m, 44m, "test");               // Depth has a Black Friday lift: the seen-type factor
+        planning.BacktestSource = (_, _) => Task.FromResult<CampaignBacktest?>(new CampaignBacktest(new(), cal, null, new(), null));
         Says(new JsonObject { ["strategy"] = "visible", ["explanation"] = "Visible." });
         Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
 
