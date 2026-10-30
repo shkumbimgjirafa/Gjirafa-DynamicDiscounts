@@ -178,6 +178,11 @@ public class PricingRunOrchestrator
             await _snapshots.SaveSnapshotAsync(layerId, rows, pulledAt.Date, ct);
 
             var bands = await _bandProvider.GetBandsAsync(layerId, ct);
+            // Per-category floors and targets (hackathon build): a SKU whose band x category has a rule prices
+            // against a copy of its band with the rule's values; everything else as before. None without rules.
+            var categoryBands = await _bandProvider.GetCategoryBandsAsync(layer, bands, ct);
+            if (categoryBands.Rules.Count > 0)
+                _logger.LogInformation("Layer {LayerId}: {Rules} per-category floor/target rule(s) in force.", layerId, categoryBands.Rules.Count);
 
             // Snapshot the band TARGET + FLOOR margins this run is pricing against, so historical views and
             // the Target-impact analysis read the targets the run actually aimed for rather than today's
@@ -231,9 +236,9 @@ public class PricingRunOrchestrator
             // baseline prices and locked/free split line up exactly.
             IReadOnlyDictionary<string, MarginOverride> marginOverrides =
                 new Dictionary<string, MarginOverride>(StringComparer.OrdinalIgnoreCase);
-            if (bands.Any(b => b.TargetMarginPct is > 0m and < 100m))
+            if (bands.Any(b => b.TargetMarginPct is > 0m and < 100m) || categoryBands.Targets.Count > 0)
                 marginOverrides = BuildMarginOverrides(
-                    rows, bands, streaks, elasticities, roundingDisabledSkus, pulledAt, layer.VatRatePct, layer.FloorAndRoundingOnly, slowLanesFrozen, syncedPrices, clearanceLocks, layer.IgnoreNewProducts, discountTrimRanges);
+                    rows, bands, categoryBands, streaks, elasticities, roundingDisabledSkus, pulledAt, layer.VatRatePct, layer.FloorAndRoundingOnly, slowLanesFrozen, syncedPrices, clearanceLocks, layer.IgnoreNewProducts, discountTrimRanges);
 
             // Proposals (and their votes) are streamed to SQL in bulk-copy chunks rather than via EF.
             // We assign proposal Ids ourselves (continuing from the current max) so votes can carry the
@@ -248,13 +253,18 @@ public class PricingRunOrchestrator
             var tunnelUpdates = new List<SkuTunnelPriceUpdate>();
             // The SKUs this run flags dead, for the dead-stock history (DeadStockEpisodes) written once the run succeeds.
             var deadToday = new Dictionary<string, DeadSkuToday>(StringComparer.OrdinalIgnoreCase);
+            // SKUs priced against each per-category rule, for the run's capture (PricingRunCategoryRules).
+            var ruleSkus = new Dictionary<(int BandId, string Category), int>();
 
             foreach (var row in rows)
             {
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    var proposal = PriceOneSku(row, bands, streaks, elasticities, roundingDisabledSkus, pulledAt, layer.VatRatePct, layer.FloorAndRoundingOnly, slowLanesFrozen, marginOverrides, pacingUpdates, tunnelUpdates, syncedPrices, clearanceLocks, layer.IgnoreNewProducts, discountTrimRanges);
+                    var proposal = PriceOneSku(row, bands, categoryBands, streaks, elasticities, roundingDisabledSkus, pulledAt, layer.VatRatePct, layer.FloorAndRoundingOnly, slowLanesFrozen, marginOverrides, pacingUpdates, tunnelUpdates, syncedPrices, clearanceLocks, layer.IgnoreNewProducts, discountTrimRanges);
+                    if (categoryBands.Rules.Count > 0 && proposal.PriceBandId is int pb && !syncedPrices.ContainsKey(row.Sku)
+                        && categoryBands.CategoryOf(row.Sku, row.ProductId) is { } ruleCategory && categoryBands.Rules.ContainsKey((pb, ruleCategory)))
+                        ruleSkus[(pb, ruleCategory)] = ruleSkus.GetValueOrDefault((pb, ruleCategory)) + 1;
                     proposal.Id = nextProposalId++;
                     proposal.PricingRunId = run.Id;
                     proposal.LayerId = layerId;
@@ -284,6 +294,20 @@ public class PricingRunOrchestrator
             {
                 await FlushAsync(buffer, run, ct);
                 buffer.Clear();
+            }
+
+            // Capture the per-category rules this run priced against (like the band targets above), so the run
+            // checker and later look-backs judge each price against the floor that produced it.
+            if (categoryBands.Rules.Count > 0)
+            {
+                var capturedUtc = DateTime.UtcNow;
+                _db.PricingRunCategoryRules.AddRange(categoryBands.Rules.Select(r => new PricingRunCategoryRule
+                {
+                    PricingRunId = run.Id, LayerId = layerId, BandId = r.Key.BandId, Category = r.Key.Category,
+                    MarginFloorPct = r.Value.MarginFloorPct, TargetMarginPct = r.Value.TargetMarginPct,
+                    Skus = ruleSkus.GetValueOrDefault(r.Key), CapturedUtc = capturedUtc,
+                }));
+                await _db.SaveChangesAsync(ct);
             }
 
             // Persist the paced markdown state the run advanced, so the next run resumes the walk
@@ -427,6 +451,7 @@ public class PricingRunOrchestrator
     private IReadOnlyDictionary<string, MarginOverride> BuildMarginOverrides(
         IReadOnlyList<SnapshotRow> rows,
         IReadOnlyList<PriceBandConfig> bands,
+        CategoryBands categoryBands,
         IReadOnlyDictionary<string, DeadStockStateView> streaks,
         IReadOnlyDictionary<string, (decimal Coefficient, decimal StdErr)> elasticities,
         HashSet<string> roundingDisabledSkus,
@@ -447,7 +472,7 @@ public class PricingRunOrchestrator
             // Must mirror the real pass's FloorAndRoundingOnly: with algorithms off every SKU prices to
             // its current/floor baseline and is "free", so the guardrail then moves them toward the goal.
             var (ctx, _) = TryBuildContext(
-                row, bands, streaks, elasticities, roundingDisabledSkus, pulledAt, vatRatePct, floorAndRoundingOnly, slowLanesFrozen, clearanceLocks, ignoreNewProducts, discountTrimRanges);
+                row, bands, categoryBands, streaks, elasticities, roundingDisabledSkus, pulledAt, vatRatePct, floorAndRoundingOnly, slowLanesFrozen, clearanceLocks, ignoreNewProducts, discountTrimRanges);
             if (ctx is null) continue;                                        // skipped SKU — not in any band aggregate
             if (ctx.IsNewProduct) continue;                                   // held by the new-product hard rule
             if (ctx.IsDeadStock) continue;                                    // dead stock is the paced dead-stock lane's — never margin-tuned, at any no-sale window (also keeps a frozen/newly-dead SKU from being re-priced off-tick)
@@ -466,14 +491,16 @@ public class PricingRunOrchestrator
                 Price: ctx.AnchorPrice,
                 Cost: ctx.Pptcv ?? 0m,
                 Floor: bounds.Lower,
-                Ceiling: Math.Max(ctx.AnchorPrice, bounds.Lower)));           // never price above list; current plays no part
+                Ceiling: Math.Max(ctx.AnchorPrice, bounds.Lower),             // never price above list; current plays no part
+                // Measured with its band x category when that has its own target (a per-category rule).
+                Category: categoryBands.TargetGroupOf(row.Sku, row.ProductId, ctx.Band.BandId)));
         }
 
-        var result = _marginTarget.BuildOverrides(bands, candidates, _options);
+        var result = _marginTarget.BuildOverrides(bands, candidates, _options, categoryBands.Targets);
         foreach (var b in result.Bands.Where(x => x.Unreachable))
             _logger.LogInformation(
-                "Margin target for band {BandId} ({Target}%) not fully reachable (baseline {Baseline:0.##}%): {Why}.",
-                b.BandId, b.TargetPct, b.BaselineMarginPct, b.NoFreeProducts ? "no free products" : "insufficient free headroom");
+                "Margin target for band {BandId}{Category} ({Target}%) not fully reachable (baseline {Baseline:0.##}%): {Why}.",
+                b.BandId, b.Category is null ? "" : $" x {b.Category}", b.TargetPct, b.BaselineMarginPct, b.NoFreeProducts ? "no free products" : "insufficient free headroom");
         if (result.Overrides.Count > 0)
             _logger.LogInformation("Margin-target guardrail adjusted {Count} SKU(s) across {Bands} band(s).",
                 result.Overrides.Count, result.Bands.Count(b => b.MovedCount > 0));
@@ -503,6 +530,7 @@ public class PricingRunOrchestrator
     private (SkuContext? Ctx, string? SkipReason) TryBuildContext(
         SnapshotRow row,
         IReadOnlyList<PriceBandConfig> bands,
+        CategoryBands categoryBands,
         IReadOnlyDictionary<string, DeadStockStateView> streaks,
         IReadOnlyDictionary<string, (decimal Coefficient, decimal StdErr)> elasticities,
         HashSet<string> roundingDisabledSkus,
@@ -535,6 +563,9 @@ public class PricingRunOrchestrator
         var band = BandConfigProvider.FindBand(bands, pptcv);
         if (band is null)
             return (null, SkipReasons.NoBand);
+        // Per-category rule: the band's copy with the rule's floor/target (same BandId), so the floor clamp and
+        // everything else reading ctx.Band see it. Unchanged when the SKU's band x category has no rule.
+        band = categoryBands.Resolve(row.Sku, row.ProductId, band);
 
         decimal? elasticity = null, elasticityStdErr = null;
         if (elasticities.TryGetValue(row.Sku, out var el))
@@ -603,6 +634,7 @@ public class PricingRunOrchestrator
     private ProposedPrice PriceOneSku(
         SnapshotRow row,
         IReadOnlyList<PriceBandConfig> bands,
+        CategoryBands categoryBands,
         IReadOnlyDictionary<string, DeadStockStateView> streaks,
         IReadOnlyDictionary<string, (decimal Coefficient, decimal StdErr)> elasticities,
         HashSet<string> roundingDisabledSkus,
@@ -619,7 +651,7 @@ public class PricingRunOrchestrator
         IReadOnlyList<DiscountTrimRange>? discountTrimRanges)
     {
         var (ctx, skipReason) = TryBuildContext(
-            row, bands, streaks, elasticities, roundingDisabledSkus, pulledAt, vatRatePct, floorAndRoundingOnly, slowLanesFrozen, clearanceLocks, ignoreNewProducts, discountTrimRanges);
+            row, bands, categoryBands, streaks, elasticities, roundingDisabledSkus, pulledAt, vatRatePct, floorAndRoundingOnly, slowLanesFrozen, clearanceLocks, ignoreNewProducts, discountTrimRanges);
 
         // Sync-to-Gj50 (highest precedence): if the same-country Gjirafa50 layer priced this SKU, ADOPT
         // its price verbatim — the product is primarily a Gjirafa50 product (shared warehouse, synced

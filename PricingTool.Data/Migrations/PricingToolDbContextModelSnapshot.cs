@@ -1283,6 +1283,50 @@ namespace PricingTool.Data.Migrations
                     b.ToTable("PricingRunBandTargets", "PricingTool");
                 });
 
+            modelBuilder.Entity("PricingTool.Data.Entities.PricingRunCategoryRule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("BandId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CapturedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("MarginFloorPct")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<long>("PricingRunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Skus")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("TargetMarginPct")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PricingRunId", "BandId", "Category")
+                        .IsUnique();
+
+                    b.ToTable("PricingRunCategoryRules", "PricingTool");
+                });
+
             modelBuilder.Entity("PricingTool.Data.Entities.ProposedPrice", b =>
                 {
                     b.Property<long>("Id")

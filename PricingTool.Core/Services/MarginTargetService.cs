@@ -10,7 +10,8 @@ namespace PricingTool.Core.Services;
 /// reference price the guardrail measures the band margin on and nudges from — the orchestrator feeds
 /// the anchor (ProductPricing.FinalPrice), so today's (possibly discounted) current price plays no part
 /// in the margin math. <c>Floor</c> is the margin-floor price; <c>Ceiling</c> is the anchor (a lift never
-/// prices above list).
+/// prices above list). <c>Category</c> is set only when the SKU's band × category has its own target (a
+/// per-category rule, see <see cref="CategoryBands"/>): the SKU is then measured with that group, not its band.
 /// </summary>
 public record MarginCandidate(
     string Sku,
@@ -19,15 +20,16 @@ public record MarginCandidate(
     decimal Price,
     decimal Cost,
     decimal Floor,
-    decimal Ceiling);
+    decimal Ceiling,
+    string? Category = null);
 
 /// <summary>The guardrail's pre-rounding target for one moved SKU. <c>IsTrim</c> = discounted (else raised).</summary>
 public record MarginOverride(decimal AdjustedPrice, bool IsTrim);
 
-/// <summary>Per-band diagnostics for logging and tests.</summary>
+/// <summary>Per-band (or band × category) diagnostics for logging and tests. <c>Category</c> null = the band's own group.</summary>
 public record MarginBandResult(
     int BandId, decimal TargetPct, decimal BaselineMarginPct,
-    bool NoFreeProducts, bool Unreachable, int MovedCount);
+    bool NoFreeProducts, bool Unreachable, int MovedCount, string? Category = null);
 
 public record MarginTargetResult(
     IReadOnlyDictionary<string, MarginOverride> Overrides,
@@ -51,6 +53,10 @@ public record MarginTargetResult(
 /// <para>New-product-protected and locally-held dead-stock SKUs are excluded upstream (during the scan)
 /// and must not appear in <paramref name="candidates"/> at all — they neither count toward a band's
 /// margin nor get adjusted.</para>
+///
+/// <para>Per-category targets (<paramref name="categoryTargets"/>, from <see cref="CategoryBands.Targets"/>): a
+/// band × category with its own target is a group of its own, with that target, and the rest of the band keeps
+/// the band's target. Candidates carry the category only when their group has its own target.</para>
 /// </summary>
 public class MarginTargetService
 {
@@ -60,41 +66,52 @@ public class MarginTargetService
     public MarginTargetResult BuildOverrides(
         IReadOnlyList<PriceBandConfig> bands,
         IReadOnlyList<MarginCandidate> candidates,
-        PricingEngineOptions options)
+        PricingEngineOptions options,
+        IReadOnlyDictionary<(int BandId, string Category), decimal>? categoryTargets = null)
     {
         var overrides = new Dictionary<string, MarginOverride>(StringComparer.OrdinalIgnoreCase);
         var bandResults = new List<MarginBandResult>();
 
-        var byBand = candidates
-            .GroupBy(c => c.BandId)
+        // A candidate's group: its band × category when that has its own target, else its band.
+        var byGroup = candidates
+            .GroupBy(c => (c.BandId, Category: c.Category is { } cat && categoryTargets?.ContainsKey((c.BandId, cat)) == true ? cat : null))
             .ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var band in bands)
         {
-            if (band.TargetMarginPct is not decimal targetPct) continue;   // no goal → guardrail off
-            if (targetPct <= 0m || targetPct >= 100m) continue;            // invalid → ignore (UI validates too)
-            if (!byBand.TryGetValue(band.BandId, out var items) || items.Count == 0) continue;
+            Tune(band.BandId, null, band.TargetMarginPct);
+            foreach (var key in byGroup.Keys.Where(k => k.BandId == band.BandId && k.Category is not null).OrderBy(k => k.Category, StringComparer.Ordinal))
+                Tune(band.BandId, key.Category, categoryTargets![(band.BandId, key.Category!)]);
+        }
+
+        return new MarginTargetResult(overrides, bandResults);
+
+        void Tune(int bandId, string? category, decimal? target)
+        {
+            if (target is not decimal targetPct) return;                    // no goal → guardrail off
+            if (targetPct <= 0m || targetPct >= 100m) return;               // invalid → ignore (UI validates too)
+            if (!byGroup.TryGetValue((bandId, category), out var items) || items.Count == 0) return;
 
             var targetFrac = targetPct / 100m;
             var sumCost = items.Sum(c => c.Cost);
             var sumPrice = items.Sum(c => c.Price);
-            if (sumPrice <= 0m) continue;
+            if (sumPrice <= 0m) return;
 
             var baselineMarginPct = (sumPrice - sumCost) / sumPrice * 100m;
 
             // Deadband: already within tolerance of the goal → don't churn prices for a rounding-level miss.
             if (Math.Abs(baselineMarginPct - targetPct) <= options.MarginTargetTolerancePct)
             {
-                bandResults.Add(new MarginBandResult(band.BandId, targetPct, baselineMarginPct, false, false, 0));
-                continue;
+                bandResults.Add(new MarginBandResult(bandId, targetPct, baselineMarginPct, false, false, 0, category));
+                return;
             }
 
             var free = items.Where(c => !c.IsLocked).ToList();
             if (free.Count == 0)
             {
                 // Every product in the band is an algorithm conclusion — nothing the guardrail may touch.
-                bandResults.Add(new MarginBandResult(band.BandId, targetPct, baselineMarginPct, true, true, 0));
-                continue;
+                bandResults.Add(new MarginBandResult(bandId, targetPct, baselineMarginPct, true, true, 0, category));
+                return;
             }
 
             // Total band revenue that makes the blended margin == target (locked prices fixed). The whole
@@ -117,8 +134,8 @@ public class MarginTargetService
             var totalHeadroom = free.Sum(Headroom);
             if (totalHeadroom <= 0m)
             {
-                bandResults.Add(new MarginBandResult(band.BandId, targetPct, baselineMarginPct, false, true, 0));
-                continue;
+                bandResults.Add(new MarginBandResult(bandId, targetPct, baselineMarginPct, false, true, 0, category));
+                return;
             }
 
             var need = Math.Abs(delta);
@@ -137,9 +154,7 @@ public class MarginTargetService
                 moved++;
             }
 
-            bandResults.Add(new MarginBandResult(band.BandId, targetPct, baselineMarginPct, false, unreachable, moved));
+            bandResults.Add(new MarginBandResult(bandId, targetPct, baselineMarginPct, false, unreachable, moved, category));
         }
-
-        return new MarginTargetResult(overrides, bandResults);
     }
 }

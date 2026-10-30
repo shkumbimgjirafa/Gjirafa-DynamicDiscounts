@@ -37,9 +37,10 @@ public sealed class RunChecker
     private readonly ILogger<RunChecker> _logger;
     private readonly TimeProvider _clock;
     private readonly IKillSwitch _killSwitch;
+    private readonly IProposalCategoryLookup? _categories;
 
     public RunChecker(PricingToolDbContext tool, AgentDbContext db, ClaudeCodeClient client, IOptions<AgentOptions> options,
-        ILogger<RunChecker> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null)
+        ILogger<RunChecker> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null, IProposalCategoryLookup? categories = null)
     {
         _tool = tool;
         _db = db;
@@ -48,6 +49,7 @@ public sealed class RunChecker
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
         _killSwitch = killSwitch ?? new ConfigKillSwitch(_options);
+        _categories = categories;
     }
 
     public static string PromptsDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Prompts");
@@ -186,14 +188,27 @@ public sealed class RunChecker
         return new RunCheckResult(check.Id, check.Verdict, status, check.Error, check.RowsFlagged, check.RowsSentToModel, check.Blocks, check.Warns, check.Fixed);
     }
 
-    /// <summary>The run's changed prices with their band, the floor the run used, the SKU's cost in the
-    /// layer's previous run and, on GjirafaMall, Gjirafa50's price for the same SKU.</summary>
+    /// <summary>The run's changed prices with their band, the floor the run used (its band × category's when a
+    /// per-category rule applied), the SKU's cost in the layer's previous run and, on GjirafaMall, Gjirafa50's price
+    /// for the same SKU.</summary>
     private async Task<(List<CheckInput> Inputs, List<string> Notes)> LoadAsync(PricingRun run, CancellationToken ct)
     {
         var notes = new List<string>();
         var bands = await _tool.PriceBands.AsNoTracking().Where(b => b.LayerId == run.LayerId).ToDictionaryAsync(b => b.Id, ct);
         var runFloors = await _tool.PricingRunBandTargets.AsNoTracking().Where(t => t.PricingRunId == run.Id)
             .ToDictionaryAsync(t => t.BandId, t => t.MarginFloorPct, ct);
+        // Per-category floors the run priced against (PricingRunCategoryRules), and the category of each changed
+        // price in those bands, found by SKU like the engine does.
+        var runRules = await _tool.PricingRunCategoryRules.AsNoTracking().Where(r => r.PricingRunId == run.Id)
+            .ToDictionaryAsync(r => (r.BandId, r.Category), r => r.MarginFloorPct, ct);
+        IReadOnlyDictionary<long, string> categoryOf = new Dictionary<long, string>();
+        if (runRules.Count > 0)
+        {
+            if (_categories is null)
+                notes.Add($"{runRules.Count} per-category floor(s) in this run not resolved (no category lookup): band floors used.");
+            else
+                categoryOf = await _categories.CategoriesAsync(run.Id, run.LayerId, runRules.Keys.Select(k => k.BandId).Distinct().ToList(), ct);
+        }
         var proposals = await _tool.ProposedPrices.AsNoTracking().Where(p => p.PricingRunId == run.Id && p.HasChange)
             .Select(p => new { p.Id, p.Sku, p.PriceBandId, p.ProposedPriceValue, p.CurrentPrice, p.OldPrice, p.AnchorPrice, p.Pptcv, p.ChangePct,
                 p.DeadStockStage, p.ReasonCodes, p.GuardrailFlags })
@@ -230,6 +245,8 @@ public sealed class RunChecker
         {
             var band = p.PriceBandId is { } id && bands.TryGetValue(id, out var b) ? b : null;
             decimal? floor = p.PriceBandId is { } bid && runFloors.TryGetValue(bid, out var rf) ? rf : band?.MarginFloorPct;
+            if (p.PriceBandId is { } cb && categoryOf.TryGetValue(p.Id, out var category) && runRules.TryGetValue((cb, category), out var cf))
+                floor = cf;
             return new CheckInput(p.Id, p.Sku, p.PriceBandId, band?.Name, (RoundingConvention)(band?.RoundingConvention ?? 0), band?.RoundingEnabled ?? false,
                 floor, p.ProposedPriceValue, p.CurrentPrice, p.OldPrice, p.AnchorPrice, p.Pptcv, p.ChangePct, p.DeadStockStage, p.ReasonCodes, p.GuardrailFlags)
             {

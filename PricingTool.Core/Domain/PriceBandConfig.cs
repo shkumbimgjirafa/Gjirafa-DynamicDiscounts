@@ -15,14 +15,28 @@ public class PriceBandConfig
     public decimal MaxPrice { get; init; }
 
     /// <summary>Hard minimum margin, in percent of the VAT-exclusive selling price (e.g. 12 = 12%).</summary>
-    public decimal MarginFloorPct { get; init; }
+    public decimal MarginFloorPct { get => _marginFloorPct; init => _marginFloorPct = value; }
+    private decimal _marginFloorPct;
 
     /// <summary>
     /// Optional blended margin GOAL for this band, in percent (e.g. 20 = 20%). Null = off. Read by the
     /// post-pass margin-target guardrail, which re-prices only the algorithm-silent SKUs in the band to
     /// pull its overall margin toward this value, bounded by the margin floor and the anchor.
     /// </summary>
-    public decimal? TargetMarginPct { get; init; }
+    public decimal? TargetMarginPct { get => _targetMarginPct; init => _targetMarginPct = value; }
+    private decimal? _targetMarginPct;
+
+    /// <summary>
+    /// A copy of this band with another floor and target, everything else the same (same BandId): what a SKU
+    /// whose band × category has a per-category rule prices against (see <see cref="CategoryBands"/>).
+    /// </summary>
+    public PriceBandConfig WithMargins(decimal marginFloorPct, decimal? targetMarginPct)
+    {
+        var copy = (PriceBandConfig)MemberwiseClone();
+        copy._marginFloorPct = marginFloorPct;
+        copy._targetMarginPct = targetMarginPct;
+        return copy;
+    }
 
     // ---- Dead-stock progressive markdown (Algorithm 7), per band. Defaults: 10% start, +5pp per
     // 14 days, min stock age 90, floor at 100% of cost (never below cost). The 90-day age and the

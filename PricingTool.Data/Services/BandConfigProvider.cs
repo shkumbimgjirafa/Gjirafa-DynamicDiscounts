@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PricingTool.Core.Domain;
+using PricingTool.Data.Entities;
 
 namespace PricingTool.Data.Services;
 
@@ -7,8 +8,27 @@ namespace PricingTool.Data.Services;
 public class BandConfigProvider
 {
     private readonly PricingToolDbContext _db;
+    private readonly ICategoryMapReader? _categoryMap;
 
-    public BandConfigProvider(PricingToolDbContext db) => _db = db;
+    public BandConfigProvider(PricingToolDbContext db, ICategoryMapReader? categoryMap = null)
+    {
+        _db = db;
+        _categoryMap = categoryMap;
+    }
+
+    /// <summary>
+    /// The layer's per-category floors and targets for this run (<see cref="BandCategoryRule"/>, written by the pricing
+    /// agent within its safety limits), with each affected SKU's category from the product map. No rules, or no map
+    /// to find the categories in, gives <see cref="CategoryBands.None"/>: every SKU prices against its band.
+    /// </summary>
+    public async Task<CategoryBands> GetCategoryBandsAsync(Layer layer, IReadOnlyList<PriceBandConfig> bands, CancellationToken ct = default)
+    {
+        var rules = await _db.BandCategoryRules.AsNoTracking().Where(r => r.LayerId == layer.Id)
+            .Select(r => new CategoryRule(r.BandId, r.Category, r.MarginFloorPct, r.TargetMarginPct)).ToListAsync(ct);
+        if (rules.Count == 0 || _categoryMap is null) return CategoryBands.None;
+        var listings = await _categoryMap.ReadAsync(layer.Id, layer.Brand == "GjirafaMall", rules.Select(r => r.Category).Distinct().ToList(), ct);
+        return listings is null ? CategoryBands.None : new CategoryBands(bands, rules, listings);
+    }
 
     public async Task<IReadOnlyList<PriceBandConfig>> GetBandsAsync(int layerId, CancellationToken ct = default)
     {

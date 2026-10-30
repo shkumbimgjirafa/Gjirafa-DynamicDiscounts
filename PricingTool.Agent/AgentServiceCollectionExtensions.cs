@@ -44,6 +44,7 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<RunChecker>();
         services.AddScoped<CheckedExport>();
         services.AddScoped<IHoldoutLookup, HoldoutLookup>();
+        services.AddScoped<IProposalCategoryLookup, ProposalCategoryLookup>();
         services.AddScoped<DatabaseMaintenance>();
         services.AddScoped<HkRefresher>();
         services.AddScoped<MoneyLedger>();

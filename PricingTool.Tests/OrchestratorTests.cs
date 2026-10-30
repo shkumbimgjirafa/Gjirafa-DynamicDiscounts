@@ -259,7 +259,7 @@ public class OrchestratorTests
 
     internal static PricingRunOrchestrator NewOrchestrator(
         PricingToolDbContext db, IReadOnlyList<SnapshotRow> rows, PricingEngineOptions? options = null,
-        ISourceDataReader? reader = null, IBulkWriteService? bulkWriter = null)
+        ISourceDataReader? reader = null, IBulkWriteService? bulkWriter = null, ICategoryMapReader? categoryMap = null)
     {
         options ??= new PricingEngineOptions();
         var algorithms = new IPricingAlgorithm[]
@@ -275,7 +275,7 @@ public class OrchestratorTests
             reader ?? new FakeReader(rows),
             new SnapshotService(db, bulk),
             bulk,
-            new BandConfigProvider(db),
+            new BandConfigProvider(db, categoryMap),
             new PriceCalculator(new WeightedScoringService(), guardrails, new RoundingService()),
             guardrails,
             new MarginTargetService(),

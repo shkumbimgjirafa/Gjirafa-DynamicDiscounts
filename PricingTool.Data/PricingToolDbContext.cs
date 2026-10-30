@@ -43,6 +43,7 @@ public class PricingToolDbContext : DbContext
     public DbSet<DeadStockDailyKpi> DeadStockDailyKpis => Set<DeadStockDailyKpi>();
     public DbSet<PricingRunBandTarget> PricingRunBandTargets => Set<PricingRunBandTarget>();
     public DbSet<BandCategoryRule> BandCategoryRules => Set<BandCategoryRule>();
+    public DbSet<PricingRunCategoryRule> PricingRunCategoryRules => Set<PricingRunCategoryRule>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -194,6 +195,17 @@ public class PricingToolDbContext : DbContext
             e.Property(x => x.MarginFloorPct).HasPrecision(9, 4);
             e.Property(x => x.TargetMarginPct).HasPrecision(9, 4);
             e.Property(x => x.UpdatedBy).HasMaxLength(256);
+        });
+
+        builder.Entity<PricingRunCategoryRule>(e =>
+        {
+            e.ToTable("PricingRunCategoryRules");
+            // One row per band x category rule a run applied; no FK to PricingRuns (outlives retention), like
+            // PricingRunBandTargets.
+            e.HasIndex(x => new { x.PricingRunId, x.BandId, x.Category }).IsUnique();
+            e.Property(x => x.Category).HasMaxLength(200);
+            e.Property(x => x.MarginFloorPct).HasPrecision(9, 4);
+            e.Property(x => x.TargetMarginPct).HasPrecision(9, 4);
         });
 
         builder.Entity<DiscountTrimRule>(e =>

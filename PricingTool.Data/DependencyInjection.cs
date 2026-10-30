@@ -59,6 +59,7 @@ public static class DependencyInjection
 
         services.AddScoped<IBulkWriteService, BulkWriteService>();
         services.AddScoped<SnapshotService>();
+        services.AddScoped<ICategoryMapReader, HkCategoryMapReader>();
         services.AddScoped<BandConfigProvider>();
         services.AddScoped<BandFloorMirrorService>();
         services.AddScoped<BandMatchService>();
