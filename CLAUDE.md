@@ -40,6 +40,10 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
 - PowerShell: `$env:PATH="C:\Program Files\dotnet;$env:PATH"` before any `dotnet` command.
 - `dotnet build PricingTool.sln`, `dotnet test PricingTool.sln`.
 - App DB: `(localdb)\mssqllocaldb`, database `PricingToolHackathon` (LocalDB caps each DB at 10 GB).
+  **Watch the size:** 4.2 GB after the data loads and two engine runs (30 Oct); each full KS run
+  pair adds about 1 GB (`ProposedPrices` + `DailySnapshots`), and retention is off. Keep the
+  imported prod runs and the latest two local runs per layer; delete older local runs' proposals
+  and snapshots before starting a new pair. Error 1101 means the cap was hit.
 - Run with `ASPNETCORE_ENVIRONMENT=Hackathon` (`appsettings.Hackathon.json`); the app serves on
   http://localhost:5058.
 - Skills that query live databases (`current-price-and-margin`, `sales-anomaly-watch`) must not be
