@@ -472,6 +472,20 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
     }
 
     [LocalDbFact]
+    public async Task With_the_kill_switch_pulled_a_person_can_still_roll_a_publish_back()
+    {
+        Product(101, "SKU-A");
+        var batch = await Writer().PublishAsync(Regular(4, ("SKU-A", 30m)));
+
+        _clock.Now = Now.AddHours(1);
+        var restored = await Writer(killSwitch: new PulledSwitch()).RollbackAsync(batch.BatchId);   // the switch stops publishing, not undoing
+
+        Assert.True(restored > 0);
+        Assert.Equal(Now.AddHours(1).AddSeconds(-1), Discounts().Single().End);
+        Assert.Equal("RolledBack", (await _db.PublishBatches.SingleAsync(b => b.Id == batch.BatchId)).Status);
+    }
+
+    [LocalDbFact]
     public async Task An_unknown_sku_is_reported_and_the_rest_is_published()
     {
         Product(101, "SKU-A");
