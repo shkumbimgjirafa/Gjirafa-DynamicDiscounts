@@ -68,6 +68,16 @@ public class RunCheckRulesTests
     }
 
     [Fact]
+    public void Prices_the_engine_left_off_the_grid_on_purpose_are_not_flagged()
+    {
+        Assert.DoesNotContain("off-charm", Codes(Row(52.37m, current: 50.50m, anchor: 52.37m)));                               // held at an off-grid anchor
+        Assert.DoesNotContain("off-charm", Codes(Row(12.08m, current: 13.50m, cost: 30.2m, dead: DeadStockStage.Stage4,
+            reasons: "DEAD_STOCK_MARKDOWN") with { GuardrailFlags = "DEAD_STOCK_HARD_FLOOR_CLAMPED" }));
+        Assert.DoesNotContain("off-charm", Codes(Row(49.37m) with { GuardrailFlags = "ROUNDING_SKIPPED_OUT_OF_BOUNDS" }));
+        Assert.Contains("off-charm", Codes(Row(49.37m) with { GuardrailFlags = "MARGIN_FLOOR_CLAMPED" }));                     // a floor clamp is no excuse
+    }
+
+    [Fact]
     public void A_proposed_fix_is_judged_by_the_same_rules()
     {
         var row = Row(49.37m);

@@ -91,13 +91,25 @@ public static class RunCheckRules
         var change = r.CurrentPrice > 0 ? 100m * (p - r.CurrentPrice) / r.CurrentPrice : r.ChangePct;
         if (Math.Abs(change) > ConfirmationChangePct)
             hits.Add(new("change-over-20", Severity.Warn, $"Changes {Pct(change)} against today's price {Money(r.CurrentPrice)}."));
-        if (r.RoundingEnabled && r.Rounding != RoundingConvention.None && RoundingService.RoundDown(p, r.Rounding) != p)
+        if (r.RoundingEnabled && r.Rounding != RoundingConvention.None && RoundingService.RoundDown(p, r.Rounding) != p
+            && !DeliberatelyUnrounded(r, p, ceiling))
             hits.Add(new("off-charm", Severity.Warn, $"{Money(p)} is not on the layer's {r.Rounding} grid."));
         if (r.PreviousCost is { } prev and > 0 && r.Cost is { } now && Math.Abs(100m * (now - prev) / prev) > CostMovePct)
             hits.Add(new("cost-moved", Severity.Warn, $"Cost moved {Pct(100m * (now - prev) / prev)} since the previous run ({Money(prev)} to {Money(now)})."));
         if (r.Gj50Price is { } g && Math.Abs(g - p) > 0.005m)
             hits.Add(new("mall-gj50-disagree", Severity.Warn, $"Gjirafa50 prices this SKU at {Money(g)}, GjirafaMall at {Money(p)}."));
         return hits;
+    }
+
+    /// <summary>The engine leaves a price off the grid on purpose when the dead-stock hard floor clamps it, when
+    /// rounding would cross a bound, or when it holds the price at the ceiling (an off-grid anchor: rounding up
+    /// would price above it). On run #1098 that was 74 of 82 off-grid prices; flagging them held good prices back.</summary>
+    private static bool DeliberatelyUnrounded(CheckInput r, decimal price, decimal ceiling)
+    {
+        var codes = r.ReasonCodes + "," + r.GuardrailFlags;
+        return codes.Contains(GuardrailFlags.DeadStockHardFloorClamped, StringComparison.Ordinal)
+            || codes.Contains(GuardrailFlags.RoundingSkippedOutOfBounds, StringComparison.Ordinal)
+            || (ceiling > 0 && price == ceiling);
     }
 
     public static string Worst(IEnumerable<RuleHit> hits) =>

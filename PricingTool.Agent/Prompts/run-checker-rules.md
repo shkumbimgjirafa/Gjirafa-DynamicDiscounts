@@ -26,7 +26,8 @@ that fired, and the engine's own reason codes.
 - `below-floor`: margin below the band floor outside the dead-stock lane.
 - `change-over-20`: the price moves more than 20 % against today's price; a person confirms these.
 - `off-charm`: not on the layer's price-ending grid (Gjirafa50 euro prices end in .50 tiers, GjirafaMall
-  euro prices in .99).
+  euro prices in .99). Not raised where the engine left the price off the grid on purpose: held at
+  an off-grid anchor (the ceiling), clamped at the dead-stock hard floor, or rounding skipped at a bound.
 - `cost-moved`: the cost moved more than 5 % since the previous run.
 - `mall-gj50-disagree`: GjirafaMall and Gjirafa50 price a shared SKU differently (Mall should follow Gj50).
 - `no-cost`: no cost, so the margin can't be checked.
