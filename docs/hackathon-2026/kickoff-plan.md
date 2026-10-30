@@ -134,6 +134,31 @@ aspirational and the engine is rules plus statistics.
   measured honestly. See "Time-sheet log" in section 5.
 - Baseline framing (A or B): pending.
 
+**The 10% bar (announced Fri 30 Oct; separate from the prizes, decided Wed 2 Dec).** A permanent
+10% raise and the "AI Pioneer" title for everyone who clears it; solo = 10%; no cap on how many.
+The 30 days run from Monday 2 Nov. All five:
+1. **Live on Monday:** runs on real company data, and the AI does part of the work itself.
+2. **30 hours saved in 30 days,** filled in by the AI, not by hand (the time sheet above).
+3. **8,000 Claude requests in 30 days:** real AI work, counted in the company usage report.
+4. **Worth 3× the raise (this one decides):** in the 30 days the solution brings at least three times
+   the raise's monthly cost in money (extra margin, costs avoided, cash recovered). Hours don't count here.
+5. **Mergca sees it directly:** on Monday Jarvis adds a usage tracker to the code (every run reported)
+   and Mergca reads the code. Inflated numbers, **mock data**, or someone else building it = out.
+Private progress notes on day 10 and day 20; one appeal.
+
+**What it changes for the build:**
+- **Built to run for 30 days, not only to demo.** Daily: refresh the `hk.*` data from the replica
+  (incremental, inside the app, not the one-off prep scripts), engine runs, Alpha's pass, the run
+  checker, the cost watcher, Nova's weekly pass, and the time-sheet rows, all on their own.
+- **Real prices must reach the shop** for step 4: AI decisions that only land in the sandbox earn
+  nothing. Which path (direct publisher with a canary vs today's export and push) is the user's call.
+- **A money ledger for step 4:** every applied action records its expected € and, after N days, its
+  measured € against the holdout (`OutcomeTracker`), plus the cost watcher's losses avoided, each
+  with its evidence. That ledger is what Mergca checks, so it must be conservative and traceable.
+- **No mock data anywhere in the live database.** `[INJECTED-TEST]` rows live only in the test
+  database and the sandbox.
+- **Requests:** only genuine calls; the app's batched calls plus the user's own building count.
+
 The user expects the open questions (data rules, API key, warehouse access) to be answered at the
 **kickoff on Fri 16:00**. Collect the answers there before the first data step. The schedule is
 built so nothing before Fri 19:00 needs the API key, and the data step has an export fallback if
