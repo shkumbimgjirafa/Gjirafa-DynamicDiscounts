@@ -9,9 +9,18 @@ using PricingTool.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load .env (gitignored) for local source-database credentials. When SOURCE_DB_HOST is
-// filled in, this builds the SourceReadOnly connection string and turns off demo mode.
-EnvFileLoader.ApplyDotEnv(builder);
+// Hackathon: the replica connection lives in user-secrets, which ASP.NET only loads in Development.
+// No .env is ever read in this environment (the loader walks up parent folders).
+if (builder.Environment.IsEnvironment("Hackathon"))
+{
+    builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
+}
+else
+{
+    // Load .env (gitignored) for local source-database credentials. When SOURCE_DB_HOST is
+    // filled in, this builds the SourceReadOnly connection string and turns off demo mode.
+    EnvFileLoader.ApplyDotEnv(builder);
+}
 
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
@@ -86,6 +95,14 @@ using (var scope = app.Services.CreateScope())
     await DbInitializer.MigrateWithRetryAsync(db, startupLogger);
 
     var options = scope.ServiceProvider.GetRequiredService<IOptions<PricingEngineOptions>>().Value;
+    if (app.Environment.IsEnvironment("Hackathon"))
+    {
+        // Which configuration source supplied the replica connection (the source's name, never its value).
+        var origin = ((IConfigurationRoot)builder.Configuration).Providers
+            .LastOrDefault(p => p.TryGet("ConnectionStrings:SourceReadOnly", out _))?.ToString() ?? "not configured";
+        startupLogger.LogInformation("Hackathon environment: replica connection from {Origin}; demo data {Demo}.",
+            origin, options.UseDemoData ? "on" : "off");
+    }
     await DbSeeder.SeedCoreAsync(db, options);
 
     // Seed the initial Manager (admin@example.test by default) so the app is usable before anyone is

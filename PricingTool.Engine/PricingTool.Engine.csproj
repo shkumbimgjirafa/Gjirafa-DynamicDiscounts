@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>dotnet-PricingTool.Engine-4c81f6c1-44b5-4838-a16f-a6aaeb716fbc</UserSecretsId>
+    <UserSecretsId>gjirafa-hackathon-pricing-agent-2026</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

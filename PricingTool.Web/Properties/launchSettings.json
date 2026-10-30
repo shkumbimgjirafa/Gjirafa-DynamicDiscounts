@@ -9,6 +9,15 @@
     }
   },
   "profiles": {
+    "hackathon": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5058",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Hackathon"
+      }
+    },
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,

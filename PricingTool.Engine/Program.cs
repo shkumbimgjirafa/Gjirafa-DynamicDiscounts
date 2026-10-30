@@ -15,6 +15,25 @@ var layerIdx = Array.IndexOf(args, "--layer");
 if (layerIdx >= 0 && layerIdx + 1 < args.Length) layerArg = args[layerIdx + 1];
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Hackathon: the replica connection lives in user-secrets (loaded by default only in Development).
+// The engine runs on demand only: no scheduler, no elasticity fit or approval refresh against the
+// replica, no weekly email.
+var hackathon = builder.Environment.IsEnvironment("Hackathon");
+if (hackathon)
+{
+    builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
+    if (!runOnce || layerArg is null)
+    {
+        Console.WriteLine("Hackathon environment: the engine runs on demand for one layer. Use --run-now --layer <code>.");
+        return;
+    }
+    // Which configuration source supplied the replica connection (the source's name, never its value).
+    var origin = ((IConfigurationRoot)builder.Configuration).Providers
+        .LastOrDefault(p => p.TryGet("ConnectionStrings:SourceReadOnly", out _))?.ToString() ?? "not configured";
+    Console.WriteLine($"Hackathon environment: replica connection from {origin}.");
+}
+
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.Configure<WeeklyPcsReportOptions>(builder.Configuration.GetSection(WeeklyPcsReportOptions.Section));
 if (!runOnce && !fitElasticity && !weeklyReport)
