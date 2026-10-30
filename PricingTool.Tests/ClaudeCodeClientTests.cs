@@ -155,7 +155,7 @@ public class ClaudeCodeClientTests : IDisposable
         Assert.Equal(Path.Combine(_dir, "runtime"), Path.GetDirectoryName(configPath));
         Assert.False(File.Exists(configPath));                                 // removed after the call
         Assert.Equal(string.Join(",", AgentToolNames.AllowedToolIds), args[args.IndexOf("--allowedTools") + 1]);
-        Assert.Equal(10, AgentToolNames.AllowedToolIds.Count);                  // 7 pricing tools + 3 campaign tools
+        Assert.Equal(11, AgentToolNames.AllowedToolIds.Count);                  // 7 pricing tools + 3 campaign tools + what_if_floor
         Assert.Contains("mcp__pricing__query_data", AgentToolNames.AllowedToolIds);
 
         var server = JsonNode.Parse(config!)!["mcpServers"]!["pricing"]!;

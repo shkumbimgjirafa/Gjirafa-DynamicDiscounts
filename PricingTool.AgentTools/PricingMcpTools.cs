@@ -34,6 +34,18 @@ public sealed class PricingMcpTools
         _ctx = ctx;
     }
 
+    [McpServerTool(Name = AgentToolNames.WhatIfFloor, ReadOnly = true)]
+    [Description("What if a band x category's margin floor were floorPct? Computed by code (the backtest's floor lever) on the last 60 normal days: " +
+                 "gross profit a month at elasticity -0.5 / -1 / -2, and the lines and units affected. Use its numbers for any what-if figure.")]
+    public async Task<string> WhatIfFloor(
+        [Description(LayerHelp)] int layer,
+        [Description("Band id (see get_current_config).")] int band,
+        [Description("The main group on layer 1, the L1 category on layer 4, exactly as the data writes it.")] string category,
+        [Description("The floor to test, in percent.")] decimal floorPct,
+        [Description("Optional target in percent (not simulated; reported as such).")] decimal? targetPct = null,
+        CancellationToken ct = default) =>
+        Serialize(await _tools.WhatIfFloorAsync(_ctx, layer, band, category, floorPct, targetPct, ct));
+
     [McpServerTool(Name = AgentToolNames.GetCurrentConfig, ReadOnly = true)]
     [Description("Today's price bands for a layer: cost limits, margin floor and target margin per band.")]
     public async Task<string> GetCurrentConfig([Description(LayerHelp)] int layer, CancellationToken ct = default) =>

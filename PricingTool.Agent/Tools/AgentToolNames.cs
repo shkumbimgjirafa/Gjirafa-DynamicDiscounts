@@ -15,11 +15,12 @@ public static class AgentToolNames
     public const string GetCampaignHistory = "get_campaign_history";
     public const string GetSalesTrends = "get_sales_trends";
     public const string GetCampaignResults = "get_campaign_results";
+    public const string WhatIfFloor = "what_if_floor";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
         GetBandPerformance, GetCostChanges, GetStockHealth, GetPastDecisions, GetElasticitySummary, GetCurrentConfig, QueryData,
-        GetCampaignHistory, GetSalesTrends, GetCampaignResults,
+        GetCampaignHistory, GetSalesTrends, GetCampaignResults, WhatIfFloor,
     };
 
     /// <summary>The ids passed to <c>--allowedTools</c>: these and nothing else.</summary>

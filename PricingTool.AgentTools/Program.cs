@@ -33,6 +33,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3, 5, 6 on booked sales lines
 //   backtest-coverage                                                lever 4: the Kosovo effect on the MK/AL months without a push
 //   backtest-snapshot [--by <who>]                                   run every lever and store it for the results page and CSV
+//   what-if-floor <layer> <band> "<category>" <floorPct>             the what_if_floor tool by hand (logged like an agent's call)
 //   reproduce-per-ty --test                                          the Për ty reproduction test: the agents plan the 6 Oct brief
 //                                                                   with data cut off at 7 Oct (two model calls; records to the test DB)
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
@@ -432,6 +433,17 @@ switch (command)
         return 0;
     }
 
+    case "what-if-floor":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        var result = await scope.ServiceProvider.GetRequiredService<AgentDataTools>().WhatIfFloorAsync(new AgentToolContext(role, "cli"), int.Parse(positional[0]),
+            int.Parse(positional[1]), positional[2], decimal.Parse(positional[3], System.Globalization.CultureInfo.InvariantCulture), null);
+        Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        return 0;
+    }
+
     case "backtest-snapshot":
     {
         using var host = builder.Build();
@@ -776,7 +788,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|backtest-coverage|backtest-snapshot|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|backtest-coverage|backtest-snapshot|what-if-floor|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

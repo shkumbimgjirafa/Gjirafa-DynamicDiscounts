@@ -60,6 +60,10 @@ public class AgentOptions
     /// resolved against the running app's folder. Empty = PricingTool.AgentTools.exe next to the app.</summary>
     public string ToolsExecutable { get; set; } = "";
 
+    /// <summary>Where the Monday report is emailed (user-secrets, never in a tracked file). Unset: nothing is sent, the report
+    /// stays in the chat. The address is still to be confirmed by the user.</summary>
+    public string? ReportEmail { get; set; }
+
     public string ResolveToolsExecutable() =>
         Path.GetFullPath(string.IsNullOrWhiteSpace(ToolsExecutable) ? "PricingTool.AgentTools.exe" : ToolsExecutable,
             AppContext.BaseDirectory);

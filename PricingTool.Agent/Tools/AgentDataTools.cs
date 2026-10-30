@@ -186,6 +186,42 @@ public sealed partial class AgentDataTools
         }, ct);
 
     /// <summary>Today's bands with their cost limits, floors and targets.</summary>
+    /// <summary>
+    /// "What if band × category's floor were X?", computed by the backtest's lever-2 code (<see cref="Backtest.LeverBacktest.FloorWhatIf"/>)
+    /// on the last 60 normal days ending 14 days ago: gross profit a month for each elasticity case, and the lines and units affected.
+    /// </summary>
+    public Task<object> WhatIfFloorAsync(AgentToolContext ctx, int layer, int band, string category, decimal floorPct, decimal? targetPct,
+        CancellationToken ct = default) =>
+        LoggedAsync(ctx, AgentToolNames.WhatIfFloor, new { layer, band, category, floorPct, targetPct }, async () =>
+        {
+            var to = Today().AddDays(-_scorecard.LagDays);
+            var from = to.AddDays(-60);
+            var bandRow = (await _reader.GetBandConfigAsync(layer, ct)).SingleOrDefault(b => b.BandId == band)
+                          ?? throw new ArgumentException($"Band {band} isn't one of layer {layer}'s bands.");
+            var rule = (await _reader.GetCategoryRulesAsync(layer, ct)).FirstOrDefault(r => r.BandId == band && string.Equals(r.Category, category, StringComparison.OrdinalIgnoreCase));
+            var current = rule?.MarginFloorPct ?? bandRow.MarginFloorPct;
+            var lines = (await _reader.GetBacktestLinesAsync(layer, from.AddDays(-Backtest.LeverBacktest.CeilingDays), to, ct))
+                .Where(l => l.BandId == band && string.Equals(l.Category, category, StringComparison.OrdinalIgnoreCase)).ToList();
+            var cases = Backtest.LeverBacktest.FloorWhatIf(lines, from, to, current, floorPct);
+            var normalLines = lines.Count(l => l.Day >= from && !l.CampaignDay);
+            return (new
+            {
+                layer, band, category, currentFloorPct = current, currentFrom = rule is null ? "band floor" : $"category rule by {rule.UpdatedBy}",
+                newFloorPct = floorPct, window = $"{from:yyyy-MM-dd}..{to.AddDays(-1):yyyy-MM-dd} (60 days ending 14 days ago, normal days)",
+                linesInWindow = normalLines,
+                cases = cases.Select(c => new WhatIfCase(c.Elasticity, Math.Round(c.Gain / 2m, 0), c.Gain, c.Lines, c.Units)).ToList(),
+                label = "estimated (computed by code: the backtest's per-category floor lever, booked COGS, EUR VAT excl.)",
+                basis = floorPct <= current
+                    ? "The new floor is at or under today's: no simulated gain (only the engine knows what it would price lower)."
+                    : "Lines under the new floor are lifted to it, never above the line's pre-discount price or the SKU's highest price of the 60 days before; " +
+                      "units scale by (new price / old)^elasticity; gain against lifting to today's floor.",
+                target = targetPct is null ? null : "A target isn't simulated: only the engine knows what it would price at a target.",
+            }, normalLines);
+        }, ct);
+
+    /// <summary>One elasticity case of <see cref="WhatIfFloorAsync"/>.</summary>
+    public sealed record WhatIfCase(decimal Elasticity, decimal GpPerMonth, decimal GpOverWindow, int LinesLifted, decimal Units);
+
     public Task<object> GetCurrentConfigAsync(AgentToolContext ctx, int layer, CancellationToken ct = default) =>
         LoggedAsync(ctx, AgentToolNames.GetCurrentConfig, new { layer }, async () =>
         {

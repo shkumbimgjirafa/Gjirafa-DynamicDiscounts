@@ -160,6 +160,39 @@ public static class LeverBacktest
                 .OrderBy(c => c.Month).ToList());
     }
 
+    /// <summary>
+    /// "What if this band × category's floor were X?" with lever 2's own arithmetic: each normal-day line in [from, to) under the new floor
+    /// is lifted to it (never above its pre-discount price or the SKU's highest price of the 60 days before), against the lift to the
+    /// current floor, units scaled per elasticity case. A lower floor gets no simulated gain: only the engine knows what it would price.
+    /// <paramref name="lines"/> carries the 60 days before <paramref name="from"/> too, for the ceilings.
+    /// </summary>
+    public static IReadOnlyList<(decimal Elasticity, decimal Gain, int Lines, decimal Units)> FloorWhatIf(IReadOnlyList<BacktestLine> lines, DateOnly from, DateOnly to,
+        decimal currentFloorPct, decimal newFloorPct)
+    {
+        var result = Elasticities.ToDictionary(e => e, _ => (Gain: 0m, Lines: 0, Units: 0m));
+        if (newFloorPct <= currentFloorPct) return Elasticities.Select(e => (e, 0m, 0, 0m)).ToList();
+        foreach (var sku in lines.Where(l => l.Qty > 0).GroupBy(l => l.Sku))
+        {
+            var hist = sku.OrderBy(l => l.Day).ToList();
+            foreach (var l in hist.Where(l => l.Day >= from && l.Day < to && !l.CampaignDay && l.UnitCostInclVat is > 0))
+            {
+                var cost = l.UnitCostInclVat!.Value;
+                var p = l.UnitGross;
+                var ceiling = Math.Max(l.Discount > 0 ? (l.Gross + l.Discount) / l.Qty : 0m,
+                    hist.Where(x => x.Day <= l.Day && x.Day >= l.Day.AddDays(-CeilingDays)).Max(x => x.UnitGross));
+                var toNow = Math.Min(Math.Max(p, cost / (1 - currentFloorPct / 100m)), Math.Max(p, ceiling));
+                var toNew = Math.Min(Math.Max(p, cost / (1 - newFloorPct / 100m)), Math.Max(p, ceiling));
+                if (toNew <= toNow) continue;
+                foreach (var e in Elasticities)
+                {
+                    var (g, n, u) = result[e];
+                    result[e] = (g + Gp(l, toNew, e) - Gp(l, toNow, e), n + 1, u + l.Qty);
+                }
+            }
+        }
+        return result.Select(kv => (kv.Key, Math.Round(kv.Value.Gain, 0), kv.Value.Lines, kv.Value.Units)).OrderByDescending(x => x.Key).ToList();
+    }
+
     /// <summary>The line's gross profit at another VAT-inclusive unit price, units scaled by the elasticity.</summary>
     public static decimal Gp(BacktestLine l, decimal unitGross, decimal elasticity)
     {

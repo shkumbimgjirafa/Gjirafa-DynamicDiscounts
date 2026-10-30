@@ -197,7 +197,9 @@ public sealed class DailyCycle
         {
             if (day.DayOfWeek != c.NovaDay) return (StepStatus.Skipped, $"The weekly report is written on {c.NovaDay}s");
             var r = await With((Chat.AgentChat chat) => chat.WeeklyReportAsync(ct));
-            return (StepStatus.Succeeded, $"weekly report posted as the first message of conversation {r.ConversationId}");
+            var email = _sp.GetRequiredService<IOptions<AgentOptions>>().Value.ReportEmail;
+            return (StepStatus.Succeeded, $"weekly report posted as the first message of conversation {r.ConversationId}; " +
+                                          (string.IsNullOrWhiteSpace(email) ? "no email (Agent:ReportEmail isn't set)" : "email not sent: sending isn't built yet"));
         });
         foreach (var layer in c.Layers)
             yield return new Step($"nova-L{layer}", async ct =>

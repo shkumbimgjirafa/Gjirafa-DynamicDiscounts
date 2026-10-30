@@ -150,4 +150,21 @@ public class LeverBacktestTests
         Assert.Contains(csv, l => l.StartsWith("lever 7,1,Black Friday 2024,2 days,reallocate,2635"));
         Assert.Contains("lever 4,MK/AL,coverage,2026-08,mid,472,,,estimated", csv);
     }
+
+    [Fact]
+    public void What_if_floor_gives_the_backtests_own_lever_2_figure_and_nothing_for_a_lower_floor()
+    {
+        var lines = new List<BacktestLine>
+        {
+            L("B", 3, 1, 110m / 1.2m, 70m, band: 1, costInclVat: 100m, unitDiscount: 10m),          // 9.1 % margin: under a 12 % floor
+            L("C", 4, 2, 150m / 1.2m, 70m, band: 1, costInclVat: 100m, unitDiscount: 10m),          // 33 %: above it, untouched
+        };
+        var whatIf = LeverBacktest.FloorWhatIf(lines, From, To, 8m, 12m);
+        var trace = new List<(int Lever, BacktestLine Line, decimal Gain)>();
+        var run = LeverBacktest.Run(4, lines, From, To, (_, _) => 8m, (_, _) => 12m, trace);
+        foreach (var e in LeverBacktest.Elasticities)
+            Assert.Equal(run.Gains.Single(g => g.Lever == 2 && g.Elasticity == e).Gain, whatIf.Single(w => w.Elasticity == e).Gain);
+        Assert.All(whatIf, w => Assert.Equal((1, 1m), (w.Lines, w.Units)));
+        Assert.All(LeverBacktest.FloorWhatIf(lines, From, To, 12m, 8m), w => Assert.Equal(0m, w.Gain));   // lower: no simulated gain
+    }
 }
