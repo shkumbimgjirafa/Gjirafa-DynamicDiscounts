@@ -54,6 +54,7 @@ public sealed record PublishOutcome(
 public sealed class NopDiscountWriter
 {
     private const string OurPrefix = "ai-";
+    private const string CampaignPrefix = "ai-campaign-";
     private readonly PublisherOptions _options;
     private readonly AgentDataSource _tool;
     private readonly AgentDbContext _db;
@@ -406,6 +407,9 @@ public sealed class NopDiscountWriter
         foreach (var (item, productId, name) in written)
         {
             if (winners.TryGetValue(productId, out var w) && w.Name == name && Math.Round(w.Amount, 2) == Math.Round(item.Price, 2)) continue;
+            // On its days our own campaign discount is meant to win over the regular ai-price one: not a mismatch (a whole day's
+            // publish would otherwise roll back on every campaign SKU).
+            if (w.Name is { } winner && winner.StartsWith(CampaignPrefix, StringComparison.Ordinal) && !name.StartsWith(CampaignPrefix, StringComparison.Ordinal)) continue;
             mismatches++;
             exceptions.Add(Exception(batch, item.Sku, "round-trip", winners.TryGetValue(productId, out w)
                 ? $"Reads back '{w.Name}' at {w.Amount:0.00}, expected ours at {item.Price:0.00}."
@@ -416,8 +420,17 @@ public sealed class NopDiscountWriter
 
     /// <summary>Ends our ai-price discounts on these SKUs now (never deletes them): the shelf price applies
     /// again. Audited like a publish, so it can be rolled back too. Returns the batch id.</summary>
-    public async Task<long> ExpireAsync(int layerId, IReadOnlyCollection<string> skus, CancellationToken ct = default)
+    public Task<long> ExpireAsync(int layerId, IReadOnlyCollection<string> skus, CancellationToken ct = default) =>
+        ExpireAsync(new PublishRequest(layerId, Array.Empty<PublishItem>()), skus, ct);
+
+    /// <summary>Ends our ai-campaign-&lt;key&gt; discounts on these SKUs now, before the campaign's end (never deletes them):
+    /// the regular price (or our ai-price discount) applies again. Audited, so it can be rolled back. Returns the batch id.</summary>
+    public Task<long> ExpireCampaignAsync(int layerId, string campaignKey, IReadOnlyCollection<string> skus, CancellationToken ct = default) =>
+        ExpireAsync(new PublishRequest(layerId, Array.Empty<PublishItem>()) { Kind = PublishKinds.Campaign, CampaignKey = campaignKey }, skus, ct);
+
+    private async Task<long> ExpireAsync(PublishRequest probe, IReadOnlyCollection<string> skus, CancellationToken ct)
     {
+        var layerId = probe.LayerId;
         var now = Truncate(_clock.GetUtcNow().UtcDateTime);
         var (shop, layer) = await ShopForLayerAsync(layerId, ct);
         var batch = new PublishBatch
@@ -434,7 +447,6 @@ public sealed class NopDiscountWriter
         var req = new DataTable();
         req.Columns.Add("Sku", typeof(string));
         req.Columns.Add("Name", typeof(string));
-        var probe = new PublishRequest(layerId, Array.Empty<PublishItem>());
         foreach (var sku in skus.Distinct(StringComparer.Ordinal)) req.Rows.Add(sku, NameFor(probe, sku));
         await BulkCopy(conn, null, "#req", req, ct);
 

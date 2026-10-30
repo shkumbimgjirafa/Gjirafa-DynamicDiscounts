@@ -358,6 +358,30 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
     }
 
     [LocalDbFact]
+    public async Task A_daily_publish_during_our_live_campaign_is_not_a_mismatch_and_the_campaign_can_end_early()
+    {
+        Product(101, "SKU-A");
+        Product(102, "SKU-B");
+        await Writer().PublishAsync(new PublishRequest(4, new[] { new PublishItem("SKU-A", 40m), new PublishItem("SKU-B", 30m) })
+        {
+            Kind = PublishKinds.Campaign, CampaignKey = "18", CampaignStartUtc = Now.AddHours(-1), CampaignEndUtc = Now.AddDays(3),
+        });
+
+        // The daily run publishes regular prices while the campaign is live: our campaign wins on both, as it should.
+        var daily = await Writer().PublishAsync(Regular(4, ("SKU-A", 50m), ("SKU-B", 45m)));
+        Assert.Equal(("Published", 2, 0, false), (daily.Status, daily.RoundTripChecked, daily.RoundTripMismatches, daily.RolledBack));
+
+        // The cost watcher ends the campaign on SKU-A early: audited, never deleted, SKU-B's campaign untouched.
+        _clock.Now = Now.AddHours(1);
+        var batch = await Writer().ExpireCampaignAsync(4, "18", new[] { "SKU-A" });
+        var all = Discounts().ToDictionary(d => d.Name);
+        Assert.Equal(Now.AddHours(1).AddSeconds(-1), all["ai-campaign-18-SKU-A"].End);
+        Assert.Equal(Now.AddDays(3), all["ai-campaign-18-SKU-B"].End);
+        Assert.True(all["ai-price-4-SKU-A"].End > Now.AddHours(1));                           // the regular price discount stays
+        Assert.True((await _db.PublishAudits.SingleAsync(a => a.BatchId == batch)).Applied);
+    }
+
+    [LocalDbFact]
     public async Task The_store_is_merged_into_the_flags_and_no_other_store_is_dropped()
     {
         Product(101, "SKU-A", has: true, storeIds: "2");

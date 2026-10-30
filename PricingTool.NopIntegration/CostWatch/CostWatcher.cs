@@ -42,6 +42,9 @@ public interface ICostPublisher
 
     /// <summary>Ends our ai-price discount on the SKU, if it has one: the batch, or null when there was nothing of ours.</summary>
     Task<long?> EndOurDiscountAsync(int layerId, string sku, CancellationToken ct);
+
+    /// <summary>Ends our live ai-campaign discount on the SKU before the campaign ends: the batch, or null when nothing was live.</summary>
+    Task<long?> EndCampaignDiscountAsync(int layerId, long campaignKey, string sku, CancellationToken ct);
 }
 
 public sealed class WriterCostPublisher : ICostPublisher
@@ -64,6 +67,12 @@ public sealed class WriterCostPublisher : ICostPublisher
     public async Task<long?> EndOurDiscountAsync(int layerId, string sku, CancellationToken ct)
     {
         var id = await _writer.ExpireAsync(layerId, new[] { sku }, ct);
+        return await _db.PublishBatches.AsNoTracking().Where(b => b.Id == id).Select(b => b.Updated).SingleAsync(ct) > 0 ? id : null;
+    }
+
+    public async Task<long?> EndCampaignDiscountAsync(int layerId, long campaignKey, string sku, CancellationToken ct)
+    {
+        var id = await _writer.ExpireCampaignAsync(layerId, campaignKey.ToString(CultureInfo.InvariantCulture), new[] { sku }, ct);
         return await _db.PublishBatches.AsNoTracking().Where(b => b.Id == id).Select(b => b.Updated).SingleAsync(ct) > 0 ? id : null;
     }
 }
@@ -101,7 +110,9 @@ public static class CostWatchLanes
 /// It doesn't just raise in three cases: a cost jump that looks like a data error is held and alerted, nothing
 /// published; a floor price above the shelf price (our discount removed would still be under the floor) ends our
 /// discount and alerts that the regular price needs changing; a low price from a discount we didn't create is held for
-/// a person (the publisher leaves cheaper team deals alone). Every action is an <see cref="AgentDecision"/> (source
+/// a person (the publisher leaves cheaper team deals alone). A SKU in one of our live campaigns is judged against the campaign
+/// plan's minimum margin, not the band floor (the campaign price sits under the floor on purpose): above it nothing changes
+/// ("campaign"), under it our campaign discount on that SKU ends early. Every action is an <see cref="AgentDecision"/> (source
 /// CostWatcher) and, through the writer, a <c>PublishAudit</c>, so it shows in the feed and can be rolled back.
 /// Floors come from the band, or its per-category rule. The kill switch stops it.
 /// </summary>
@@ -174,6 +185,17 @@ public sealed class CostWatcher
             var isMall = layer.Brand == "GjirafaMall";
             var holdouts = _agent.Limits.Holdouts.TryGetValue(layer.Id.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
             var holdoutMap = holdouts.Count > 0 && _categoryMap is not null ? await _categoryMap.ReadAsync(layer.Id, isMall, holdouts, ct) : null;
+            // Our live campaigns (published, not rolled back, today inside the window): the price on those days is the campaign's.
+            var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+            var campaigns = (await (from l in _db.CampaignPlanLines.AsNoTracking()
+                                    join p in _db.CampaignPlans.AsNoTracking() on l.PlanId equals p.Id
+                                    join b in _db.CampaignBriefs.AsNoTracking() on p.BriefId equals b.Id
+                                    join x in _db.PublishBatches.AsNoTracking() on p.PublishBatchId equals x.Id
+                                    where b.LayerId == layer.Id && !p.IsTest && p.Status == PlanStatus.Published && x.RolledBackUtc == null
+                                          && b.StartDate <= today && b.EndDate >= today && skus.Contains(l.Sku)
+                                    orderby p.Id descending
+                                    select new { l.Sku, l.CampaignPrice, b.MinMarginPct, Key = b.CalendarId ?? b.Id }).ToListAsync(ct))
+                .GroupBy(c => c.Sku, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             // What the watcher itself published since the snapshot: that is the live price now.
             var ours = (await _db.CostObservations.AsNoTracking().Where(o => o.LayerId == layer.Id && o.Outcome == "raised" && skus.Contains(o.Sku) && o.DecisionId != null)
                     .Join(_db.AgentDecisions, o => o.DecisionId, d => d.Id, (o, d) => new { o.Sku, o.ProcessedUtc, d.EvidenceRefs }).ToListAsync(ct))
@@ -236,6 +258,27 @@ public sealed class CostWatcher
                         $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} (+{risePct:0}%) looks like a data error (over {_options.DataErrorRisePct:0}%): nothing published; check the cost.", facts);
                     Done(o, "held-data-error", d);
                     held++;
+                }
+                else if (campaigns.TryGetValue(o.Sku, out var campaign))
+                {
+                    // Judged against the campaign's own minimum margin: under it, our campaign discount on this SKU ends early.
+                    var campaignFloor = VatMath.MinGrossPriceForMargin(o.Pptcv, campaign.MinMarginPct);
+                    (facts["campaign"], facts["campaignPrice"], facts["campaignMinMarginPct"]) = (campaign.Key, campaign.CampaignPrice, campaign.MinMarginPct);
+                    if (campaign.CampaignPrice >= campaignFloor - 0.005m)
+                    {
+                        Done(o, "campaign");
+                        none++;
+                    }
+                    else
+                    {
+                        var batch = await _publisher.EndCampaignDiscountAsync(o.LayerId, campaign.Key, o.Sku, ct);
+                        facts["publishBatch"] = batch;
+                        var d = Decision(o, band.BandId, category, campaign.MinMarginPct, "end-campaign-discount", DecisionStatus.Applied, "campaign-under-min-margin",
+                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00}: the campaign price {campaign.CampaignPrice:0.00} is under the campaign's {campaign.MinMarginPct:0.#}% " +
+                            $"minimum margin ({campaignFloor:0.00}). " + (batch is null ? "Nothing of ours was live to end." : "Our campaign discount on it was ended early; the regular price applies."), facts);
+                        Done(o, batch is null ? "campaign-nothing-live" : "ended-campaign-discount", d, batch);
+                        ended++;
+                    }
                 }
                 else if (live >= floorPrice - 0.005m)
                 {

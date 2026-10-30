@@ -69,6 +69,12 @@ public class CostWatcherTests : IDisposable
             Ended.Add(sku);
             return Task.FromResult<long?>(9);
         }
+        public List<(long Key, string Sku)> CampaignsEnded { get; } = new();
+        public Task<long?> EndCampaignDiscountAsync(int layerId, long campaignKey, string sku, CancellationToken ct)
+        {
+            CampaignsEnded.Add((campaignKey, sku));
+            return Task.FromResult<long?>(11);
+        }
     }
 
     private sealed class Switch : IKillSwitch
@@ -129,6 +135,45 @@ public class CostWatcherTests : IDisposable
         await _ai.SaveChangesAsync();
         Assert.Equal(1, (await Watcher().WatchAsync()).NoAction);
         Assert.Single(_publisher.Raised, x => x.Sku == "RISE");
+    }
+
+    [Fact]
+    public async Task A_sku_in_a_live_campaign_is_judged_on_the_campaigns_minimum_margin_not_the_floor()
+    {
+        // A live, published campaign (key 18, min margin 8 %) with RISE at 66 and FINE at 80; its batch not rolled back.
+        var brief = new CampaignBrief { LayerId = _layer, CalendarId = 18, Name = "Black Friday 2026", Kind = "calendar", ScopeKind = "all",
+            StartDate = DateOnly.FromDateTime(DateTime.Now).AddDays(-1), EndDate = DateOnly.FromDateTime(DateTime.Now).AddDays(2), GoalType = "gross-profit",
+            GoalValue = 1m, MinMarginPct = 8m, MaxDepthPct = 25m, Exclusions = "[]", Status = BriefStatus.Planned, CreatedUtc = DateTime.UtcNow };
+        _ai.CampaignBriefs.Add(brief);
+        var batch = new PublishBatch { LayerId = _layer, Db = "GjirafaEcommerce", StoreId = 2, Target = "Sandbox", ShopSchema = "shop_sandbox", Kind = "Campaign", Status = "Published", StartedUtc = DateTime.UtcNow };
+        _ai.PublishBatches.Add(batch);
+        await _ai.SaveChangesAsync();
+        var plan = new CampaignPlan { BriefId = brief.Id, CalendarId = 18, LayerId = _layer, Round = 1, Strategy = "visible", Status = PlanStatus.Published, PublishBatchId = batch.Id, CreatedUtc = DateTime.UtcNow };
+        _ai.CampaignPlans.Add(plan);
+        await _ai.SaveChangesAsync();
+        _ai.CampaignPlanLines.AddRange(new CampaignPlanLine { PlanId = plan.Id, Sku = "RISE", CampaignPrice = 66m, RegularPrice = 100m, CurrentPrice = 75m, Cost = 60m },
+                                       new CampaignPlanLine { PlanId = plan.Id, Sku = "FINE", CampaignPrice = 80m, RegularPrice = 100m, CurrentPrice = 90m, Cost = 60m });
+        Observe("RISE", 63m, "replica");      // campaign floor 63 / 0.92 = 68.48 > 66: end our campaign discount on it
+        Observe("FINE", 70m, "replica");      // 70 / 0.92 = 76.09 <= 80: the campaign price still holds its minimum (the band floor would say 77.78)
+        await _ai.SaveChangesAsync();
+
+        var r = await Watcher().WatchAsync();
+
+        var outcomes = await _ai.CostObservations.ToDictionaryAsync(o => o.Sku, o => o.Outcome);
+        Assert.Equal(("ended-campaign-discount", "campaign"), (outcomes["RISE"], outcomes["FINE"]));
+        Assert.Equal(new[] { (18L, "RISE") }, _publisher.CampaignsEnded);
+        Assert.Empty(_publisher.Raised);                                                       // no ai-price raise, no team-discount hold
+        Assert.Equal((0, 0, 1), (r.Raised, r.Held, r.Ended));
+        var d = await _ai.AgentDecisions.SingleAsync();
+        Assert.Equal(("end-campaign-discount", DecisionStatus.Applied, "campaign-under-min-margin"), (d.Action, d.Status, d.Limit));
+        Assert.Empty((await new ExceptionsInbox(_ai, _tool).LoadAsync()).CostHolds);
+
+        // Once the campaign's batch is rolled back, the SKU is judged on the band floor again.
+        batch.RolledBackUtc = DateTime.UtcNow;
+        Observe("FINE", 82m, "replica");     // band floor 82 / 0.9 = 91.11 above the live 90: raised
+        await _ai.SaveChangesAsync();
+        await Watcher().WatchAsync();
+        Assert.Contains(_publisher.Raised, x => x.Sku == "FINE");
     }
 
     [Fact]
