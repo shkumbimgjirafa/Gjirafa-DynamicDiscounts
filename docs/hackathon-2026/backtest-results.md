@@ -78,18 +78,25 @@ unknown), the depth fit, event lift and calibration as of 7 Oct; the real Alpha 
 
 | | Margin | Share of normal margin kept | GP, Mall's own SKUs |
 |---|---|---|---|
-| Hand plan (6 Oct) | 15.1 % forecast | 75 % (band targets) | — |
-| Agents, first run (30 Oct) | 19.0 % expected | 88 % | €43.0k expected |
-| Agents, after the fix (30 Oct) | 14.9 % expected | 69 % | €37.8k expected |
-| What happened (measured, provisional) | 14.8 % | — | €39.6k |
+| Hand plan (6 Oct) | 15.1 % forecast | 74 % (15.1 / 20.5, its notes) | — |
+| Agents, first run (30 Oct) | 19.0 % expected | 88 % (our base) | €43.0k expected |
+| Agents, after the fix (30 Oct) | 14.9 % expected | 69 % on our base; 67 % on the hand plan's base | €37.8k expected |
+| What happened under the hand plan (measured, provisional) | 14.8 % | — | €39.6k |
 
-**Verdict: FAIL, by one point.** The margin is within ±0.5 pt of 15.1 %, but 69 % kept is just under the 70–80 %
-required. The first run showed a real gap: no strategy spent a margin floor on volume (all stayed at 19–21 %), and the
-rules pointed a margin goal at max-gross-profit. The planner now has spend-to-margin, and the rules call a margin goal
-on a main calendar campaign a floor to spend. The share-kept miss depends on the normal-margin base: ours is the SKUs'
-normal-day revenue-weighted margin (21.6 %); the hand plan's 15.1 / 0.75 implies about 20.1 %. Gjirafa50-listed products
-were 32 % of Mall KS normal-day revenue at 15.0 % margin vs 21.4 % for Mall's own (measured); planning leaves them out, as
-the hand plan did, but the agents didn't find this themselves (planning gives them no data tools), so the bonus isn't met.
+"What happened" scores the hand plan's 15.1 % forecast (it was 0.3 pt off); the agents' plan is a different plan and
+never ran, so it isn't scored by it.
+
+**Verdict: FAIL on both bases.** The margin is within ±0.5 pt of 15.1 %; the share kept is under the 70–80 % required:
+69 % on our base (the SKUs in scope, normal-day revenue-weighted, rate window 26 Aug – 22 Sep: 21.6 %), 67 % on the hand
+plan's own base computed from today's data (Mall's own SKUs, booked margin, 6 Sep – 6 Oct: 22.3 %). The hand plan's
+notes of 7 Oct put that base at 20.5 %; today's data says 22.3 % for the same definition (late cancellations and cost
+corrections since). The bar stays where it is.
+
+The first run showed a real gap: no strategy spent a margin floor on volume (all stayed at 19–21 %), and the rules
+pointed a margin goal at max-gross-profit. The planner now has spend-to-margin, and the rules call a margin goal on a
+main calendar campaign a floor to spend. Gjirafa50-listed products were 32 % of Mall KS revenue at 14.1 % booked margin
+(6 Sep – 6 Oct; the 7 Oct notes: 37 % at 13.3 %), measured; planning leaves them out, as the hand plan did, but the
+agents didn't find this themselves (planning gives them no data tools), so the bonus isn't met.
 
 ## Not done yet
 

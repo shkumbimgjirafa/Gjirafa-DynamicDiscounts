@@ -32,6 +32,10 @@ public static class PerTyReproduction
     /// <summary>The brief the user gave on 6 Oct: GM3 ≥ 10 %, about 14.9 % effective margin.</summary>
     public const decimal BriefMinMarginPct = 14.9m;
     public static readonly DateOnly DataTo = new(2026, 10, 7), Start = new(2026, 10, 14), End = new(2026, 10, 18);
+    /// <summary>The hand plan's own base: Mall's own SKUs (not Gjirafa50-listed), booked margin, the 30 days to 6 Oct. Its
+    /// analysis of 7 Oct put it at 20.5 % (so 15.1 / 20.5 ≈ 74 % kept); the kept share is reported on both bases.</summary>
+    public static readonly DateOnly HandBaseFrom = new(2026, 9, 6);
+    public const decimal HandBaseNotedPct = 20.5m;
 
     /// <summary>
     /// Scores a plan: its expected margin (GP over net revenue, VAT excluded, every SKU in scope) against the hand plan's 15.1 %, and

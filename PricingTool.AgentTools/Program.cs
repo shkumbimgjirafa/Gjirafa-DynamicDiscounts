@@ -495,7 +495,14 @@ switch (command)
             var all = await candidates.LoadAsync(1, dataTo.AddDays(-42), dataTo.AddDays(-14));
             var inScope = all.Where(c => !c.FollowsGj50 && !holdouts.Contains(c.Category, StringComparer.OrdinalIgnoreCase)).ToList();
             var score = PricingTool.Agent.Backtest.PerTyReproduction.Score(plan.ExpectedMarginPct, PricingTool.Agent.Backtest.PerTyReproduction.NormalMarginPct(inScope));
-            Console.WriteLine($"Plan #{plan.Id} ({plan.Strategy}): {score.Detail}. Verdict: {(score.Passed ? "PASS" : "FAIL")}.");
+            Console.WriteLine($"Plan #{plan.Id} ({plan.Strategy}), on our base (the SKUs in scope, normal-day revenue-weighted, rate window): {score.Detail}. Verdict: {(score.Passed ? "PASS" : "FAIL")}.");
+            // The hand plan's own base: Mall's own SKUs, booked margin, the 30 days to 6 Oct (from today's data; its notes said 20.5 %).
+            var handWindow = await reader.GetWindowResultAsync(1, PricingTool.Agent.Backtest.PerTyReproduction.HandBaseFrom, dataTo);
+            var own = handWindow.Where(x => !x.Gj50Listed).ToList();
+            var handBase = own.Sum(x => x.Net) > 0 ? Math.Round(100m * own.Sum(x => x.Gp) / own.Sum(x => x.Net), 1) : 0m;
+            var onHand = PricingTool.Agent.Backtest.PerTyReproduction.Score(plan.ExpectedMarginPct, handBase);
+            Console.WriteLine($"  on the hand plan's base (Mall's own, booked, {PricingTool.Agent.Backtest.PerTyReproduction.HandBaseFrom:d MMM}-{dataTo.AddDays(-1):d MMM}, from today's data: {handBase:0.0}%; " +
+                              $"its 7 Oct notes: {PricingTool.Agent.Backtest.PerTyReproduction.HandBaseNotedPct}%): {onHand.Detail}. Verdict: {(onHand.Passed ? "PASS" : "FAIL")}.");
             decimal Revenue(IEnumerable<PricingTool.Agent.Campaigns.CampaignCandidate> cs) => cs.Sum(c => c.UnitsPerDay * c.CurrentPrice);
             Console.WriteLine($"Gjirafa50-listed share of Mall KS normal-day revenue before the campaign: {100m * Revenue(all.Where(c => c.FollowsGj50)) / Revenue(all):0}% " +
                               $"at {PricingTool.Agent.Backtest.PerTyReproduction.NormalMarginPct(all.Where(c => c.FollowsGj50)):0.0}% normal margin, vs " +
@@ -505,7 +512,8 @@ switch (command)
             Console.WriteLine("Side by side, Mall's own SKUs (estimated unless said):");
             Console.WriteLine($"  hand plan (6 Oct): band targets at 75% of normal, forecast effective margin 15.1% (GM3 10.2%)");
             Console.WriteLine($"  agents' plan: {plan.Strategy}, {plan.DiscountedSkus:N0} of {plan.SkusInScope:N0} SKUs at {plan.AverageDepthPct:0.0}% average depth, expected {plan.ExpectedMarginPct:0.0}% margin, GP {plan.ExpectedGrossProfit:N0}");
-            Console.WriteLine($"  what happened (measured, provisional: late cancellations): Mall's own {M(actual.Where(a => !a.Gj50Listed))}; whole Mall {M(actual)}");
+            Console.WriteLine($"  what happened under the hand plan (measured, provisional: late cancellations; it scores the hand plan's 15.1% forecast, not the agents' plan, " +
+                              $"which never ran): Mall's own {M(actual.Where(a => !a.Gj50Listed))}; whole Mall {M(actual)}");
         }
         return 0;
     }
