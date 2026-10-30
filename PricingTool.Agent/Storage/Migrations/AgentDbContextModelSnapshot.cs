@@ -23,6 +23,60 @@ namespace PricingTool.Agent.Storage.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.AgentQueryLogEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("Accepted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Agent")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CallTag")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("CalledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Request")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("RowCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Tool")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("Truncated")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CallTag");
+
+                    b.HasIndex("CalledAtUtc");
+
+                    b.ToTable("AgentQueryLog", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.AiCallLogEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -44,6 +98,10 @@ namespace PricingTool.Agent.Storage.Migrations
 
                     b.Property<int>("CacheReadTokens")
                         .HasColumnType("int");
+
+                    b.Property<string>("CallTag")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<DateTime>("CalledAtUtc")
                         .HasColumnType("datetime2");
@@ -103,6 +161,8 @@ namespace PricingTool.Agent.Storage.Migrations
                         .HasColumnType("bit");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CallTag");
 
                     b.HasIndex("CalledAtUtc");
 

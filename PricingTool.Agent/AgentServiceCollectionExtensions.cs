@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PricingTool.Agent.Alpha;
 using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
+using PricingTool.Agent.Tools;
 
 namespace PricingTool.Agent;
 
@@ -26,6 +28,13 @@ public static class AgentServiceCollectionExtensions
 
         services.AddSingleton<IProcessRunner, ProcessRunner>();
         services.AddScoped<ClaudeCodeClient>();
+
+        services.AddSingleton(new AgentDataSource(config.GetConnectionString("PricingToolDb")!));
+        services.AddSingleton<PricingDataReader>();
+        services.AddSingleton<AlphaInputBuilder>();
+        services.AddScoped<AgentToolLog>();
+        services.AddScoped<AgentDataTools>();
+        services.AddScoped<QueryDataService>();
         return services;
     }
 

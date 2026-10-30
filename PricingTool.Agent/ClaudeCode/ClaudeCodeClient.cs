@@ -6,6 +6,7 @@ using Json.Schema;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PricingTool.Agent.Storage;
+using PricingTool.Agent.Tools;
 
 namespace PricingTool.Agent.ClaudeCode;
 
@@ -71,41 +72,92 @@ public sealed class ClaudeCodeClient
         if (!_options.Enabled)
             return new AgentCallResult(AgentCallStatus.Disabled, null, "Agent:Enabled is off (kill switch); no call made.", Array.Empty<long>());
 
-        if (!File.Exists(request.SystemPromptFile))
-            throw new FileNotFoundException("The agent's system prompt file is missing.", request.SystemPromptFile);
+        foreach (var file in request.AppendSystemPromptFiles.Prepend(request.SystemPromptFile))
+            if (!File.Exists(file))
+                throw new FileNotFoundException("A system prompt file is missing.", file);
         var schema = request.JsonSchema is null ? null : JsonSchema.FromText(request.JsonSchema);
-        var spec = BuildProcessSpec(request, PrepareRuntimeDirectory());
+        var runtimeDirectory = PrepareRuntimeDirectory();
+        var callTag = Guid.NewGuid().ToString("N")[..16];
+        if (request.AppendSystemPromptFiles.Count > 0)
+            request = request with { SystemPromptFile = await ComposeSystemPromptAsync(request, runtimeDirectory, ct) };
 
-        var logIds = new List<long>();
-        Outcome outcome = default;
-        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        string? toolsConfig = null;
+        if (request.UseDataTools)
         {
-            ProcessResult? process = null;
-            try
-            {
-                process = await _runner.RunAsync(spec, ct);
-                outcome = Interpret(process, schema);
-            }
-            catch (Win32Exception ex)
-            {
-                outcome = new Outcome(AgentCallStatus.CliError, null, null,
-                    $"Claude Code could not start ('{_options.ClaudeExecutable}'): {ex.Message}", null, Retry: false);
-            }
-
-            logIds.Add(await LogAsync(request, attempt, process, outcome, ct));
-            if (outcome.Status == AgentCallStatus.Succeeded)
-                return new AgentCallResult(AgentCallStatus.Succeeded, outcome.Output, null, logIds);
-
-            _logger.LogWarning("{Agent} call '{Purpose}' attempt {Attempt}/{Max} failed: {Status} {Error}",
-                request.Role, request.Purpose, attempt, MaxAttempts, outcome.Status, outcome.Error);
-            if (!outcome.Retry) break;
+            toolsConfig = Path.Combine(runtimeDirectory, $"mcp-{callTag}.json");
+            await File.WriteAllTextAsync(toolsConfig, DataToolsMcpConfig(request.Role, callTag), ct);
         }
-        return new AgentCallResult(outcome.Status, null, outcome.Error, logIds);
+
+        try
+        {
+            var spec = BuildProcessSpec(request, runtimeDirectory, toolsConfig);
+            var logIds = new List<long>();
+            Outcome outcome = default;
+            for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+            {
+                ProcessResult? process = null;
+                try
+                {
+                    process = await _runner.RunAsync(spec, ct);
+                    outcome = Interpret(process, schema);
+                }
+                catch (Win32Exception ex)
+                {
+                    outcome = new Outcome(AgentCallStatus.CliError, null, null,
+                        $"Claude Code could not start ('{_options.ClaudeExecutable}'): {ex.Message}", null, Retry: false);
+                }
+
+                logIds.Add(await LogAsync(request, callTag, attempt, process, outcome, ct));
+                if (outcome.Status == AgentCallStatus.Succeeded)
+                    return new AgentCallResult(AgentCallStatus.Succeeded, outcome.Output, null, logIds) { CallTag = callTag };
+
+                _logger.LogWarning("{Agent} call '{Purpose}' attempt {Attempt}/{Max} failed: {Status} {Error}",
+                    request.Role, request.Purpose, attempt, MaxAttempts, outcome.Status, outcome.Error);
+                if (!outcome.Retry) break;
+            }
+            return new AgentCallResult(outcome.Status, null, outcome.Error, logIds) { CallTag = callTag };
+        }
+        finally
+        {
+            if (toolsConfig is not null) File.Delete(toolsConfig);
+        }
+    }
+
+    /// <summary>The rules file followed by the appended files, written once per distinct content
+    /// (named by its hash), so every call with the same prompt sends byte-identical text.</summary>
+    private static async Task<string> ComposeSystemPromptAsync(AgentCallRequest request, string runtimeDirectory, CancellationToken ct)
+    {
+        var parts = new List<string>();
+        foreach (var file in request.AppendSystemPromptFiles.Prepend(request.SystemPromptFile))
+            parts.Add((await File.ReadAllTextAsync(file, ct)).Trim());
+        var text = string.Join("\n\n", parts) + "\n";
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))[..16];
+        var path = Path.Combine(runtimeDirectory, $"system-{hash}.md");
+        if (!File.Exists(path)) await File.WriteAllTextAsync(path, text, ct);
+        return path;
+    }
+
+    /// <summary>
+    /// MCP config for one call: our read-only data tools, served by PricingTool.AgentTools over stdio and
+    /// tagged with the agent and the call, so every query it runs is logged against this call.
+    /// </summary>
+    internal string DataToolsMcpConfig(AgentRole role, string callTag)
+    {
+        var exe = _options.ResolveToolsExecutable();
+        var server = new Dictionary<string, object>
+        {
+            ["type"] = "stdio",
+            ["command"] = exe,
+            ["args"] = new[] { "mcp", "--agent", role.ToString(), "--call-tag", callTag },
+        };
+        return JsonSerializer.Serialize(new { mcpServers = new Dictionary<string, object> { [AgentToolNames.Server] = server } });
     }
 
     /// <summary>The exact command line, environment and stdin for one call. Internal for tests.</summary>
-    internal ProcessSpec BuildProcessSpec(AgentCallRequest request, string runtimeDirectory)
+    internal ProcessSpec BuildProcessSpec(AgentCallRequest request, string runtimeDirectory, string? dataToolsConfig = null)
     {
+        var mcpConfig = dataToolsConfig ?? request.McpConfigFile;
+        var allowedTools = dataToolsConfig is not null ? AgentToolNames.AllowedToolIds : request.AllowedTools;
         var args = new List<string>
         {
             "-p",
@@ -119,15 +171,15 @@ public sealed class ClaudeCodeClient
             "--no-session-persistence",
             "--max-budget-usd", (request.MaxBudgetUsd ?? _options.MaxBudgetUsdPerCall).ToString(CultureInfo.InvariantCulture),
         };
-        if (request.McpConfigFile is not null)
+        if (mcpConfig is not null)
         {
             args.Add("--mcp-config");
-            args.Add(Path.GetFullPath(request.McpConfigFile));
+            args.Add(Path.GetFullPath(mcpConfig));
         }
-        if (request.AllowedTools.Count > 0)
+        if (allowedTools.Count > 0)
         {
             args.Add("--allowedTools");
-            args.Add(string.Join(",", request.AllowedTools));
+            args.Add(string.Join(",", allowedTools));
         }
         if (request.JsonSchema is not null)
         {
@@ -252,7 +304,8 @@ public sealed class ClaudeCodeClient
         return errors.Count > 0 ? errors : new[] { "the answer does not match the schema" };
     }
 
-    private async Task<long> LogAsync(AgentCallRequest request, int attempt, ProcessResult? process, Outcome outcome, CancellationToken ct)
+    private async Task<long> LogAsync(AgentCallRequest request, string callTag, int attempt, ProcessResult? process, Outcome outcome,
+        CancellationToken ct)
     {
         var env = outcome.Envelope;
         var entry = new AiCallLogEntry
@@ -260,6 +313,7 @@ public sealed class ClaudeCodeClient
             CalledAtUtc = _clock.GetUtcNow().UtcDateTime - (process?.Elapsed ?? TimeSpan.Zero),
             Agent = request.Role.ToString(),
             Purpose = Truncate(request.Purpose, 200)!,
+            CallTag = callTag,
             Attempt = attempt,
             Model = _options.ModelFor(request.Role),
             ModelIds = env is { ModelIds.Count: > 0 } ? Truncate(string.Join(",", env.ModelIds), 200) : null,

@@ -55,9 +55,54 @@ public class AgentOptions
         _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
     };
 
+    /// <summary>The PricingTool.AgentTools executable that serves the data tools over MCP. Relative paths are
+    /// resolved against the running app's folder. Empty = PricingTool.AgentTools.exe next to the app.</summary>
+    public string ToolsExecutable { get; set; } = "";
+
+    public string ResolveToolsExecutable() =>
+        Path.GetFullPath(string.IsNullOrWhiteSpace(ToolsExecutable) ? "PricingTool.AgentTools.exe" : ToolsExecutable,
+            AppContext.BaseDirectory);
+
+    /// <summary>The scorecard Alpha judges (see <see cref="Alpha.AlphaInputBuilder"/>).</summary>
+    public ScorecardOptions Scorecard { get; set; } = new();
+
+    /// <summary>Guardrails of the agents' own SQL (see <see cref="Tools.QueryDataService"/>).</summary>
+    public QueryDataOptions QueryData { get; set; } = new();
+
     public string ResolveRuntimeDirectory() =>
         string.IsNullOrWhiteSpace(RuntimeDirectory)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "PricingToolAgent", "claude-runtime")
             : RuntimeDirectory;
+}
+
+public class ScorecardOptions
+{
+    /// <summary>Length of the window, in days.</summary>
+    public int WindowDays { get; set; } = 30;
+
+    /// <summary>The window ends this many days before today: late cancellations still remove lines from
+    /// the newest two weeks.</summary>
+    public int LagDays { get; set; } = 14;
+
+    /// <summary>A band × category with fewer normal-day units than this in the window is thin data (the
+    /// agent must keep its floor).</summary>
+    public int ThinDataUnits { get; set; } = 30;
+
+    /// <summary>A line's margin counts as below the floor when it is more than this many points under it
+    /// (rounding to a charm price lands a little either side).</summary>
+    public decimal FloorTolerancePp { get; set; } = 0.1m;
+
+    /// <summary>A line counts as at the floor when its margin is within the tolerance below and this many
+    /// points above the floor.</summary>
+    public decimal AtFloorBandPp { get; set; } = 1.0m;
+}
+
+public class QueryDataOptions
+{
+    public int TimeoutSeconds { get; set; } = 30;
+    public int MaxRows { get; set; } = 500;
+
+    /// <summary>The database user every agent query runs as: no login, SELECT on schema agent only.</summary>
+    public string ReaderUser { get; set; } = "agent_reader";
 }

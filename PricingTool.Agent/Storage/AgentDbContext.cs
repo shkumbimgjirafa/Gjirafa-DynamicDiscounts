@@ -15,6 +15,7 @@ public class AgentDbContext : DbContext
     public AgentDbContext(DbContextOptions<AgentDbContext> options) : base(options) { }
 
     public DbSet<AiCallLogEntry> AiCallLog => Set<AiCallLogEntry>();
+    public DbSet<AgentQueryLogEntry> AgentQueryLog => Set<AgentQueryLogEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -31,7 +32,21 @@ public class AgentDbContext : DbContext
             e.Property(x => x.CostUsd).HasPrecision(12, 6);
             e.Property(x => x.Status).HasMaxLength(30);
             e.Property(x => x.Error).HasMaxLength(2000);
+            e.Property(x => x.CallTag).HasMaxLength(40);
             e.HasIndex(x => x.CalledAtUtc);
+            e.HasIndex(x => x.CallTag);
+        });
+
+        builder.Entity<AgentQueryLogEntry>(e =>
+        {
+            e.ToTable("AgentQueryLog");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Agent).HasMaxLength(20);
+            e.Property(x => x.CallTag).HasMaxLength(40);
+            e.Property(x => x.Tool).HasMaxLength(50);
+            e.Property(x => x.Error).HasMaxLength(2000);
+            e.HasIndex(x => x.CalledAtUtc);
+            e.HasIndex(x => x.CallTag);
         });
     }
 }

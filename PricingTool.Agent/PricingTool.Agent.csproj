@@ -9,6 +9,13 @@
     <InternalsVisibleTo Include="PricingTool.Tests" />
   </ItemGroup>
 
+  <!-- The agents' fixed rules ship next to the app. The data dictionary is the data session's file in docs/,
+       linked (not copied) so there is one source. -->
+  <ItemGroup>
+    <None Update="Prompts\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\docs\hackathon-2026\agent-data-dictionary.md" Link="Prompts\agent-data-dictionary.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="JsonSchema.Net" Version="9.5.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.16">
@@ -16,6 +23,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.16" />
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.140.0" />
   </ItemGroup>
 
   <PropertyGroup>

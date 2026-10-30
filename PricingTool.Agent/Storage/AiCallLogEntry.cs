@@ -16,6 +16,10 @@ public class AiCallLogEntry
     /// <summary>What the call was for, e.g. "floor-target L4" or "isolation-probe".</summary>
     public string Purpose { get; set; } = "";
 
+    /// <summary>Shared by every attempt of one call and by the data-tool calls it made
+    /// (<see cref="AgentQueryLogEntry.CallTag"/>).</summary>
+    public string? CallTag { get; set; }
+
     /// <summary>1 for the first try, 2 for the one retry.</summary>
     public int Attempt { get; set; }
 

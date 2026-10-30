@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using PricingTool.Agent;
 using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
+using PricingTool.Agent.Tools;
 
 namespace PricingTool.Tests;
 
@@ -46,6 +47,7 @@ public class ClaudeCodeClientTests : IDisposable
         public List<ProcessSpec> Calls { get; } = new();
         public FakeRunner Returns(ProcessResult r) { _results.Enqueue(_ => r); return this; }
         public FakeRunner Throws(Exception ex) { _results.Enqueue(_ => throw ex); return this; }
+        public FakeRunner Then(Func<ProcessSpec, ProcessResult> f) { _results.Enqueue(f); return this; }
 
         public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default)
         {
@@ -132,6 +134,51 @@ public class ClaudeCodeClientTests : IDisposable
         Assert.Equal(Path.Combine(_dir, "mcp.json"), args[args.IndexOf("--mcp-config") + 1]);
         Assert.Equal("mcp__pricing__query_data,mcp__pricing__get_current_config", args[args.IndexOf("--allowedTools") + 1]);
         Assert.Equal("0.25", args[args.IndexOf("--max-budget-usd") + 1]);
+    }
+
+    [Fact]
+    public async Task Data_tools_come_from_a_per_call_mcp_config_tagged_with_the_agent_and_the_call()
+    {
+        string? config = null;
+        var runner = new FakeRunner().Then(spec =>
+        {
+            config = File.ReadAllText(spec.Arguments[spec.Arguments.ToList().IndexOf("--mcp-config") + 1]);
+            return Ok(Envelope(structured: """{"action":"keep","confidence":0.5}"""));
+        });
+
+        var result = await Client(runner).CallAsync(Request(AgentRole.Alpha) with { UseDataTools = true });
+
+        var args = runner.Calls.Single().Arguments.ToList();
+        var configPath = args[args.IndexOf("--mcp-config") + 1];
+        Assert.Equal(Path.Combine(_dir, "runtime"), Path.GetDirectoryName(configPath));
+        Assert.False(File.Exists(configPath));                                 // removed after the call
+        Assert.Equal(string.Join(",", AgentToolNames.AllowedToolIds), args[args.IndexOf("--allowedTools") + 1]);
+        Assert.Equal(7, AgentToolNames.AllowedToolIds.Count);
+        Assert.Contains("mcp__pricing__query_data", AgentToolNames.AllowedToolIds);
+
+        var server = JsonNode.Parse(config!)!["mcpServers"]!["pricing"]!;
+        Assert.EndsWith("PricingTool.AgentTools.exe", server["command"]!.GetValue<string>());
+        Assert.Equal(new[] { "mcp", "--agent", "Alpha", "--call-tag", result.CallTag! },
+            server["args"]!.AsArray().Select(a => a!.GetValue<string>()));
+        Assert.Equal(result.CallTag, (await _db.AiCallLog.SingleAsync()).CallTag);
+    }
+
+    [Fact]
+    public async Task Appended_prompt_files_are_joined_into_one_stable_system_prompt()
+    {
+        var dictionary = Path.Combine(_dir, "dictionary.md");
+        File.WriteAllText(dictionary, "## Views\nagent.SalesLines ...");
+        var runner = new FakeRunner()
+            .Returns(Ok(Envelope(structured: """{"action":"keep","confidence":0.5}""")))
+            .Returns(Ok(Envelope(structured: """{"action":"keep","confidence":0.5}""")));
+        var request = Request() with { AppendSystemPromptFiles = new[] { dictionary } };
+
+        await Client(runner).CallAsync(request);
+        await Client(runner).CallAsync(request);
+
+        var paths = runner.Calls.Select(c => c.Arguments[c.Arguments.ToList().IndexOf("--system-prompt-file") + 1]).ToList();
+        Assert.Equal(paths[0], paths[1]);                                      // same text, same file: cache-friendly
+        Assert.Equal("You are a test agent.\n\n## Views\nagent.SalesLines ...\n", File.ReadAllText(paths[0]));
     }
 
     [Fact]

@@ -26,8 +26,16 @@ public sealed record AgentCallRequest(AgentRole Role, string Purpose, string Pro
     /// Null = free text (returned as a JSON string).</summary>
     public string? JsonSchema { get; init; }
 
-    /// <summary>MCP config file with our own read-only tools (<c>--mcp-config</c>). Other MCP servers are
-    /// never loaded (<c>--strict-mcp-config</c> is always on).</summary>
+    /// <summary>More files appended to the system prompt, e.g. the data dictionary. The result is identical
+    /// on every call, so it stays prompt-cached.</summary>
+    public IReadOnlyList<string> AppendSystemPromptFiles { get; init; } = Array.Empty<string>();
+
+    /// <summary>Give the agent our read-only data tools and <c>query_data</c> (PricingTool.AgentTools over
+    /// MCP, only those tools allowed). Every query it runs is logged under this call's tag.</summary>
+    public bool UseDataTools { get; init; }
+
+    /// <summary>Any other MCP config file (<c>--mcp-config</c>). Other MCP servers are never loaded
+    /// (<c>--strict-mcp-config</c> is always on).</summary>
     public string? McpConfigFile { get; init; }
 
     /// <summary>Tools the agent may call without a prompt (<c>--allowedTools</c>), e.g. our MCP tools.</summary>
@@ -46,6 +54,9 @@ public sealed record AgentCallResult(AgentCallStatus Status, JsonElement? Output
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
     public bool Succeeded => Status == AgentCallStatus.Succeeded;
+
+    /// <summary>The tag on this call's AiCallLog rows and on the data-tool calls it made (AgentQueryLog).</summary>
+    public string? CallTag { get; init; }
 
     public T? Deserialize<T>(JsonSerializerOptions? options = null) =>
         Output is { } output ? output.Deserialize<T>(options ?? Web) : default;
