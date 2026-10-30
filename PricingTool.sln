@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.Agent", "Pricin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.AgentTools", "PricingTool.AgentTools\PricingTool.AgentTools.csproj", "{8AB28E26-22B7-409E-8695-1862AFB21F1D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PricingTool.NopIntegration", "PricingTool.NopIntegration\PricingTool.NopIntegration.csproj", "{2B2B5F59-7C4D-4771-A86B-27F1EA1DE0BD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -54,5 +56,9 @@ Global
 		{8AB28E26-22B7-409E-8695-1862AFB21F1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8AB28E26-22B7-409E-8695-1862AFB21F1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8AB28E26-22B7-409E-8695-1862AFB21F1D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B2B5F59-7C4D-4771-A86B-27F1EA1DE0BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B2B5F59-7C4D-4771-A86B-27F1EA1DE0BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B2B5F59-7C4D-4771-A86B-27F1EA1DE0BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B2B5F59-7C4D-4771-A86B-27F1EA1DE0BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

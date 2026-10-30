@@ -331,6 +331,207 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.ToTable("AiCallLog", "ai");
                 });
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.PublishAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("Applied")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("BatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Change")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DiscountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DiscountName")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<decimal?>("NewDiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("NewEndDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("NewStartDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NewStoreIds")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal?>("OldDiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("OldEndDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool?>("OldHasDiscountsApplied")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("OldStartDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OldStoreIds")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RolledBackUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.ToTable("PublishAudit", "ai");
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.PublishBatch", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CampaignKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Created")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Db")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<long?>("EngineRunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("FinishedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("Requested")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RolledBackUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RoundTripChecked")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RoundTripMismatches")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ShopSchema")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("Skipped")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("StoreId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Unchanged")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Updated")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LayerId", "StartedUtc");
+
+                    b.ToTable("PublishBatch", "ai");
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.PublishException", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.ToTable("PublishException", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.TimeSheetEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -405,6 +606,11 @@ namespace PricingTool.Agent.Storage.Migrations
                         {
                             Id = 1,
                             Name = "Weekly floor and target review"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Create and push the discounts for a run"
                         });
                 });
 
@@ -413,6 +619,24 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.HasOne("PricingTool.Agent.Storage.AgentPass", null)
                         .WithMany()
                         .HasForeignKey("PassId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.PublishAudit", b =>
+                {
+                    b.HasOne("PricingTool.Agent.Storage.PublishBatch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.PublishException", b =>
+                {
+                    b.HasOne("PricingTool.Agent.Storage.PublishBatch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

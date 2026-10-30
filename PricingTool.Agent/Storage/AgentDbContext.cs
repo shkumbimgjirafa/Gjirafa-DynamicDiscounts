@@ -20,11 +20,15 @@ public class AgentDbContext : DbContext
     public DbSet<AgentDecision> AgentDecisions => Set<AgentDecision>();
     public DbSet<TimeSheetTaskType> TimeSheetTaskTypes => Set<TimeSheetTaskType>();
     public DbSet<TimeSheetEntry> TimeSheetEntries => Set<TimeSheetEntry>();
+    public DbSet<PublishBatch> PublishBatches => Set<PublishBatch>();
+    public DbSet<PublishAudit> PublishAudits => Set<PublishAudit>();
+    public DbSet<PublishException> PublishExceptions => Set<PublishException>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
     {
         public const int WeeklyFloorTargetReview = 1;
+        public const int CreateAndPushDiscounts = 2;
     }
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -85,7 +89,9 @@ public class AgentDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedNever();
             e.Property(x => x.Name).HasMaxLength(200);
-            e.HasData(new TimeSheetTaskType { Id = TaskTypes.WeeklyFloorTargetReview, Name = "Weekly floor and target review", MinutesBefore = null });
+            e.HasData(
+                new TimeSheetTaskType { Id = TaskTypes.WeeklyFloorTargetReview, Name = "Weekly floor and target review", MinutesBefore = null },
+                new TimeSheetTaskType { Id = TaskTypes.CreateAndPushDiscounts, Name = "Create and push the discounts for a run", MinutesBefore = null });
         });
 
         builder.Entity<TimeSheetEntry>(e =>
@@ -99,6 +105,46 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Proof).HasMaxLength(500);
             e.Property(x => x.Comment).HasMaxLength(1000);
             e.Property(x => x.Source).HasMaxLength(20);
+        });
+
+        builder.Entity<PublishBatch>(e =>
+        {
+            e.ToTable("PublishBatch");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Db).HasMaxLength(50);
+            e.Property(x => x.Target).HasMaxLength(20);
+            e.Property(x => x.ShopSchema).HasMaxLength(128);
+            e.Property(x => x.Kind).HasMaxLength(20);
+            e.Property(x => x.CampaignKey).HasMaxLength(100);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Note).HasMaxLength(2000);
+            e.HasIndex(x => new { x.LayerId, x.StartedUtc });
+        });
+
+        builder.Entity<PublishAudit>(e =>
+        {
+            e.ToTable("PublishAudit");
+            e.HasKey(x => x.Id);
+            e.HasOne<PublishBatch>().WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Sku).HasMaxLength(400);
+            e.Property(x => x.Change).HasMaxLength(30);
+            e.Property(x => x.DiscountName).HasMaxLength(400);
+            e.Property(x => x.OldDiscountAmount).HasPrecision(18, 4);
+            e.Property(x => x.NewDiscountAmount).HasPrecision(18, 4);
+            e.Property(x => x.OldStoreIds).HasMaxLength(40);
+            e.Property(x => x.NewStoreIds).HasMaxLength(40);
+            e.HasIndex(x => x.BatchId);
+        });
+
+        builder.Entity<PublishException>(e =>
+        {
+            e.ToTable("PublishException");
+            e.HasKey(x => x.Id);
+            e.HasOne<PublishBatch>().WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Sku).HasMaxLength(400);
+            e.Property(x => x.Kind).HasMaxLength(30);
+            e.Property(x => x.Detail).HasMaxLength(1000);
+            e.HasIndex(x => x.BatchId);
         });
 
         builder.Entity<AgentQueryLogEntry>(e =>

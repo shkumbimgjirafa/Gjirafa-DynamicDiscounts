@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PricingTool.Core\PricingTool.Core.csproj" />
+    <ProjectReference Include="..\PricingTool.Data\PricingTool.Data.csproj" />
+    <ProjectReference Include="..\PricingTool.Agent\PricingTool.Agent.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PricingTool.Tests" />
+  </ItemGroup>
+
+  <!-- The live shop schema snapshot the sandbox is generated from and the contract test compares against. -->
+  <ItemGroup>
+    <None Remove="Sandbox\live-discount-schema.json" />
+    <EmbeddedResource Include="Sandbox\live-discount-schema.json" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

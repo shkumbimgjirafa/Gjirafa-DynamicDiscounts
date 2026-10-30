@@ -10,8 +10,10 @@ using PricingTool.Agent.Alpha;
 using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
+using Microsoft.Data.SqlClient;
 using PricingTool.AgentTools;
 using PricingTool.Data;
+using PricingTool.NopIntegration.Sandbox;
 
 // PricingTool.AgentTools: the agents' data tools as an MCP server, plus commands to check them by hand.
 //   mcp --agent <Alpha|Nova|RunChecker|Chat> [--call-tag <tag>]   stdio MCP server (Claude Code starts it)
@@ -19,6 +21,7 @@ using PricingTool.Data;
 //   query [--agent <role>] [--timeout <s>] "<sql>"                  run query_data with its guardrails
 //   ask --agent <role> [--schema <file>] "<question>"               one real Claude Code call with the data tools
 //   alpha-pass <layer> [--mode Autonomous|ApproveFirst|Off] [--test] Alpha's weekly floor/target pass for one layer
+//   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
 // Settings come from appsettings.json next to the executable (the hackathon DB; no secrets).
 
 var command = args.FirstOrDefault() ?? "";
@@ -122,7 +125,45 @@ switch (command)
         return result.Status == "Succeeded" ? 0 : 1;
     }
 
+    case "sandbox":
+    {
+        var sub = positional.FirstOrDefault() ?? "check";
+        await using var conn = new SqlConnection(builder.Configuration.GetConnectionString("PricingToolDb"));
+        await conn.OpenAsync();
+        var snapshot = SandboxSchema.LoadSnapshot();
+        var dbs = snapshot.Select(r => r.Db).Distinct().OrderBy(d => d).ToList();
+        if (sub == "script")
+        {
+            Console.Write(SandboxSchema.Script(snapshot));
+            return 0;
+        }
+        if (sub == "create")
+        {
+            await using var exists = new SqlCommand(
+                "SELECT COUNT(*) FROM sys.tables WHERE SCHEMA_NAME(schema_id) LIKE 'shop[_]sandbox[_]%'", conn);
+            if ((int)(await exists.ExecuteScalarAsync())! > 0 && !args.Contains("--recreate"))
+            {
+                Console.Error.WriteLine("The sandbox already exists; 'create' would drop what was published to it. Add --recreate to rebuild it.");
+                return 1;
+            }
+            var sw = Stopwatch.StartNew();
+            await SandboxSeeder.CreateAsync(conn, snapshot);
+            Console.WriteLine($"Created {string.Join(", ", dbs.Select(SandboxSchema.SchemaFor))} in {sw.ElapsedMilliseconds} ms");
+            foreach (var r in await SandboxSeeder.SeedAsync(conn, snapshot))
+                Console.WriteLine($"Seeded {r.Db}: {r.Discounts:N0} discounts, {r.Mappings:N0} mappings, {r.Products:N0} products in {r.Milliseconds:N0} ms");
+        }
+        var failed = false;
+        foreach (var db in dbs)
+        {
+            var diffs = SandboxContract.Differences(snapshot, await SandboxContract.ReadActualAsync(conn, db), db);
+            Console.WriteLine(diffs.Count == 0 ? $"Contract {db}: sandbox DDL equals the live snapshot" : $"Contract {db}: {diffs.Count} difference(s)");
+            foreach (var d in diffs) Console.WriteLine("  " + d);
+            failed |= diffs.Count > 0;
+        }
+        return failed ? 1 : 0;
+    }
+
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox ... (see Program.cs)");
         return 2;
 }

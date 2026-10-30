@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PricingTool.Agent\PricingTool.Agent.csproj" />
+    <ProjectReference Include="..\PricingTool.NopIntegration\PricingTool.NopIntegration.csproj" />
   </ItemGroup>
 
   <ItemGroup>
