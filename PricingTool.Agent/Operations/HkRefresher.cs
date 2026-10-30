@@ -4,6 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 
 namespace PricingTool.Agent.Operations;
@@ -61,6 +62,8 @@ public sealed class HkRefresher
             }
             results.Add(await ReloadAsync(table, Sql(sql), null, null, $"full reload, NOP replica read-only: ported from docs/hackathon-2026/exports/{sql}", ct));
         }
+        // Keep the proposal → product-map lookup in place (a no-op when it already is).
+        await ProductMapSql.EnsureAsync(_local.ConnectionString, ct);
         return results;
     }
 

@@ -24,7 +24,8 @@ public interface IHoldoutLookup
     Task<IReadOnlySet<long>> HoldoutProposalIdsAsync(long runId, int layerId, IReadOnlyCollection<string> categories, CancellationToken ct = default);
 }
 
-/// <summary>Through the product map (hk.Products): GjirafaMall by main group, Gjirafa50 by L1 category.</summary>
+/// <summary>Through the product map (hk.Products): GjirafaMall by main group, Gjirafa50 by L1 category. A Mall row
+/// synced from Gjirafa50 carries the Gj50 product id, so the map row is found by SKU (see <see cref="ProductMapSql"/>).</summary>
 public sealed class HoldoutLookup : IHoldoutLookup
 {
     private readonly AgentDataSource _source;
@@ -39,7 +40,7 @@ public sealed class HoldoutLookup : IHoldoutLookup
         await using var cmd = new SqlCommand("""
             DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM PricingTool.Layers WHERE Id = @L);
             SELECT pp.Id FROM PricingTool.ProposedPrices pp
-            JOIN hk.Products p ON p.LayerId = pp.LayerId AND p.ProductId = pp.ProductId
+            CROSS APPLY hk.ProductForProposal(pp.LayerId, pp.ProductId, pp.Sku) p
             WHERE pp.PricingRunId = @Run AND pp.HasChange = 1
               AND (CASE WHEN @Mall = 1 THEN ISNULL(p.MainGroup, N'Others') ELSE ISNULL(p.CategoryL1, N'Unknown') END)
                   IN (SELECT value FROM STRING_SPLIT(@Cats, '|'))

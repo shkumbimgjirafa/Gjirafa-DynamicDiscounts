@@ -210,7 +210,7 @@ switch (command)
                 DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM PricingTool.Layers WHERE Id = @L);
                 SELECT TOP (@Max) pp.Sku, pp.ProposedPriceValue, pp.OldPrice
                 FROM PricingTool.ProposedPrices pp
-                JOIN hk.Products p ON p.LayerId = pp.LayerId AND p.ProductId = pp.ProductId
+                CROSS APPLY hk.ProductForProposal(pp.LayerId, pp.ProductId, pp.Sku) p
                 WHERE pp.PricingRunId = @Run AND pp.LayerId = @L AND pp.HasChange = 1
                   AND (CASE WHEN @Mall = 1 THEN p.MainGroup ELSE p.CategoryL1 END) = @Cat
                 ORDER BY CHECKSUM(pp.Sku, 'canary')

@@ -69,12 +69,16 @@ public static class AgentServiceCollectionExtensions
         return cs.ConnectionString;
     }
 
-    /// <summary>Applies the agent layer's own migrations (schema <c>ai</c>). Call after the tool's
-    /// migrations, from a startup scope.</summary>
+    /// <summary>Applies the agent layer's own migrations (schema <c>ai</c>), then ensures the product-map
+    /// lookup (<see cref="ProductMapSql"/>) on the data connection. Call after the tool's migrations, from a
+    /// startup scope.</summary>
     public static async Task MigrateAgentDbAsync(this IServiceProvider services, CancellationToken ct = default)
     {
         var db = services.GetRequiredService<AgentDbContext>();
-        if (db.Database.IsRelational())
-            await db.Database.MigrateAsync(ct);
+        if (!db.Database.IsRelational()) return;
+        await db.Database.MigrateAsync(ct);
+        // The lookup lives with the data (the tool's database), which isn't always where the agents' own
+        // records go (see AgentDbConnectionName), so it's ensured on the data connection, not in a migration.
+        await ProductMapSql.EnsureAsync(services.GetRequiredService<AgentDataSource>().ConnectionString, ct);
     }
 }

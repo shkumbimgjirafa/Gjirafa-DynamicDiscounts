@@ -118,7 +118,7 @@ public sealed class PricingDataReader
                        ds.LocalWarehouseStock * ds.Pptcv AS Value, pp.DeadStockStage, st.DeadObservedDays
                 FROM PricingTool.DailySnapshots ds
                 JOIN PricingTool.ProposedPrices pp ON pp.PricingRunId = @Run AND pp.Sku = ds.Sku
-                LEFT JOIN hk.Products p ON p.LayerId = @L AND p.ProductId = pp.ProductId
+                OUTER APPLY hk.ProductForProposal(@L, pp.ProductId, pp.Sku) p
                 LEFT JOIN PricingTool.SkuDeadStockStates st ON st.LayerId = @L AND st.Sku = ds.Sku
                 WHERE ds.LayerId = @L AND ds.SnapshotDate = @Snap AND ds.LocalWarehouseStock > 0 AND ds.Pptcv > 0
             )
@@ -183,7 +183,7 @@ public sealed class PricingDataReader
                        e.IsUsable, e.Coefficient, e.ObservationCount
                 FROM PricingTool.SkuElasticity e
                 JOIN PricingTool.ProposedPrices pp ON pp.PricingRunId = @Run AND pp.Sku = e.Sku
-                LEFT JOIN hk.Products p ON p.LayerId = @L AND p.ProductId = pp.ProductId
+                OUTER APPLY hk.ProductForProposal(@L, pp.ProductId, pp.Sku) p
                 WHERE e.LayerId = @L
             )
             SELECT Sku, BandId, Category, IsUsable, Coefficient, ObservationCount FROM x
