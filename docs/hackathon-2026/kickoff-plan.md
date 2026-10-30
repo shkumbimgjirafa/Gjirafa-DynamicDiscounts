@@ -159,6 +159,18 @@ Private progress notes on day 10 and day 20; one appeal.
   database and the sandbox.
 - **Requests:** only genuine calls; the app's batched calls plus the user's own building count.
 
+**Live path (user's decision, Fri 30 Oct): this laptop, for the 30 days.** The hackathon app keeps
+running here on LocalDB `PricingToolHackathon`, reading the replica daily; **prices reach the shop
+through today's export and push** (the existing CSV export, pushed by the team as now). The
+go-live-ready direct publisher stays built and tested against the sandbox; switching it on is a
+later step, not part of the bar. What that needs (plan section 5, "Live operation on the laptop"):
+- a daily cycle that starts on its own (and catches up after the laptop was asleep or off);
+- incremental refresh of the `hk.*` data, and retention so LocalDB stays under 10 GB for 30 days;
+- the AI-checked export for the team's push, from this app instead of the prod tool, with the
+  holdout categories left out, and the pushed sets recorded as applied;
+- the money ledger and the time-sheet rows, both written by the app;
+- a daily database backup.
+
 The user expects the open questions (data rules, API key, warehouse access) to be answered at the
 **kickoff on Fri 16:00**. Collect the answers there before the first data step. The schedule is
 built so nothing before Fri 19:00 needs the API key, and the data step has an export fallback if
@@ -553,6 +565,29 @@ solution completes writes its own row, automatically; nothing is typed by hand.
 - **Export** in the template's exact columns A–H: an xlsx written into a copy of the template, and a
   CSV / JSON endpoint for Jarvis (how Jarvis connects is to confirm on Monday).
 
+**Live operation on the laptop (the 10% bar; added Fri 30 Oct).** From Monday the app runs here
+for 30 days on real data, on its own.
+- **Daily cycle**, in order, as one job: incremental refresh of `hk.*` from the replica (new sales
+  lines since the last load, with the 14-day late-cancellation window re-pulled; products and
+  discount snapshot) → engine runs for layers 1 and 4 → Alpha's pass (weekly) → run checker →
+  export for the push → money-ledger update → time-sheet rows → backup. `CostWatcher` runs every 15
+  minutes on its own. Nova's pass weekly. Each step logs and can fail without stopping the rest.
+- **Starts by itself:** a Windows Task Scheduler task (at log-on and daily at 07:00, "run as soon as
+  possible after a missed start") launches the engine host in the `Hackathon` environment; the
+  cycle is idempotent per day, so a missed or repeated start is harmless. The Claude Code CLI stays
+  logged in on this machine.
+- **Size:** retention on for local runs (keep the imported prod runs and the latest two per layer),
+  so LocalDB stays well under 10 GB; a size check in the cycle warns at 8 GB.
+- **Export for the push:** the existing CSV export of the checked proposals, holdout categories
+  left out, written where the team picks it up; once pushed, the set is recorded as applied (the
+  same `Approval` the prod tool uses), which starts its before/after measurement.
+- **Money ledger** (condition 4 of the bar): per applied set and per cost-watcher fix, expected €
+  at the time, measured € after 7 and 30 days from the refreshed sales lines (booked COGS),
+  against the holdout categories, season-adjusted where possible. Conservative: unmeasured or
+  unattributable gains are shown as zero, never estimated into the total.
+- **Backup:** `BACKUP DATABASE` daily to a local folder, keep 7.
+- **Nothing mocked in this database:** injected test cases run against a separate test database.
+
 **Web (new `AgentController` + views):**
 - **Agent tab** in the main navigation, next to Price bands and Schedule. Top to bottom:
   1. A status bar: layer picker, mode (Autonomous), "Publishing to: sandbox", kill switch.
@@ -616,9 +651,10 @@ the Për ty test), which is the hackathon-hours line in the financial sheet.
 | Sun 10:00–13:00 | Backtest | All seven levers, including the campaign replay (Për ty Oct 2026, Black Friday 2025); results page, sensitivity table; **the Për ty reproduction test passes** |
 | Sun 13:00–14:30 | Failure and unusual cases | API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, **unreachable campaign goal, overlapping discount, injected cost rise (raised within one `CostWatcher` cycle), a data-error cost jump (held), a bad `query_data` statement (rejected)**; tests green (`dotnet test`) |
 | Sun 14:30–17:30 | Agent tab, Campaigns tab, chat, reporting | Both tabs; the feed of both agents, "Coming up" with the veto window, "Waiting for you", "What it looked at"; chat with Nova delegating to Alpha, and `@alpha` / `@nova`; why / what-if / instructions → rules; Monday report as the first message + email; in-app notifications |
-| Sun 17:30–18:30 | Financial sheet + one-pager | The draft sheet already exists (`docs/hackathon-2026/Financial sheet (draft).xlsx`): type in the backtest levers, real hours and AI cost; one-pager; numbers read from `numbers.json` (section 10) |
-| Sun 18:30–19:30 | AI-judge dry run | A fresh Claude session scores the entry as a skeptical juror (section 10) |
-| Sun 19:30–21:00 | Demo rehearsal + 2-min backup video | Section 7 run twice, timed; video recorded with no secrets on screen |
+| Sun 17:30–19:00 | Live operation on the laptop (the 10% bar) | Section 5 "Live operation on the laptop": daily cycle as one idempotent job, Task Scheduler task, incremental `hk` refresh, retention + size check, export for the push (holdout left out), money ledger, time-sheet rows and export, daily backup; one full cycle run end to end on real data |
+| Sun 19:00–19:30 | Financial sheet + one-pager | The draft sheet already exists (`docs/hackathon-2026/Financial sheet (draft).xlsx`): type in the backtest levers, real hours and AI cost; one-pager; numbers read from `numbers.json` (section 10) |
+| Sun 19:30–20:30 | AI-judge dry run | A fresh Claude session scores the entry as a skeptical juror (section 10) |
+| Sun 20:30–21:30 | Demo rehearsal + 2-min backup video | Section 7 run twice, timed; video recorded with no secrets on screen |
 | 🏠 Sun 21:30–23:30 | Fix buffer | Fixes from the dry run and the rehearsal; nothing new |
 | **Mon 06:00–08:00** | Freeze | Re-run the AI-judge dry run on the final state. Final commit, tag `hackathon-submission`, push to the organisers' remote; submit everything **before 08:00**. No new features after 08:00. |
 
