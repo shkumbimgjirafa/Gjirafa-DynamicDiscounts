@@ -338,6 +338,18 @@ public class ClaudeCodeClientTests : IDisposable
     }
 
     [Fact]
+    public async Task Email_addresses_in_the_answer_are_redacted_from_the_log()
+    {
+        var runner = new FakeRunner().Returns(Ok(Envelope(result: "Context: The user's email address is someone.x@example.com.")));
+
+        var result = await Client(runner).CallAsync(Request(AgentRole.Chat, schema: null));
+
+        Assert.True(result.Succeeded);
+        var row = Assert.Single(await _db.AiCallLog.ToListAsync());
+        Assert.Equal("Context: The user's email address is [email].", row.Output);
+    }
+
+    [Fact]
     public void The_envelope_parser_ignores_noise_before_the_result_object()
     {
         var parsed = ClaudeCodeEnvelope.TryParse("warning: something\n" + Envelope(result: "x"));

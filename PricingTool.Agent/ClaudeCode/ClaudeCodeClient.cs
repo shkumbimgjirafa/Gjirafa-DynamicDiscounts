@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Json.Schema;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,7 +26,9 @@ namespace PricingTool.Agent.ClaudeCode;
 ///   another Claude Code session (or the desktop app) is not routed through it.</item>
 /// </list>
 /// <c>--bare</c> would skip the same things but reads only an API key, never the subscription login,
-/// so it is not used.
+/// so it is not used. Checked on Claude Code 2.1.205 (2026-10-30, ai.AiCallLog #3): the only tool the
+/// agent saw was StructuredOutput (how <c>--json-schema</c> works), the input was 861 tokens, and the only
+/// context Claude Code still adds is the account's email, today's date and the budget line.
 /// </summary>
 public sealed class ClaudeCodeClient
 {
@@ -271,9 +274,9 @@ public sealed class ClaudeCodeClient
             CostUsd = env?.TotalCostUsd,
             Success = outcome.Status == AgentCallStatus.Succeeded,
             Status = outcome.Status.ToString(),
-            Error = Truncate(outcome.Error, MaxLoggedErrorChars),
+            Error = Truncate(RedactEmails(outcome.Error), MaxLoggedErrorChars),
             PromptChars = request.Prompt.Length,
-            Output = Truncate(outcome.RawOutput, MaxLoggedOutputChars),
+            Output = Truncate(RedactEmails(outcome.RawOutput), MaxLoggedOutputChars),
         };
         _db.AiCallLog.Add(entry);
         // The log row must survive the caller's cancellation: the call has already been made and paid for.
@@ -289,4 +292,10 @@ public sealed class ClaudeCodeClient
     }
 
     private static string? Truncate(string? s, int max) => s is null || s.Length <= max ? s : s[..max];
+
+    private static readonly Regex EmailAddress = new(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", RegexOptions.Compiled);
+
+    /// <summary>Claude Code adds the logged-in account's email to every call's context, so an answer can
+    /// echo it. No email is kept in the log.</summary>
+    internal static string? RedactEmails(string? s) => s is null ? null : EmailAddress.Replace(s, "[email]");
 }

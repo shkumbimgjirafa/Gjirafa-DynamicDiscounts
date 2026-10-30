@@ -44,9 +44,10 @@ public class ClaudeCodeIntegrationTests
         "MCP server instructions. Quote the first 150 characters of each, verbatim. Use empty lists for none.";
 
     /// <summary>Phrases that only appear in this repo's CLAUDE.md, the user's global CLAUDE.md or the session
-    /// that runs the tests. Any of them in the answer means the agent saw that context.</summary>
+    /// that runs the tests. Any of them in the answer means the agent saw that context. ("Gjirafa" is not one:
+    /// Claude Code always adds the logged-in account's email, and its domain is gjirafa.com.)</summary>
     private static readonly string[] Canaries =
-        { "pbi-cli", "Power BI", "shop_sandbox", "PricingToolHackathon", "Gjirafa", "hackathon", "SafetyLimits", "user-secrets" };
+        { "pbi-cli", "Power BI", "shop_sandbox", "PricingToolHackathon", "hackathon", "SafetyLimits", "user-secrets", "CLAUDE.md" };
 
     private static readonly string[] BuiltInTools =
         { "Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch", "Task", "Agent", "Skill", "NotebookEdit", "TodoWrite" };
@@ -98,10 +99,14 @@ public class ClaudeCodeIntegrationTests
         foreach (var canary in Canaries)
             Assert.DoesNotContain(canary, text, StringComparison.OrdinalIgnoreCase);
 
-        // The whole input is our two short texts plus Claude Code's own minimum. CLAUDE.md files, memory,
-        // the skill list or MCP instructions would add thousands of tokens.
+        // The whole input is our two short texts plus Claude Code's own minimum: 861 tokens measured on
+        // 2026-10-30 (AiCallLog #3). This repo's CLAUDE.md alone would add ~1,800; the skill list or MCP
+        // instructions thousands more.
         var inputTokens = row.InputTokens + row.CacheReadTokens + row.CacheCreationTokens;
-        Assert.True(inputTokens < 8000, $"input was {inputTokens} tokens");
+        Assert.True(inputTokens < 1500, $"input was {inputTokens} tokens");
+
+        // Claude Code puts the account's email in the context; the log never keeps it.
+        Assert.DoesNotContain("@", row.Output ?? "");
 
         promptDir.Delete(recursive: true);
     }

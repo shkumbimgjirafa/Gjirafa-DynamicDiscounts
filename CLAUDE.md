@@ -60,6 +60,13 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
 - **Isolation:** an agent call must not load this repo's `CLAUDE.md`, the user's own instructions,
   memory, skills or plugins. Run it from a dedicated runtime folder outside the repo and use
   `--bare` or `--setting-sources` to skip them; prove it with a test call.
+  **Checked 2026-10-30 (`ai.AiCallLog` #3):** `--bare` can't use the subscription ("Not logged in").
+  What works (all in `ClaudeCodeClient`): runtime folder `%LOCALAPPDATA%\PricingToolAgent\claude-runtime`,
+  `--setting-sources ""`, `--system-prompt-file`, `--tools ""`, `--strict-mcp-config`,
+  `--disable-slash-commands`, and a child environment without the parent's `CLAUDE*` / `ANTHROPIC_*` /
+  `MCP_*` variables. The agent then sees only `StructuredOutput`, the input is 861 tokens, and Claude Code
+  still adds the account email, today's date and the budget line; the log redacts emails. The CLI must be
+  logged in once per machine (`claude auth login`), separately from the desktop app.
 - **Reliability:** our code does all arithmetic and sends only the rows that need judgement (e.g.
   below or near the floor). One call per run or per layer pass, never one per product. Validate the
   JSON; on failure retry once, then hold or block, never publish.
