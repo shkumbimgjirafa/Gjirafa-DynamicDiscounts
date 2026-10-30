@@ -30,7 +30,9 @@ using PricingTool.NopIntegration.Sandbox;
 //   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
 //   approve-plan <plan id> [--by <who>] [--publish]                  a person approves a plan waiting for them (held, or a stretch)
 //   backtest-campaigns <layer> [<layer> ...]                         replay finished campaigns with the planner's arithmetic
-//   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3 on booked sales lines
+//   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3, 5, 6 on booked sales lines
+//   reproduce-per-ty --test                                          the Për ty reproduction test: the agents plan the 6 Oct brief
+//                                                                   with data cut off at 7 Oct (two model calls; records to the test DB)
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
 //   lesson <Nova|Alpha> "<text>" [--layer <id>] [--by <who>]       teach an agent: kept in every pass's prompt until retired
 //   lessons [<Nova|Alpha>] | lesson-retire <id> [--by <who>]        list the active lessons, or retire one
@@ -428,6 +430,56 @@ switch (command)
         return 0;
     }
 
+    case "reproduce-per-ty":
+    {
+        if (!testRun)
+        {
+            Console.Error.WriteLine("Run it with --test: its brief, plans and thread go to the test database.");
+            return 1;
+        }
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var sp = scope.ServiceProvider;
+        var dataTo = PricingTool.Agent.Backtest.PerTyReproduction.DataTo;
+        var clock = new AsOfClock(new DateTimeOffset(dataTo.ToDateTime(new TimeOnly(7, 0)), TimeZoneInfo.Local.GetUtcOffset(dataTo.ToDateTime(new TimeOnly(7, 0)))));
+        var options = sp.GetRequiredService<IOptions<AgentOptions>>();
+        var db = sp.GetRequiredService<AgentDbContext>();
+        var reader = sp.GetRequiredService<PricingDataReader>();
+        var candidates = new PricingTool.Agent.Backtest.AsOfCampaignCandidateSource(reader);
+        var planning = new PricingTool.Agent.Campaigns.CampaignPlanning(db, sp.GetRequiredService<PricingToolDbContext>(), candidates,
+            new AgentDataTools(reader, options, new AgentToolLog(db, clock), db, clock), sp.GetRequiredService<PricingTool.Data.Services.BandConfigProvider>(),
+            sp.GetRequiredService<ClaudeCodeClient>(), sp.GetRequiredService<IKillSwitch>(), options,
+            sp.GetRequiredService<ILogger<PricingTool.Agent.Campaigns.CampaignPlanning>>(), clock);
+        var brief = PricingTool.Agent.Backtest.PerTyReproduction.Brief(1, DateTime.UtcNow);
+        db.CampaignBriefs.Add(brief);
+        await db.SaveChangesAsync();
+        var sw = Stopwatch.StartNew();
+        var r = await planning.PlanAsync(brief.Id, publish: false);
+        Console.WriteLine($"Brief #{brief.Id} (test DB): {r.Status} in {sw.Elapsed.TotalSeconds:0} s {r.Error}");
+        foreach (var m in await db.CampaignMessages.AsNoTracking().Where(m => m.BriefId == brief.Id).OrderBy(m => m.Id).ToListAsync())
+            Console.WriteLine($"  [{m.Round}] {m.From}: {m.Text}");
+        if (r.Final is { } plan)
+        {
+            var holdouts = options.Value.Limits.Holdouts.TryGetValue("1", out var h) ? h : new List<string>();
+            var all = await candidates.LoadAsync(1, dataTo.AddDays(-42), dataTo.AddDays(-14));
+            var inScope = all.Where(c => !c.FollowsGj50 && !holdouts.Contains(c.Category, StringComparer.OrdinalIgnoreCase)).ToList();
+            var score = PricingTool.Agent.Backtest.PerTyReproduction.Score(plan.ExpectedMarginPct, PricingTool.Agent.Backtest.PerTyReproduction.NormalMarginPct(inScope));
+            Console.WriteLine($"Plan #{plan.Id} ({plan.Strategy}): {score.Detail}. Verdict: {(score.Passed ? "PASS" : "FAIL")}.");
+            decimal Revenue(IEnumerable<PricingTool.Agent.Campaigns.CampaignCandidate> cs) => cs.Sum(c => c.UnitsPerDay * c.CurrentPrice);
+            Console.WriteLine($"Gjirafa50-listed share of Mall KS normal-day revenue before the campaign: {100m * Revenue(all.Where(c => c.FollowsGj50)) / Revenue(all):0}% " +
+                              $"at {PricingTool.Agent.Backtest.PerTyReproduction.NormalMarginPct(all.Where(c => c.FollowsGj50)):0.0}% normal margin, vs " +
+                              $"{PricingTool.Agent.Backtest.PerTyReproduction.NormalMarginPct(all.Where(c => !c.FollowsGj50)):0.0}% for Mall's own (measured; the plan leaves them out, as the hand plan did).");
+            var actual = await reader.GetWindowResultAsync(1, PricingTool.Agent.Backtest.PerTyReproduction.Start, PricingTool.Agent.Backtest.PerTyReproduction.End.AddDays(1));
+            string M(IEnumerable<(bool Gj50Listed, decimal Net, decimal Gp)> x) => $"GP {x.Sum(a => a.Gp):N0} on {x.Sum(a => a.Net):N0} net, {(x.Sum(a => a.Net) > 0 ? 100m * x.Sum(a => a.Gp) / x.Sum(a => a.Net) : 0):0.0}% margin";
+            Console.WriteLine("Side by side, Mall's own SKUs (estimated unless said):");
+            Console.WriteLine($"  hand plan (6 Oct): band targets at 75% of normal, forecast effective margin 15.1% (GM3 10.2%)");
+            Console.WriteLine($"  agents' plan: {plan.Strategy}, {plan.DiscountedSkus:N0} of {plan.SkusInScope:N0} SKUs at {plan.AverageDepthPct:0.0}% average depth, expected {plan.ExpectedMarginPct:0.0}% margin, GP {plan.ExpectedGrossProfit:N0}");
+            Console.WriteLine($"  what happened (measured, provisional: late cancellations): Mall's own {M(actual.Where(a => !a.Gj50Listed))}; whole Mall {M(actual)}");
+        }
+        return 0;
+    }
+
     case "approve-plan":
     {
         using var host = builder.Build();
@@ -667,7 +719,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

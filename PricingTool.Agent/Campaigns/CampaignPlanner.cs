@@ -52,11 +52,13 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
 /// rounded down, never below cost, never at or above today's price), expected units over the campaign = normal-day rate ×
 /// days × the campaign type's event lift × exp(B × extra depth over today's discount) (<see cref="DepthEffect"/>); gross
 /// profit and net revenue follow, VAT excluded. Totals cover every SKU in scope, discounted or not, so they compare with
-/// a past campaign's whole result. Three strategies:
+/// a past campaign's whole result. Four strategies:
 /// <list type="bullet">
 /// <item>max-gross-profit: each SKU at the depth with the most gross profit, or not discounted when none beats today's price;</item>
 /// <item>volume-at-no-loss: each SKU at the deepest depth that keeps its gross profit at least as high as undiscounted;</item>
-/// <item>visible: every SKU at least the shallowest depth, deeper where that pays (a campaign shoppers can see).</item>
+/// <item>visible: every SKU at least the shallowest depth, deeper where that pays (a campaign shoppers can see);</item>
+/// <item>spend-to-margin: visible, then deeper step by step (the most units per euro of gross profit given up first) for as
+/// long as the blended margin stays at the brief's minimum: a margin floor spent on volume, as the hand-set Për ty plan did.</item>
 /// </list>
 /// Then the brief's minimum blended margin is enforced (the SKUs costing the most margin per euro of profit are made
 /// shallower first), the cap on discounted SKUs keeps the biggest contributors, and a fixed ~10 % of eligible SKUs stay
@@ -64,7 +66,7 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
 /// </summary>
 public static class CampaignPlanner
 {
-    public static readonly string[] Strategies = { "max-gross-profit", "volume-at-no-loss", "visible" };
+    public static readonly string[] Strategies = { "max-gross-profit", "volume-at-no-loss", "visible", "spend-to-margin" };
     private static readonly RoundingService Rounding = new();
     public const int HoldoutPercent = 10;
 
@@ -113,7 +115,7 @@ public static class CampaignPlanner
             {
                 "max-gross-profit" => at.Where(l => l.ExpectedGrossProfit > baseGp).MaxBy(l => l.ExpectedGrossProfit),
                 "volume-at-no-loss" => at.Where(l => l.ExpectedGrossProfit >= baseGp).MaxBy(l => l.DepthPct),
-                "visible" => at.Where(l => l.ExpectedGrossProfit > baseGp).MaxBy(l => l.ExpectedGrossProfit) ?? at.MinBy(l => l.DepthPct),
+                "visible" or "spend-to-margin" => at.Where(l => l.ExpectedGrossProfit > baseGp).MaxBy(l => l.ExpectedGrossProfit) ?? at.MinBy(l => l.DepthPct),
                 _ => throw new ArgumentException($"Unknown strategy '{strategy}'."),
             };
             if (pick is null) Out("no depth beats today's price on gross profit");
@@ -141,6 +143,28 @@ public static class CampaignPlanner
         {
             lines[lines.IndexOf(l)] = undiscounted[l.Sku];
             Out($"over the cap of {maxSkus} discounted SKUs");
+        }
+
+        // Spend to the margin floor: deeper where a euro of gross profit given up buys the most units, while the floor holds.
+        if (strategy == "spend-to-margin")
+        {
+            decimal gp = lines.Sum(l => l.ExpectedGrossProfit), net = lines.Sum(l => l.ExpectedNetRevenue);
+            var blocked = new HashSet<string>(StringComparer.Ordinal);
+            for (var guard = 0; guard < 100_000; guard++)
+            {
+                var step = lines.Select((l, i) => (l, i)).Where(x => x.l.CampaignPrice is not null && !blocked.Contains(x.l.Sku))
+                    .Select(x =>
+                    {
+                        var deeper = options[x.l.Sku].Where(o => o.DepthPct > x.l.DepthPct).MinBy(o => o.DepthPct);
+                        var given = deeper is null ? 0m : x.l.ExpectedGrossProfit - deeper.ExpectedGrossProfit;
+                        return (x.i, deeper, value: deeper is null ? 0m : (deeper.ExpectedUnits - x.l.ExpectedUnits) / Math.Max(0.01m, given));
+                    }).Where(x => x.deeper is not null).OrderByDescending(x => x.value).FirstOrDefault();
+                if (step.deeper is null) break;
+                var now = lines[step.i];
+                var (gp2, net2) = (gp - now.ExpectedGrossProfit + step.deeper.ExpectedGrossProfit, net - now.ExpectedNetRevenue + step.deeper.ExpectedNetRevenue);
+                if (net2 > 0 && 100m * gp2 / net2 < spec.MinMarginPct) { blocked.Add(now.Sku); continue; }   // this step would break the floor
+                (lines[step.i], gp, net) = (step.deeper, gp2, net2);
+            }
         }
 
         var totals = Totals(lines, vat);
@@ -179,6 +203,10 @@ public static class CampaignPlanner
     private static (string Verdict, string Text) Feasibility(PlanSpec spec, PlanTotals t)
     {
         var outside = spec.GoalType == "gross-profit" ? spec.GrossProfitOutsidePlan : 0m;
+        if (spec.GoalType == "margin")
+            return t.MarginPct >= spec.GoalValue
+                ? (GoalVerdicts.Reachable, $"A {spec.GoalValue:0.0}% margin is reachable: the plan expects {t.MarginPct:0.0}%.")
+                : (GoalVerdicts.NotReachable, $"A {spec.GoalValue:0.0}% margin is not reachable: the plan expects {t.MarginPct:0.0}%.");
         var (actual, unit) = spec.GoalType switch
         {
             "gross-profit" => (t.GrossProfit + outside, "EUR gross profit"),

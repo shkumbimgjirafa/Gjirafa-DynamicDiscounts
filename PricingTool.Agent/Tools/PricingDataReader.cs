@@ -426,6 +426,56 @@ public sealed class PricingDataReader
             },
             r => (r.GetString(0), r.GetDecimal(1)), ct);
 
+    /// <summary>
+    /// Campaign candidates as of a past window, from the booked sales lines of its normal days: per SKU, the average VAT-inclusive
+    /// unit price, the highest pre-discount unit price a line booked (lines over 80 % off left out), the booked unit cost incl.
+    /// VAT, units per normal day and whether it is Gjirafa50-listed. Stock unknown (counted as 1), no dead-stock lane.
+    /// </summary>
+    public async Task<IReadOnlyList<Campaigns.CampaignCandidate>> GetAsOfCandidatesAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        await QueryAsync("""
+            DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
+            DECLARE @NormalDays int = (
+                SELECT COUNT(*) FROM (SELECT TOP (DATEDIFF(day, @From, @To)) DATEADD(day, ROW_NUMBER() OVER (ORDER BY (SELECT 1)) - 1, @From) AS D
+                                      FROM sys.all_objects) d
+                WHERE NOT EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND d.D BETWEEN c.StartDate AND c.EndDate));
+            SELECT s.Sku, MAX(s.BandId), ISNULL(MAX(CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END), N'Others'), MAX(s.Brand),
+                   MAX(CASE WHEN s.DiscountGiven > 0 AND s.DiscountGiven <= 0.8 * (s.GrossRevenue + s.DiscountGiven) THEN (s.GrossRevenue + s.DiscountGiven) / s.Qty END),
+                   SUM(s.GrossRevenue) / SUM(s.Qty), SUM(s.UnitCostInclVat * s.Qty) / SUM(s.Qty), SUM(s.Qty) / NULLIF(@NormalDays, 0),
+                   CAST(MAX(CAST(s.IsGj50Listed AS int)) AS bit)
+            FROM agent.SalesLines s
+            WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To AND s.Qty > 0 AND s.UnitCostInclVat > 0
+              AND NOT EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND s.SaleDate BETWEEN c.StartDate AND c.EndDate)
+            GROUP BY s.Sku
+            HAVING SUM(s.GrossRevenue) > 0
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r =>
+            {
+                var current = r.GetDecimal(5);
+                var regular = r.IsDBNull(4) ? current : Math.Max(current, r.GetDecimal(4));
+                return new Campaigns.CampaignCandidate(r.GetString(0), r.IsDBNull(1) ? null : Id(r, 1), r.GetString(2), r.IsDBNull(3) ? null : r.GetString(3),
+                    Math.Round(regular, 2), Math.Round(current, 2), Math.Round(r.GetDecimal(6), 4), r.IsDBNull(7) ? 0 : r.GetDecimal(7), 1, 0, false, r.GetBoolean(8));
+            }, ct);
+
+    /// <summary>A window's booked result, split by Gjirafa50-listed or not: net revenue (VAT excl.) and gross profit.</summary>
+    public Task<List<(bool Gj50Listed, decimal Net, decimal Gp)>> GetWindowResultAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        QueryAsync("""
+            SELECT CAST(ISNULL(s.IsGj50Listed, 0) AS bit), SUM(s.NetRevenue), SUM(s.GrossProfit) FROM agent.SalesLines s
+            WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To GROUP BY CAST(ISNULL(s.IsGj50Listed, 0) AS bit)
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r => (r.GetBoolean(0), r.GetDecimal(1), r.GetDecimal(2)), ct);
+
     /// <summary>The people's band edits in the audit log (old and new band JSON), the history of the hand-set floors.</summary>
     public Task<List<(DateTime Utc, int BandId, string? OldJson, string? NewJson)>> GetBandFloorEditsAsync(int layerId, CancellationToken ct = default) =>
         QueryAsync("""

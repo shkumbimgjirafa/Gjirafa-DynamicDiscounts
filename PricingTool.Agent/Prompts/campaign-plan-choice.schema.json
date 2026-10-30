@@ -1,7 +1,7 @@
 {
   "type": "object",
   "properties": {
-    "strategy": { "enum": ["max-gross-profit", "volume-at-no-loss", "visible"] },
+    "strategy": { "enum": ["max-gross-profit", "volume-at-no-loss", "visible", "spend-to-margin"] },
     "explanation": { "type": "string", "maxLength": 1200 }
   },
   "required": ["strategy", "explanation"],

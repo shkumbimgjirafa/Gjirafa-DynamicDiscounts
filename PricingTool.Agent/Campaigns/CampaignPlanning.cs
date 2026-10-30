@@ -126,7 +126,7 @@ public sealed class CampaignPlanning
                               $"{(eventLift is not null ? "with an event lift from another window" : "without one")})." +
                               (backtest?.InSampleCalibration is { } ins ? $" In-sample only: x{ins.Factor:0.00} (not leave-one-out; for comparison)." : "")) +
                         liftCaveat;
-            await SayAsync(brief, null, round, "code", $"Round {round}: three plans computed. {basis}\n{Describe(results, brief)}", null, ct);
+            await SayAsync(brief, null, round, "code", $"Round {round}: {CampaignPlanner.Strategies.Length} plans computed. {basis}\n{Describe(results, brief)}", null, ct);
 
             var choice = await AskAlphaAsync(brief, results, basis, round, ct);
             if (choice is null)
@@ -144,7 +144,7 @@ public sealed class CampaignPlanning
             {
                 plan.Status = PlanStatus.Held;
                 await SayAsync(brief, plan.Id, round, "code",
-                    $"Accepted by the campaign agent, but it falls short of the goal a person set ({brief.GoalType} {brief.GoalValue:N0}; {personGoal}). " +
+                    $"Accepted by the campaign agent, but it falls short of the goal a person set ({brief.GoalType} {GoalText(brief)}; {personGoal}). " +
                     $"{plan.Feasibility} The plan waits for a person: approve it as it is (approve-plan {plan.Id}) or set another goal (campaign-goal).", null, ct);
                 break;
             }
@@ -183,7 +183,7 @@ public sealed class CampaignPlanning
             if (personGoal is not null && adjusted.Goal != brief.GoalValue)
             {
                 await SayAsync(brief, plan.Id, round, "code",
-                    $"The goal was set by a person ({personGoal}): it stays {brief.GoalType} {brief.GoalValue:N0}. The campaign agent's {adjusted.Goal:N0} is kept as its view in this thread.", null, ct);
+                    $"The goal was set by a person ({personGoal}): it stays {brief.GoalType} {GoalText(brief)}. The campaign agent's {adjusted.Goal:N0} is kept as its view in this thread.", null, ct);
                 adjusted = (brief.GoalValue, adjusted.MaxDepth, adjusted.MinMargin);
             }
             (brief.GoalValue, brief.MinMarginPct, brief.MaxDepthPct) = (adjusted.Goal, adjusted.MinMargin, Math.Min(adjusted.MaxDepth, depthCap));
@@ -248,6 +248,9 @@ public sealed class CampaignPlanning
         await SayAsync(brief, plan.Id, plan.Round, "code",
             $"Publish batch #{batchId}: {status}. {lines.Count:N0} time-boxed ai-campaign discounts, live {start:yyyy-MM-dd HH:mm}..{end:yyyy-MM-dd HH:mm} UTC.", null, ct);
     }
+
+    /// <summary>A goal as people read it: a margin with its decimal, euros and units in thousands.</summary>
+    private static string GoalText(CampaignBrief b) => b.GoalType == "margin" ? $"{b.GoalValue:0.0}%" : b.GoalValue.ToString("N0");
 
     /// <summary>The campaign's local days as a UTC window (whole days, inclusive of the last).</summary>
     private static (DateTime Start, DateTime End) Window(CampaignBrief b, int layerId)
@@ -318,10 +321,10 @@ public sealed class CampaignPlanning
     {
         var prompt = $"""
             Campaign brief #{brief.Id} from the campaign agent (round {round}): "{brief.Name}", layer {brief.LayerId}, {brief.StartDate:yyyy-MM-dd}..{brief.EndDate:yyyy-MM-dd},
-            scope {brief.ScopeKind} {brief.ScopeValue}, goal {brief.GoalType} {brief.GoalValue:N0}, minimum margin {brief.MinMarginPct:0.#}%, maximum depth {brief.MaxDepthPct:0.#}%.
+            scope {brief.ScopeKind} {brief.ScopeValue}, goal {brief.GoalType} {GoalText(brief)}, minimum margin {brief.MinMarginPct:0.#}%, maximum depth {brief.MaxDepthPct:0.#}%.
             Its rationale: {brief.Rationale}
 
-            Code computed three plans ({basis}):
+            Code computed {CampaignPlanner.Strategies.Length} plans ({basis}):
             {Describe(results, brief)}
             Choose one strategy and explain the choice to the campaign agent in three or four sentences: which goal it serves, whether the
             goal is reachable and if not what is, and what the plan gives up. Quote the figures above; don't compute new ones.
@@ -342,7 +345,7 @@ public sealed class CampaignPlanning
     {
         var prompt = $"""
             Review of the pricing agent's plan for your brief #{brief.Id} "{brief.Name}" (round {round} of at most {MaxRounds}).
-            Your brief: {brief.ScopeKind} {brief.ScopeValue}, {brief.StartDate:yyyy-MM-dd}..{brief.EndDate:yyyy-MM-dd}, goal {brief.GoalType} {brief.GoalValue:N0},
+            Your brief: {brief.ScopeKind} {brief.ScopeValue}, {brief.StartDate:yyyy-MM-dd}..{brief.EndDate:yyyy-MM-dd}, goal {brief.GoalType} {GoalText(brief)},
             minimum margin {brief.MinMarginPct:0.#}%, maximum depth {brief.MaxDepthPct:0.#}%.
             The plan ({plan.Strategy}): {plan.DiscountedSkus:N0} of {plan.SkusInScope:N0} SKUs discounted at {plan.AverageDepthPct:0.#}% on average,
             expected units {plan.ExpectedUnits:N0}, net revenue {plan.ExpectedNetRevenue:N0}, gross profit {plan.ExpectedGrossProfit:N0}

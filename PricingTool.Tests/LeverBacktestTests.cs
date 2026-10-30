@@ -98,4 +98,20 @@ public class LeverBacktestTests
         var none = CampaignDepthBacktest.Score(w, rows, depth with { B = 0m }, "reallocate");
         Assert.True(none.PlannedDepthPct >= none.ActualDepthPct);
     }
+
+    [Fact]
+    public void The_per_ty_reproduction_passes_only_within_both_bounds()
+    {
+        Assert.True(PerTyReproduction.Score(15.1m, 20.1m).Passed);                                  // the hand plan itself: 15.1 %, 75 % of normal
+        var nearMiss = PerTyReproduction.Score(14.9m, 21.6m);                                        // 30 Oct run: margin in, 69 % kept
+        Assert.Equal((true, false, 69m), (nearMiss.MarginWithin, nearMiss.KeptWithin, nearMiss.KeptPct));
+        Assert.False(nearMiss.Passed);
+        Assert.False(PerTyReproduction.Score(19.0m, 21.6m).Passed);                                  // the first run: no strategy spent the floor
+        var normal = PerTyReproduction.NormalMarginPct(new[]
+        {
+            new CampaignCandidate("A", null, "X", null, 100m, 100m, 80m, 1m, 1, 0, false, false),   // 20 % on 100 a day
+            new CampaignCandidate("B", null, "X", null, 50m, 50m, 30m, 2m, 1, 0, false, false),     // 40 % on 100 a day
+        });
+        Assert.Equal(30.0m, normal);
+    }
 }

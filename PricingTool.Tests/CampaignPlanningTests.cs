@@ -150,6 +150,20 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public void Spend_to_margin_buys_volume_down_to_the_margin_floor_and_no_further()
+    {
+        var candidates = Enumerable.Range(0, 60).Select(i => C($"S{i}", 100m, 100m, 55m + i % 20, 1m + i % 3)).ToList();
+        var visible = CampaignPlanner.Plan("visible", Spec(minMargin: 20m), candidates, Depth, NoRounding, 5000, new Dictionary<string, int>());
+        var spend = CampaignPlanner.Plan("spend-to-margin", Spec(minMargin: 20m, goal: "margin", goalValue: 20m), candidates, Depth, NoRounding, 5000,
+            new Dictionary<string, int>());
+        Assert.True(spend.Totals.MarginPct >= 20m);                                                // the floor holds
+        Assert.True(spend.Totals.MarginPct < visible.Totals.MarginPct);                            // margin spent
+        Assert.True(spend.Totals.Units > visible.Totals.Units);                                     // on volume
+        Assert.True(spend.Totals.AverageDepthPct > visible.Totals.AverageDepthPct);
+        Assert.Contains("A 20.0% margin is reachable", spend.Feasibility);
+    }
+
+    [Fact]
     public void The_strategies_trade_profit_for_volume_and_the_minimum_margin_holds()
     {
         var candidates = Enumerable.Range(0, 50).Select(i => C($"S{i}", 100m, 100m, 60m)).ToList();
