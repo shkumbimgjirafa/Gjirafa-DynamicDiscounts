@@ -241,6 +241,7 @@ public sealed class CampaignAgent
             sb.AppendLine($"{g.Key} | {u0:0} | {Change(u0, u1)} | {p0:0} | {Change(p0, p1)} | {(n0 > 0 ? 100m * p0 / n0 : 0):0.0} | {sv:0} | {(sv > 0 ? 100m * dv / sv : 0):0}");
         }
         sb.AppendLine();
+        sb.AppendLine(await PastWindowsAsync(layerId, today, ct));
         var depth = await _tools.GetDepthEffectAsync(layerId, ct);
         sb.AppendLine("Campaign history (code): event lift by campaign type, units vs normal days at normal depth: " +
                       (depth.EventLiftByType.Count == 0 ? "not measured" : string.Join(", ", depth.EventLiftByType.Select(e => $"{e.Key} x{e.Value:0.0}"))) + ".");
@@ -250,6 +251,29 @@ public sealed class CampaignAgent
         return sb.ToString();
 
         static string Change(decimal now, decimal ly) => ly > 0 ? $"{100m * (now - ly) / ly:+0;-0}%" : "n/a";
+    }
+
+    /// <summary>For each campaign type on the calendar in the next 60 days: its past windows with their days and gross profit
+    /// (all products, Gjirafa50-listed included), the anchor for a goal.</summary>
+    private async Task<string> PastWindowsAsync(int layerId, DateOnly today, CancellationToken ct)
+    {
+        var windows = await _reader.GetCampaignWindowsAsync(layerId, new DateOnly(2000, 1, 1), today.AddDays(60), ct);
+        var upcoming = windows.Where(w => w.EndDate >= today).Select(w => CampaignMath.TypeOf(w.Name)).ToHashSet();
+        if (upcoming.Count == 0) return "Past windows of upcoming campaigns: no calendar campaign in the next 60 days.";
+        var gp = (await _reader.GetCampaignSegmentsAsync(layerId, null, today, ct)).Where(r => r.Segment == 0)
+            .GroupBy(r => r.CampaignId).ToDictionary(g => g.Key, g => (Gp: g.Sum(r => r.GrossProfit), Net: g.Sum(r => r.NetRevenue)));
+        var sb = new StringBuilder("Past windows of upcoming campaign types (booked COGS, EUR VAT excl., all products incl. Gjirafa50-listed):\n");
+        foreach (var type in upcoming)
+        {
+            var past = windows.Where(w => w.EndDate < today && CampaignMath.TypeOf(w.Name) == type && gp.ContainsKey(w.CampaignId)).ToList();
+            sb.AppendLine($"- {type}: " + (past.Count == 0 ? "no past window" : string.Join("; ", past.Select(w =>
+            {
+                var days = w.EndDate.DayNumber - w.StartDate.DayNumber + 1;
+                var (g, n) = gp[w.CampaignId];
+                return $"{w.StartDate:yyyy-MM-dd}..{w.EndDate:yyyy-MM-dd} ({days} days) GP {g:N0} ({g / days:N0}/day), net revenue {n:N0}";
+            }))));
+        }
+        return sb.ToString();
     }
 
     private static string Truncate(string? s, int max) => s is null ? "" : s.Length <= max ? s : s[..max];

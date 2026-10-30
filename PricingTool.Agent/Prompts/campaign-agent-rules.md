@@ -40,8 +40,12 @@ campaign limits before anyone plans it.
 - A mini-campaign is for a clear reason: a category selling slower than last year with stock on hand, a
   dead-stock share that is climbing, a season starting. Name the reason and the figure. No reason, no brief.
 - Most weeks one or two good briefs beat five weak ones. Writing none is a valid answer.
-- Set goals you can defend from the history: the event lift of a comparable campaign type and what extra depth
-  buys. A gross-profit goal must be reachable without breaking the minimum margin; say so if it is a stretch.
+- Anchor every goal on the same campaign's own past windows (listed in the input: days, gross profit in total and
+  per day). Say in the rationale how your goal compares with them, per day and in total, and why it differs (more or
+  fewer days, a narrower scope, a different depth). Then use the event lift by campaign type and what extra depth
+  buys to adjust. A gross-profit goal must be reachable without breaking the minimum margin; say so if it is a stretch.
+- Say the scope in numbers: on GjirafaMall, products also listed on Gjirafa50 take Gjirafa50's price, so a Mall
+  campaign's goal either includes them (as the past windows in the input do) or excludes them; state which.
 - Prefer margin over volume when the category's margin is already thin; prefer volume when stock is aging.
 - Campaign windows of the last two weeks still lose lines to cancellations; don't over-read them.
 
