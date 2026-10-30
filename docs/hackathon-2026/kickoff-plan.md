@@ -115,7 +115,18 @@ aspirational and the engine is rules plus statistics.
   user-secrets only). This replaces "exports only" for everything that lives on the replica: the
   engine's source dataset, sales lines, WMS check-ins, the discount schema and the active discounts.
   Writes to any shop DB stay forbidden; the publisher still writes only to `shop_sandbox`.
-- Tool DB (Approvals, band history, elasticity), API key, baseline framing: pending.
+- **Tool DB:** reading is allowed. Copied once, read-only, for the KS layers into
+  `PricingToolHackathon` (`docs/hackathon-2026/exports/Copy-ToolDbKs.ps1`); the app itself never
+  holds that credential.
+- **API key: not needed (Mergim's ruling, via Mergca).** The app's own AI calls go through the
+  team's Claude subscription: Claude Code headless (`claude -p --output-format json`), batched (one
+  call per run, not per row), arithmetic in our code, strict JSON validated with one retry then
+  block. Those calls count toward the **8,000 requests of the 10% bar** (genuine calls only). If the
+  usage limit is hit, contact Mergim and he raises it. Mergca offered to review the first check's
+  call, rules file and sample JSON: send them when the run checker first runs.
+- **The agent writes its own row in the time sheet for every check it does;** manual rows count as
+  the wrong path. (Which time sheet, and how to write to it: to confirm.)
+- Baseline framing (A or B): pending.
 
 The user expects the open questions (data rules, API key, warehouse access) to be answered at the
 **kickoff on Fri 16:00**. Collect the answers there before the first data step. The schedule is
@@ -197,9 +208,10 @@ visible in the diff.
 - `LocalSkuSalesHistoryReader`.
 - Elasticity fitting is skipped. Use the exported `SkuElasticity`.
 
-**Claude client.**
-- **Load the `claude-api` skill before writing any of it.** Use the official C# SDK if the skill confirms one; otherwise call the Messages API over HTTP.
-- Tool use for the data tools; structured JSON output validated against a schema; prompt caching on the system prompt + data dictionary.
+**Claude client** (changed at kickoff: no API key, Claude Code headless through the subscription).
+- `ClaudeCodeClient` runs `claude -p --output-format json` as a subprocess, prompt on stdin, from a runtime folder outside the repo, isolated from the repo's and the user's own instructions (see `CLAUDE.md`). `--json-schema` shapes the answer; `--tools ""` removes built-in tools; our read-only data tools and `query_data` reach it as an MCP server (`--strict-mcp-config --mcp-config`).
+- Batched: one call per layer pass (Alpha), per run (run checker), per weekly pass or chat message (Nova). Our code does the arithmetic and sends only the rows that need judgement.
+- Structured JSON validated in code; one retry, then hold or block.
 - Timeouts and retries.
 - **Log every call:** model, input/output/cached tokens, latency and cost. That log is the *measured* AI cost for the financial sheet.
 - **Models:**

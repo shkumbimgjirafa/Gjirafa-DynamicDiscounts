@@ -45,16 +45,29 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
 - Skills that query live databases (`current-price-and-margin`, `sales-anomaly-watch`) must not be
   used in this repo.
 
-## The agents' Claude calls
+## The agents' Claude calls (organisers' ruling, Fri 30 Oct)
 
-- **Load the `claude-api` skill before writing any Claude client code.** Use the official C# SDK
-  (NuGet `Anthropic`); the skill has the current API shapes.
-- Models: Alpha and Nova `claude-opus-5-5`; the run checker `claude-sonnet-5-5` (or
-  `claude-haiku-5-5` if quality holds). Prompt-cache the system prompt and data dictionary.
-- **Log every call:** model, input / output / cached tokens, latency, cost. That log is the measured
-  AI cost in the financial sheet.
+- **No API key.** The app's own AI calls go through the team's Claude subscription by running
+  **Claude Code headless** as a subprocess: `claude -p --output-format json`, prompt on stdin, the
+  answer in the JSON's `result` field. The machine is logged in once (`claude` → `/login`); a server
+  would use `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` (an env var, never in the repo, chat
+  or logs). Don't add the Anthropic SDK or an API key.
+- **Flags we rely on** (checked on Claude Code 2.1.205; confirm with `claude --help`):
+  `--model` (`opus` for Alpha and Nova, `sonnet` or `haiku` for routine checks), `--system-prompt`
+  or `--append-system-prompt[-file]` for the agent's fixed rules, `--json-schema` for the answer's
+  shape, `--tools ""` (no built-in tools: no Bash, no file access), `--strict-mcp-config
+  --mcp-config` for our own read-only tools, `--no-session-persistence`, `--max-budget-usd`.
+- **Isolation:** an agent call must not load this repo's `CLAUDE.md`, the user's own instructions,
+  memory, skills or plugins. Run it from a dedicated runtime folder outside the repo and use
+  `--bare` or `--setting-sources` to skip them; prove it with a test call.
+- **Reliability:** our code does all arithmetic and sends only the rows that need judgement (e.g.
+  below or near the floor). One call per run or per layer pass, never one per product. Validate the
+  JSON; on failure retry once, then hold or block, never publish.
+- **Log every call** from the JSON (`total_cost_usd`, `usage` tokens incl. cache, `duration_ms`,
+  `num_turns`, model): that's the measured AI-cost line, and these real calls also count toward
+  the hackathon's 8,000-request bar. Never make calls just to raise the count.
 - `query_data(sql)`: SELECT only, one statement, `agent.*` views only, 30 s timeout, 500-row cap,
-  every query logged (plan section 5).
+  every query logged (plan section 5). Exposed to Claude Code as an MCP tool.
 
 ## Data definitions (learned the hard way; wrong here means wrong numbers)
 
