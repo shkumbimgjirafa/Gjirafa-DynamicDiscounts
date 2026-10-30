@@ -145,6 +145,28 @@ public class CampaignAgentTests : IDisposable
     }
 
     [Fact]
+    public async Task A_goal_a_person_set_is_binding_on_the_briefs()
+    {
+        ModelSays(Layer, Brief("calendar", _blackFriday, "Black Friday 2026", "all", null, "2026-11-27", "2026-11-30"));
+        var r = await Nova().RunPassAsync(Layer);
+        var brief = r.Briefs.Single();
+        Assert.Equal(15000m, brief.GoalValue);
+
+        // A person sets the goal: the open brief takes it, with a message in its thread, and the next pass can't lower it.
+        var calendar = new CampaignCalendar(_db, new PricingDataReader(new AgentDataSource("unused")), Options.Create(new AgentOptions()), new Clock());
+        Assert.Equal(1, await calendar.SetGoalAsync(_blackFriday, "gross-profit", 57456m, "user"));
+        Assert.Equal(57456m, (await _db.CampaignBriefs.SingleAsync(b => b.Id == brief.Id)).GoalValue);
+        Assert.Contains(await _db.CampaignMessages.Where(m => m.BriefId == brief.Id).ToListAsync(), m => m.Text.Contains("Goal set by a person"));
+        await Assert.ThrowsAsync<ArgumentException>(() => calendar.SetGoalAsync(_blackFriday, "revenue", 1m, "user"));
+
+        ModelSays(Layer, Brief("calendar", _blackFriday, "Black Friday 2026", "all", null, "2026-11-27", "2026-11-30"));
+        var next = (await Nova().RunPassAsync(Layer)).Briefs.Single();
+        Assert.Equal((BriefStatus.Proposed, 57456m), (next.Status, next.GoalValue));
+        Assert.Contains("Goal set by a person", next.LimitDetail);
+        Assert.Equal(57456m, (await _db.CampaignCalendar.SingleAsync(c => c.Id == _blackFriday)).GoalValue);
+    }
+
+    [Fact]
     public async Task A_failed_answer_or_a_test_pass_puts_nothing_on_the_calendar()
     {
         ModelSays(4, Brief("mini", null, "Wrong layer", "category", "Kozmetikë", "2026-11-09", "2026-11-13"));

@@ -28,6 +28,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   nova-pass <layer> [--test]                                       Nova's weekly campaign pass for one layer (briefs, results)
 //   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
+//   campaign-goal <calendar id> <gross-profit|margin|units> <value> [--by <who>]  a person's binding goal for a campaign
 //   cost-watch [--poll] [--inject <layer> <sku> <cost>]              one cost watch: optionally poll the replica, or inject a labelled
 //                                                                   [INJECTED-TEST] cost (with --test its records go to the test DB)
 //   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
@@ -307,6 +308,17 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "campaign-goal":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var n = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignCalendar>()
+            .SetGoalAsync(long.Parse(positional[0]), positional[1], decimal.Parse(positional[2], System.Globalization.CultureInfo.InvariantCulture), Opt("--by") ?? "user");
+        Console.WriteLine($"Goal set on calendar #{positional[0]}: {positional[1]} {positional[2]}; {n} open brief(s) updated.");
+        return 0;
+    }
+
     case "campaign-note":
     {
         using var host = builder.Build();
@@ -519,7 +531,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

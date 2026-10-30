@@ -357,6 +357,18 @@ public class RoundingService
         return magnitude;
     }
 
+    /// <summary>
+    /// True when the price sits on the convention's grid. GjmCharm has no static round-down (it is applied with bounds),
+    /// so its grid is checked directly: .x9 under the threshold, …49 / …99 from it.
+    /// </summary>
+    public static bool IsOnGrid(decimal price, RoundingConvention c, decimal lowPriceThreshold = 5m,
+        decimal relativePrecision = DefaultRelativePrecision) => c switch
+    {
+        RoundingConvention.None => true,
+        RoundingConvention.GjmCharm => price < lowPriceThreshold ? SnapDown(price, 0.10m, 0.09m) == price : SnapDown(price, 0.50m, 0.49m) == price,
+        _ => RoundDown(price, c, lowPriceThreshold, relativePrecision) == price,
+    };
+
     /// <summary>Largest convention-conforming price ≤ input.</summary>
     public static decimal RoundDown(decimal price, RoundingConvention c, decimal lowPriceThreshold = 5m,
         decimal relativePrecision = DefaultRelativePrecision) => c switch

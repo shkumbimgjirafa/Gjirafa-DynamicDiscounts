@@ -744,6 +744,10 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("GoalSetBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("GoalType")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");

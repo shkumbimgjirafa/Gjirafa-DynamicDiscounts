@@ -180,6 +180,7 @@ public class AgentDbContext : DbContext
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.Notes).HasMaxLength(2000);
             e.Property(x => x.Context).HasMaxLength(2000);
+            e.Property(x => x.GoalSetBy).HasMaxLength(200);
             e.Property(x => x.Representative).HasDefaultValue(true);
         });
 

@@ -92,7 +92,11 @@ public sealed class CampaignPlanning
         var eventLift = depth.EventLift(type);
         var liftNote = eventLift is { } el ? $"event lift x{el:0.00} (median of past {type} windows)" : $"no past {type} window: no event lift assumed (x1.00, conservative)";
         var bands = (await _bands.GetBandsAsync(layer.Id, ct)).ToDictionary(b => b.BandId);
-        var (candidates, leftOutBefore) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct);
+        var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct);
+        var days = brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1;
+        // GjirafaMall SKUs that take Gjirafa50's price aren't planned here, but they sell during the campaign: their expected
+        // gross profit at today's price with the event lift, so a whole-Mall goal can be compared.
+        var followersGp = Math.Round(followers.Sum(c => c.UnitsPerDay * days * (eventLift ?? 1m) * (c.CurrentPrice - c.Cost)) / (1m + layer.VatRatePct / 100m), 0);
 
         var plans = new List<CampaignPlan>();
         for (var round = 1; round <= MaxRounds; round++)
@@ -102,7 +106,9 @@ public sealed class CampaignPlanning
                 ExcludedBrands(brief.Exclusions));
             var results = CampaignPlanner.Strategies.Select(s => CampaignPlanner.Plan(s, spec, candidates, depth, bands, _options.Campaigns.MaxSkusPerCampaign, leftOutBefore)).ToList();
             var basis = $"{candidates.Count:N0} SKUs in scope with stock and normal-day sales ({today.AddDays(-42):yyyy-MM-dd}..{today.AddDays(-15):yyyy-MM-dd}, campaign days left out); " +
-                        $"{liftNote}; extra depth: {(depth.B is { } b ? $"b = {b} within-campaign fit" : "no fit, no extra units from depth")}; estimated.";
+                        $"{liftNote}; extra depth: {(depth.B is { } b ? $"b = {b} within-campaign fit" : "no fit, no extra units from depth")}; estimated." +
+                        (followers.Count > 0 ? $" Not planned here: {followers.Count:N0} SKUs that take Gjirafa50's price, expected gross profit {followersGp:N0} at today's prices with the event lift; " +
+                                               "for a goal that includes them, add it to a plan's gross profit." : "");
             await SayAsync(brief, null, round, "code", $"Round {round}: three plans computed. {basis}\n{Describe(results, brief)}", null, ct);
 
             var choice = await AskAlphaAsync(brief, results, basis, round, ct);
@@ -176,26 +182,32 @@ public sealed class CampaignPlanning
                 TimeZoneInfo.ConvertTimeToUtc(b.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue), tz).AddSeconds(-1));
     }
 
-    private async Task<(List<CampaignCandidate>, Dictionary<string, int>)> CandidatesAsync(CampaignBrief brief, int layerId, bool isMall, DateOnly today,
-        CancellationToken ct)
+    private async Task<(List<CampaignCandidate>, Dictionary<string, int>, List<CampaignCandidate> Followers)> CandidatesAsync(CampaignBrief brief, int layerId,
+        bool isMall, DateOnly today, CancellationToken ct)
     {
         var all = await _candidates.LoadAsync(layerId, today.AddDays(-42), today.AddDays(-14), ct);
         var holdouts = _options.Limits.Holdouts.TryGetValue(layerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
         var leftOut = new Dictionary<string, int>();
         void Out(string why) => leftOut[why] = leftOut.GetValueOrDefault(why) + 1;
         var keep = new List<CampaignCandidate>();
+        var followers = new List<CampaignCandidate>();
         foreach (var c in all)
         {
             if (brief.ScopeKind == "category" && !string.Equals(c.Category, brief.ScopeValue, StringComparison.OrdinalIgnoreCase)) continue;
             if (brief.ScopeKind == "brand" && !string.Equals(c.Brand, brief.ScopeValue, StringComparison.OrdinalIgnoreCase)) continue;
             if (c.DeadStock) { Out("dead stock or clearance lock (its own lane)"); continue; }
-            if (isMall && c.FollowsGj50) { Out("GjirafaMall price follows Gjirafa50 (planned on Gjirafa50)"); continue; }
+            if (isMall && c.FollowsGj50)
+            {
+                Out("GjirafaMall price follows Gjirafa50 (planned on Gjirafa50)");
+                if (c.UnitsPerDay > 0 && !holdouts.Contains(c.Category, StringComparer.OrdinalIgnoreCase)) followers.Add(c);
+                continue;
+            }
             if (holdouts.Contains(c.Category, StringComparer.OrdinalIgnoreCase)) { Out("holdout category"); continue; }
             if (c.LocalStock <= 0 && c.SupplierStock <= 0) { Out("no stock"); continue; }
             if (c.UnitsPerDay <= 0) { Out("no normal-day sales to plan on"); continue; }
             keep.Add(c);
         }
-        return (keep, leftOut);
+        return (keep, leftOut, followers);
     }
 
     private static HashSet<string> ExcludedBrands(string exclusionsJson)

@@ -80,6 +80,31 @@ public sealed class CampaignCalendar
         return entry;
     }
 
+    /// <summary>
+    /// A person sets a campaign's goal: binding from now on (Nova's briefs take it as given). Open briefs for the campaign
+    /// take it too, with a message in their thread. Returns the briefs it updated.
+    /// </summary>
+    public async Task<int> SetGoalAsync(long calendarId, string goalType, decimal goalValue, string by, CancellationToken ct = default)
+    {
+        if (!CampaignLimits.GoalTypes.Contains(goalType) || goalValue <= 0)
+            throw new ArgumentException($"Goal '{goalType}' {goalValue}: one of {string.Join(", ", CampaignLimits.GoalTypes)}, and positive.");
+        var entry = await _db.CampaignCalendar.SingleAsync(c => c.Id == calendarId, ct);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = (goalType, goalValue, $"{by}, {_clock.GetLocalNow():yyyy-MM-dd}");
+        var open = await _db.CampaignBriefs.Where(b => b.CalendarId == calendarId && !b.IsTest && (b.Status == BriefStatus.Proposed || b.Status == BriefStatus.Planned)).ToListAsync(ct);
+        foreach (var b in open)
+        {
+            _db.CampaignMessages.Add(new CampaignMessage
+            {
+                BriefId = b.Id, From = by, CreatedUtc = now,
+                Text = $"Goal set by a person: {goalType} {goalValue:N0} (was {b.GoalType} {b.GoalValue:N0}). Binding for this campaign.",
+            });
+            (b.GoalType, b.GoalValue) = (goalType, goalValue);
+        }
+        await _db.SaveChangesAsync(ct);
+        return open.Count;
+    }
+
     /// <summary>Done after its last day, live on its days, otherwise as it was (planned).</summary>
     public static string StatusOn(DateOnly start, DateOnly end, DateOnly today, string current) =>
         today > end ? CampaignStatus.Done : today >= start ? CampaignStatus.Live : current;

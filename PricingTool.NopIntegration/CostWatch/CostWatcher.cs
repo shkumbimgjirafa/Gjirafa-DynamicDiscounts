@@ -219,7 +219,10 @@ public sealed class CostWatcher
                 var floorPrice = VatMath.MinGrossPriceForMargin(o.Pptcv, floorPct);
                 var anchor = s.AnchorPrice is > 0 ? s.AnchorPrice.Value : s.OldPrice ?? current;
                 var ceiling = Math.Max(anchor, current);
-                var target = band.RoundingEnabled ? RoundingService.RoundUp(floorPrice, band.Rounding) : Math.Ceiling(floorPrice * 100m) / 100m;
+                // The engine's own charm rounding, never under the floor price (GjmCharm has no static round-up).
+                var target = band.RoundingEnabled && band.Rounding != RoundingConvention.None && ceiling > floorPrice
+                    ? new RoundingService().Apply(floorPrice, band.Rounding, new PriceBounds(floorPrice, ceiling)).Price
+                    : Math.Ceiling(floorPrice * 100m) / 100m;
                 var facts = new Dictionary<string, object?>
                 {
                     ["sku"] = o.Sku, ["observation"] = o.Id, ["source"] = o.Source, ["oldCost"] = oldCost, ["newCost"] = o.Pptcv,

@@ -42,6 +42,7 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
 public static class CampaignPlanner
 {
     public static readonly string[] Strategies = { "max-gross-profit", "volume-at-no-loss", "visible" };
+    private static readonly RoundingService Rounding = new();
     public const int HoldoutPercent = 10;
 
     public static PlanResult Plan(string strategy, PlanSpec spec, IReadOnlyList<CampaignCandidate> candidates, DepthEffect depth,
@@ -70,7 +71,12 @@ public static class CampaignPlanner
             foreach (var d in grid)
             {
                 var raw = c.RegularPrice * (1m - d / 100m);
-                var price = rounding == RoundingConvention.None ? Math.Floor(raw * 100m) / 100m : RoundingService.RoundDown(raw, rounding);
+                // The engine's own charm rounding (GjmCharm, Gj50Charm, …), bounded by cost and a cent under today's price.
+                var upper = c.CurrentPrice - 0.01m;
+                if (upper < c.Cost) continue;
+                var price = rounding == RoundingConvention.None
+                    ? Math.Floor(raw * 100m) / 100m
+                    : Rounding.Apply(Math.Clamp(raw, c.Cost, upper), rounding, new PriceBounds(c.Cost, upper)).Price;
                 if (price >= c.CurrentPrice || price < c.Cost || price <= 0) continue;
                 var extraPp = 100m * ((1m - price / c.RegularPrice) - currentDepth);
                 var units = baseUnits * (depth.DepthMultiplier(extraPp) ?? 1m);

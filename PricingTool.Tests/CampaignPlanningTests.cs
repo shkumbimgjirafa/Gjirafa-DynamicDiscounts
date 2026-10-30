@@ -54,6 +54,29 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public void Campaign_prices_take_the_layers_charm_rounding()
+    {
+        var bands = new Dictionary<int, PriceBandConfig>
+        {
+            [8] = new() { BandId = 8, Name = "Mall", MinPrice = 0, MaxPrice = 500, MarginFloorPct = 5, Rounding = RoundingConvention.GjmCharm, RoundingEnabled = true },
+            [7] = new() { BandId = 7, Name = "Gj50", MinPrice = 0, MaxPrice = 500, MarginFloorPct = 5, Rounding = RoundingConvention.Gj50Charm, RoundingEnabled = true },
+        };
+        var candidates = new[]
+        {
+            new CampaignCandidate("MALL", 8, "Kozmetikë", "B", 16.48m, 13.99m, 10.99m, 2m, 5, 0, false, false),
+            new CampaignCandidate("GJ50", 7, "Aksesorë", "B", 49.50m, 49.50m, 30m, 2m, 5, 0, false, false),
+        };
+        var key = Enumerable.Range(1, 100).First(k => !CampaignPlanner.IsHoldout(k, "MALL") && !CampaignPlanner.IsHoldout(k, "GJ50"));
+        var r = CampaignPlanner.Plan("visible", Spec() with { CampaignKey = key }, candidates, Depth, bands, 5000, new Dictionary<string, int>());
+        var mall = r.Lines.Single(l => l.Sku == "MALL");
+        var gj50 = r.Lines.Single(l => l.Sku == "GJ50");
+        Assert.NotNull(mall.CampaignPrice);
+        Assert.Contains(mall.CampaignPrice!.Value % 1m, new[] { 0.99m, 0.49m });             // GjmCharm: …99 / …49, never 13.184
+        Assert.True(mall.CampaignPrice < 13.99m && mall.CampaignPrice >= 10.99m);
+        Assert.Equal(0.50m, gj50.CampaignPrice!.Value % 1m);                                  // Gj50Charm: .50 tiers
+    }
+
+    [Fact]
     public void The_strategies_trade_profit_for_volume_and_the_minimum_margin_holds()
     {
         var candidates = Enumerable.Range(0, 50).Select(i => C($"S{i}", 100m, 100m, 60m)).ToList();

@@ -33,6 +33,9 @@ public class CampaignCalendarEntry
     public string? GoalType { get; set; }
     public decimal? GoalValue { get; set; }
 
+    /// <summary>Who set the goal when a person did (it is then binding: the campaign agent's briefs take it as given).</summary>
+    public string? GoalSetBy { get; set; }
+
     /// <summary>proposed / planned / live / done (see <see cref="CampaignStatus"/>).</summary>
     public string Status { get; set; } = CampaignStatus.Planned;
 

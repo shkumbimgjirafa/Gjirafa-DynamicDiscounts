@@ -142,6 +142,14 @@ public sealed class CampaignAgent
                 layerId, today, working, c => holdouts.Contains(c, StringComparer.OrdinalIgnoreCase), _options.Campaigns);
             (brief.Status, brief.MaxDepthPct, brief.Limit, brief.LimitDetail) = (verdict.Status, verdict.MaxDepthPct, verdict.Limit, verdict.Detail);
 
+            // A goal a person set for the calendar campaign is binding: the brief takes it, whatever Nova proposed.
+            if (brief.Kind == "calendar" && working.FirstOrDefault(c => c.Id == brief.CalendarId) is { GoalSetBy: not null } set
+                && (set.GoalType != brief.GoalType || set.GoalValue != brief.GoalValue))
+            {
+                brief.LimitDetail = $"{brief.LimitDetail} Goal set by a person ({set.GoalSetBy}): {set.GoalType} {set.GoalValue:N0}; Nova proposed {brief.GoalType} {brief.GoalValue:N0}.".Trim();
+                (brief.GoalType, brief.GoalValue) = (set.GoalType!, set.GoalValue!.Value);
+            }
+
             // A proposed mini-campaign goes on the calendar as proposed, so the next brief's concurrency check sees it.
             if (brief.Status == BriefStatus.Proposed && brief.Kind == "mini" && !isTest)
             {
@@ -210,7 +218,8 @@ public sealed class CampaignAgent
         sb.AppendLine("Calendar (id | name | type | dates | status | scope | goal | context):");
         foreach (var c in calendar.Where(c => c.EndDate >= today.AddDays(-ReviewDays)))
             sb.AppendLine($"{c.Id} | {c.Name} | {c.Type} | {c.StartDate:yyyy-MM-dd}..{c.EndDate:yyyy-MM-dd} | {c.Status} | {c.ScopeKind}{(c.ScopeValue is null ? "" : " " + c.ScopeValue)} | " +
-                          (c.GoalType is null ? "no goal" : $"{c.GoalType} {c.GoalValue:0.##}") + $" | {c.Context ?? "-"}");
+                          (c.GoalType is null ? "no goal" : $"{c.GoalType} {c.GoalValue:0.##}" + (c.GoalSetBy is null ? "" : $" (set by a person, binding: {c.GoalSetBy})"))
+                          + $" | {c.Context ?? "-"}");
         sb.AppendLine();
         sb.AppendLine(dataBlock);
         if (measured.Count > 0)
