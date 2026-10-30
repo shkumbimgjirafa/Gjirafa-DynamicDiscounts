@@ -87,6 +87,33 @@ public sealed class PricingMcpTools
         CancellationToken ct = default) =>
         Serialize(await _tools.GetElasticitySummaryAsync(_ctx, layer, band, category, ct));
 
+    [McpServerTool(Name = AgentToolNames.GetCampaignHistory, ReadOnly = true)]
+    [Description("Every past campaign of the layer: units per day vs the 28 days before (season-adjusted with the same windows a year " +
+                 "earlier), discount depth vs normal days, margin and gross profit per day; plus the uplift curve (units multiplier per " +
+                 "extra point of discount), per category. Calendar ids for get_campaign_results; upcoming campaigns.")]
+    public async Task<string> GetCampaignHistory(
+        [Description(LayerHelp)] int layer,
+        [Description(CategoryHelp + " Without it: per-campaign totals and a curve per category.")] string? category = null,
+        CancellationToken ct = default) =>
+        Serialize(await _tools.GetCampaignHistoryAsync(_ctx, layer, category, ct));
+
+    [McpServerTool(Name = AgentToolNames.GetSalesTrends, ReadOnly = true)]
+    [Description("Revenue, gross profit, margin, units and discount depth per week vs the same weeks a year earlier, with campaign days " +
+                 "per week, plus local stock and dead-stock share. Use it to spot where a mini-campaign would help.")]
+    public async Task<string> GetSalesTrends(
+        [Description(LayerHelp)] int layer,
+        [Description(CategoryHelp)] string? category = null,
+        [Description("Weeks back from today (2-52).")] int weeks = 12,
+        CancellationToken ct = default) =>
+        Serialize(await _tools.GetSalesTrendsAsync(_ctx, layer, category, weeks, ct));
+
+    [McpServerTool(Name = AgentToolNames.GetCampaignResults, ReadOnly = true)]
+    [Description("A finished campaign's actual results against its goal and against the 28 days before.")]
+    public async Task<string> GetCampaignResults(
+        [Description("The campaign's calendarId (from get_campaign_history).")] long campaignId,
+        CancellationToken ct = default) =>
+        Serialize(await _tools.GetCampaignResultsAsync(_ctx, campaignId, ct));
+
     [McpServerTool(Name = AgentToolNames.QueryData, ReadOnly = true)]
     [Description("Run your own read-only SQL against the agent.* views (see the data dictionary). Exactly one SELECT statement; " +
                  "at most 500 rows come back; 30-second limit. Aggregate in SQL. A refused or failed query returns the reason in 'error'.")]

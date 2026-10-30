@@ -13,7 +13,7 @@ namespace PricingTool.Agent.Tools;
 /// <c>ai.AgentQueryLog</c>. <paramref>layer</paramref> is 1 (GjirafaMall KS) or 4 (Gjirafa50 KS); band and
 /// category narrow the answer when given.
 /// </summary>
-public sealed class AgentDataTools
+public sealed partial class AgentDataTools
 {
     private const int MaxCostChangeRows = 25;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -189,6 +189,9 @@ public sealed class AgentDataTools
         {
             var info = await _reader.GetLayerAsync(layer, ct);
             var bands = await _reader.GetBandConfigAsync(layer, ct);
+            var rules = await _reader.GetCategoryRulesAsync(layer, ct);
+            var paused = await _db.CategoryPauses.AsNoTracking().Where(p => p.LayerId == layer && p.ReleasedUtc == null)
+                .Select(p => new { p.BandId, p.Category }).ToListAsync(ct);
             return (new
             {
                 layer = info.LayerName, info.Currency, vatRatePct = info.VatRatePct, categoryLevel = info.CategoryLevel,
@@ -197,7 +200,13 @@ public sealed class AgentDataTools
                 {
                     b.BandId, band = b.BandName, costFrom = b.MinCost, costTo = b.MaxCost, floorPct = b.MarginFloorPct, targetPct = b.TargetMarginPct,
                 }),
-                categoryOverrides = Array.Empty<object>(),
+                categoryOverrides = rules.Select(r => new
+                {
+                    r.BandId, r.Category, floorPct = r.MarginFloorPct, targetPct = r.TargetMarginPct, setBy = r.UpdatedBy,
+                    setOn = r.UpdatedUtc.ToString("yyyy-MM-dd"), paused = paused.Any(p => p.BandId == r.BandId && p.Category == r.Category),
+                }),
+                categoryOverridesNote = "A band x category with an override prices against its floor and target instead of the band's; " +
+                                        "null keeps the band's value. paused = rolled back after an outcome drop: changes there wait for a person.",
             }, bands.Count);
         }, ct);
 

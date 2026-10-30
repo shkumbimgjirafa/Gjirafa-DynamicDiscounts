@@ -157,6 +157,11 @@ public sealed class DailyCycle
             return (StepStatus.Succeeded, $"{added} new applied sets, {measured} windows measured; measured 30-day total {s.Measured30Eur:0} EUR " +
                                           $"over {s.Entries} entries ({s.Measured30} measured at 30 days; unmeasured count as 0)");
         });
+        yield return new Step("campaign-calendar", async ct =>
+        {
+            var (added, moved) = await With((Campaigns.CampaignCalendar c) => c.SyncAsync(ct));
+            return (StepStatus.Succeeded, $"{added} campaigns added from the campaign history, {moved} statuses moved (planned / live / done)");
+        });
         yield return new Step("outcomes", async ct =>
         {
             var r = await With((OutcomeTracker t) => t.UpdateAsync(ct));

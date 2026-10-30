@@ -52,5 +52,23 @@ public sealed record CampaignWindow(int CampaignId, string Name, DateOnly StartD
 /// <summary>One day's sales of a band × category (the row) and of the layer's holdout categories, booked cost, EUR VAT excl.</summary>
 public sealed record DaySales(DateOnly Day, decimal RowUnits, decimal RowGrossProfit, decimal HoldoutUnits, decimal HoldoutGrossProfit);
 
+/// <summary>Sales of one category in one window around a past campaign: 0 = the campaign, 1 = the 28 days before,
+/// 2 = the campaign's days a year earlier, 3 = the 28 days before those (each without other campaigns' days).</summary>
+/// <c>Discount</c> and <c>PreDiscountGross</c> are VAT-inclusive, over lines with a plausible discount (at most 80 % off).
+public sealed record CampaignSegmentRow(int CampaignId, int Segment, string Category, decimal Units, decimal NetRevenue, decimal GrossProfit,
+    decimal Discount, decimal PreDiscountGross, int Lines, int DiscountedLines);
+
+/// <summary>One week's sales (week 0 = the first), this year or the same week a year earlier (364 days back).</summary>
+public sealed record WeekSales(int Week, bool LastYear, decimal Units, decimal NetRevenue, decimal GrossProfit, decimal Discount, decimal PreDiscountGross,
+    int Lines, int DiscountedLines)
+{
+    /// <summary>Discount depth in percent, or null where the lines don't record discounts (see <see cref="Campaigns.SegmentSales.DepthRecorded"/>).</summary>
+    public decimal? DepthPct => Lines > 0 && DiscountedLines >= Campaigns.SegmentSales.MinDiscountedLineShare * Lines && PreDiscountGross > 0
+        ? 100m * Discount / PreDiscountGross : null;
+}
+
+/// <summary>A per-category floor/target override in force (PricingTool.BandCategoryRules).</summary>
+public sealed record CategoryRuleRow(int BandId, string Category, decimal? MarginFloorPct, decimal? TargetMarginPct, string UpdatedBy, DateTime UpdatedUtc);
+
 /// <summary>Which engine run the stock figures come from.</summary>
 public sealed record EngineRunRef(long RunId, DateOnly SnapshotDate);

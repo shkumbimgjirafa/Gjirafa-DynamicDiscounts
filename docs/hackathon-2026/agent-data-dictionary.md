@@ -41,7 +41,10 @@ pricing tool and already removed from every view.
   say which one you used.
 - **`StockClass`:** `InStock` = the unit was in a Kosovo warehouse before the order; `CrossDock` =
   it arrived after the order (bought to order, cost risk); `NoWmsUnit` = never passed a KS warehouse.
-- **`DiscountGiven` / `ListValue`:** the discount on the line and the pre-discount value.
+- **`DiscountGiven` / `ListValue`:** the discount on the line and the pre-discount value. `DiscountGiven` includes VAT,
+  `ListValue` doesn't (`ListValue` = (`GrossRevenue` + `DiscountGiven`) / VAT, checked on sampled lines 2026-10-30), so
+  discount depth = `SUM(DiscountGiven) / SUM(GrossRevenue + DiscountGiven)`. Leave out lines claiming more than 80 % off:
+  968 such lines (0.2 %) carry 13 % of all discount and are data errors.
 
 ## Traps
 
@@ -54,6 +57,8 @@ pricing tool and already removed from every view.
   follows Gjirafa50. Any Mall margin figure must say how it treats them.
 - **Long tail:** most SKUs sell one unit in two months. Decide at category or band level; per-SKU
   numbers with fewer than ~5 units are noise.
+- **GjirafaMall stopped booking discounts on the line in Nov 2025:** from then only about 5 % of layer-1 lines carry
+  `DiscountGiven` (80–90 % before; Gjirafa50 unchanged). Discount depth on GjirafaMall isn't comparable across that break.
 - **`CategoryL1 = 'Unknown'`** is real volume (products mapped only to promo pages); don't drop it silently.
 - `agent.CostChanges` is a proxy from booked costs of what sold; it misses SKUs that didn't sell.
 - Queries: SELECT only, one statement, at most 500 rows back, 30 seconds. Aggregate in SQL; don't

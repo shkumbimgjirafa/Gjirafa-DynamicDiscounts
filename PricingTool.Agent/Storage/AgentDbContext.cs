@@ -30,6 +30,7 @@ public class AgentDbContext : DbContext
     public DbSet<MoneyLedgerEntry> MoneyLedger => Set<MoneyLedgerEntry>();
     public DbSet<AgentOutcome> AgentOutcomes => Set<AgentOutcome>();
     public DbSet<CategoryPause> CategoryPauses => Set<CategoryPause>();
+    public DbSet<CampaignCalendarEntry> CampaignCalendar => Set<CampaignCalendarEntry>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -155,6 +156,23 @@ public class AgentDbContext : DbContext
                 e.Property(p).HasPrecision(12, 4);
             foreach (var p in new[] { nameof(AgentOutcome.GpVsExpectedPct), nameof(AgentOutcome.UnitsVsExpectedPct) })
                 e.Property(p).HasPrecision(9, 2);
+        });
+
+        builder.Entity<CampaignCalendarEntry>(e =>
+        {
+            e.ToTable("CampaignCalendar");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.LayerId, x.StartDate });
+            e.HasIndex(x => new { x.LayerId, x.SourceCampaignId }).IsUnique().HasFilter("[SourceCampaignId] IS NOT NULL");
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Type).HasMaxLength(10);
+            e.Property(x => x.ScopeKind).HasMaxLength(20);
+            e.Property(x => x.ScopeValue).HasMaxLength(200);
+            e.Property(x => x.GoalType).HasMaxLength(20);
+            e.Property(x => x.GoalValue).HasPrecision(18, 2);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.Notes).HasMaxLength(2000);
         });
 
         builder.Entity<CategoryPause>(e =>

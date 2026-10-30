@@ -35,6 +35,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   outcomes                                                        measure applied decisions (auto-rollback on a drop) and print them
 //   outcomes --probe <decision id> <yyyy-MM-dd>                     read-only: what it would measure had the change gone live that day
 //   timesheet                                                       export the hours-saved sheet (xlsx, csv, json)
+//   campaign-data <layer> [--category c] [--weeks n] [--results <calendar id>]   sync the campaign calendar and print the campaign tools
 //   cycle-status [yyyy-MM-dd]                                       the daily cycle's steps for a day (default today)
 //   test-db                                                         create or migrate the test database and list what it holds
 // --test (alpha-pass, check-run, test-db): the run is labelled [INJECTED-TEST] and its records go to the test database
@@ -296,6 +297,36 @@ switch (command)
         return r.Exported ? 0 : 1;
     }
 
+    case "campaign-data":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var (added, moved) = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Campaigns.CampaignCalendar>().SyncAsync();
+        Console.WriteLine($"Campaign calendar: {added} added, {moved} statuses moved.");
+        var tools = scope.ServiceProvider.GetRequiredService<AgentDataTools>();
+        var ctx = scope.ServiceProvider.GetRequiredService<AgentToolContext>();
+        var layer = int.Parse(positional[0]);
+        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+        var sw = Stopwatch.StartNew();
+        Console.WriteLine("== get_campaign_history");
+        Console.WriteLine(JsonSerializer.Serialize(await tools.GetCampaignHistoryAsync(ctx, layer, Opt("--category")), json));
+        Console.WriteLine($"-- {sw.ElapsedMilliseconds} ms");
+        sw.Restart();
+        Console.WriteLine("== get_sales_trends");
+        Console.WriteLine(JsonSerializer.Serialize(await tools.GetSalesTrendsAsync(ctx, layer, Opt("--category"), int.Parse(Opt("--weeks") ?? "8")), json));
+        Console.WriteLine($"-- {sw.ElapsedMilliseconds} ms");
+        if (Opt("--results") is { } id)
+        {
+            Console.WriteLine("== get_campaign_results");
+            Console.WriteLine(JsonSerializer.Serialize(await tools.GetCampaignResultsAsync(ctx, long.Parse(id)), json));
+        }
+        return 0;
+    }
+
     case "outcomes":
     {
         using var host = builder.Build();
@@ -403,7 +434,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

@@ -12,10 +12,14 @@ public static class AgentToolNames
     public const string GetElasticitySummary = "get_elasticity_summary";
     public const string GetCurrentConfig = "get_current_config";
     public const string QueryData = "query_data";
+    public const string GetCampaignHistory = "get_campaign_history";
+    public const string GetSalesTrends = "get_sales_trends";
+    public const string GetCampaignResults = "get_campaign_results";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
         GetBandPerformance, GetCostChanges, GetStockHealth, GetPastDecisions, GetElasticitySummary, GetCurrentConfig, QueryData,
+        GetCampaignHistory, GetSalesTrends, GetCampaignResults,
     };
 
     /// <summary>The ids passed to <c>--allowedTools</c>: these and nothing else.</summary>

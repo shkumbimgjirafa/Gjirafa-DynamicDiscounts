@@ -232,6 +232,85 @@ public sealed class PricingDataReader
             r => new DaySales(DateOnly.FromDateTime(r.GetDateTime(0)), Convert.ToDecimal(r.GetValue(1)), r.GetDecimal(2),
                 Convert.ToDecimal(r.GetValue(3)), r.GetDecimal(4)), ct);
 
+    /// <summary>
+    /// For every campaign of the layer that ended before <paramref name="today"/>: sales per category in its four windows
+    /// (see <see cref="CampaignSegmentRow"/>). Lines on other campaigns' days are left out of the three comparison windows.
+    /// Discount depth uses the VAT-inclusive pre-discount value (GrossRevenue + DiscountGiven; ListValue is VAT-exclusive),
+    /// and leaves out lines claiming more than 80 % off: 968 such lines carry 13 % of all discount and are data errors.
+    /// </summary>
+    public Task<List<CampaignSegmentRow>> GetCampaignSegmentsAsync(int layerId, string? category, DateOnly today, CancellationToken ct = default) =>
+        QueryAsync("""
+            DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
+            WITH c AS (SELECT CampaignId, StartDate, EndDate FROM agent.CampaignHistory WHERE LayerId = @L AND EndDate < @Today),
+            w AS (
+                SELECT CampaignId, 0 AS Seg, StartDate AS F, DATEADD(day, 1, EndDate) AS T FROM c
+                UNION ALL SELECT CampaignId, 1, DATEADD(day, -28, StartDate), StartDate FROM c
+                UNION ALL SELECT CampaignId, 2, DATEADD(day, -364, StartDate), DATEADD(day, -363, EndDate) FROM c
+                UNION ALL SELECT CampaignId, 3, DATEADD(day, -392, StartDate), DATEADD(day, -364, StartDate) FROM c),
+            allc AS (SELECT StartDate, EndDate FROM agent.CampaignHistory WHERE LayerId = @L)
+            SELECT w.CampaignId, w.Seg, ISNULL(x.Category, N'Unknown'), SUM(s.Qty), ISNULL(SUM(s.NetRevenue), 0), ISNULL(SUM(s.GrossProfit), 0),
+                   ISNULL(SUM(CASE WHEN s.DiscountGiven >= 0 AND s.DiscountGiven <= 0.8 * (s.GrossRevenue + s.DiscountGiven) THEN s.DiscountGiven END), 0),
+                   ISNULL(SUM(CASE WHEN s.DiscountGiven >= 0 AND s.DiscountGiven <= 0.8 * (s.GrossRevenue + s.DiscountGiven) THEN s.GrossRevenue + s.DiscountGiven END), 0),
+                   COUNT(*), SUM(CASE WHEN s.DiscountGiven > 0 THEN 1 ELSE 0 END)
+            FROM w
+            JOIN agent.SalesLines s ON s.LayerId = @L AND s.SaleDate >= w.F AND s.SaleDate < w.T
+            CROSS APPLY (SELECT CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END AS Category) x
+            WHERE (w.Seg = 0 OR NOT EXISTS (SELECT 1 FROM allc WHERE s.SaleDate BETWEEN allc.StartDate AND allc.EndDate))
+              AND (@Category IS NULL OR x.Category = @Category)
+            GROUP BY w.CampaignId, w.Seg, ISNULL(x.Category, N'Unknown')
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.Add("@Today", SqlDbType.Date).Value = today.ToDateTime(TimeOnly.MinValue);
+                p.Add("@Category", SqlDbType.NVarChar, 200).Value = (object?)category ?? DBNull.Value;
+            },
+            r => new CampaignSegmentRow(Id(r, 0), r.GetInt32(1), r.GetString(2), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5),
+                r.GetDecimal(6), r.GetDecimal(7), r.GetInt32(8), r.GetInt32(9)), ct);
+
+    /// <summary>Weekly sales for <paramref name="weeks"/> weeks from <paramref name="from"/>, and the same weeks a year earlier.</summary>
+    public Task<List<WeekSales>> GetWeeklySalesAsync(int layerId, string? category, DateOnly from, int weeks, CancellationToken ct = default) =>
+        QueryAsync("""
+            DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
+            DECLARE @To date = DATEADD(day, 7 * @Weeks, @From);
+            DECLARE @FromLy date = DATEADD(day, -364, @From), @ToLy date = DATEADD(day, -364, @To);
+            SELECT k.Wk, k.Ly, SUM(s.Qty), ISNULL(SUM(s.NetRevenue), 0), ISNULL(SUM(s.GrossProfit), 0),
+                   ISNULL(SUM(CASE WHEN s.DiscountGiven >= 0 AND s.DiscountGiven <= 0.8 * (s.GrossRevenue + s.DiscountGiven) THEN s.DiscountGiven END), 0),
+                   ISNULL(SUM(CASE WHEN s.DiscountGiven >= 0 AND s.DiscountGiven <= 0.8 * (s.GrossRevenue + s.DiscountGiven) THEN s.GrossRevenue + s.DiscountGiven END), 0),
+                   COUNT(*), SUM(CASE WHEN s.DiscountGiven > 0 THEN 1 ELSE 0 END)
+            FROM agent.SalesLines s
+            CROSS APPLY (SELECT CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END AS Category) x
+            CROSS APPLY (SELECT CAST(CASE WHEN s.SaleDate >= @From THEN 0 ELSE 1 END AS bit) AS Ly,
+                                CASE WHEN s.SaleDate >= @From THEN DATEDIFF(day, @From, s.SaleDate) ELSE DATEDIFF(day, @FromLy, s.SaleDate) END / 7 AS Wk) k
+            WHERE s.LayerId = @L AND ((s.SaleDate >= @From AND s.SaleDate < @To) OR (s.SaleDate >= @FromLy AND s.SaleDate < @ToLy))
+              AND (@Category IS NULL OR x.Category = @Category)
+            GROUP BY k.Wk, k.Ly
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.AddWithValue("@Weeks", weeks);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@Category", SqlDbType.NVarChar, 200).Value = (object?)category ?? DBNull.Value;
+            },
+            r => new WeekSales(r.GetInt32(0), r.GetBoolean(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6),
+                r.GetInt32(7), r.GetInt32(8)), ct);
+
+    /// <summary>The layer's per-category floor/target overrides (written by the pricing agent within its limits).</summary>
+    public Task<List<CategoryRuleRow>> GetCategoryRulesAsync(int layerId, CancellationToken ct = default) =>
+        QueryAsync("""
+            SELECT BandId, Category, MarginFloorPct, TargetMarginPct, UpdatedBy, UpdatedUtc
+            FROM PricingTool.BandCategoryRules WHERE LayerId = @L ORDER BY BandId, Category
+            """,
+            p => p.AddWithValue("@L", layerId),
+            r => new CategoryRuleRow(Id(r, 0), r.GetString(1), r.IsDBNull(2) ? null : r.GetDecimal(2), r.IsDBNull(3) ? null : r.GetDecimal(3),
+                r.GetString(4), r.GetDateTime(5)), ct);
+
+    /// <summary>The layer's first day of sales lines (comparison windows before it have no data).</summary>
+    public async Task<DateOnly?> GetFirstSaleDayAsync(int layerId, CancellationToken ct = default) =>
+        (await QueryAsync("SELECT MIN(SaleDate) FROM agent.SalesLines WHERE LayerId = @L", p => p.AddWithValue("@L", layerId),
+            r => r.IsDBNull(0) ? (DateOnly?)null : DateOnly.FromDateTime(r.GetDateTime(0)), ct)).FirstOrDefault();
+
     public Task<List<CampaignWindow>> GetCampaignWindowsAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
         QueryAsync("""
             SELECT CampaignId, Name, StartDate, EndDate, CampaignType FROM agent.CampaignHistory

@@ -49,6 +49,7 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<HkRefresher>();
         services.AddScoped<MoneyLedger>();
         services.AddScoped<OutcomeTracker>();
+        services.AddScoped<Campaigns.CampaignCalendar>();
         services.AddScoped<TimeSheetExporter>();
         services.AddScoped<DailyCycle>();
         services.AddScoped<ExceptionsInbox>();
