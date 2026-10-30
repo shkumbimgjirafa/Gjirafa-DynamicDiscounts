@@ -29,6 +29,7 @@ using PricingTool.NopIntegration.Sandbox;
 //                                                                   --preview prints the prompt it would send, no call
 //   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
 //   approve-plan <plan id> [--by <who>] [--publish]                  a person approves a held plan as it is
+//   backtest-campaigns <layer> [<layer> ...]                         replay finished campaigns with the planner's arithmetic
 //   campaign-note <calendar id> "<text>" [--by <who>] [--not-representative]   a person's context on a campaign
 //   lesson <Nova|Alpha> "<text>" [--layer <id>] [--by <who>]       teach an agent: kept in every pass's prompt until retired
 //   lessons [<Nova|Alpha>] | lesson-retire <id> [--by <who>]        list the active lessons, or retire one
@@ -335,6 +336,26 @@ switch (command)
         return 0;
     }
 
+    case "backtest-campaigns":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var tools = scope.ServiceProvider.GetRequiredService<AgentDataTools>();
+        foreach (var layer in positional.Select(int.Parse))
+        {
+            var sw = Stopwatch.StartNew();
+            var (replays, calibration) = await tools.ReplayCampaignsAsync(layer);
+            Console.WriteLine($"Layer {layer}: {replays.Count} campaigns replayed in {sw.Elapsed.TotalSeconds:0.0} s (booked COGS, EUR VAT excl.; estimated)");
+            Console.WriteLine("campaign | days | normal days | actual GP | seen SKUs: actual GP / planned | tail SKUs: GP (share) | actual/planned | usable");
+            foreach (var r in replays)
+                Console.WriteLine($"{r.Name} | {r.Days} | {r.NormalDays} | {r.ActualGp:N0} | {r.SeenSkus:N0}: {r.SeenActualGp:N0} / {r.PredictedSeenGp:N0} (x{r.SeenRatio:0.00}) | " +
+                                  $"{r.TailSkus:N0}: {r.TailGp:N0} ({r.TailSharePct:0.0}%) | x{r.TotalRatio:0.00} | {(r.Usable ? "yes" : r.Representative ? "too few normal days" : "not representative")}");
+            Console.WriteLine(calibration is null ? "No calibration: too few usable campaigns." : $"Calibration x{calibration.Factor:0.00}: {calibration.Basis}.");
+        }
+        return 0;
+    }
+
     case "approve-plan":
     {
         using var host = builder.Build();
@@ -574,7 +595,7 @@ switch (command)
     }
 
     default:
-        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
+        Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;
 }
 

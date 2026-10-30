@@ -322,6 +322,36 @@ public sealed class PricingDataReader
             },
             r => r.GetDecimal(0), ct)).Single();
 
+    /// <summary>
+    /// For every campaign of the layer that ended before <paramref name="today"/>: per SKU, its sales on the normal days of the
+    /// planner's rate window (<see cref="Campaigns.CampaignReplay.RateWindow"/>: the 28 days ending 21 days before the start)
+    /// and its sales in the campaign, booked COGS. A SKU appears when it sold in either.
+    /// </summary>
+    public Task<List<Campaigns.ReplaySkuRow>> GetCampaignReplayRowsAsync(int layerId, DateOnly today, CancellationToken ct = default) =>
+        QueryAsync("""
+            WITH camp AS (SELECT CampaignId, StartDate, EndDate, DATEADD(day, -@Back, StartDate) AS F, DATEADD(day, -@Back + @Days, StartDate) AS T
+                          FROM agent.CampaignHistory WHERE LayerId = @L AND EndDate < @Today),
+            n AS (SELECT camp.CampaignId, s.Sku, SUM(s.Qty) AS U, SUM(s.NetRevenue) AS Net, SUM(s.GrossProfit) AS Gp FROM camp
+                  JOIN agent.SalesLines s ON s.LayerId = @L AND s.SaleDate >= camp.F AND s.SaleDate < camp.T
+                  WHERE NOT EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND s.SaleDate BETWEEN c.StartDate AND c.EndDate)
+                  GROUP BY camp.CampaignId, s.Sku),
+            c AS (SELECT camp.CampaignId, s.Sku, SUM(s.Qty) AS U, SUM(s.NetRevenue) AS Net, SUM(s.GrossProfit) AS Gp FROM camp
+                  JOIN agent.SalesLines s ON s.LayerId = @L AND s.SaleDate >= camp.StartDate AND s.SaleDate <= camp.EndDate
+                  GROUP BY camp.CampaignId, s.Sku)
+            SELECT COALESCE(n.CampaignId, c.CampaignId), COALESCE(n.Sku, c.Sku), ISNULL(n.U, 0), ISNULL(n.Net, 0), ISNULL(n.Gp, 0),
+                   ISNULL(c.U, 0), ISNULL(c.Net, 0), ISNULL(c.Gp, 0)
+            FROM n FULL JOIN c ON c.CampaignId = n.CampaignId AND c.Sku = n.Sku
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.AddWithValue("@Back", Campaigns.CampaignReplay.LeadDays + Campaigns.CampaignReplay.LagDays + Campaigns.CampaignReplay.RateDays);
+                p.AddWithValue("@Days", Campaigns.CampaignReplay.RateDays);
+                p.Add("@Today", SqlDbType.Date).Value = today.ToDateTime(TimeOnly.MinValue);
+            },
+            r => new Campaigns.ReplaySkuRow(Id(r, 0), r.GetString(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6),
+                r.GetDecimal(7)), ct);
+
     /// <summary>The layer's first day of sales lines (comparison windows before it have no data).</summary>
     public async Task<DateOnly?> GetFirstSaleDayAsync(int layerId, CancellationToken ct = default) =>
         (await QueryAsync("SELECT MIN(SaleDate) FROM agent.SalesLines WHERE LayerId = @L", p => p.AddWithValue("@L", layerId),

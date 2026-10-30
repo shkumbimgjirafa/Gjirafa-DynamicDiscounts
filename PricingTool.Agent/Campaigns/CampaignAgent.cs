@@ -271,6 +271,11 @@ public sealed class CampaignAgent
         sb.AppendLine(depth.B is { } b
             ? $"What extra depth buys on top of the event (within-campaign fit, {depth.Campaigns} campaigns): 10 pt deeper -> x{depth.DepthMultiplier(10):0.00} units, 20 pt -> x{depth.DepthMultiplier(20):0.00} (b = {b}); estimated."
             : $"What extra depth buys: {depth.Basis}.");
+        var (_, calibration) = await _tools.ReplayCampaignsAsync(layerId, ct);
+        sb.AppendLine(calibration is { } cal
+            ? $"How the planner's estimates compare with what past campaigns made (backtest): actual = x{cal.Factor:0.00} the plan's arithmetic ({cal.Basis}). " +
+              "The pricing agent's plans show the calibrated estimate; a goal near the top of the range is a stretch."
+            : "Backtest of the planner's estimates: too few past campaigns to calibrate.");
         return sb.ToString();
 
         static string Change(decimal now, decimal ly) => ly > 0 ? $"{100m * (now - ly) / ly:+0;-0}%" : "n/a";

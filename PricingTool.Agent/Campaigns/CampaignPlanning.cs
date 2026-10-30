@@ -77,6 +77,9 @@ public sealed class CampaignPlanning
     /// <summary>Test seam: the depth effect (a fit over the campaign history needs SQL).</summary>
     internal Func<int, CancellationToken, Task<DepthEffect>>? DepthSource { get; set; }
 
+    /// <summary>Test seam: the backtest calibration (a replay of the campaign history needs SQL).</summary>
+    internal Func<int, CancellationToken, Task<CampaignCalibration?>>? CalibrationSource { get; set; }
+
     public async Task<PlanningResult> PlanAsync(long briefId, bool publish, CancellationToken ct = default)
     {
         var stop = await _killSwitch.GetAsync(ct);
@@ -88,6 +91,7 @@ public sealed class CampaignPlanning
         var calendar = brief.CalendarId is { } cid ? await _db.CampaignCalendar.AsNoTracking().SingleOrDefaultAsync(c => c.Id == cid, ct) : null;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var depth = await (DepthSource ?? ((l, c) => _tools.GetDepthEffectAsync(l, c)))(layer.Id, ct);
+        var calibration = await (CalibrationSource ?? (async (l, c) => (await _tools.ReplayCampaignsAsync(l, c)).Calibration))(layer.Id, ct);
         var type = CampaignMath.TypeOf(calendar?.Name ?? brief.Name);
         var eventLift = depth.EventLift(type);
         var liftNote = eventLift is { } el ? $"event lift x{el:0.00} (median of past {type} windows)" : $"no past {type} window: no event lift assumed (x1.00, conservative)";
@@ -96,9 +100,9 @@ public sealed class CampaignPlanning
         // A goal a person set for the calendar campaign is binding: Nova can't change it, and a plan short of it waits for a person.
         var personGoal = brief.Kind == "calendar" && calendar?.GoalSetBy is { } setBy && calendar.GoalType == brief.GoalType ? setBy : null;
         var days = brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1;
-        // GjirafaMall SKUs that take Gjirafa50's price aren't planned here, but they sell during the campaign: their expected
-        // gross profit at today's price with the event lift counts toward a gross-profit goal, which (like the past windows
-        // Nova anchors on) covers the whole Mall.
+        // SKUs the plan doesn't price still sell during the campaign: GjirafaMall SKUs that take Gjirafa50's price, and on an
+        // all-shop campaign the holdout categories. Their expected gross profit at today's price with the event lift counts
+        // toward a gross-profit goal, which (like the past windows Nova anchors on and the backtest replays) covers them.
         var followersGp = Math.Round(followers.Sum(c => c.UnitsPerDay * days * (eventLift ?? 1m) * (c.CurrentPrice - c.Cost)) / (1m + layer.VatRatePct / 100m), 0);
 
         var plans = new List<CampaignPlan>();
@@ -106,12 +110,13 @@ public sealed class CampaignPlanning
         {
             var spec = new PlanSpec(brief.CalendarId ?? brief.Id, brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1, brief.GoalType, brief.GoalValue,
                 brief.MinMarginPct, Math.Min(brief.MaxDepthPct, _options.Campaigns.MaxDepthPct), layer.VatRatePct, eventLift ?? 1m,
-                ExcludedBrands(brief.Exclusions)) { GrossProfitOutsidePlan = followersGp };
+                ExcludedBrands(brief.Exclusions)) { GrossProfitOutsidePlan = followersGp, Calibration = calibration };
             var results = CampaignPlanner.Strategies.Select(s => CampaignPlanner.Plan(s, spec, candidates, depth, bands, _options.Campaigns.MaxSkusPerCampaign, leftOutBefore)).ToList();
             var basis = $"{candidates.Count:N0} SKUs in scope with stock and normal-day sales ({today.AddDays(-42):yyyy-MM-dd}..{today.AddDays(-15):yyyy-MM-dd}, campaign days left out); " +
                         $"{liftNote}; extra depth: {(depth.B is { } b ? $"b = {b} within-campaign fit" : "no fit, no extra units from depth")}; estimated." +
-                        (followers.Count > 0 ? $" Not planned here: {followers.Count:N0} SKUs that take Gjirafa50's price, expected gross profit {followersGp:N0} at today's prices " +
-                                               "with the event lift; it counts toward the gross-profit goal (whole Mall, as the past windows), estimated." : "");
+                        (followers.Count > 0 ? $" Not priced by the plan: {followers.Count:N0} SKUs that take Gjirafa50's price or sit in a holdout category, expected gross profit " +
+                                               $"{followersGp:N0} at today's prices with the event lift; it counts toward the gross-profit goal (the whole shop, as the past windows), estimated." : "") +
+                        (calibration is { } cal ? $" Backtest calibration x{cal.Factor:0.00}: {cal.Basis}." : " No backtest calibration (too few past campaigns replayed).");
             await SayAsync(brief, null, round, "code", $"Round {round}: three plans computed. {basis}\n{Describe(results, brief)}", null, ct);
 
             var choice = await AskAlphaAsync(brief, results, basis, round, ct);
@@ -235,10 +240,15 @@ public sealed class CampaignPlanning
             if (isMall && c.FollowsGj50)
             {
                 Out("GjirafaMall price follows Gjirafa50 (planned on Gjirafa50)");
-                if (c.UnitsPerDay > 0 && !holdouts.Contains(c.Category, StringComparer.OrdinalIgnoreCase)) followers.Add(c);
+                if (c.UnitsPerDay > 0) followers.Add(c);
                 continue;
             }
-            if (holdouts.Contains(c.Category, StringComparer.OrdinalIgnoreCase)) { Out("holdout category"); continue; }
+            if (holdouts.Contains(c.Category, StringComparer.OrdinalIgnoreCase))
+            {
+                Out("holdout category");
+                if (c.UnitsPerDay > 0 && brief.ScopeKind == "all") followers.Add(c);   // not discounted, but sells during the campaign
+                continue;
+            }
             if (c.LocalStock <= 0 && c.SupplierStock <= 0) { Out("no stock"); continue; }
             if (c.UnitsPerDay <= 0) { Out("no normal-day sales to plan on"); continue; }
             keep.Add(c);

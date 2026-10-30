@@ -86,8 +86,47 @@ public class CampaignPlanningTests : IDisposable
         var whole = CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: goal) with { GrossProfitOutsidePlan = 600m }, candidates, Depth, NoRounding, 5000,
             new Dictionary<string, int>());
         Assert.True(whole.Feasible);
-        Assert.Contains("take Gjirafa50's price", whole.Feasibility);
+        Assert.Contains("from SKUs it doesn't price", whole.Feasibility);
         Assert.Equal(alone.Totals.GrossProfit, whole.Totals.GrossProfit);                      // the plan's own totals stay its own
+    }
+
+    [Fact]
+    public void A_gross_profit_goal_is_judged_on_the_backtest_calibrated_estimate_with_its_range()
+    {
+        var candidates = Enumerable.Range(0, 20).Select(i => C($"S{i}", 100m, 100m, 60m)).ToList();
+        var raw = CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: 1m), candidates, Depth, NoRounding, 5000, new Dictionary<string, int>()).Totals.GrossProfit;
+        var cal = new CampaignCalibration(1.25m, 7, 0.55m, 1.72m, 44m, "test");
+        var spec = Spec(goalValue: raw * 1.2m) with { Calibration = cal };
+        var r = CampaignPlanner.Plan("max-gross-profit", spec, candidates, Depth, NoRounding, 5000, new Dictionary<string, int>());
+        Assert.True(r.Feasible);                                                                    // raw falls short, x1.25 reaches it
+        Assert.Contains("calibrated estimate", r.Feasibility);
+        Assert.Contains("x0.55..x1.72", r.Feasibility);
+        Assert.False(CampaignPlanner.Plan("max-gross-profit", Spec(goalValue: raw * 1.3m) with { Calibration = cal }, candidates, Depth, NoRounding, 5000,
+            new Dictionary<string, int>()).Feasible);
+    }
+
+    [Fact]
+    public void The_backtest_replays_a_campaign_with_the_planners_arithmetic_and_calibrates_on_usable_ones()
+    {
+        var w = new CampaignWindow(1, "Për ty, Oct 2025", new DateOnly(2025, 10, 8), new DateOnly(2025, 10, 12), "main");
+        var rows = new[]
+        {
+            new ReplaySkuRow(1, "SEEN", 28m, 2800m, 560m, 50m, 4500m, 900m),     // 1/day normally at 100; 50 sold at 90 (10 % deeper)
+            new ReplaySkuRow(1, "IDLE", 14m, 700m, 140m, 0m, 0m, 0m),            // sold normally, not in the campaign
+            new ReplaySkuRow(1, "TAIL", 0m, 0m, 0m, 10m, 800m, 300m),            // no normal-day sales: the planner can't see it
+        };
+        var r = CampaignReplay.Replay(w, 28, rows, Depth, representative: true);
+        // SEEN: 1/day × 5 days × Për ty lift 1 (none in Depth) × exp(3 × 0.10) × 18/unit; IDLE: 0.5 × 5 × 1 × 10/unit
+        var expected = Math.Round(5m * (decimal)Math.Exp(0.3) * 18m + 2.5m * 10m, 0);
+        Assert.Equal((1200m, 900m, 300m, 1, 2, expected), (r.ActualGp, r.SeenActualGp, r.TailGp, r.TailSkus, r.SeenSkus, r.PredictedSeenGp));
+        Assert.Equal(25.0m, r.TailSharePct);
+        Assert.True(r.Usable);
+
+        var results = new[] { 0.6m, 1.2m, 1.7m, 0.3m }.Select((k, i) => r with { CampaignId = i, PredictedSeenGp = Math.Round(1200m / k, 0) }).ToList();
+        Assert.Null(CampaignReplay.Calibrate(results.Take(2)));                                  // fewer than 3 usable
+        var cal = CampaignReplay.Calibrate(results.Append(r with { Representative = false, PredictedSeenGp = 1m }))!;
+        Assert.Equal((4, 0.3m, 1.7m), (cal.Campaigns, cal.Low, cal.High));                        // the unrepresentative one left out
+        Assert.Equal(0.9m, cal.Factor);                                                           // median of 0.3, 0.6, 1.2, 1.7
     }
 
     [Fact]
@@ -182,7 +221,7 @@ public class CampaignPlanningTests : IDisposable
         var publisher = new Publisher();
         var planning = new CampaignPlanning(_db, _tool, new Candidates(), new AgentDataTools(reader, options, new AgentToolLog(_db), _db), new BandConfigProvider(_tool),
             client, new ConfigKillSwitch(options.Value), options, NullLogger<CampaignPlanning>.Instance, publisher: publisher)
-        { DepthSource = (_, _) => Task.FromResult(Depth) };
+        { DepthSource = (_, _) => Task.FromResult(Depth), CalibrationSource = (_, _) => Task.FromResult<CampaignCalibration?>(null) };
         return (planning, publisher, brief);
     }
 

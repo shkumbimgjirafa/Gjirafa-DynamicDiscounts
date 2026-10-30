@@ -24,8 +24,12 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
     decimal VatRatePct, decimal EventLift, IReadOnlyCollection<string> ExcludedBrands)
 {
     /// <summary>Expected gross profit of SKUs the goal covers but this plan doesn't price (GjirafaMall SKUs that take Gjirafa50's
-    /// price), counted toward a gross-profit goal and named in the feasibility text.</summary>
+    /// price, holdout categories), counted toward a gross-profit goal and named in the feasibility text.</summary>
     public decimal GrossProfitOutsidePlan { get; init; }
+
+    /// <summary>The backtest's measure of how far this arithmetic lands from what past campaigns made; a gross-profit goal is
+    /// judged on the calibrated estimate, with the range of past campaigns shown.</summary>
+    public CampaignCalibration? Calibration { get; init; }
 }
 
 /// <summary>
@@ -170,7 +174,17 @@ public static class CampaignPlanner
         };
         if (t.MarginPct < spec.MinMarginPct)
             return (false, $"The blended margin of {t.MarginPct:0.0}% stays under the brief's minimum of {spec.MinMarginPct:0.#}% even with the discounts made shallower.");
-        var counted = outside > 0 ? $" ({t.GrossProfit:N0} from this plan plus {outside:N0} from the SKUs that take Gjirafa50's price)" : "";
+        var counted = outside > 0 ? $" ({t.GrossProfit:N0} from this plan plus {outside:N0} from SKUs it doesn't price)" : "";
+        if (spec.GoalType == "gross-profit" && spec.Calibration is { } cal)
+        {
+            var calibrated = Math.Round(actual * cal.Factor, 0);
+            var range = $"x{cal.Low:0.00}..x{cal.High:0.00} gives {actual * cal.Low:N0}..{actual * cal.High:N0}";
+            return calibrated >= spec.GoalValue
+                ? (true, $"{spec.GoalValue:N0} {unit} is reachable on the calibrated estimate: {calibrated:N0} (the arithmetic gives {actual:N0}{counted}; " +
+                         $"x{cal.Factor:0.00} from the backtest of {cal.Campaigns} past campaigns, whose {range}).")
+                : (false, $"{spec.GoalValue:N0} {unit} is not reachable on the calibrated estimate: {calibrated:N0} (the arithmetic gives {actual:N0}{counted}; " +
+                          $"x{cal.Factor:0.00} from the backtest of {cal.Campaigns} past campaigns, whose {range}).");
+        }
         return actual >= spec.GoalValue
             ? (true, $"{spec.GoalValue:N0} {unit} is reachable: the plan expects {actual:N0}{counted}.")
             : (false, $"{spec.GoalValue:N0} {unit} is not reachable within the limits: the best this strategy expects is {actual:N0}{counted}.");
