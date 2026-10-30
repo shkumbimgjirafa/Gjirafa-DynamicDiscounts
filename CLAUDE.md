@@ -111,5 +111,8 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
 ## How we work
 
 - Small commits on `main`, each after `dotnet test` passes, with a message saying what and why.
+- **Two Claude sessions share this folder** (the build session, and the data session that loads data
+  and writes prompts). Stage explicit paths only (`git add -- <files>`), never `git add -A` or
+  `git commit -a`, so neither sweeps up the other's unfinished work.
 - A plan block is done when its "Done when" column in section 6 is true; say plainly what isn't.
 - When a number looks off, say so and check it before building on it.
