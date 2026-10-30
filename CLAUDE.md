@@ -57,7 +57,7 @@ campaigns, and a publisher that writes the shop's NOP discounts itself.
   would use `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` (an env var, never in the repo, chat
   or logs). Don't add the Anthropic SDK or an API key.
 - **Flags we rely on** (checked on Claude Code 2.1.205; confirm with `claude --help`):
-  `--model` (`opus` for Alpha and Nova, `sonnet` or `haiku` for routine checks), `--system-prompt`
+  `--model` with full ids, not aliases (`claude-opus-5-5` for Alpha, Nova and the chat, `claude-sonnet-5-5` for the run checker; on 2026-10-30 the alias `opus` ran `claude-opus-4-8` and `sonnet` ran `claude-sonnet-5`; `claude-opus-5-5` needs Claude Code 2.1.280 or newer, `claude update`), `--system-prompt`
   or `--append-system-prompt[-file]` for the agent's fixed rules, `--json-schema` for the answer's
   shape, `--tools ""` (no built-in tools: no Bash, no file access), `--strict-mcp-config
   --mcp-config` for our own read-only tools, `--no-session-persistence`, `--max-budget-usd`.

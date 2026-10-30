@@ -40,11 +40,12 @@ public class AgentOptions
     /// <summary>Passed as <c>--max-budget-usd</c> on every attempt (API-equivalent dollars).</summary>
     public decimal MaxBudgetUsdPerCall { get; set; } = 2m;
 
-    /// <summary>Model alias per role (<c>--model</c>): Alpha and Nova reason, the checker runs on many rows.</summary>
-    public string AlphaModel { get; set; } = "opus";
-    public string NovaModel { get; set; } = "opus";
-    public string RunCheckerModel { get; set; } = "sonnet";
-    public string ChatModel { get; set; } = "opus";
+    /// <summary>Model per role (<c>--model</c>): Alpha and Nova reason, the checker runs on many rows. Full ids,
+    /// not aliases: on Claude Code 2.1.205 "opus" ran claude-opus-4-8 and "sonnet" claude-sonnet-5 (2026-10-30).</summary>
+    public string AlphaModel { get; set; } = "claude-opus-5-5";
+    public string NovaModel { get; set; } = "claude-opus-5-5";
+    public string RunCheckerModel { get; set; } = "claude-sonnet-5-5";
+    public string ChatModel { get; set; } = "claude-opus-5-5";
 
     public string ModelFor(AgentRole role) => role switch
     {

@@ -253,7 +253,8 @@ public sealed class ClaudeCodeClient
                 "or once the organisers raise the limit.", envelope.Result, Retry: false);
         if (envelope.IsError || envelope.Subtype != "success")
             return new Outcome(AgentCallStatus.CliError, null, envelope,
-                $"Claude Code returned an error ({envelope.Subtype ?? "no subtype"}): {envelope.Result}".Trim(), envelope.Result);
+                $"Claude Code returned an error ({envelope.Subtype ?? "no subtype"}): {envelope.Result}".Trim(), envelope.Result,
+                Retry: !IsClientError(envelope));
 
         if (schema is null)
             return new Outcome(AgentCallStatus.Succeeded, JsonSerializer.SerializeToElement(envelope.Result ?? ""), envelope, null, envelope.Result);
@@ -282,6 +283,11 @@ public sealed class ClaudeCodeClient
         && (r.Contains("hit your session limit", StringComparison.OrdinalIgnoreCase)
             || r.Contains("hit your usage limit", StringComparison.OrdinalIgnoreCase)
             || r.Contains("usage limit reached", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>"API Error: 400 ... does not support this model" and other 4xx answers (except 429, rate limited)
+    /// come back the same on a retry (seen 2026-10-30, AiCallLog #11–12), so they are reported once.</summary>
+    private static bool IsClientError(ClaudeCodeEnvelope envelope) =>
+        envelope.Result is { } r && Regex.IsMatch(r, @"API Error:\s*4(?!29)\d\d\b");
 
     /// <summary>The answer text as JSON, allowing a ```json fence around it.</summary>
     internal static JsonElement? ParseJsonAnswer(string? text)

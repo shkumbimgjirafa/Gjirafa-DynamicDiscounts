@@ -102,7 +102,7 @@ public class ClaudeCodeClientTests : IDisposable
         Assert.Equal(Path.Combine(_dir, "runtime"), spec.WorkingDirectory);
         Assert.Contains("-p", args);
         Assert.Equal("json", args[args.IndexOf("--output-format") + 1]);
-        Assert.Equal("opus", args[args.IndexOf("--model") + 1]);              // Alpha reasons on opus
+        Assert.Equal("claude-opus-5-5", args[args.IndexOf("--model") + 1]);   // Alpha reasons on Opus 5.5, pinned
         Assert.Equal(_systemPrompt, args[args.IndexOf("--system-prompt-file") + 1]);
         Assert.Equal("", args[args.IndexOf("--setting-sources") + 1]);       // no user/project/local settings
         Assert.Equal("", args[args.IndexOf("--tools") + 1]);                 // no built-in tools
@@ -130,7 +130,7 @@ public class ClaudeCodeClientTests : IDisposable
         }, _dir);
 
         var args = spec.Arguments.ToList();
-        Assert.Equal("sonnet", args[args.IndexOf("--model") + 1]);
+        Assert.Equal("claude-sonnet-5-5", args[args.IndexOf("--model") + 1]);
         Assert.Equal(Path.Combine(_dir, "mcp.json"), args[args.IndexOf("--mcp-config") + 1]);
         Assert.Equal("mcp__pricing__query_data,mcp__pricing__get_current_config", args[args.IndexOf("--allowedTools") + 1]);
         Assert.Equal("0.25", args[args.IndexOf("--max-budget-usd") + 1]);
@@ -224,7 +224,7 @@ public class ClaudeCodeClientTests : IDisposable
         Assert.Equal("RunChecker", row.Agent);
         Assert.Equal("unit-test", row.Purpose);
         Assert.Equal(1, row.Attempt);
-        Assert.Equal("sonnet", row.Model);
+        Assert.Equal("claude-sonnet-5-5", row.Model);
         Assert.Equal("claude-sonnet-5-5", row.ModelIds);
         Assert.Equal((120, 45, 4000, 300), (row.InputTokens, row.OutputTokens, row.CacheReadTokens, row.CacheCreationTokens));
         Assert.Equal(0.0123m, row.CostUsd);
@@ -338,6 +338,26 @@ public class ClaudeCodeClientTests : IDisposable
         Assert.Contains("resets 7:10pm", result.Error);
         Assert.Single(runner.Calls);
         Assert.Equal(0.370873m, (await _db.AiCallLog.SingleAsync()).CostUsd);
+    }
+
+    [Theory]
+    [InlineData("API Error: 400 Claude Code 2.1.205 does not support this model; version 2.1.280 or newer is required.", 1)]
+    [InlineData("API Error: 429 rate_limit_error", 2)]
+    [InlineData("API Error: 529 overloaded_error", 2)]
+    public async Task Client_errors_are_not_retried_but_rate_limits_and_server_errors_are(string message, int expectedCalls)
+    {
+        var failed = new JsonObject
+        {
+            ["type"] = "result", ["subtype"] = "success", ["is_error"] = true, ["duration_api_ms"] = 0, ["result"] = message,
+        }.ToJsonString();
+        var runner = new FakeRunner()
+            .Returns(new ProcessResult(1, failed, "", false, TimeSpan.FromSeconds(2)))
+            .Returns(new ProcessResult(1, failed, "", false, TimeSpan.FromSeconds(2)));
+
+        var result = await Client(runner).CallAsync(Request(AgentRole.Alpha));
+
+        Assert.Equal(AgentCallStatus.CliError, result.Status);
+        Assert.Equal(expectedCalls, runner.Calls.Count);
     }
 
     [Fact]
