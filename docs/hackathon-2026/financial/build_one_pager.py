@@ -39,7 +39,7 @@ cols = {"A · Low": "B", "A · Mid": "C", "A · High": "D", "B · Low": "E", "B 
 money = "\n".join([
     "| Year 1 | " + " | ".join(cols) + " |",
     "|---|" + "---|" * len(cols),
-    "| Extra gross profit a month | " + " | ".join(eur(case[f"{c}4"].value) for c in cols.values()) + " |",
+    "| Extra gross profit a month at full scope | " + " | ".join(eur(case[f"{c}4"].value) for c in cols.values()) + " |",
     "| Net benefit (11 live months − all costs) | " + " | ".join(eur(case[f"{c}10"].value) for c in cols.values()) + " |",
     "| ROI | " + " | ".join(f"{case[f'{c}11'].value:.0%}" for c in cols.values()) + " |",
     "| Payback (months) | " + " | ".join(f"{case[f'{c}13'].value:.1f}" for c in cols.values()) + " |",
@@ -48,10 +48,14 @@ money = "\n".join([
 total_cost = case["B9"].value
 one_time = case["B7"].value
 running = case["B8"].value
-ai_month = inputs["B10"].value
+months = case["B5"].value
+ai_month = inputs["B11"].value
+build_hours = inputs["B8"].value
+pilot, share = inputs["B16"].value, inputs["B17"].value
 band5 = summary["B30"].value
 per_ty = v("E11")
 e20 = v("E20")
+money = money.replace("Net benefit (11 live months − all costs)", f"Net benefit ({months:g} full-benefit months − all costs)")
 
 page = f"""# Pricing Tool v2: two AI agents that set prices, plan campaigns and publish discounts
 
@@ -66,35 +70,42 @@ lines alone sold {eur(v('E14'))} a month under their booked cost over the last 1
 **What's new (built this weekend, everything after the labelled import commit).** **Alpha**, the pricing agent, sets
 each band's floor and target per main category every week. **Nova**, the campaign agent, keeps the calendar, writes
 briefs with goals, and Alpha turns each into a plan that code computes (four strategies, charm-rounded, never under
-cost). An AI run checker passes, holds or fixes flagged prices; a cost watcher reacts within 15 minutes; an outcome
-tracker measures every applied change and rolls back what hurt; a publisher writes the shop's NOP discounts itself,
-with audit and rollback; a backtest; a chat. **The AI decides, code enforces:** no model output changes a
-price, band or discount without passing limits written in C#. During the hackathon the publisher writes only to a
-sandbox copy of the shop's discount tables; going live is configuration (`GO-LIVE.md`).
+cost or a 3 % margin floor). An AI run checker confirms, escalates or fixes flagged prices, and can't lift a rule's
+block; a cost watcher reacts within 15 minutes; an outcome tracker measures every applied change and rolls back what
+hurt; a publisher writes the shop's NOP discounts itself, with audit and rollback; a backtest; a chat. **The AI decides,
+code enforces:** no model output changes a price, band or discount without passing limits written in C#. During the
+hackathon the publisher writes only to a sandbox copy of the shop's discount tables; going live is configuration
+(`GO-LIVE.md`), never yet run against the live shop.
 
-**What runs, on real data.** Daily cycles on both Kosovo layers (engine runs of 130k and 511k SKUs, run checks, checked
-exports with the holdout left out); Alpha's weekly pass applied 8 category rules within its limits; Nova planned Black
-Friday 2026 against the goal a person set and the plan was held for that person because the arithmetic falls short of
-it. **Not finished, and shown as such:** the Për ty reproduction test fails by one point (expected margin
-{per_ty['expectedMarginPct']} % within bounds, but {per_ty['keptPctOurBase']} % of normal margin kept against
-{per_ty['requiredKeptPct']} %; E11); the campaign estimates aren't calibrated yet (E10); the Monday email and the start-up task aren't live.
+**What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
+SKUs; run checks; checked exports with the holdout left out); Alpha's weekly pass #2 changed 8 band × category rules,
+each by one point, within its limits; Nova planned Black Friday 2026 against the goal a person set, and the plan was
+held for that person because the arithmetic falls short of it. **Not finished, and shown as such:** the Për ty
+reproduction test fails by one point (expected margin {per_ty['expectedMarginPct']} % within bounds, but
+{per_ty['keptPctOurBase']} % of normal margin kept against {per_ty['requiredKeptPct']} %; E11); the campaign estimates
+aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
 
 **Money (12 months, both framings kept apart).** Framing A counts only what this build adds, backtested walk-forward on
-booked sales lines: {eur(v('E8', 'low'))} / {eur(v('E8', 'central'))} / {eur(v('E8', 'high'))} a month (E8,
-estimated), short of the {k(band5)} a month that the top net-benefit band needs with these costs. Framing B adds the rollout of the
-calculator's test phase: {eur(e20['low'])} a month measured with a same-weeks control (a floor: one run on one layer),
-{eur(e20['mid'])} before/after and {eur(e20['high'])} season-adjusted, neither controlled (E20). B claims no past euro:
-the registration said the calculator's measured Aug–Sep result is not claimed; B counts only the next 12 months of the
-automated system, using that result as the rate. Costs: {eur(one_time)} one-time (hackathon hours at €50, 120 hours
-to production, the build sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) and
-{eur(running)} running (AI {eur(ai_month)} a month from the measured cost per call, E19; maintenance and review hours),
-{eur(total_cost)} in all. Which framing counts is the organisers' call.
+booked sales lines: {eur(v('E8', 'low'))} / {eur(v('E8', 'central'))} / {eur(v('E8', 'high'))} a month at full scope (E8,
+estimated; levers 1 and 3 over 12 months, the others over Aug–Sep), short of the {k(band5)} a month that the top
+net-benefit band needs with these costs. Most of it comes from automation the agents run (the loss block, cost reaction,
+daily publishing, MK/AL coverage), not from the model's own floor choices, which the backtest scores at
+{eur(v('E2', 'central'))} a month (E2). Framing B adds the rollout of the calculator's test phase: {eur(e20['low'])} a month
+measured with a same-weeks control (one run on one layer), {eur(e20['mid'])} before/after and {eur(e20['high'])}
+season-adjusted, neither controlled (E20); it is the non-AI calculator's effect, which the registration did not claim as
+past benefit, and B counts only the next 12 months of the automated system. The year ramps up: built in month 1, a
+{pilot:g}-month pilot at {share:.0%} of the benefit, then full scope ({months:g} full-benefit months). Costs:
+{eur(one_time)} one-time (hackathon hours at €50, {build_hours:g} hours to production including code review, the build
+sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) and {eur(running)} running (AI
+{eur(ai_month)} a month from the measured cost per call, E19; maintenance and review hours), {eur(total_cost)} in all.
+Which framing counts is the organisers' call.
 
 {money}
 
-**Biggest unproven assumption.** How demand answers a price change: the backtest scores changed prices at elasticity
-−2 / −1 / −0.5 (low / mid / high), and framing B assumes the test phase's rate holds once automated and extended, while its mid and high
-cases are before/after, not controlled. The pilot's holdout categories turn both into measurements.
+**Biggest unproven assumptions.** That the past year's pattern repeats (levers 1 and 3 rest on 12 months, levers 2, 5 and
+6 on two), and how demand answers a price change: the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low /
+mid / high). Framing B also assumes the test phase's rate holds once automated and extended to every layer. The pilot's
+holdout categories turn these into measurements.
 
 **The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,

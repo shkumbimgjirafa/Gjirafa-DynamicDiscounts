@@ -454,9 +454,10 @@ switch (command)
             sp.GetRequiredService<AgentDbContext>());
         var dropPct = sp.GetRequiredService<IOptions<AgentOptions>>().Value.Outcomes.DropPct;
         var sw = Stopwatch.StartNew();
-        var record = await builderSnap.RunAsync(new DateOnly(2026, 8, 1), new DateOnly(2026, 10, 16), new[] { 1, 4 },
+        // From Oct 2025: levers 1 and 3 are averaged over the 12 complete months; the others have data only from Aug 2026.
+        var record = await builderSnap.RunAsync(new DateOnly(2025, 10, 1), new DateOnly(2026, 10, 16), new[] { 1, 4 },
             new PricingTool.Agent.Backtest.LeverBacktester.LearningExperiment(12, new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 3), new DateOnly(2026, 10, 1), 1m - dropPct / 100m),
-            new[] { ("low", 4_000m, "same-weeks control, one run on one layer (a floor)"), ("mid", 10_600m, "measured before/after"), ("high", 13_000m, "before/after, season-adjusted with 2025") },
+            new[] { ("low", 4_000m, "same-weeks control, one run on one layer (a floor)"), ("mid", 10_632m, "measured before/after"), ("high", 13_000m, "before/after, season-adjusted with 2025") },
             Opt("--by") ?? "cli");
         Console.WriteLine($"Backtest snapshot #{record.Id} stored in {sw.Elapsed.TotalSeconds:0} s ({record.Json.Length / 1024} kB).");
         return 0;

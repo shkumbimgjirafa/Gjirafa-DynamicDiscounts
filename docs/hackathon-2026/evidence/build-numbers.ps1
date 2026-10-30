@@ -33,10 +33,15 @@ $snapRef = "ai.BacktestSnapshot #$($snapRow.Id) ($(([datetime]$snapRow.CreatedUt
 $leverScript = 'PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV'
 $names = @{ 1 = 'Loss-sale block'; 2 = 'Per-category floors'; 3 = 'Cost reaction'; 5 = 'Cadence'; 6 = 'Learning (as built)' }
 $test = @('2026-08', '2026-09')
+# Levers 1 and 3 need only sales lines and costs: averaged over the 12 complete months Oct 2025 - Sep 2026. Levers 2, 5 and 6
+# need the calculator era's hand-set floors and approvals: Aug-Sep 2026.
+$year = 0..11 | ForEach-Object { (Get-Date -Year 2025 -Month 10 -Day 1).AddMonths($_).ToString('yyyy-MM') }
+function MonthsFor($lever) { if ($lever -in 1, 3) { return $year } else { return $test } }
 function LeverMonthly($layerResult, $lever, $e) {
-    $g = @($layerResult.gains | Where-Object { $_.lever -eq $lever -and [decimal]$_.elasticity -eq $e -and $test -contains $_.month })
+    $months = MonthsFor $lever
+    $g = @($layerResult.gains | Where-Object { $_.lever -eq $lever -and [decimal]$_.elasticity -eq $e -and $months -contains $_.month })
     if ($g.Count -eq 0) { return 0 }
-    return Round0 (($g | Measure-Object -Property gain -Sum).Sum / $test.Count)
+    return Round0 (($g | Measure-Object -Property gain -Sum).Sum / $months.Count)
 }
 $ids = @{ 1 = 'E1'; 2 = 'E2'; 3 = 'E3'; 5 = 'E5'; 6 = 'E6' }
 $totals = @{ high = 0; central = 0; low = 0 }
@@ -48,25 +53,30 @@ foreach ($lever in 1, 2, 3, 5, 6) {
     }
     $totals.high += $high; $totals.central += $central; $totals.low += $low
     Add $ids[$lever] "Lever $lever, $($names[$lever]): extra GP a month, both KS layers" ([ordered]@{ central = $central; low = $low; high = $high }) 'EUR/month' 'estimated' `
-        "Walk-forward on booked sales lines, Aug-Sep 2026 monthly average; central e -1.0, low e -2.0, high e -0.5; central (low / high) $($parts -join '; ')" $snapRef $leverScript
+        "Walk-forward on booked sales lines, monthly average over $(if ($lever -in 1, 3) { 'the 12 months Oct 2025 - Sep 2026' } else { 'Aug-Sep 2026 (needs the hand-set floors and approvals of that period)' }); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) $($parts -join '; ')" $snapRef $leverScript
 }
 
-# Lever 7: the median gain per campaign day (reallocate, curve as fitted) x the campaign days of the last 12 months.
-$l7 = 0; $l7parts = @()
-foreach ($c in $snap.campaigns) {
-    $perDay = @($c.depthGains | Where-Object { $_.strategy -eq 'reallocate' -and [decimal]$_.bScale -eq 1 -and $_.representative -and -not $_.provisional -and $_.skusScored -gt 0 } |
-        ForEach-Object { [decimal]$_.gainPerDay } | Sort-Object)
-    if ($perDay.Count -eq 0) { continue }
-    $median = if ($perDay.Count % 2 -eq 1) { $perDay[[int][math]::Floor($perDay.Count / 2)] } else { ($perDay[$perDay.Count / 2 - 1] + $perDay[$perDay.Count / 2]) / 2 }
-    $yearAgo = (Get-Date).AddDays(-365)
-    $days = (@($c.replays | Where-Object { [datetime]$_.start -ge $yearAgo }) | Measure-Object -Property days -Sum).Sum +
-            (@($c.depthGains | Where-Object { $_.provisional -and $_.strategy -eq 'reallocate' -and [decimal]$_.bScale -eq 1 }) | Measure-Object -Property days -Sum).Sum
-    $monthly = Round0 ($median * $days / 12)
-    $l7 += $monthly; $l7parts += "layer $($c.layerId): median $median EUR/day x $days days / 12 = $monthly"
+# Lever 7: the median gain per campaign day (reallocate) x the campaign days of the last 12 months; the uplift curve as fitted
+# (central), at half its slope (low) and at twice it (high), the sensitivity the replay stores.
+function Lever7($scale) {
+    $total = 0; $parts = @()
+    foreach ($c in $snap.campaigns) {
+        $perDay = @($c.depthGains | Where-Object { $_.strategy -eq 'reallocate' -and [decimal]$_.bScale -eq $scale -and $_.representative -and -not $_.provisional -and $_.skusScored -gt 0 } |
+            ForEach-Object { [decimal]$_.gainPerDay } | Sort-Object)
+        if ($perDay.Count -eq 0) { continue }
+        $median = if ($perDay.Count % 2 -eq 1) { $perDay[[int][math]::Floor($perDay.Count / 2)] } else { ($perDay[$perDay.Count / 2 - 1] + $perDay[$perDay.Count / 2]) / 2 }
+        $yearAgo = (Get-Date).AddDays(-365)
+        $days = (@($c.replays | Where-Object { [datetime]$_.start -ge $yearAgo }) | Measure-Object -Property days -Sum).Sum +
+                (@($c.depthGains | Where-Object { $_.provisional -and $_.strategy -eq 'reallocate' -and [decimal]$_.bScale -eq $scale }) | Measure-Object -Property days -Sum).Sum
+        $monthly = Round0 ($median * $days / 12)
+        $total += $monthly; $parts += "layer $($c.layerId): median $([math]::Round($median, 0)) EUR/day x $days days / 12 = $monthly"
+    }
+    return @{ total = $total; parts = $parts }
 }
-$totals.high += $l7; $totals.central += $l7; $totals.low += $l7
-Add 'E7' 'Lever 7, campaign planning: extra GP a month from per-SKU depth, both KS layers' ([ordered]@{ central = $l7; low = $l7; high = $l7 }) 'EUR/month' 'estimated' `
-    "Each finished campaign replayed with the planner's depth per SKU, as deep on average; uplift curve leave-one-out; $($l7parts -join '; ')" $snapRef $leverScript
+$l7 = [ordered]@{ central = Lever7 1; low = Lever7 0.5; high = Lever7 2 }
+$totals.high += $l7.high.total; $totals.central += $l7.central.total; $totals.low += $l7.low.total
+Add 'E7' 'Lever 7, campaign planning: extra GP a month from per-SKU depth, both KS layers' ([ordered]@{ central = $l7.central.total; low = $l7.low.total; high = $l7.high.total }) 'EUR/month' 'estimated' `
+    "Each finished campaign replayed with the planner's depth per SKU, as deep on average; uplift curve leave-one-out, as fitted (central), at half its slope (low) and at twice it (high); central: $($l7.central.parts -join '; ')" $snapRef $leverScript
 
 # Lever 4: the Kosovo effect on the MK/AL months without a push.
 $l4 = [ordered]@{}
@@ -152,12 +162,12 @@ Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that 
     'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
 Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured' `
     'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
-$testsLine = 'dotnet test PricingTool.sln: 909 passed, 1 skipped (the opt-in real headless call), 31 Oct 00:02'
-Add 'E17' 'Automated tests' ([ordered]@{ passed = 909; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
+$testsLine = 'dotnet test PricingTool.sln: 910 passed, 1 skipped (the opt-in real headless call), 31 Oct 00:47'
+Add 'E17' 'Automated tests' ([ordered]@{ passed = 910; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results, measured before the hackathon (quoted, not recomputed here) -------------------------
 Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10632; high = 13000 }) 'EUR/month' `
-    ([ordered]@{ low = 'measured (same-weeks control)'; mid = 'measured before/after, not controlled'; high = 'measured before/after, season-adjusted with 2025, not controlled' }) `
+    ([ordered]@{ low = 'measured (same-weeks control)'; mid = 'measured before/after, not controlled'; high = 'estimated: before/after season-adjusted with 2025, not controlled' }) `
     'Low: changed vs unchanged products in the same weeks (a test phase with a control: one run on one layer, so a floor); mid: before/after on the approvals (Aug 11,184, Sep 10,079; their average); high: the same, season-adjusted with 2025. The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)' `
     'Main repo analysis before the hackathon (kickoff-plan.md sections 8 and 10)' 'not in this repo'
 Add 'E21' 'Below-floor GP forgone, Kosovo (the June/July analysis)' ([ordered]@{ jun = 24400; jul = 15100 }) 'EUR/month' 'measured' 'Lines priced under the hand-set floor, lifted to it, booked COGS' 'Main repo analysis before the hackathon (kickoff-plan.md section 5, lever 2)' 'not in this repo'

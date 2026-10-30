@@ -5,7 +5,10 @@ keeps each API response once (by message id), sums input, output, cache-write an
 them at the API list price of that model (from the claude-api skill, cached 2026-10-06): API-equivalent cost. The actual
 spend is the flat Claude subscription. Writes docs/hackathon-2026/evidence/ai-usage.json (aggregates only).
 
-    python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcript.jsonl>[@<from-utc>] ...
+    python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcript.jsonl>[@<from-utc>] ... [extra:<label>=<usd>@<utc>] ...
+
+An extra is a build-time call that left no transcript (e.g. the AI-judge dry run, run with --no-session-persistence):
+its total_cost_usd from the call's JSON, counted in the block it ran in.
 
 Timestamps in the transcripts are UTC; hours.md blocks are CET (UTC+1 on 30-31 Oct 2026).
 """
@@ -76,8 +79,13 @@ def blocks():
 
 
 def main(args):
-    resp, sources = [], []
+    resp, sources, extras = [], [], []
     for a in args:
+        if a.startswith("extra:"):
+            name, _, rest = a[len("extra:"):].partition("=")
+            usd, _, at = rest.partition("@")
+            extras.append({"label": name, "usd": float(usd), "atUtc": datetime.fromisoformat(at).replace(tzinfo=timezone.utc)})
+            continue
         path, _, since_txt = a.partition("@")
         since = datetime.fromisoformat(since_txt).replace(tzinfo=timezone.utc) if since_txt else None
         r = responses(path, since)
@@ -97,10 +105,18 @@ def main(args):
             usd += cost(m, u)
         return {"responses": len(rs), "tokens": tok, "usdApiEquivalent": round(usd, 2)}
 
+    def with_extras(t, inside):
+        xs = [x for x in extras if inside(x["atUtc"])]
+        if xs:
+            t["usdApiEquivalent"] = round(t["usdApiEquivalent"] + sum(x["usd"] for x in xs), 2)
+            t["extras"] = [{"label": x["label"], "usd": x["usd"]} for x in xs]
+        return t
+
     rows = []
     for b in blocks():
         inside = [x for x in priced if b["startUtc"] <= x[0] < b["endUtc"]]
-        rows.append({"day": b["day"], "from": b["from"], "to": b["to"], "unattended": b["unattended"], **total(inside)})
+        rows.append({"day": b["day"], "from": b["from"], "to": b["to"], "unattended": b["unattended"],
+                     **with_extras(total(inside), lambda t, b=b: b["startUtc"] <= t < b["endUtc"])})
     first = min(b["startUtc"] for b in blocks())
     result = {
         "generated": datetime.now(CET).strftime("%Y-%m-%d %H:%M"),
@@ -109,8 +125,9 @@ def main(args):
             f"{k} {v[0]}/{v[1]}, cache read {v[2]}" for k, v in PRICES.items()) + "; cache writes 1.25x input (5 min), 2x (1 h)",
         "sources": sources,
         "unpricedModels": unpriced,
-        "sinceKickoff": total([x for x in priced if x[0] >= first]),
-        "unattendedBlocks": total([x for x in priced if any(b["unattended"] and b["startUtc"] <= x[0] < b["endUtc"] for b in blocks())]),
+        "sinceKickoff": with_extras(total([x for x in priced if x[0] >= first]), lambda t: t >= first),
+        "unattendedBlocks": with_extras(total([x for x in priced if any(b["unattended"] and b["startUtc"] <= x[0] < b["endUtc"] for b in blocks())]),
+                                        lambda t: any(b["unattended"] and b["startUtc"] <= t < b["endUtc"] for b in blocks())),
         "blocks": rows,
     }
     (HERE / "ai-usage.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

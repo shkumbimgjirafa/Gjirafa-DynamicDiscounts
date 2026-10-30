@@ -80,8 +80,20 @@ def header(ws, row, labels, start_col=1):
         c.alignment = Alignment(wrap_text=True, vertical="center")
 
 
+# Rows of the Inputs sheet, by name: every formula elsewhere refers to them through this map.
+R = dict(rate=5, hours=6, person=7, build=8, training=9, setup=10, ai=11, servers=12, maint=13, review=14,
+         first=15, pilot=16, share=17, months=18, buildAi=19, fx=20,
+         levHead=22, base=23, catch=24, lev1=25, lev7=31, levSum=32, levCheck=33,
+         b0Head=35, b0Low=36, b0Mid=37, b0High=38, b0UsedHead=40, b0Used=41,
+         judgeHead=43, evA=44, evB=45, works=46,
+         aiHead=48, aiFirst=49, aiLast=53, aiSum=54)
+I = {k: f"Inputs!$B${r}" for k, r in R.items()}
+
 built = datetime.now().strftime("%Y-%m-%d %H:%M")
 snapshot = FIG["E1"]["source"]
+cols = ["B", "C", "D", "E", "F", "G"]
+scen = ["A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High"]
+lever_col = {"B": "B", "C": "C", "D": "D", "E": "B", "F": "C", "G": "D"}  # scenario -> Inputs column
 
 # ---------------------------------------------------------------- Summary
 ws = wb.active
@@ -93,20 +105,17 @@ put(ws, "A2", f"Built {built} by docs/hackathon-2026/financial/build_financial_s
 ws.merge_cells("A2:G2")
 ws.row_dimensions[2].height = 40
 put(ws, "A3", "Framing A = only what the hackathon build adds (levers 1–7, backtested). Framing B = the rollout of the "
-              "calculator's test phase (B0) plus the same levers. Framing B claims no past euro: the registration said the "
-              "calculator's measured Aug–Sep result is not claimed; B claims only the next 12 months of the automated "
-              "system and uses that result as evidence for the rate. Which framing counts is the organisers' call.",
+              "calculator's test phase (B0) plus the same levers. The registration said the calculator's measured Aug–Sep "
+              "result is not claimed; B claims no past euro, only the next 12 months of the automated system, using that "
+              "result as the rate, and B0 is the non-AI calculator's effect. Which framing counts is the organisers' call.",
     NOTE, wrap=True)
 ws.merge_cells("A3:G3")
 ws.row_dimensions[3].height = 52
 
-cols = ["B", "C", "D", "E", "F", "G"]
-scen = ["A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High"]
-lever_col = {"B": "B", "C": "C", "D": "D", "E": "B", "F": "C", "G": "D"}  # scenario -> Inputs column
-ev_row = {"B": 39, "C": 39, "D": 39, "E": 40, "F": 40, "G": 40}  # scenario -> Inputs evidence row (A / B)
 header(ws, 5, ["Row (weight)"] + scen)
+ev_row = {"B": R["evA"], "C": R["evA"], "D": R["evA"], "E": R["evB"], "F": R["evB"], "G": R["evB"]}
 rows = [
-    ("Monthly benefit (€/month)", "='Financial case'!{c}4", EUR, GREEN),
+    ("Monthly benefit at full scope (€/month)", "='Financial case'!{c}4", EUR, GREEN),
     ("Net benefit, year 1 (€)", "='Financial case'!{c}10", EUR, GREEN),
     ("  Net benefit rating (0–5)", "=IF({c}7>100000,5,IF({c}7>40000,4,IF({c}7>15000,3,IF({c}7>5000,2,IF({c}7>0,1,0)))))", "0", BLACK),
     ("  Net benefit points (40)", "={c}8/5*40", NUM0, BLACK),
@@ -116,9 +125,9 @@ rows = [
     ("Payback (months)", "='Financial case'!{c}13", NUM1, GREEN),
     ("  Payback rating (0–5)", "=IF(ISNUMBER({c}13),IF({c}13<=1,5,IF({c}13<=3,4,IF({c}13<=6,3,IF({c}13<=9,2,IF({c}13<=12,1,0))))),0)", "0", BLACK),
     ("  Payback points (10)", "={c}14/5*10", NUM0, BLACK),
-    ("Evidence rating (0–5)", "=Inputs!{l}{e}", "0", GREEN),
+    ("Evidence rating (0–5, judgment)", "=Inputs!$B${e}", "0", GREEN),
     ("  Evidence points (20)", "={c}16/5*20", NUM0, BLACK),
-    ("Works rating (0–5)", "=Inputs!{l}41", "0", GREEN),
+    ("Works rating (0–5, judgment)", f"=Inputs!$B${R['works']}", "0", GREEN),
     ("  Works points (20)", "={c}18/5*20", NUM0, BLACK),
     ("Total (/100)", "={c}9+{c}12+{c}15+{c}17+{c}19", NUM0, BLACK),
     ("Prize eligible (Works ≥ 3)", '=IF({c}18>=3,"Yes","No")', None, BLACK),
@@ -127,28 +136,27 @@ for i, (lab, f, fmt, font) in enumerate(rows):
     r = 6 + i
     put(ws, f"A{r}", lab, BOLD if not lab.startswith("  ") else BLACK)
     for c in cols:
-        cell = put(ws, f"{c}{r}", f.format(c=c, l=lever_col[c], e=ev_row[c]), font, fmt)
+        cell = put(ws, f"{c}{r}", f.format(c=c, e=ev_row[c]), font, fmt)
         cell.border = BOX
     if lab.startswith("Total"):
         for c in ["A"] + cols:
             ws[f"{c}{r}"].fill = TOTAL
             ws[f"{c}{r}"].font = Font(name=ARIAL, size=10, bold=True)
 put(ws, "A23", "Reference: the worked example in the hackathon rules scores 76 / 100.", NOTE)
-put(ws, "A24", "Evidence and Works are judgment ratings (Inputs rows 39–41), not formulas; their reasons are next to them. "
-               "Framing A's levers are backtested on real past sales lines with every input sourced; framing B's rate was "
-               "measured on the real shop before the hackathon, in the main repo, and is not recomputed by this build.",
-    NOTE, wrap=True)
+put(ws, "A24", "Evidence and Works are our own judgment ratings (Inputs rows 44–46), with the reason next to each; a juror "
+               "may rate them lower. Low / Mid / High differ only in the money: elasticity, the test-phase case and the "
+               "campaign curve.", NOTE, wrap=True)
 ws.merge_cells("A24:G24")
 ws.row_dimensions[24].height = 30
 
-put(ws, "A25", "Monthly benefit needed for each net-benefit rating, with these costs", BOLD)
+put(ws, "A25", "Monthly benefit at full scope needed for each net-benefit rating, with these costs", BOLD)
 header(ws, 26, ["Net-benefit rating", "€ per month needed"])
 for i, (lab, thr) in enumerate([("2 (net > €5k)", 5000), ("3 (net > €15k)", 15000),
                                 ("4 (net > €40k)", 40000), ("5 (net > €100k)", 100000)]):
     r = 27 + i
     put(ws, f"A{r}", lab)
     put(ws, f"B{r}", f"=({thr}+'Financial case'!$B$9)/'Financial case'!$B$5", BLACK, EUR).border = BOX
-put(ws, "A31", "Costs are the same in every scenario; benefit starts in the first live month (Inputs B14).", NOTE)
+put(ws, "A31", "Costs are the same in every scenario; benefit ramps up through the pilot (Inputs rows 15–18).", NOTE)
 
 put(ws, "A33", "Rules that apply (hackathon Track A)", BOLD)
 for i, t in enumerate([
@@ -158,7 +166,7 @@ for i, t in enumerate([
     "Every input is labelled measured / estimated / assumed / judgment with its source (see Inputs and Evidence).",
 ]):
     put(ws, f"A{34 + i}", "• " + t, F())
-ws.column_dimensions["A"].width = 38
+ws.column_dimensions["A"].width = 40
 for c in cols:
     ws.column_dimensions[c].width = 13
 
@@ -170,146 +178,161 @@ put(wi, "A2", "Legend: blue = input typed from numbers.json (ID in the last colu
 wi.merge_cells("A2:G2")
 wi.row_dimensions[2].height = 30
 
-attended = v("E16", "attendedHours")
-build_usd = v("E18", "sinceKickoffUsd")
 header(wi, 4, ["Cost input", "Value", "Unit", "Label", "Source / note", "", "ID"])
 cost_rows = [
-    (5, "Hourly rate", 50, "€/h", "rule", "Hackathon rules: every person-hour costs €50", False, ""),
-    (6, "Hackathon hours (attended)", attended, "h", label("E16"),
-     f"hours.md, attended rows only ({v('E16', 'rows')} rows; parallel sessions counted once). The "
-     f"{v('E16', 'unattendedBlocks')} unattended blocks are AI cost (row 16), not person-hours", False, "E16"),
-    (7, "Remaining build to production", 120, "h", "assumed",
-     "The live shop write-back (a write-enabled login, canary on a few categories), start-up as a service, the weekly "
-     "email, MK/AL data loads, Nova hardening, monitoring", True, ""),
-    (8, "Training hours", 4, "h", "assumed", "Hand-over to the pricing and campaign owners", False, ""),
-    (9, "Setup fees", 0, "€", "assumed", "Runs on the existing k8s cluster and databases", False, ""),
-    (10, "AI usage (agents' runtime calls)", "=D49*B17", "€/month", "estimated",
-     "Rows 44–48: measured cost per call (E19) × assumed calls a month, at the API-equivalent price", False, "E19"),
-    (11, "Servers", 0, "€/month", "assumed", "Existing k8s cluster; no new infrastructure", False, ""),
-    (12, "Maintenance", 4, "h/month", "assumed", "Ongoing fixes and data checks", False, ""),
-    (13, "Exception review", 0.5, "h/week", "assumed",
+    ("rate", "Hourly rate", 50, "€/h", "rule", "Hackathon rules: every person-hour costs €50", False, ""),
+    ("hours", "Hackathon hours (attended blocks)", v("E16", "attendedHours"), "h", label("E16"),
+     f"hours.md, the attended rows ({v('E16', 'rows')} rows in all; parallel sessions counted once). The "
+     f"{v('E16', 'unattendedBlocks')} unattended blocks are AI cost (row {R['buildAi']}), not person-hours", False, "E16"),
+    ("person", "The person's time inside unattended blocks", 1, "h", "assumed",
+     "Answering the agents in chat during unattended blocks (the goal, context, reviews); not timed, so assumed", False, ""),
+    ("build", "Remaining build to production", 160, "h", "assumed",
+     "Review of the AI-written code, the live shop write-back (a write-enabled login, canary on a few categories), "
+     "start-up as a service, the weekly email, MK/AL data loads, Nova hardening, monitoring", True, ""),
+    ("training", "Training and sign-off of the limits", 8, "h", "assumed",
+     "Hand-over to the pricing and campaign owners; the commercial owner confirms the campaign and safety limits", False, ""),
+    ("setup", "Setup fees", 0, "€", "assumed", "No licences; Claude through the team's existing subscription", False, ""),
+    ("ai", "AI usage (agents' runtime calls)", f"=D{R['aiSum']}*B{R['fx']}", "€/month", "estimated",
+     f"Rows {R['aiFirst']}–{R['aiLast']}: measured cost per call (E19) × assumed calls a month, at the API-equivalent price",
+     False, "E19"),
+    ("servers", "Servers", 0, "€/month", "assumed",
+     "Production runs on the k8s cluster that already runs the calculator (the main repo), with Claude Code's OAuth token "
+     "as a secret; the laptop is the hackathon's stand-in", False, ""),
+    ("maint", "Maintenance", 8, "h/month", "assumed", "Fixes, data checks, prompt and limit updates for two agents and a shop writer", True, ""),
+    ("review", "Exception review", 0.5, "h/week", "assumed",
      "Autonomous mode: a person reviews only held items, pauses and rollbacks (the plan's 15–30 min a week)", False, ""),
-    (14, "First live month", 2, "month #", "assumed", "Built and tested in month 1, live from month 2; Finance may argue month 3", True, ""),
-    (16, "Build sessions' AI usage, whole build", build_usd, "USD", label("E18"),
+    ("first", "First live month (the pilot starts)", 2, "month #", "assumed", "Built and tested in month 1", True, ""),
+    ("pilot", "Pilot length at reduced scope", 2, "months", "assumed",
+     "The pilot ask: 6–8 weeks on Kosovo, a few categories live first, then the go/no-go", True, ""),
+    ("share", "Pilot scope, share of the full benefit", 0.25, "share", "assumed",
+     "About one Kosovo layer's few categories; the full benefit counts both Kosovo layers and MK/AL", True, ""),
+    ("buildAi", "Build sessions' AI usage, whole build", v("E18", "sinceKickoffUsd"), "USD", label("E18"),
      f"The two Claude Code sessions since kickoff, {v('E18', 'sinceKickoffResponses')} responses; "
      f"${v('E18', 'unattendedBlocksUsd')} of it in the unattended blocks. API-equivalent: the actual spend is the "
      "flat Claude subscription, so this overstates the cash cost", False, "E18"),
-    (17, "USD to EUR", 1.0, "€ per $", "assumed", "1:1, which overstates the dollar costs in euros slightly (conservative)", False, ""),
+    ("fx", "USD to EUR", 1.0, "€ per $", "assumed", "1:1, which overstates the dollar costs in euros slightly (conservative)", False, ""),
 ]
-for r, lab, val, unit, labl, src, key, fid in cost_rows:
+for key, lab, val, unit, labl, src, yellow, fid in cost_rows:
+    r = R[key]
     put(wi, f"A{r}", lab)
     is_formula = isinstance(val, str) and val.startswith("=")
-    fmt = EUR if unit.startswith("€/m") else USD if unit == "USD" else NUM2 if r == 17 else NUM1 if isinstance(val, float) else NUM0
-    put(wi, f"B{r}", val, BLACK if is_formula else BLUE, fmt, YELLOW if key else None).border = BOX
+    fmt = (EUR if unit.startswith("€/m") else USD if unit == "USD" else PCT if unit == "share" else NUM2 if key == "fx"
+           else NUM1 if isinstance(val, float) else NUM0)
+    put(wi, f"B{r}", val, BLACK if is_formula else BLUE, fmt, YELLOW if yellow else None).border = BOX
     put(wi, f"C{r}", unit)
     put(wi, f"D{r}", labl)
     put(wi, f"E{r}", src, NOTE)
     put(wi, f"G{r}", fid, BOLD)
-put(wi, "A15", "Months live in year 1")
-put(wi, "B15", "=13-B14", BLACK, NUM0).border = BOX
-put(wi, "C15", "months")
-put(wi, "D15", "formula")
+put(wi, f"A{R['months']}", "Months of full benefit in year 1")
+put(wi, f"B{R['months']}", f"=(13-B{R['first']}-B{R['pilot']})+B{R['pilot']}*B{R['share']}", BLACK, NUM1).border = BOX
+put(wi, f"C{R['months']}", "months")
+put(wi, f"D{R['months']}", "formula")
+put(wi, f"E{R['months']}", "Full months after the pilot, plus the pilot months at the pilot's share", NOTE)
 
-header(wi, 18, ["Benefit lever (€/month unless stated)", "Low", "Mid", "High", "Label", "Method / source", "ID"])
-put(wi, "A19", "Cross-dock lines sold under booked cost (baseline)")
+header(wi, R["levHead"], ["Benefit lever (€/month at full scope)", "Low", "Mid", "High", "Label", "Method / source", "ID"])
+put(wi, f"A{R['base']}", "Cross-dock lines sold under booked cost (baseline)")
 for col in "BCD":
-    put(wi, f"{col}19", v("E14"), BLUE, EUR).border = BOX
-put(wi, "E19", label("E14"))
-put(wi, "F19", FIG["E14"]["method"], NOTE)
-put(wi, "G19", "E14", BOLD)
-put(wi, "A20", "Share of it the loss-sale block catches")
+    put(wi, f"{col}{R['base']}", v("E14"), BLUE, EUR).border = BOX
+put(wi, f"E{R['base']}", label("E14"))
+put(wi, f"F{R['base']}", FIG["E14"]["method"], NOTE)
+put(wi, f"G{R['base']}", "E14", BOLD)
+put(wi, f"A{R['catch']}", "Share of it the loss-sale block catches")
 for col in "BCD":
-    put(wi, f"{col}20", f"=IF({col}19>0,{col}21/{col}19,0)", BLACK, PCT).border = BOX
-put(wi, "E20", "formula")
-put(wi, "F20", "Lever 1 ÷ baseline: most losses come with a cost that jumped at that sale, which a known-cost rule can't see", NOTE)
+    put(wi, f"{col}{R['catch']}", f"=IF({col}{R['base']}>0,{col}{R['lev1']}/{col}{R['base']},0)", BLACK, PCT).border = BOX
+put(wi, f"E{R['catch']}", "formula")
+put(wi, f"F{R['catch']}", "Lever 1 ÷ baseline: many losses come with a cost that jumped at that sale, which a known-cost rule can't see. "
+                          "Lever 1 assumes a blocked loss sale costs nothing else (no lost basket)", NOTE)
 cases = {"B": "low", "C": "central", "D": "high"}
-lev = [
-    (21, "1. Loss-sale block", "E1"),
-    (22, "2. Per-category floors", "E2"),
-    (23, "3. Cost reaction", "E3"),
-    (24, "4. MK/AL coverage", "E4"),
-    (25, "5. Daily cadence", "E5"),
-    (26, "6. Learning from past changes (as built)", "E6"),
-    (27, "7. Campaign planning (campaign + pricing agents)", "E7"),
-]
-for r, lab, fid in lev:
+lev = [("E1", "1. Loss-sale block"), ("E2", "2. Per-category floors"), ("E3", "3. Cost reaction"), ("E4", "4. MK/AL coverage"),
+       ("E5", "5. Daily cadence"), ("E6", "6. Learning from past changes (as built)"), ("E7", "7. Campaign planning (campaign + pricing agents)")]
+for i, (fid, lab) in enumerate(lev):
+    r = R["lev1"] + i
     put(wi, f"A{r}", lab)
     for col, case in cases.items():
         key = "mid" if fid == "E4" and case == "central" else case
         put(wi, f"{col}{r}", v(fid, key), BLUE, EUR).border = BOX
     put(wi, f"E{r}", label(fid))
-    put(wi, f"F{r}", FIG[fid]["method"], NOTE)
+    note = FIG[fid]["method"]
+    if fid == "E4":
+        note = ("Uses the test phase's rate (E20: low controlled; mid and high before/after, not controlled) on MK/AL months "
+                "without a push. " + note)
+    put(wi, f"F{r}", note, NOTE)
     put(wi, f"G{r}", fid, BOLD)
-put(wi, "A28", "New benefit, framing A (sum of levers 1–7)", BOLD)
+put(wi, f"A{R['levSum']}", "New benefit, framing A (sum of levers 1–7)", BOLD)
 for col in "BCD":
-    c = put(wi, f"{col}28", f"=SUM({col}21:{col}27)", BLACK, EUR)
+    c = put(wi, f"{col}{R['levSum']}", f"=SUM({col}{R['lev1']}:{col}{R['lev7']})", BLACK, EUR)
     c.border = BOX
     c.fill = TOTAL
     c.font = Font(name=ARIAL, size=10, bold=True)
-put(wi, "E28", "formula")
-put(wi, "F28", "Low = elasticity −2, Mid = −1, High = −0.5; each sales line counted by one lever", NOTE)
-put(wi, "A29", "Check: the same total in numbers.json")
+put(wi, f"E{R['levSum']}", "formula")
+put(wi, f"F{R['levSum']}", "Low = elasticity −2, Mid = −1, High = −0.5 (assumed); each sales line counted by one lever; levers 1 "
+                           "and 3 averaged over 12 months, the others over Aug–Sep", NOTE)
+put(wi, f"A{R['levCheck']}", "Check: the same total in numbers.json")
 for col, case in cases.items():
-    put(wi, f"{col}29", v("E8", case), BLUE, EUR).border = BOX
-put(wi, "E29", '=IF(AND(B28=B29,C28=C29,D28=D29),"matches","DIFFERS")', BLACK)
-put(wi, "G29", "E8", BOLD)
+    put(wi, f"{col}{R['levCheck']}", v("E8", case), BLUE, EUR).border = BOX
+put(wi, f"E{R['levCheck']}", f'=IF(AND(B{R["levSum"]}=B{R["levCheck"]},C{R["levSum"]}=C{R["levCheck"]},D{R["levSum"]}=D{R["levCheck"]}),"matches","DIFFERS")', BLACK)
+put(wi, f"G{R['levCheck']}", "E8", BOLD)
 
-header(wi, 30, ["Framing B: the calculator's test phase (B0), three cases", "Value", "Unit", "Label", "Source / note", "", "ID"])
+header(wi, R["b0Head"], ["Framing B: the calculator's test phase (B0), three cases", "Value", "Unit", "Label", "Source / note", "", "ID"])
 b0 = [
-    (31, "Same-weeks control (changed vs unchanged products)", "low",
+    ("b0Low", "Same-weeks control (changed vs unchanged products)", "low",
      "GjirafaMall KS run of 3 Sep only: +€115–141/day ≈ €3.5–4.3k/month. A test phase with a control, not a randomized "
-     "test; one run on one of the two KS layers, so a floor for the whole tool"),
-    (32, "Before/after on the approvals, KS, Aug–Sep average", "mid",
-     "Aug €11,184 · Sep €10,079 (Approvals' 30-day profit windows, SKU-deduped, booked COGS). Not controlled"),
-    (33, "Same, season-adjusted with 2025's same weeks", "high",
+     "test; one run on one of the two KS layers, so a floor for the whole tool. Measured in the main repo, not recomputed here"),
+    ("b0Mid", "Before/after on the approvals, KS, Aug–Sep average", "mid",
+     "Aug €11,184 · Sep €10,079 (Approvals' 30-day profit windows, SKU-deduped, booked COGS). Not controlled; main repo"),
+    ("b0High", "Same, season-adjusted with 2025's same weeks", "high",
      "Aug €11.9k · Sep €13.8k. Not controlled; layer-level GP growth did not beat 2025's seasonality, so this is the top "
-     "of the range"),
+     "of the range; main repo"),
 ]
-for r, lab, case, src in b0:
+for key, lab, case, src in b0:
+    r = R[key]
     put(wi, f"A{r}", lab)
     put(wi, f"B{r}", v("E20", case), BLUE, EUR).border = BOX
     put(wi, f"C{r}", "€/month")
     put(wi, f"D{r}", label("E20", case))
     put(wi, f"E{r}", src, NOTE)
     put(wi, f"G{r}", "E20", BOLD)
-header(wi, 35, ["B0 used per scenario", "Low", "Mid", "High", "Label", "Why"])
-put(wi, "A36", "B0 (€/month)", BOLD)
-for col, src in zip("BCD", ("B31", "B32", "B33")):
-    c = put(wi, f"{col}36", f"={src}", BLACK, EUR)
+header(wi, R["b0UsedHead"], ["B0 used per scenario", "Low", "Mid", "High", "Label", "Why"])
+put(wi, f"A{R['b0Used']}", "B0 (€/month)", BOLD)
+for col, key in zip("BCD", ("b0Low", "b0Mid", "b0High")):
+    c = put(wi, f"{col}{R['b0Used']}", f"=B{R[key]}", BLACK, EUR)
     c.border = BOX
     c.fill = TOTAL
-put(wi, "E36", "formula")
-put(wi, "F36", "Low = the controlled floor · Mid = the before/after result · High = the season-adjusted result", NOTE)
+put(wi, f"E{R['b0Used']}", "formula")
+put(wi, f"F{R['b0Used']}", "Low = the controlled floor · Mid = the before/after result · High = the season-adjusted result", NOTE)
 
-header(wi, 38, ["Judgment ratings", "Low", "Mid", "High", "Label", "Meaning"])
-put(wi, "A39", "Evidence rating, framing A (0–5)")
-put(wi, "A40", "Evidence rating, framing B (0–5)")
-put(wi, "A41", "Works rating (0–5)")
-for col, ev_a, ev_b, wk in zip("BCD", (4, 4, 4), (4, 4, 4), (3, 4, 5)):
-    put(wi, f"{col}39", ev_a, BLUE, "0", YELLOW).border = BOX
-    put(wi, f"{col}40", ev_b, BLUE, "0", YELLOW).border = BOX
-    put(wi, f"{col}41", wk, BLUE, "0", YELLOW).border = BOX
-for r in (39, 40, 41):
+header(wi, R["judgeHead"], ["Judgment ratings (one per row; they don't depend on the money case)", "Rating", "", "", "Label", "Why"])
+judgments = [
+    ("evA", "Evidence rating, framing A (0–5)", 3,
+     "3 = a real baseline from company data, tested on past data: every lever is a walk-forward backtest on booked sales "
+     "lines with booked COGS, rerunnable from the Backtest page and numbers.json. Not more: the elasticities are assumed, "
+     "lever 4 borrows the test phase's rate, and nothing has been measured live yet"),
+    ("evB", "Evidence rating, framing B (0–5)", 3,
+     "B0 was measured on the real shop with real sales (the low case with a same-weeks control), but before the hackathon, "
+     "in the main repo; this build doesn't recompute it, and the mid and high cases are before/after, not controlled"),
+    ("works", "Works rating (0–5)", 4,
+     "The daily cycle ran end to end on real data (engine runs, run checks, checked exports, sandbox publishes) and the "
+     "failure cases in failure-cases.md pass; not 5: the Për ty reproduction test fails by one point, the money ledger "
+     "has measured nothing yet, the weekly email isn't built"),
+]
+for key, lab, val, why in judgments:
+    r = R[key]
+    put(wi, f"A{r}", lab)
+    put(wi, f"B{r}", val, BLUE, "0", YELLOW).border = BOX
     put(wi, f"E{r}", "judgment")
-put(wi, "F39", "Above 3 (real baseline, tested on past data): every lever is a walk-forward backtest on booked sales lines with "
-               "booked COGS, every input has an ID and a script, and the Backtest page reruns it (about a minute). Not 5: "
-               "the levers are simulated, not measured live", NOTE)
-put(wi, "F40", "The rate was measured on the real shop (real prices and sales, booked COGS), the low case with a same-weeks "
-               "control. Not 5: it was measured before the hackathon in the main repo and this build doesn't recompute it; "
-               "the mid and high cases are before/after, not controlled", NOTE)
-put(wi, "F41", "3 = works end to end with visible errors · 5 = normal, unusual and failure cases all work (below 3 = no "
-               "prize); failure-cases.md lists the cases tested", NOTE)
+    put(wi, f"F{r}", why, NOTE)
 
-header(wi, 43, ["AI running cost (agents' calls)", "USD per call", "Calls a month", "USD a month", "Label", "Volume assumption", "ID"])
+header(wi, R["aiHead"], ["AI running cost (agents' calls)", "USD per call", "Calls a month", "USD a month", "Label", "Volume assumption", "ID"])
 e19 = v("E19")
 ai_rows = [
-    (44, "Run check (Sonnet 5.5)", "runCheck", 183, "one per engine run: 6 layers × 30.5 days"),
-    (45, "Alpha, weekly floors and targets (Opus 5.5)", "alphaWeeklyPass", 26, "one per layer a week: 6 × 4.33"),
-    (46, "Nova, weekly campaign briefs (Opus 5.5)", "novaWeeklyPass", 26, "one per layer a week: 6 × 4.33"),
-    (47, "Campaign planning round (Alpha + Nova)", "planningCall", 12, "about 3 campaigns a month × 2 rounds × 2 calls"),
-    (48, "Chat (Nova or Alpha)", "chat", 43, "about 10 questions a week"),
+    ("Run check (Sonnet 5.5)", "runCheck", 183, "one per engine run: 6 layers × 30.5 days"),
+    ("Alpha, weekly floors and targets (Opus 5.5)", "alphaWeeklyPass", 26, "one per layer a week: 6 × 4.33"),
+    ("Nova, weekly campaign briefs (Opus 5.5)", "novaWeeklyPass", 26, "one per layer a week: 6 × 4.33"),
+    ("Campaign planning round (Alpha + Nova)", "planningCall", 12, "about 3 campaigns a month × 2 rounds × 2 calls"),
+    ("Chat (Nova or Alpha)", "chat", 43, "about 10 questions a week"),
 ]
-for r, lab, kind, calls, why in ai_rows:
+for i, (lab, kind, calls, why) in enumerate(ai_rows):
+    r = R["aiFirst"] + i
     put(wi, f"A{r}", lab)
     put(wi, f"B{r}", e19[kind]["avgUsd"], BLUE, USD4).border = BOX
     put(wi, f"C{r}", calls, BLUE, NUM0, YELLOW).border = BOX
@@ -317,12 +340,13 @@ for r, lab, kind, calls, why in ai_rows:
     put(wi, f"E{r}", "measured × assumed")
     put(wi, f"F{r}", f"{why}; cost per call averaged over {e19[kind]['calls']} logged calls", NOTE)
     put(wi, f"G{r}", "E19", BOLD)
-put(wi, "A49", "AI usage a month (USD)", BOLD)
-c = put(wi, "D49", "=SUM(D44:D48)", BLACK, USD)
+put(wi, f"A{R['aiSum']}", "AI usage a month (USD)", BOLD)
+c = put(wi, f"D{R['aiSum']}", f"=SUM(D{R['aiFirst']}:D{R['aiLast']})", BLACK, USD)
 c.border = BOX
 c.fill = TOTAL
-put(wi, "E49", "formula")
-put(wi, "F49", "API-equivalent; through the team's Claude subscription the cash cost is the subscription itself", NOTE)
+put(wi, f"E{R['aiSum']}", "formula")
+put(wi, f"F{R['aiSum']}", "API-equivalent; through the team's Claude subscription the cash cost is the subscription itself. The "
+                          "volume is what the system needs; calls are never made to raise a count", NOTE)
 
 wi.column_dimensions["A"].width = 46
 for c in "BCD":
@@ -335,22 +359,22 @@ wi.column_dimensions["G"].width = 6
 wf = wb.create_sheet("Financial case")
 put(wf, "A1", "Financial case: the Track A money formula", TITLE)
 header(wf, 3, ["Line", "A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High", "How it's calculated"])
-benefit = {"B": "=Inputs!B28", "C": "=Inputs!C28", "D": "=Inputs!D28",
-           "E": "=Inputs!B28+Inputs!B36", "F": "=Inputs!C28+Inputs!C36", "G": "=Inputs!D28+Inputs!D36"}
+s, b = R["levSum"], R["b0Used"]
+benefit = {"B": f"=Inputs!B{s}", "C": f"=Inputs!C{s}", "D": f"=Inputs!D{s}",
+           "E": f"=Inputs!B{s}+Inputs!B{b}", "F": f"=Inputs!C{s}+Inputs!C{b}", "G": f"=Inputs!D{s}+Inputs!D{b}"}
 lines = [
-    (4, "Monthly benefit (€/month)", None, EUR, GREEN, "Framing A: levers 1–7 · Framing B: + B0 (the test phase's rate)"),
-    (5, "Months live in year 1", "=Inputs!$B$15", NUM0, GREEN, "Counting only the months it actually runs"),
+    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "Framing A: levers 1–7 · Framing B: + B0 (the test phase's rate)"),
+    (5, "Months of full benefit in year 1", f"={I['months']}", NUM1, GREEN, "After the build month: the pilot at its share, then full scope"),
     (6, "First-year benefit", "={c}4*{c}5", EUR, BLACK, "Extra margin in the first 12 months"),
-    (7, "One-time cost", "=(Inputs!$B$6+Inputs!$B$7+Inputs!$B$8)*Inputs!$B$5+Inputs!$B$9+Inputs!$B$16*Inputs!$B$17", EUR, GREEN,
-     "(Hackathon + remaining build + training hours) × €50 + setup fees + the build sessions' AI usage"),
-    (8, "Running cost (12 months)", "=12*(Inputs!$B$10+Inputs!$B$11+Inputs!$B$12*Inputs!$B$5)+52*Inputs!$B$13*Inputs!$B$5", EUR, GREEN,
+    (7, "One-time cost", f"=({I['hours']}+{I['person']}+{I['build']}+{I['training']})*{I['rate']}+{I['setup']}+{I['buildAi']}*{I['fx']}", EUR, GREEN,
+     "(Hackathon + the person's time in unattended blocks + remaining build + training hours) × €50 + setup + the build sessions' AI usage"),
+    (8, "Running cost (12 months)", f"=12*({I['ai']}+{I['servers']}+{I['maint']}*{I['rate']})+52*{I['review']}*{I['rate']}", EUR, GREEN,
      "12 × (AI + servers + maintenance hours × €50) + 52 × review hours × €50"),
     (9, "Total cost", "={c}7+{c}8", EUR, BLACK, "One-time + running"),
     (10, "Net benefit", "={c}6-{c}9", EUR, BLACK, "First-year benefit − total cost"),
     (11, "ROI", "=IF({c}9>0,{c}10/{c}9,0)", PCT, BLACK, "Net benefit ÷ total cost"),
     (12, "Running cost per month", "={c}8/12", EUR, BLACK, "Used for payback"),
-    (13, "Payback (months)", '=IF({c}4<={c}12,"never",({c}7+{c}4*(Inputs!$B$14-1))/({c}4-{c}12))', NUM1, BLACK,
-     "Month when cumulative gain covers cumulative spend (benefit from the first live month)"),
+    (13, "Payback (months)", "=Payback!{c}20", NUM1, BLACK, "When cumulative gain covers cumulative spend, from the monthly grid (Payback sheet)"),
 ]
 for r, lab, f, fmt, font, how in lines:
     put(wf, f"A{r}", lab, BOLD if r in (6, 9, 10) else BLACK)
@@ -360,7 +384,7 @@ for r, lab, f, fmt, font, how in lines:
     put(wf, f"H{r}", how, NOTE)
 for c in ["A"] + cols:
     wf[f"{c}10"].fill = TOTAL
-wf.column_dimensions["A"].width = 28
+wf.column_dimensions["A"].width = 32
 for c in cols:
     wf.column_dimensions[c].width = 12
 wf.column_dimensions["H"].width = 70
@@ -368,20 +392,25 @@ wf.column_dimensions["H"].width = 70
 # ---------------------------------------------------------------- Payback
 wp = wb.create_sheet("Payback")
 put(wp, "A1", "Payback: cumulative net position by month", TITLE)
-put(wp, "A2", "Cumulative gain − cumulative spend. One-time cost lands in month 1; benefit starts in the first live month.", NOTE)
-header(wp, 4, ["Month"] + scen)
+put(wp, "A2", "Cumulative gain − cumulative spend. One-time cost lands in month 1; benefit starts in the first live month at "
+              "the pilot's share, then full scope.", NOTE)
+header(wp, 4, ["Month"] + scen + ["Benefit months so far"])
 for m in range(1, 13):
     r = 4 + m
     put(wp, f"A{r}", m, BLACK, NUM0)
+    factor = f"IF({m}<{I['first']},0,IF({m}<{I['first']}+{I['pilot']},{I['share']},1))"
+    put(wp, f"H{r}", f"={factor}" if m == 1 else f"=H{r - 1}+{factor}", BLACK, NUM2).border = BOX
     for c in cols:
-        f = (f"='Financial case'!{c}$4*MAX(0,$A{r}-(Inputs!$B$14-1))"
-             f"-('Financial case'!{c}$7+'Financial case'!{c}$12*$A{r})")
-        put(wp, f"{c}{r}", f, BLACK, EUR).border = BOX
-put(wp, "A18", "Payback month", BOLD)
+        put(wp, f"{c}{r}", f"='Financial case'!{c}$4*$H{r}-('Financial case'!{c}$7+'Financial case'!{c}$12*$A{r})", BLACK, EUR).border = BOX
+put(wp, "A18", "First month at or above zero", BOLD)
+put(wp, "A19", "Position the month before", BOLD)
+put(wp, "A20", "Payback (months, interpolated)", BOLD)
 for c in cols:
-    put(wp, f"{c}18", f'=IF(COUNTIF({c}5:{c}16,"<0")>=12,"after 12",COUNTIF({c}5:{c}16,"<0")+1)', BLACK, NUM0).border = BOX
-wp.column_dimensions["A"].width = 16
-for c in cols:
+    put(wp, f"{c}18", f'=IFERROR(MATCH(TRUE,INDEX({c}5:{c}16>=0,0),0),"after 12")', BLACK, NUM0).border = BOX
+    put(wp, f"{c}19", f"=IF(ISNUMBER({c}18),IF({c}18=1,-'Financial case'!{c}$7,INDEX({c}5:{c}16,{c}18-1)),\"\")", BLACK, EUR).border = BOX
+    put(wp, f"{c}20", f'=IF(ISNUMBER({c}18),{c}18-1+(-{c}19)/(INDEX({c}5:{c}16,{c}18)-{c}19),"after 12")', BLACK, NUM1).border = BOX
+wp.column_dimensions["A"].width = 30
+for c in cols + ["H"]:
     wp.column_dimensions[c].width = 13
 
 # ---------------------------------------------------------------- Score bands
@@ -407,9 +436,9 @@ weights = [
     ("Evidence", 20, "0 = unsupported · 3 = real baseline from company data, tested on past data · 5 = measured live in the demo on real data, every input sourced"),
     ("Works", 20, "0 = slides only · 3 = core task works end to end on real data, with visible errors · 5 = normal, unusual and failure cases all work"),
 ]
-for i, (a, b, c) in enumerate(weights):
+for i, (a, b_, c) in enumerate(weights):
     put(wb_, f"A{12 + i}", a).border = BOX
-    put(wb_, f"B{12 + i}", b).border = BOX
+    put(wb_, f"B{12 + i}", b_).border = BOX
     put(wb_, f"C{12 + i}", c, F(), None, None, wrap=True).border = BOX
 put(wb_, "A18", "Points = rating ÷ 5 × weight. A Works rating below 3 means no prize. Tie: higher net benefit wins, then higher evidence.", NOTE)
 wb_.column_dimensions["A"].width = 22
