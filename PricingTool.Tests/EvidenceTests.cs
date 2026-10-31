@@ -65,15 +65,22 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
             .Select(label => decimal.Parse(inputs["B" + inputs.Single(c => c.Key.StartsWith('A') && c.Value.StartsWith(label, StringComparison.Ordinal)).Key[1..]],
                 System.Globalization.CultureInfo.InvariantCulture)).ToArray();
         Assert.Equal(b0, b0Rows);                                                                   // the sheet types E20 in
+        Assert.Contains("not part of the claim", e20.Label.GetProperty("high").GetString());          // E20 high is kept, labelled
         var caseSheet = SheetValues(sheet, "Financial case");
-        var bTotals = new[] { "E4", "F4", "G4" }.Select(c => decimal.Parse(caseSheet[c], System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        decimal Cell(string c) => decimal.Parse(caseSheet[c], System.Globalization.CultureInfo.InvariantCulture);
+        var (claim, controlled, notClaimed) = (Cell("F4"), Cell("E4"), Cell("G4"));                   // B · Mid, B · Low, B · High
+        Assert.Contains("not claimed", caseSheet.Single(c => c.Value.StartsWith("B · High", StringComparison.Ordinal)).Value);
 
         var onePager = File.ReadAllText(Path.Combine(dir, "..", "one-pager.md"));
         var hackathon = File.ReadAllText(Path.Combine(dir, "..", "..", "..", "HACKATHON.md"));
-        foreach (var x in b0.Concat(bTotals))
+        foreach (var doc in new[] { onePager, hackathon })
         {
-            Assert.Contains(Eur(x), onePager);
-            Assert.Contains(Eur(x), hackathon);
+            // The claim (E20 mid, B · Mid) and, under it, the controlled measurement (E20 low, B · Low).
+            foreach (var x in new[] { b0[1], claim, b0[0], controlled }) Assert.Contains(Eur(x), doc);
+            // €13,000 is never part of the claim: B · High's total isn't quoted, and every sentence naming E20 high says so.
+            Assert.DoesNotContain(Eur(notClaimed), doc);
+            var sentences = System.Text.RegularExpressions.Regex.Split(doc.Replace('\n', ' '), @"(?<=\.)\s+");
+            Assert.All(sentences.Where(x => x.Contains(Eur(b0[2]), StringComparison.Ordinal)), x => Assert.Contains("not part of the claim", x));
         }
         Assert.Contains($"{Eur(b0[1])[1..]} ({Eur(b0[0])[1..]} / {Eur(b0[2])[1..]})", EvidenceService.Show(e20.Value));   // the Evidence page
     }

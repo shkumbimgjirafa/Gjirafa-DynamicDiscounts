@@ -43,7 +43,7 @@ answers the one-event point instead.
   a public, all-platform discount set of 50,000+ products started in it (`hk.PushDatesMkAl`): Gj50 AL in July, Mall AL
   in September, all four in October (21 Oct). The calculator's measured Kosovo gain as a share of Kosovo's gross profit
   (€180.4k a month, Aug–Sep): low €4.4k = 2.4 % (same-weeks control, one run per KS layer), mid €10.4k = 5.8 %
-  (before/after), high €13.0k = 7.2 % (season-adjusted; quoted from the main repo). Low and mid are recomputed from this
+  (before/after), high €13.0k = 7.2 % (season-adjusted; quoted from the main repo, not part of framing B's claim). Low and mid are recomputed from this
   repo's data (`evidence/e20-test-phase.sql`). The plan's "≈ 10 %" is above all three measurements. `backtest-coverage`.
 - **Lever 1.** Cross-dock lines on normal days sold under their booked cost, e.g. €394 / €2,671 / €250 a month on
   Mall (Aug / Sep / Oct 1–15), €402 / €539 / €175 on Gj50 (measured). Counted only where the cost the SKU last

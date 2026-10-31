@@ -106,7 +106,9 @@ public sealed class EvidenceService
         void Use(string id, string where)
         {
             if (!uses.TryGetValue(id, out var list)) uses[id] = list = new List<string>();
-            if (list.Count < 12 && !list.Contains(where)) list.Add(where);
+            // At most 10 per document, so a figure named often in one document still shows the others.
+            var doc = where.StartsWith("sheet ", StringComparison.Ordinal) ? "sheet " : where[..(where.IndexOf(" line ", StringComparison.Ordinal) + 1)];
+            if (list.Count(u => u.StartsWith(doc, StringComparison.Ordinal)) < 10 && !list.Contains(where)) list.Add(where);
         }
         foreach (var (file, label) in new[] { (Path.Combine(dir, "..", "one-pager.md"), "one-pager"), (Path.Combine(dir, "..", "..", "..", "HACKATHON.md"), "HACKATHON.md") })
         {

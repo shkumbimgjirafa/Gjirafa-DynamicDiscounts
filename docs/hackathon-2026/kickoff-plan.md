@@ -699,10 +699,13 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
    match, run as evidence_reader"):
    - Backtest result, with its elasticity sensitivity.
    - *(Updated 31 Oct: framing B is the claim, the user's decision.)* "We already ran the test": the calculator's
-     measured rate, E20: €4,402 a month with a same-weeks control, €10,409 before/after, €13,000 season-adjusted
-     (quoted). v2 is the rollout: automatic, weekly, every layer; framing B claims the next 12 months, not the past.
-   - Why B0 counts going forward: the manual push loses part of it (E23: 17–20 % of raised units sold at the old price
-     in Aug–Sep, 70–84 % in late October; lever 5's push lag, E5; lever 4's MK/AL months without a push, E4).
+     measured rate, B0 = €10,409 a month (E20 mid, before and after each approval, not controlled), carried by the
+     automated system plus the levers: €12,965 a month, 84 points. Under it, the controlled measurement, €4,402 (E20
+     low), which likely understates the effect (shoppers moving to the kept products lift the comparison group). The
+     season-adjusted €13,000 is quoted and not part of the claim. v2 is the rollout: automatic, weekly, every layer;
+     framing B claims the next 12 months, not the past.
+   - Why the rate needs v2: the manual push loses part of it (E23: 17–20 % of raised units sold at the old price in
+     Aug–Sep, 70–84 % in late October); what closing those gaps adds is counted once, in levers 8, 5 and 4.
    - Framing A, the levers alone (E8), as the cross-check. Don't cite the year-over-year margin (E25): it doesn't
      separate the calculator.
    - The financial sheet totals.

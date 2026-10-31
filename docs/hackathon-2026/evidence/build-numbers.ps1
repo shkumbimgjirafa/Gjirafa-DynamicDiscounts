@@ -267,9 +267,13 @@ $byMonth = @{}; foreach ($r in $e20Sets[0].Rows) { $byMonth[$r.Month] = $r }
 $ctl = @{}; foreach ($r in $e20Sets[1].Rows) { if ($r.Grp -eq 'Changed total') { $ctl[[int]$r.ApprovalId] = $r } }
 $mallKept = Round0 $ctl[25].VsKeptPerMonth; $mallNotIn = Round0 $ctl[25].VsNotInApprovalPerMonth; $gj50NotIn = Round0 $ctl[1].VsNotInApprovalPerMonth
 $aug = Round0 $byMonth['2026-08'].Total; $sep = Round0 $byMonth['2026-09'].Total
-Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = $mallKept + $gj50NotIn; mid = Round0 $byMonth['Aug-Sep average'].Total; high = 13000 }) 'EUR/month' `
-    ([ordered]@{ low = 'measured, same-weeks control, one run per layer, the stricter control on Mall'; mid = 'measured before/after, not controlled'; high = 'estimated: before/after season-adjusted with 2025, not controlled; quoted from the main repo' }) `
-    "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept $mallKept + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval $gj50NotIn (with Mall's other control, vs not in the approval, $mallNotIn + $gj50NotIn = $($mallNotIn + $gj50NotIn)); mid: before/after on the approvals, SKU-deduplicated spans (Aug $aug, Sep $sep; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)" `
+# Framing B's claim is the mid case (the user's decision, 31 Oct); the low case is the controlled measurement, shown under it;
+# the high case is quoted from the main repo and not part of the claim.
+$e20Months = [ordered]@{}
+foreach ($m in '2026-08', '2026-09') { $e20Months[$m] = [ordered]@{ mallKs = Round0 $byMonth[$m].MallKs; gj50Ks = Round0 $byMonth[$m].Gj50Ks; total = Round0 $byMonth[$m].Total } }
+Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = $mallKept + $gj50NotIn; mid = Round0 $byMonth['Aug-Sep average'].Total; high = 13000; byMonth = $e20Months; controls = [ordered]@{ mall25VsKept = $mallKept; mall25VsNotInApproval = $mallNotIn; gj50No1VsNotInApproval = $gj50NotIn } }) 'EUR/month' `
+    ([ordered]@{ low = 'measured, same-weeks control, one run per layer, the stricter control on Mall'; mid = 'measured before/after, not controlled'; high = 'estimated: before/after season-adjusted with 2025, not controlled; quoted from the main repo, not recomputed, not part of the claim' }) `
+    "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept $mallKept + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval $gj50NotIn (with Mall's other control, vs not in the approval, $mallNotIn + $gj50NotIn = $($mallNotIn + $gj50NotIn)); mid: before/after on the approvals, SKU-deduplicated spans (Aug $aug, Sep $sep; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025's seasonal growth)" `
     'PricingTool.Approvals / ApprovalItems (copied from the deployed tool DB) and hk.SalesLines, booked COGS' 'docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)'
 # E21 from e21-by-cause.sql: the same rule, floors and scope as `backtest-below-floor` (its totals tie to it to the euro),
 # each line with the first cause that fits. Monthly totals (normal days = causes 1-7, campaign days = cause 0), and the
@@ -349,7 +353,7 @@ Recompute 'E26' 'e26-sales-report-tie-out.sql' $e26Sets @($e26Sets[0].Rows | For
 
 # Why the calculator's figure moved since the registration (the Evidence page shows it with E20).
 $e20 = $figures | Where-Object { $_.id -eq 'E20' }
-$e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) (E20 mid). A same-weeks control run on 27 Oct (changed vs unchanged products in the same weeks) puts the price effect at $($e20.value.low) (E20 low), so framing B leads with that; the season-adjusted $($e20.value.high) (E20 high) is quoted from the main repo, not recomputed. The claim narrowed to what a control supports; the before/after figure itself did not change."
+$e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) a month (E20 mid), and that is framing B's claim. The controlled measurement, $($e20.value.low) (E20 low, a same-weeks control run on 27 Oct), is shown under it; it likely understates the effect, because shoppers moving from changed to kept products lift the comparison group. The season-adjusted $($e20.value.high) (E20 high) is quoted from the main repo and is not part of the claim."
 
 foreach ($f in $figures) { if ($recomputes.ContainsKey($f.id)) { $f.recompute = $recomputes[$f.id] } }
 

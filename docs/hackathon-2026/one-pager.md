@@ -37,19 +37,26 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 69 % of normal margin kept against 70-80 %; E11); the campaign estimates
 aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
 
-**Money (12 months). Our claim is framing B; framing A is the conservative cross-check.** Framing B is what the
-automated system earns in the next 12 months: the calculator's measured rate (B0, E20: €4,402 a month measured
-with a same-weeks control, one controlled run per layer; €10,409 measured before/after and €13,000
-season-adjusted, neither controlled; the low and mid cases recomputed from this repo's data, the high quoted) plus the
-levers this build adds: €5,694 / €12,965 / €19,291 a month at full scope
-(low / mid / high), the holdout categories, about 11% of the changed prices, left out.
+**Money (12 months). The claim is framing B: €12,965 a month at full scope, 84 points.**
+It is the calculator's rate, B0 = €10,409 a month (E20 mid), carried by the automated system, plus the central
+case of the levers this build adds, with the holdout categories (about 11% of the changed prices) left out. B0 is
+measured on the real shop, not modelled: booked sales lines with booked COGS on both Kosovo layers, Aug
+€11,068 (GjirafaMall €8,551, Gjirafa50 €2,517) and Sep €9,749
+(€7,461, €2,288). `evidence/e20-test-phase.sql` recomputes it from this repo's data, the Evidence
+page reruns it live as a read-only user (about 9 s), and the same sales lines reproduce the tool's own 30-day profit
+before each approval, most to the euro (E26). It is measured before and after each approval, not controlled; the
+controlled measurement is €4,402 a month (E20 low; with it and the levers' low case, framing B is
+€5,694 a month, 68 points). That likely understates the effect: its comparison group is products the calculator
+kept at their price, and shoppers moving from changed to kept products lift that group (GjirafaMall's run of 3 Sep
+measures €3,263 against the products it kept and €4,088 against products
+not in it), though the calculator chose what to change, which could push the other way. E20's season-adjusted
+€13,000 is quoted from the main repo and not part of the claim.
 
 *"B0 is the non-AI calculator's money."* The calculator is declared existing code and part of the submitted system.
 Framing B claims no past euro: it is the next 12 months of the automated system, with Aug–Sep 2026 as the measured
-evidence for the rate. v2 is what delivers that rate at scale, because today's manual push loses part of it: in Aug–Sep
-17–20 % of the units on SKUs an approval raised still sold at the old price, 70–84 % in late October (E23, measured);
-the days between a run and its push cost €396 a month (E5, estimated); the MK/AL months without a
-push miss €1,325 a month (E4, estimated).
+evidence for the rate. Today that rate depends on one person pushing prices by hand, and the push loses part of it: in
+Aug–Sep 17–20 % of the units on SKUs an approval raised still sold at the old price, 70–84 % in late October (E23,
+measured). What v2 adds by closing those gaps is counted once, in the levers (8, 5 and 4), not added to B0.
 
 Framing A, the cross-check, counts only the levers, backtested walk-forward on booked sales lines:
 €1,996 / €4,158 / €8,675 a month at full scope before the holdout share
@@ -64,16 +71,17 @@ sessions' AI usage of $393.76 API-equivalent, E18) and €6,921 running (AI
 €68 a month from the measured cost per call, E19; maintenance and review hours), €15,959 in all.
 Which framing counts is the organisers' call.
 
-| Year 1 | B · Low | B · Mid | B · High | A · Low | A · Mid | A · High |
-|---|---|---|---|---|---|---|
-| Extra gross profit a month at full scope | €5,694 | €12,965 | €19,291 | €1,776 | €3,701 | €7,721 |
-| Net benefit (9.5 full-benefit months − all costs) | €38,136 | €107,205 | €167,303 | €917 | €19,196 | €57,388 |
-| ROI | 239% | 672% | 1048% | 6% | 120% | 360% |
-| Payback (months) | 4.5 | 3.3 | 3.1 | 11.2 | 5.9 | 4.0 |
-| Track A score (/100; Evidence and Works are our own ratings) | 68 | 84 | 84 | 40 | 66 | 76 |
+| Year 1 | B · Mid (the claim) | B · Low (controlled B0) | A · Low | A · Mid | A · High |
+|---|---|---|---|---|---|
+| Extra gross profit a month at full scope | €12,965 | €5,694 | €1,776 | €3,701 | €7,721 |
+| Net benefit (9.5 full-benefit months − all costs) | €107,205 | €38,136 | €917 | €19,196 | €57,388 |
+| ROI | 672% | 239% | 6% | 120% | 360% |
+| Payback (months) | 3.3 | 4.5 | 11.2 | 5.9 | 4.0 |
+| Track A score (/100; Evidence and Works are our own ratings) | 84 | 68 | 40 | 66 | 76 |
 
-**Biggest unproven assumptions.** That the calculator's measured rate holds once automated and extended to every layer
-(framing B rests on it; only its low case had a control, one run per layer). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
+**Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
+automated and extended to every layer: framing B rests on it, and it isn't controlled (the controlled measurement is
+€4,402). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
 publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still
 wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes).
 In today's process 17–20 % of the units on SKUs an approval raised still sold at the old price in Aug–Sep, 70–84 % in late

@@ -92,7 +92,9 @@ I = {k: f"Inputs!$B${r}" for k, r in R.items()}
 built = datetime.now().strftime("%Y-%m-%d %H:%M")
 snapshot = FIG["E1"]["source"]
 cols = ["B", "C", "D", "E", "F", "G"]
-scen = ["A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High"]
+# Framing B's claim is B · Mid; B · Low carries the controlled measurement; B · High (E20's quoted season-adjusted case) is
+# shown, not claimed.
+scen = ["A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High (not claimed)"]
 lever_col = {"B": "B", "C": "C", "D": "D", "E": "B", "F": "C", "G": "D"}  # scenario -> Inputs column
 
 # ---------------------------------------------------------------- Summary
@@ -104,16 +106,17 @@ put(ws, "A2", f"Built {built} by docs/hackathon-2026/financial/build_financial_s
               "judgment); every cell below is a formula.", NOTE, wrap=True)
 ws.merge_cells("A2:G2")
 ws.row_dimensions[2].height = 40
-put(ws, "A3", "Our claim is framing B: the automated system's next 12 months at the calculator's measured rate (B0, its "
-              "test phase) plus the levers this build adds. Framing A, the levers alone (1–8, backtested), is the conservative "
-              "cross-check. B claims no past euro: the registration said the calculator's Aug–Sep result is not claimed, and B "
-              "uses it as the rate; v2 delivers it at scale because the manual push loses part of it (E23, E5, E4). Payback is "
-              "computed from the ramp on Inputs rows 15–18 (built in month 1, then the pilot), not tuned. Which framing counts "
-              "is the organisers' call.",
+put(ws, "A3", "Our claim is framing B at B · Mid: the automated system's next 12 months at the calculator's measured rate "
+              "(B0 = E20 mid, measured before and after each approval, not controlled) plus the levers' central case. Under it, "
+              "B · Low carries the controlled measurement (E20 low). B · High uses E20's season-adjusted case, quoted from the main "
+              "repo: shown, not claimed. Framing A, the levers alone (1–8, backtested), is the conservative cross-check. B claims "
+              "no past euro: the registration said the calculator's Aug–Sep result is not claimed, and B uses it as the rate. "
+              "Payback is computed from the ramp on Inputs rows 15–18 (built in month 1, then the pilot), not tuned. Which "
+              "framing counts is the organisers' call.",
     NOTE, wrap=True)
-put(ws, "A4", '="Headline, framing B (mid): "&TEXT(F6,"€#,##0")&" a month at full scope; year 1: net benefit "&TEXT(F7,"€#,##0")'
-              '&", ROI "&TEXT(F10,"0%")&", payback "&TEXT(F13,"0.0")&" months, "&TEXT(F20,"0")&"/100 (B low "&TEXT(E20,"0")'
-              '&", B high "&TEXT(G20,"0")&"; A mid, the cross-check, "&TEXT(C20,"0")&")"', BOLD)
+put(ws, "A4", '="The claim, framing B (B · Mid): "&TEXT(F6,"€#,##0")&" a month at full scope; year 1: net benefit "&TEXT(F7,"€#,##0")'
+              '&", ROI "&TEXT(F10,"0%")&", payback "&TEXT(F13,"0.0")&" months, "&TEXT(F20,"0")&"/100. Under it, the controlled '
+              'measurement (B · Low): "&TEXT(E6,"€#,##0")&" a month, "&TEXT(E20,"0")&"/100. Framing A (A · Mid), the cross-check: "&TEXT(C20,"0")&"/100"', BOLD)
 ws.merge_cells("A4:G4")
 ws.merge_cells("A3:G3")
 ws.row_dimensions[3].height = 52
@@ -298,7 +301,7 @@ b0 = [
     ("b0Mid", "Before/after on the approvals, KS, Aug–Sep average", "mid",
      "Aug €11,068 · Sep €9,749 (Approvals' 30-day profit windows, SKU-deduped, booked COGS; 27 Oct in the main repo: "
      "€11,184 · €10,079, before late cancellations). Not controlled. Recomputed here: evidence/e20-test-phase.sql"),
-    ("b0High", "Same, season-adjusted with 2025's same weeks", "high",
+    ("b0High", "Same, season-adjusted with 2025's same weeks (quoted; not part of the claim)", "high",
      "Aug €11.9k · Sep €13.8k. Not controlled; layer-level GP growth did not beat 2025's seasonality, so this is the top "
      "of the range. Quoted from the main repo (the 2025 adjustment isn't recomputed here)"),
 ]
@@ -317,7 +320,8 @@ for col, key in zip("BCD", ("b0Low", "b0Mid", "b0High")):
     c.border = BOX
     c.fill = TOTAL
 put(wi, f"E{R['b0Used']}", "formula")
-put(wi, f"F{R['b0Used']}", "Low = the controlled result · Mid = the before/after result · High = the season-adjusted result", NOTE)
+put(wi, f"F{R['b0Used']}", "Mid = the before/after result, framing B's claim · Low = the controlled measurement, shown under it · "
+                          "High = the season-adjusted result, quoted, not part of the claim", NOTE)
 
 header(wi, R["judgeHead"], ["Judgment ratings (one per row; they don't depend on the money case)", "Rating", "", "", "Label", "Why"])
 judgments = [
@@ -377,7 +381,7 @@ wi.column_dimensions["G"].width = 6
 # ---------------------------------------------------------------- Financial case
 wf = wb.create_sheet("Financial case")
 put(wf, "A1", "Financial case: the Track A money formula", TITLE)
-header(wf, 3, ["Line", "A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High", "How it's calculated"])
+header(wf, 3, ["Line"] + scen + ["How it's calculated"])
 s, b = R["levSum"], R["b0Used"]
 ho = R["holdout"]
 benefit = {"B": f"=Inputs!B{s}*(1-Inputs!B{ho})", "C": f"=Inputs!C{s}*(1-Inputs!C{ho})", "D": f"=Inputs!D{s}*(1-Inputs!D{ho})",
