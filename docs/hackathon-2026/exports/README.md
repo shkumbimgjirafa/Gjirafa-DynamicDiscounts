@@ -22,6 +22,7 @@ user-secrets store, the tool DB's is passed in at run time.
 | `hk.TierPricesKs` | NOP replica | `tier_prices_ks.sql` | Today's newest KS (StoreId 2) tier row per product, both shops: seeds the regular-price publisher's sandbox |
 | `hk.SalesLineDiscountsKs` | NOP replica (Sales Report lines) | `sales_line_discounts_ks.sql` | KS lines from 2026-06-01 by `SrLineId`: product, promotion, order-level (voucher) and supplier discount, line totals; splits E21 by cause (`evidence/e21-by-cause.sql`) |
 | `hk.DiscountHistoryRaisedKs` | NOP replica | `discount_history_raised_ks.sql` | Kosovo-store discounts live any time 1 Aug – 31 Oct 2026 on the 517 products whose approved raise sold at the old price (approvals 12, 25, 35, 37): names, amounts, dates, apply and platform type; says what held the old price (`evidence/raises-not-on-shelf.sql`) |
+| `hk.PushDatesKs` | NOP replica | `push_dates_ks.sql` | Kosovo-store (StoreId 2) discount sets of 200+ rows from 15 Jun 2026, both shops, by name prefix, apply type, platform type and start day, with each set's last end: how often the manual engine's prices were pushed and how long they stayed live |
 
 Generic runner: `Copy-ReplicaQuery.ps1 -SqlFile … -DestTable … -CreateSql …`.
 
