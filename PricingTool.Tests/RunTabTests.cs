@@ -31,7 +31,7 @@ public class RunTabTests : IDisposable
             Batch(7, "Regular", "Published", 1200, layer: 1));              // another layer
         await _ai.SaveChangesAsync();
 
-        var published = await RunReportService.Published(_ai.PublishBatches, 4).Select(b => b.Id).ToListAsync();
+        var published = await PricingTool.Agent.Operations.RunReportWriter.Published(_ai.PublishBatches, 4).Select(b => b.Id).ToListAsync();
 
         Assert.Equal(new long[] { 2, 1 }, published);
     }

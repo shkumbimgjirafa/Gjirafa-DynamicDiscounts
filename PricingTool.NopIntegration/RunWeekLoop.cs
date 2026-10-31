@@ -25,6 +25,8 @@ public interface IRunWeekSteps
     Task<RunWeekStepResult> CheckAsync(long runId, CancellationToken ct);
     Task<(IReadOnlyList<PublishItem> Items, string Detail)> CheckedPricesAsync(long runId, CancellationToken ct);
     Task<PublishOutcome> PublishAsync(int layerId, long runId, IReadOnlyList<PublishItem> items, CancellationToken ct);
+    /// <summary>The published run's report: its numbers, and Alpha's account of it.</summary>
+    Task<RunWeekStepResult> ReportAsync(long batchId, CancellationToken ct);
 }
 
 /// <summary>
@@ -84,9 +86,10 @@ public sealed class RunWeekLoop
         // Its own calls only: Alpha's pass for the layer and the check of its engine run, inside its window.
         var alphaPurpose = $"floor-target L{week.LayerId}";
         var checkPurpose = $"run-check {week.EngineRunId}";
+        var reportPurpose = week.PublishBatchId is { } pb ? RunReportWriter.Purpose(week.LayerId, pb) : null;
         var calls = await _db.AiCallLog.AsNoTracking()
             .Where(c => c.CalledAtUtc >= week.StartedUtc && c.CalledAtUtc <= week.FinishedUtc
-                        && (c.Purpose == alphaPurpose || (week.EngineRunId != null && c.Purpose == checkPurpose)))
+                        && (c.Purpose == alphaPurpose || (week.EngineRunId != null && c.Purpose == checkPurpose) || c.Purpose == reportPurpose))
             .ToListAsync(CancellationToken.None);
         (week.AiCalls, week.AiCostUsd) = (calls.Count, calls.Sum(c => c.CostUsd ?? 0m));
         await _db.SaveChangesAsync(CancellationToken.None);
@@ -152,6 +155,8 @@ public sealed class RunWeekLoop
         await RecordAsync(week, "verify", new RunWeekStepResult(ok ? StepStatus.Succeeded : StepStatus.Warning,
             $"round-trip: {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0} read back as written" + (o.RolledBack ? "; the batch was rolled back" : ""),
             ok ? null : "The writer reads the winning deal back after each publish; too many mismatches roll the batch back (the exceptions inbox lists it).", o.BatchId), ct);
+        // The run's report and Alpha's account of it; a failed report doesn't undo the publish.
+        if (!o.RolledBack) await StepAsync(week, "report", () => _steps.ReportAsync(o.BatchId, ct), ct);
         week.Status = "Succeeded";
         return $"Done: published to the sandbox in batch #{o.BatchId}" + (ok ? "." : ", with read-back mismatches.");
     }
@@ -255,5 +260,15 @@ public sealed class RunWeekSteps : IRunWeekSteps
     {
         using var scope = _sp.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().PublishAsync(CheckedPricePublisher.Request(layerId, runId, items), ct);
+    }
+
+    public async Task<RunWeekStepResult> ReportAsync(long batchId, CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        var r = await scope.ServiceProvider.GetRequiredService<RunReportWriter>().WriteAsync(batchId, ct: ct);
+        if (r is null) return new RunWeekStepResult(StepStatus.Skipped, $"batch #{batchId} isn't a publish that went through: no report");
+        return new RunWeekStepResult(r.AlphaStatus == "written" ? StepStatus.Succeeded : StepStatus.Warning,
+            $"report #{r.Id}: {r.OnShelf:N0} of {r.Requested:N0} prices on the shelf, {r.Changed:N0} changed ({r.Raised:N0} up, {r.Lowered:N0} down), " +
+            $"expected {(r.ExpectedGp30Eur is { } e ? $"€{e:N0}" : "–")} a month (estimated); Alpha's account {r.AlphaStatus}", r.Headline, r.Id);
     }
 }

@@ -877,6 +877,24 @@ switch (command)
         return status is "Succeeded" or "Warning" ? 0 : 1;
     }
 
+    case "run-report":
+    {
+        // run-report <batch id>: that publish's report (Alpha's account too unless --no-alpha); run-report --missing: every recent one without.
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var writer = scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Operations.RunReportWriter>();
+        var reports = positional.Count > 0
+            ? new[] { await writer.WriteAsync(long.Parse(positional[0]), withAlpha: !args.Contains("--no-alpha")) }.Where(r => r is not null).Select(r => r!).ToList()
+            : await writer.WriteMissingAsync();
+        foreach (var r in reports)
+            Console.WriteLine($"report #{r.Id}, batch #{r.BatchId} (run #{r.RunId}, layer {r.LayerId}): {r.OnShelf:N0} of {r.Requested:N0} on the shelf, " +
+                              $"{r.Changed:N0} changed ({r.Raised:N0} up, {r.Lowered:N0} down), expected {r.ExpectedGp30Eur?.ToString("N0") ?? "–"} EUR a month; " +
+                              $"Alpha's account {r.AlphaStatus}{(r.Headline is null ? "" : $": {r.Headline}")}");
+        if (reports.Count == 0) Console.WriteLine("Nothing to report: not a publish that went through, or every recent one has its report.");
+        return 0;
+    }
+
     default:
         Console.Error.WriteLine("Usage: PricingTool.AgentTools mcp|scorecard|query|ask|alpha-pass|sandbox|publish-canary|publish-rollback|check-run|export-run|mark-pushed|ledger|outcomes|campaign-data|nova-pass|plan-campaign|campaign-note|campaign-goal|approve-plan|backtest-campaigns|backtest-levers|backtest-coverage|backtest-snapshot|what-if-floor|reproduce-per-ty|lesson|lessons|lesson-retire|cost-watch|timesheet|cycle-status|test-db ... (see Program.cs)");
         return 2;

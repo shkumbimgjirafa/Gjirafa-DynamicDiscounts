@@ -20,10 +20,10 @@
         "at-or-above-shelf" => "at or above the shelf price",
         _ => kind,
     };
-    var cells = r.Cells ?? Array.Empty<PricingTool.Web.Services.RunGridCell>();
+    var cells = r.Cells ?? Array.Empty<PricingTool.Agent.Operations.RunGridCell>();
     var categories = cells.GroupBy(c => c.Category).OrderByDescending(g => g.Sum(c => c.Skus)).Select(g => g.Key).ToList();
     var bandName = r.Bands.ToDictionary(b => b.BandId, b => b.Name);
-    (int Skus, int Changed, int Up, int Down, int Holdout) Totals(IReadOnlyList<PricingTool.Web.Services.RunGridCell>? cs) => cs is null ? default
+    (int Skus, int Changed, int Up, int Down, int Holdout) Totals(IReadOnlyList<PricingTool.Agent.Operations.RunGridCell>? cs) => cs is null ? default
         : (cs.Sum(c => c.Skus), cs.Sum(c => c.Changed), cs.Sum(c => c.Up), cs.Sum(c => c.Down), cs.Where(c => r.IsHoldout(c.Category)).Sum(c => c.Changed));
     var now = Totals(r.Cells);
     var before = Totals(r.PreviousCells);
@@ -94,14 +94,34 @@
     <div class="card mb-4">
         <div class="card-body">
             <h2 class="h5 mb-2">Alpha's report
-                @if (r.AlphaPass is { } pass) { <span class="small text-muted">pass #@pass.Id, @Local(pass.StartedUtc)</span> }</h2>
-            @if (r.AlphaPass?.Summary is { Length: > 0 } summary)
+                @if (r.Stored?.AlphaText is not null) { <span class="small text-muted">written @Local(r.Stored.CreatedUtc) from this run's numbers</span> }
+                else if (r.AlphaPass is { } pass) { <span class="small text-muted">its weekly pass #@pass.Id, @Local(pass.StartedUtc)</span> }</h2>
+            @if (r.Stored?.AlphaText is { } text)
             {
-                <div style="white-space: pre-wrap">@summary</div>
+                <p class="fw-semibold mb-1">@r.Stored.Headline</p>
+                <div style="white-space: pre-wrap">@text</div>
+                @if (r.Watch.Count > 0)
+                {
+                    <div class="mt-2"><span class="text-muted">To watch:</span>
+                        <ul class="mb-0">@foreach (var w in r.Watch) { <li>@w</li> }</ul></div>
+                }
+                @if (r.AlphaPass?.Summary is { Length: > 0 } passSummary)
+                {
+                    <details class="how mt-2"><summary>Its weekly pass (#@r.AlphaPass.Id, @Local(r.AlphaPass.StartedUtc))</summary>
+                        <div style="white-space: pre-wrap">@passSummary</div></details>
+                }
             }
             else
             {
-                <p class="text-muted mb-0">Alpha hasn't written about this layer yet: its first pass runs with the next Run week.</p>
+                if (r.AlphaPass?.Summary is { Length: > 0 } summary)
+                {
+                    <div style="white-space: pre-wrap">@summary</div>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">Alpha hasn't written about this layer yet: its first pass runs with the next Run week.</p>
+                }
+                <p class="small text-muted mt-2 mb-0">Alpha's report on this run itself: @(r.Stored is null ? "not written yet (it is written right after a publish)" : r.Stored.AlphaStatus).</p>
             }
             @if (r.AlphaChanges.Count > 0)
             {

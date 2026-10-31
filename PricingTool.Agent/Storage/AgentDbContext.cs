@@ -43,6 +43,8 @@ public class AgentDbContext : DbContext
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<ChatRule> ChatRules => Set<ChatRule>();
     public DbSet<BacktestSnapshotRecord> BacktestSnapshots => Set<BacktestSnapshotRecord>();
+    public DbSet<RunReportRecord> RunReports => Set<RunReportRecord>();
+    public DbSet<RunReportCellRecord> RunReportCells => Set<RunReportCellRecord>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -301,6 +303,30 @@ public class AgentDbContext : DbContext
             e.ToTable("BacktestSnapshot");
             e.HasKey(x => x.Id);
             e.Property(x => x.CreatedBy).HasMaxLength(256);
+        });
+
+        builder.Entity<RunReportRecord>(e =>
+        {
+            e.ToTable("RunReport");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.BatchId).IsUnique();
+            e.HasIndex(x => new { x.LayerId, x.PublishedUtc });
+            e.Property(x => x.LeftOutByKind).HasMaxLength(2000);
+            e.Property(x => x.ExpectedGp30Eur).HasPrecision(14, 2);
+            e.Property(x => x.Headline).HasMaxLength(300);
+            e.Property(x => x.AlphaText).HasMaxLength(4000);
+            e.Property(x => x.AlphaWatch).HasMaxLength(2000);
+            e.Property(x => x.AlphaStatus).HasMaxLength(500);
+        });
+        builder.Entity<RunReportCellRecord>(e =>
+        {
+            e.ToTable("RunReportCell");
+            e.HasKey(x => x.Id);
+            e.HasOne<RunReportRecord>().WithMany().HasForeignKey(x => x.ReportId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Category).HasMaxLength(200);
+            e.Property(x => x.FloorPct).HasPrecision(6, 2);
+            e.Property(x => x.TargetPct).HasPrecision(6, 2);
+            e.HasIndex(x => x.ReportId);
         });
 
         builder.Entity<ChatRule>(e =>

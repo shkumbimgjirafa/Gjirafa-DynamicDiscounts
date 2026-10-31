@@ -1729,6 +1729,158 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.ToTable("PublishException", "ai");
                 });
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.RunReportCellRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("BandId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("ByAlpha")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Changed")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Down")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("FloorPct")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<bool>("Holdout")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("ReportId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Skus")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("TargetPct")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<int>("Up")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportId");
+
+                    b.ToTable("RunReportCell", "ai");
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.RunReportRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long?>("AiCallLogId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("AlphaPassId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AlphaStatus")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AlphaText")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("AlphaWatch")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<long>("BatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Changed")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("ExpectedGp30Eur")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<int>("ExpectedSkus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Headline")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("HeldByCheck")
+                        .HasColumnType("int");
+
+                    b.Property<int>("HoldoutChanged")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LeftOut")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LeftOutByKind")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("Lowered")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OnShelf")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("PreviousBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("PricedSkus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("PublishedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Raised")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Requested")
+                        .HasColumnType("int");
+
+                    b.Property<long>("RunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("RunWeekId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId")
+                        .IsUnique();
+
+                    b.HasIndex("LayerId", "PublishedUtc");
+
+                    b.ToTable("RunReport", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.RunWeek", b =>
                 {
                     b.Property<long>("Id")
@@ -1948,6 +2100,15 @@ namespace PricingTool.Agent.Storage.Migrations
                         .WithMany()
                         .HasForeignKey("BatchId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.RunReportCellRecord", b =>
+                {
+                    b.HasOne("PricingTool.Agent.Storage.RunReportRecord", null)
+                        .WithMany()
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

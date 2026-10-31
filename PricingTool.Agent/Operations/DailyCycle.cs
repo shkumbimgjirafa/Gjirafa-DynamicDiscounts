@@ -181,6 +181,13 @@ public sealed class DailyCycle
                     return (StepStatus.NotBuilt, "no publisher in this host: the push file is the only path");
                 return await publisher.PublishCheckedAsync(layer, run.Id, ct);
             });
+        // Every publish that went through gets its report (Run week writes its own; this catches the cycle's and any by hand).
+        yield return new Step("run-report", async ct =>
+        {
+            var written = await With((RunReportWriter w) => w.WriteMissingAsync(ct: ct));
+            return (StepStatus.Succeeded, written.Count == 0 ? "no publish without a report" : string.Join("; ", written.Select(r =>
+                $"batch #{r.BatchId} (run #{r.RunId}): {r.OnShelf:N0} of {r.Requested:N0} on the shelf, Alpha's account {r.AlphaStatus}")));
+        });
         yield return new Step("ledger", async ct =>
         {
             var (added, measured, s) = await With(async (MoneyLedger ledger) =>
