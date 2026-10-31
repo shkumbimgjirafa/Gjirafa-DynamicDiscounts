@@ -5,7 +5,8 @@ Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with 
 
 **The problem.** The pricing calculator (v0.5, declared, running since July 2026) only reads and calculates. A person sets
 every floor and target by hand, plans campaigns in spreadsheets, exports prices and creates the discounts in the shop.
-So prices reach customers on a few manual dates, only in Kosovo, and a cost rise waits for the next push: cross-dock
+So prices reach customers on a few manual dates, mostly in Kosovo (North Macedonia and Albania got a push in some months
+only), and a cost rise waits for the next push: cross-dock
 lines alone sold €2,134 a month under their booked cost over the last 12 months (E14, measured). In Aug–Sep
 €14,705 a month of gross profit went under the hand-set floor (E21), but it isn't one leak:
 €2,954 of it is allowed or not a price (dead stock, vouchers), €4,238 is GjirafaMall SKUs that take
@@ -18,11 +19,12 @@ briefs with goals, and Alpha turns each into a plan that code computes (four str
 cost or a 3 % margin on any SKU). An AI run checker confirms, escalates or fixes flagged prices, and can't lift a
 rule's block; a cost watcher checks costs every 15 minutes (on 31 Oct it read the morning's 293 real cost moves within
 0.7–9.1 minutes of the refresh, raised none because no rise put a price we set under its floor, and held
-54 for a person: 52 under the floor at a cheaper deal, of them 3 a team deal and the rest the calculator's own earlier push or an app-only deal, 2 with a floor above the shelf; E22); an outcome tracker measures every applied change and rolls
-back what hurts; a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
+54 for a person: 52 under the floor at a cheaper deal, of them 3 a team deal and the rest the calculator's own earlier push or an app-only deal, 2 with a floor above the shelf; E22); an outcome tracker is built to measure every applied change and roll
+back what hurts (tested; no pushed change has completed its window yet); a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
 whole loop for a layer with one press; a backtest; a chat. **The AI decides, code enforces:** no model output changes a
 price, band or discount without passing limits written in C#. During the hackathon the publisher writes only to a
-sandbox copy of the shop's price tables; going live is configuration and a DBA's grant (`GO-LIVE.md`), never yet run
+sandbox copy of the shop's price tables; going live is configuration, a DBA's grant, the shop's answers on its cache and
+`OldPrice`, and the owner's call on superseding (`GO-LIVE.md`), never yet run
 against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
 Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); the rest were held by cheaper discounts,
 96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). Superseding only those, 98.3 % reached it.
@@ -57,17 +59,17 @@ raises that reach the shelf: €249, E24), not from the model's own floor choice
 scores at €2 a month (E2). The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
 fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
-€8,918 one-time (hackathon hours at €50, 160 hours to production including code review, the build
-sessions' AI usage of $272.70 API-equivalent, E18) and €6,921 running (AI
-€68 a month from the measured cost per call, E19; maintenance and review hours), €15,838 in all.
+€9,039 one-time (hackathon hours at €50, 160 hours to production including code review, the build
+sessions' AI usage of $393.76 API-equivalent, E18) and €6,921 running (AI
+€68 a month from the measured cost per call, E19; maintenance and review hours), €15,959 in all.
 Which framing counts is the organisers' call.
 
 | Year 1 | B · Low | B · Mid | B · High | A · Low | A · Mid | A · High |
 |---|---|---|---|---|---|---|
 | Extra gross profit a month at full scope | €5,694 | €12,965 | €19,291 | €1,776 | €3,701 | €7,721 |
-| Net benefit (9.5 full-benefit months − all costs) | €38,257 | €107,326 | €167,424 | €1,038 | €19,318 | €57,509 |
-| ROI | 242% | 678% | 1057% | 7% | 122% | 363% |
-| Payback (months) | 4.5 | 3.3 | 3.1 | 11.1 | 5.8 | 4.0 |
+| Net benefit (9.5 full-benefit months − all costs) | €38,136 | €107,205 | €167,303 | €917 | €19,196 | €57,388 |
+| ROI | 239% | 672% | 1048% | 6% | 120% | 360% |
+| Payback (months) | 4.5 | 3.3 | 3.1 | 11.2 | 5.9 | 4.0 |
 | Track A score (/100; Evidence and Works are our own ratings) | 68 | 84 | 84 | 40 | 66 | 76 |
 
 **Biggest unproven assumptions.** That the calculator's measured rate holds once automated and extended to every layer

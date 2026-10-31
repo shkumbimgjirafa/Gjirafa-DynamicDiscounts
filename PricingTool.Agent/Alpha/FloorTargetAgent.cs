@@ -184,9 +184,10 @@ public sealed class FloorTargetAgent
 
     /// <summary>
     /// A person approves a held (or approve-first pending) decision from the exceptions inbox. It is written
-    /// through the same path as an automatic one. A person lifts only the weekly step size: the hard minimum
-    /// floor, target at or above the floor and the holdout still hold, test passes never apply, and a decision
-    /// whose starting floor or target has changed since the pass is refused (the next pass decides again).
+    /// through the same path as an automatic one. A person decides what the limits hold for a person: a move past the
+    /// weekly step size, and a change in a category paused after a rollback (approving it applies that change; the
+    /// pause stays for the next pass). The hard minimum floor, target at or above the floor and the holdout still hold,
+    /// test passes never apply, and a decision whose starting floor or target has changed since the pass is refused.
     /// </summary>
     public async Task<DecisionReview> ApproveAsync(long decisionId, string by, CancellationToken ct = default)
     {

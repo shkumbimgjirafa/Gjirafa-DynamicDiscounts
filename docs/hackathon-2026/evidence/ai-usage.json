@@ -1,31 +1,31 @@
 {
-  "generated": "2026-10-31 01:31",
+  "generated": "2026-10-31 10:23",
   "label": "measured tokens; API-equivalent cost at list prices (the actual spend is the flat Claude subscription)",
   "prices": "USD per million tokens from the claude-api skill (cached 2026-10-06): claude-opus-5-5 4.0/20.0, cache read 0.2; claude-sonnet-5-5 2.0/10.0, cache read 0.2; claude-opus-5 5.0/25.0, cache read 0.5; claude-opus-4-8 5.0/25.0, cache read 0.5; claude-fable-5-1 10.0/50.0, cache read 0.25; claude-haiku-5-5 0.1/0.5, cache read 0.01; cache writes 1.25x input (5 min), 2x (1 h)",
   "sources": [
     {
       "transcript": "d7071225-5a98-43c3-bcf8-a901f206caf9.jsonl",
       "from": "start",
-      "responses": 1379
+      "responses": 2103
     },
     {
       "transcript": "a425eebb-0dd7-4bef-956a-a9675e0cc8c0.jsonl",
       "from": "2026-10-30T15:30:00",
-      "responses": 359
+      "responses": 509
     }
   ],
   "unpricedModels": [
     "<synthetic>"
   ],
   "sinceKickoff": {
-    "responses": 1734,
+    "responses": 2608,
     "tokens": {
-      "input": 3606,
-      "output": 2451523,
-      "cacheWrite": 5235059,
-      "cacheRead": 863549870
+      "input": 5448,
+      "output": 3412038,
+      "cacheWrite": 7207379,
+      "cacheRead": 1275471907
     },
-    "usdApiEquivalent": 272.7,
+    "usdApiEquivalent": 393.76,
     "extras": [
       {
         "label": "ai-judge dry run 1",
@@ -34,18 +34,22 @@
       {
         "label": "ai-judge dry run 2",
         "usd": 3.8371
+      },
+      {
+        "label": "ai-judge dry run 3",
+        "usd": 3.6616
       }
     ]
   },
   "unattendedBlocks": {
-    "responses": 1284,
+    "responses": 2031,
     "tokens": {
-      "input": 2682,
-      "output": 1682833,
-      "cacheWrite": 3024176,
-      "cacheRead": 660257941
+      "input": 4240,
+      "output": 2560083,
+      "cacheWrite": 4704998,
+      "cacheRead": 1008626617
     },
-    "usdApiEquivalent": 197.36,
+    "usdApiEquivalent": 298.03,
     "extras": [
       {
         "label": "ai-judge dry run 1",
@@ -545,6 +549,202 @@
           "usd": 3.8371
         }
       ]
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "06:35",
+      "to": "06:46",
+      "unattended": true,
+      "responses": 73,
+      "tokens": {
+        "input": 150,
+        "output": 50855,
+        "cacheWrite": 204097,
+        "cacheRead": 13387218
+      },
+      "usdApiEquivalent": 5.33
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "06:46",
+      "to": "07:58",
+      "unattended": true,
+      "responses": 203,
+      "tokens": {
+        "input": 416,
+        "output": 250730,
+        "cacheWrite": 469932,
+        "cacheRead": 96414761
+      },
+      "usdApiEquivalent": 28.06
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "07:57",
+      "to": "08:00",
+      "unattended": true,
+      "responses": 18,
+      "tokens": {
+        "input": 38,
+        "output": 18768,
+        "cacheWrite": 29895,
+        "cacheRead": 9160875
+      },
+      "usdApiEquivalent": 2.45
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "08:01",
+      "to": "08:03",
+      "unattended": true,
+      "responses": 14,
+      "tokens": {
+        "input": 34,
+        "output": 14713,
+        "cacheWrite": 20628,
+        "cacheRead": 6705766
+      },
+      "usdApiEquivalent": 1.8
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "08:04",
+      "to": "08:17",
+      "unattended": true,
+      "responses": 48,
+      "tokens": {
+        "input": 102,
+        "output": 44481,
+        "cacheWrite": 70379,
+        "cacheRead": 33335237
+      },
+      "usdApiEquivalent": 8.12
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "08:19",
+      "to": "08:24",
+      "unattended": true,
+      "responses": 14,
+      "tokens": {
+        "input": 28,
+        "output": 24489,
+        "cacheWrite": 35405,
+        "cacheRead": 11558053
+      },
+      "usdApiEquivalent": 3.08
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "08:25",
+      "to": "08:36",
+      "unattended": true,
+      "responses": 43,
+      "tokens": {
+        "input": 92,
+        "output": 45699,
+        "cacheWrite": 78805,
+        "cacheRead": 36326412
+      },
+      "usdApiEquivalent": 8.81
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "08:37",
+      "to": "08:56",
+      "unattended": true,
+      "responses": 58,
+      "tokens": {
+        "input": 118,
+        "output": 65707,
+        "cacheWrite": 167921,
+        "cacheRead": 18751093
+      },
+      "usdApiEquivalent": 6.41
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "08:57",
+      "to": "09:16",
+      "unattended": true,
+      "responses": 66,
+      "tokens": {
+        "input": 134,
+        "output": 81502,
+        "cacheWrite": 147563,
+        "cacheRead": 18924428
+      },
+      "usdApiEquivalent": 6.6
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "09:17",
+      "to": "09:44",
+      "unattended": true,
+      "responses": 86,
+      "tokens": {
+        "input": 174,
+        "output": 121342,
+        "cacheWrite": 205023,
+        "cacheRead": 38210691
+      },
+      "usdApiEquivalent": 11.71
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "09:44",
+      "to": "09:53",
+      "unattended": true,
+      "responses": 36,
+      "tokens": {
+        "input": 78,
+        "output": 45919,
+        "cacheWrite": 73711,
+        "cacheRead": 15636707
+      },
+      "usdApiEquivalent": 4.64
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "09:53",
+      "to": "10:07",
+      "unattended": true,
+      "responses": 56,
+      "tokens": {
+        "input": 122,
+        "output": 83468,
+        "cacheWrite": 118576,
+        "cacheRead": 30205674
+      },
+      "usdApiEquivalent": 8.66
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "10:07",
+      "to": "10:12",
+      "unattended": true,
+      "responses": 21,
+      "tokens": {
+        "input": 46,
+        "output": 27193,
+        "cacheWrite": 46558,
+        "cacheRead": 13488809
+      },
+      "usdApiEquivalent": 3.61
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "10:13",
+      "to": "10:14",
+      "unattended": true,
+      "responses": 16,
+      "tokens": {
+        "input": 36,
+        "output": 6613,
+        "cacheWrite": 18911,
+        "cacheRead": 9633667
+      },
+      "usdApiEquivalent": 2.21
     }
   ]
 }

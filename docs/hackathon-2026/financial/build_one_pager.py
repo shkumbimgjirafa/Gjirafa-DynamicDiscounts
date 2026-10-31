@@ -76,7 +76,8 @@ Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with 
 
 **The problem.** The pricing calculator (v0.5, declared, running since July 2026) only reads and calculates. A person sets
 every floor and target by hand, plans campaigns in spreadsheets, exports prices and creates the discounts in the shop.
-So prices reach customers on a few manual dates, only in Kosovo, and a cost rise waits for the next push: cross-dock
+So prices reach customers on a few manual dates, mostly in Kosovo (North Macedonia and Albania got a push in some months
+only), and a cost rise waits for the next push: cross-dock
 lines alone sold {eur(v('E14'))} a month under their booked cost over the last 12 months (E14, measured). In Aug–Sep
 {eur(e21['augSepTotal'])} a month of gross profit went under the hand-set floor (E21), but it isn't one leak:
 {eur(e21_free)} of it is allowed or not a price (dead stock, vouchers), {eur(cause('2')['both'])} is GjirafaMall SKUs that take
@@ -89,11 +90,12 @@ briefs with goals, and Alpha turns each into a plan that code computes (four str
 cost or a 3 % margin on any SKU). An AI run checker confirms, escalates or fixes flagged prices, and can't lift a
 rule's block; a cost watcher checks costs every 15 minutes (on 31 Oct it read the morning's {cw['distinctMoves']} real cost moves within
 {cw['minutesAfterRefresh']['first']:g}–{cw['minutesAfterRefresh']['last']:g} minutes of the refresh, raised none because no rise put a price we set under its floor, and held
-{cw['heldTeamDeal'] + cw['heldCostAboveShelf']} for a person: {cw['heldTeamDeal']} under the floor at a cheaper deal, of them {cw['heldTeamDealBy']['teamDeal']} a team deal and the rest the calculator's own earlier push or an app-only deal, {cw['heldCostAboveShelf']} with a floor above the shelf; E22); an outcome tracker measures every applied change and rolls
-back what hurts; a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
+{cw['heldTeamDeal'] + cw['heldCostAboveShelf']} for a person: {cw['heldTeamDeal']} under the floor at a cheaper deal, of them {cw['heldTeamDealBy']['teamDeal']} a team deal and the rest the calculator's own earlier push or an app-only deal, {cw['heldCostAboveShelf']} with a floor above the shelf; E22); an outcome tracker is built to measure every applied change and roll
+back what hurts (tested; no pushed change has completed its window yet); a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
 whole loop for a layer with one press; a backtest; a chat. **The AI decides, code enforces:** no model output changes a
 price, band or discount without passing limits written in C#. During the hackathon the publisher writes only to a
-sandbox copy of the shop's price tables; going live is configuration and a DBA's grant (`GO-LIVE.md`), never yet run
+sandbox copy of the shop's price tables; going live is configuration, a DBA's grant, the shop's answers on its cache and
+`OldPrice`, and the owner's call on superseding (`GO-LIVE.md`), never yet run
 against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
 Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); the rest were held by cheaper discounts,
 96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). Superseding only those, 98.3 % reached it.

@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 10:12",
+    "generated":  "2026-10-31 10:25",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. The claim is framing B: the rollout of the test phase (E20, B0) plus the levers. Framing A, the levers alone (E8), is the cross-check; the two are never blended.",
     "figures":  [
@@ -429,10 +429,10 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  272.7,
-                                      "sinceKickoffResponses":  1734,
-                                      "unattendedBlocksUsd":  197.36,
-                                      "unattendedBlocksResponses":  1284
+                                      "sinceKickoffUsd":  393.76,
+                                      "sinceKickoffResponses":  2608,
+                                      "unattendedBlocksUsd":  298.03,
+                                      "unattendedBlocksResponses":  2031
                                   },
                         "unit":  "USD (API-equivalent)",
                         "label":  "measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)",
@@ -445,8 +445,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  36,
-                                      "rows":  46
+                                      "unattendedBlocks":  38,
+                                      "rows":  48
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -593,7 +593,7 @@
                                       "augSepTotal":  14705
                                   },
                         "unit":  "EUR/month",
-                        "label":  "measured (October provisional: late cancellations post for two weeks)",
+                        "label":  "estimated from measured lines: the gap to the floor at the same units (October provisional: late cancellations post for two weeks)",
                         "method":  "Each booked line whose margin on booked COGS is under its band\u0027s hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units, both KS layers, tool scope (no outlet, Apple, Starlink; the June/July analysis in the main repo, Jun 24,400 and Jul 15,100, included them). Each line gets the first cause that fits: 0 campaign day; 1 its SKU in a live markdown batch; 2 a GjirafaMall SKU listed on Gjirafa50, which takes Gjirafa50\u0027s price; 3 above the floor before an order-level voucher; 4 cross-dock sold under its booked cost; 5 no calculator price live for the SKU that day; 6 sold more than 2 % under the calculator\u0027s live price; 7 at the calculator\u0027s price but under the floor on booked cost. Aug-Sep: 2954 a month is allowed or not a price (dead stock, vouchers); the rest sits in the lanes of levers 1, 3 and 5, partly on Gjirafa50\u0027s side of shared SKUs (cause 2: 3459 a month under Gjirafa50\u0027s own floor, 1851 under cost). Cause 5 as context only: on SKUs today\u0027s engine run raises, about 1648 a month (Mall 300, Gj50 1348), a proxy (August\u0027s runs weren\u0027t kept), not in the sheet. The totals equal PricingTool.AgentTools backtest-below-floor 1 4.",
                         "source":  "hk.SalesLines, hk.SalesLineDiscountsKs, PricingTool.AuditLog, PricingTool.Approvals / ApprovalItems, band config",
                         "script":  "docs/hackathon-2026/evidence/e21-by-cause.sql (three result sets; this script runs it); totals also by PricingTool.AgentTools backtest-below-floor 1 4",
