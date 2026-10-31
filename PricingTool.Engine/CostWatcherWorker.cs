@@ -32,6 +32,8 @@ public class CostWatcherWorker : BackgroundService
                 if (_options.PollReplica)
                     await scope.ServiceProvider.GetRequiredService<ReplicaCostFeed>().PollAsync(stoppingToken);
                 var r = await scope.ServiceProvider.GetRequiredService<CostWatcher>().WatchAsync(stoppingToken);
+                // Holds code can settle (the price is back above the floor, or a team discount keeps it under) are settled at once.
+                await scope.ServiceProvider.GetRequiredService<HoldResolver>().ReviewAsync(stoppingToken);
                 if (r.Observed > 0 || r.Skipped is not null)
                     _logger.LogInformation("Cost watch: {Observed} observations, {Raised} raised, {Held} held, {Ended} ended {Skipped}",
                         r.Observed, r.Raised, r.Held, r.Ended, r.Skipped);

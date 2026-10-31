@@ -29,7 +29,7 @@
       "required": ["layer", "kind", "value", "fromDate", "toDate"],
       "properties": {
         "layer": { "type": ["integer", "null"] },
-        "kind": { "type": "string", "enum": ["exclude-brand", "exclude-category", "min-campaign-margin"] },
+        "kind": { "type": "string", "enum": ["exclude-brand", "exclude-category", "min-campaign-margin", "protect-discount"] },
         "value": { "type": "string" },
         "fromDate": { "type": "string" },
         "toDate": { "type": "string" }

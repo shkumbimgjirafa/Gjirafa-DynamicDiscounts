@@ -47,7 +47,10 @@ public class ChatRule
 public static class ChatRuleKinds
 {
     public const string ExcludeBrand = "exclude-brand", ExcludeCategory = "exclude-category", MinCampaignMargin = "min-campaign-margin";
-    public static readonly string[] All = { ExcludeBrand, ExcludeCategory, MinCampaignMargin };
+    /// <summary>A team discount whose name matches the value (a pattern: <c>*</c> any text, <c>&lt;sku&gt;</c> the SKU, else a name
+    /// prefix) is never ended by the agents, even when it sells under the floor (the user's decision, 31 Oct).</summary>
+    public const string ProtectDiscount = "protect-discount";
+    public static readonly string[] All = { ExcludeBrand, ExcludeCategory, MinCampaignMargin, ProtectDiscount };
 }
 
 /// <summary>One stored run of the whole backtest (see Backtest.BacktestSnapshotBuilder), shown on the results page and as CSV.</summary>

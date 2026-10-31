@@ -44,6 +44,31 @@ public sealed record PublishRequest(int LayerId, IReadOnlyList<PublishItem> Item
     public long? EngineRunId { get; init; }
     /// <summary>DiscountPlatformTypeId 2 (app only) instead of 0 (web and app).</summary>
     public bool AppOnly { get; init; }
+    /// <summary>Regular publishes: end a cheaper deal we didn't create that covers only this product (audited, rolled back
+    /// with the batch), so our price applies; the user's decision of 31 Oct for prices under the floor. A deal matching one of
+    /// <see cref="ProtectedDealPatterns"/> is left and reported as "protected-deal"; a deal covering several products is never ended.</summary>
+    public bool EndTeamDeals { get; init; }
+    /// <summary>Discount-name patterns a person protected in the chat (rule "protect-discount"): <c>*</c> or <c>%</c> is any
+    /// text, <c>&lt;sku&gt;</c> the SKU; a pattern without them matches as a name prefix. Case is ignored.</summary>
+    public IReadOnlyList<string> ProtectedDealPatterns { get; init; } = Array.Empty<string>();
+
+    /// <summary>Whether a discount's name matches one of the protected patterns.</summary>
+    public bool IsProtected(string discountName) => ProtectedDealPatterns.Any(p => DealPattern.Matches(p, discountName));
+}
+
+/// <summary>A protected-deal pattern: <c>*</c> or <c>%</c> is any text, <c>&lt;sku&gt;</c> (or <c>{sku}</c>) any SKU; without a
+/// wildcard the pattern is a name prefix ("dd-" protects "dd-12345mo"). Case is ignored.</summary>
+public static class DealPattern
+{
+    public static bool Matches(string pattern, string name)
+    {
+        var p = pattern.Trim();
+        if (p.Length == 0) return false;
+        p = System.Text.RegularExpressions.Regex.Replace(p, @"<sku>|\{sku\}", "*", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!p.Contains('*') && !p.Contains('%')) return name.StartsWith(p, StringComparison.OrdinalIgnoreCase);
+        var regex = "^" + string.Join(".*", p.Split('*', '%').Select(System.Text.RegularExpressions.Regex.Escape)) + "$";
+        return System.Text.RegularExpressions.Regex.IsMatch(name, regex, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
 }
 
 public sealed record PublishOutcome(
@@ -373,11 +398,8 @@ public sealed class NopDiscountWriter
             {
                 if (!CanSupersede(request, cheaper))
                 {
-                    var c = Blocking(cheaper);
-                    exceptions.Add(c.IsOwnPush
-                        ? Exception(batch, item.Sku, "own-push", $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} carries the price approval #{c.OwnPushApproval} gave this SKU " +
-                                                                 $"(the calculator's earlier push, imported by the team) and is cheaper than {item.Price:0.00}; left as it is.")
-                        : Exception(batch, item.Sku, "cheaper-deal", $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} is cheaper than {item.Price:0.00} and is not ours; left as it is."));
+                    var c = request.EndTeamDeals ? cheaper.FirstOrDefault(o => request.IsProtected(o.Name)) ?? Blocking(cheaper) : Blocking(cheaper);
+                    exceptions.Add(Held(request, batch, item.Sku, c, item.Price));
                     continue;
                 }
                 foreach (var c in cheaper)
@@ -541,7 +563,10 @@ public sealed class NopDiscountWriter
             if (r.TeamDeal is { } team && r.Decision.Action != TierDecision.AtTier)
             {
                 batch.RaisedUnderTeamDeal++;
-                exceptions.Add(team.IsOwnPush
+                exceptions.Add(request.EndTeamDeals && request.IsProtected(team.Name)
+                    ? Exception(batch, r.Item.Sku, "protected-deal",
+                        $"Regular price raised to {r.Decision.NewPrice:0.00}, but discount #{team.Id} '{team.Name}' at {team.Amount:0.00} is cheaper and a rule given in the chat protects it: the shopper keeps paying it.")
+                    : team.IsOwnPush
                     ? Exception(batch, r.Item.Sku, "raised-under-own-push",
                         $"Regular price raised to {r.Decision.NewPrice:0.00}, but discount #{team.Id} '{team.Name}' at {team.Amount:0.00} carries approval #{team.OwnPushApproval}'s " +
                         "price (the calculator's earlier push, imported by the team): the shopper pays it until it ends or a person supersedes it.")
@@ -956,6 +981,33 @@ public sealed class NopDiscountWriter
         return (batch.Updated, batch.Skipped, plan.Sum(p => p.Ended.Count(e => e.Back.Applied)), batch.Id);
     }
 
+    /// <summary>What a shopper pays now for each SKU in the layer's shop (the sandbox during the hackathon), and the deal that
+    /// sets it: the engine's own reading of the shelf (<see cref="NopRegularPriceWriter.ShelfPricesAsync"/>). A SKU without one
+    /// live product is left out.</summary>
+    public async Task<Dictionary<string, (decimal? Shelf, string? Deal)>> ShelfNowAsync(int layerId, IReadOnlyCollection<string> skus, CancellationToken ct = default)
+    {
+        var result = new Dictionary<string, (decimal?, string?)>(StringComparer.OrdinalIgnoreCase);
+        if (skus.Count == 0) return result;
+        var (shop, layer) = await ShopForLayerAsync(layerId, ct);
+        await using var conn = new SqlConnection(shop.ConnectionString);
+        await conn.OpenAsync(ct);
+        var ids = new Dictionary<int, string>();
+        foreach (var chunk in skus.Distinct(StringComparer.OrdinalIgnoreCase).Chunk(500))
+        {
+            await using var cmd = new SqlCommand($"""
+                SELECT p.Id, p.Sku FROM [{shop.Schema}].[Product] p
+                WHERE p.Deleted = 0 AND p.Sku IN (SELECT value FROM STRING_SPLIT(@Skus, '|'))
+                  AND (SELECT COUNT(*) FROM [{shop.Schema}].[Product] x WHERE x.Sku = p.Sku AND x.Deleted = 0) = 1
+                """, conn) { CommandTimeout = 120 };
+            cmd.Parameters.AddWithValue("@Skus", string.Join('|', chunk));
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct)) ids[r.GetInt32(0)] = r.GetString(1);
+        }
+        var shelf = await NopRegularPriceWriter.ShelfPricesAsync(conn, null, shop.Schema, layer.StoreId, ids.Keys.ToList(), Truncate(_clock.GetUtcNow().UtcDateTime), ct);
+        foreach (var (id, s) in shelf) result[ids[id]] = (s.Shelf, s.Deal);
+        return result;
+    }
+
     private sealed record LayerRef(int LayerId, string Db, int StoreId, bool HasDisplayAvailabilityTime, bool IsMall);
 
     private async Task<(ShopConnection Shop, LayerRef Layer)> ShopForLayerAsync(int layerId, CancellationToken ct)
@@ -1023,11 +1075,24 @@ public sealed class NopDiscountWriter
         return (Truncate(start), Truncate(end));
     }
 
-    /// <summary>With <see cref="PublisherOptions.SupersedeTeamRegularDiscounts"/> on, a regular publish ends the cheaper deals when every
-    /// one of them is the calculator's own earlier push on this one product (a single-product discount carrying a price the tool
-    /// approved for the SKU). A team deal, or a set covering several products, is never ended.</summary>
+    /// <summary>A regular publish ends the cheaper deals when every one of them may go: with <see cref="PublishRequest.EndTeamDeals"/>,
+    /// any deal we didn't create that covers only this product and no person's rule protects; otherwise, with
+    /// <see cref="PublisherOptions.SupersedeTeamRegularDiscounts"/> on, only the calculator's own earlier push on this one product.
+    /// A set covering several products is never ended.</summary>
     private bool CanSupersede(PublishRequest request, IReadOnlyCollection<OtherDeal> cheaper) =>
-        request.Kind == PublishKinds.Regular && _options.SupersedeTeamRegularDiscounts && cheaper.All(o => o.Supersedable);
+        request.Kind == PublishKinds.Regular && (request.EndTeamDeals
+            ? cheaper.All(o => o.Products == 1 && !o.Name.StartsWith(OurPrefix, StringComparison.OrdinalIgnoreCase) && !request.IsProtected(o.Name))
+            : _options.SupersedeTeamRegularDiscounts && cheaper.All(o => o.Supersedable));
+
+    /// <summary>The exception for a price a cheaper deal keeps off the shelf: a deal a person's rule protects says so.</summary>
+    private PublishException Held(PublishRequest request, PublishBatch batch, string sku, OtherDeal c, decimal price) =>
+        request.EndTeamDeals && request.IsProtected(c.Name)
+            ? Exception(batch, sku, "protected-deal", $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} is cheaper than {price:0.00}; a rule given in the chat protects it, so it stays.")
+            : c.IsOwnPush
+                ? Exception(batch, sku, "own-push", $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} carries the price approval #{c.OwnPushApproval} gave this SKU " +
+                                                    $"(the calculator's earlier push, imported by the team) and is cheaper than {price:0.00}; left as it is.")
+                : Exception(batch, sku, "cheaper-deal", $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} is cheaper than {price:0.00} and is not ours" +
+                                                        (c.Products > 1 ? $" (it covers {c.Products} products)" : "") + "; left as it is.");
 
     /// <summary>The deal that says why a price stays held: the cheapest team deal under the price; the calculator's own earlier
     /// push only when nothing else is under it (a team deal under the price holds it whatever the switch says).</summary>

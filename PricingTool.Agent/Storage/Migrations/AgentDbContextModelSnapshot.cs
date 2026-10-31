@@ -96,6 +96,17 @@ namespace PricingTool.Agent.Storage.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("ReportNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ReportedTo")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ReportedUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ReviewedBy")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");

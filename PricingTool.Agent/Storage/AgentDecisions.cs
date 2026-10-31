@@ -78,6 +78,12 @@ public class AgentDecision
     /// <summary>The person who approved or rejected a held or pending decision in the exceptions inbox, and when.</summary>
     public string? ReviewedBy { get; set; }
     public DateTime? ReviewedUtc { get; set; }
+
+    /// <summary>A held item Alpha's problem pass looked at and couldn't settle: who can fix it (an owner role), what Alpha
+    /// found, and when it reported it.</summary>
+    public string? ReportedTo { get; set; }
+    public string? ReportNote { get; set; }
+    public DateTime? ReportedUtc { get; set; }
 }
 
 /// <summary>A kind of task the solution does for people, with its measured time before (<c>ai.TimeSheetTaskType</c>).

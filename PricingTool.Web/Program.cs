@@ -42,6 +42,14 @@ builder.Services.AddSingleton<RunWeekLauncher>();
 builder.Services.AddScoped<AgentActivity>();
 builder.Services.AddScoped<RunReportService>();
 builder.Services.AddSingleton<ChatTurnLauncher>();
+// The problem pass from the Chat tab: code settles the cost watcher's holds it can (ending a team discount under the floor
+// through the same audited publish), Alpha reports the rest. The sandbox only, like every publish from this app.
+builder.Services.Configure<PricingTool.NopIntegration.CostWatch.CostWatcherOptions>(
+    builder.Configuration.GetSection(PricingTool.NopIntegration.CostWatch.CostWatcherOptions.SectionName));
+builder.Services.AddScoped<PricingTool.NopIntegration.CostWatch.ICostPublisher, PricingTool.NopIntegration.CostWatch.WriterCostPublisher>();
+builder.Services.AddScoped<PricingTool.NopIntegration.CostWatch.HoldResolver>();
+builder.Services.AddScoped<PricingTool.Agent.Operations.IHoldResolver>(sp => sp.GetRequiredService<PricingTool.NopIntegration.CostWatch.HoldResolver>());
+builder.Services.AddSingleton<ProblemPassLauncher>();
 // The Evidence page: numbers.json, and its SQL figures recomputed live as a read-only database user.
 builder.Services.Configure<EvidenceOptions>(builder.Configuration.GetSection(EvidenceOptions.SectionName));
 builder.Services.AddScoped<EvidenceService>();

@@ -38,8 +38,9 @@ public class PublisherOptions
 
     /// <summary>When on, a regular publish end-dates a cheaper deal on the SKU when it is the calculator's own earlier push: a
     /// single-product discount carrying a price the tool approved for that SKU (imported by the team as a discount set). A team
-    /// deal is never touched, nor a campaign. Off by default: the commercial owner decides before go-live. (Until 31 Oct this
-    /// matched names, and a pattern like "%-disc-%" would also have matched campaigns.)</summary>
+    /// deal is never touched here, nor a campaign. Off by default: the commercial owner decides before go-live. (Until 31 Oct this
+    /// matched names, and a pattern like "%-disc-%" would also have matched campaigns.) A team deal under the floor after a
+    /// cost rise is a separate rule: the cost watcher's <c>EndTeamDeals</c> (<see cref="PublishRequest.EndTeamDeals"/>).</summary>
     public bool SupersedeTeamRegularDiscounts { get; set; }
 
     /// <summary>Above this share of round-trip mismatches in a batch, the batch is rolled back automatically.</summary>

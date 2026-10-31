@@ -477,6 +477,8 @@ cost rise goes unnoticed for days: Morele's purchase prices rose on 9 Oct and we
   1. **A cost jump that looks like a data error** (up more than 50%, or a currency-scale jump such as ×62): held, alert, nothing published. The 12 Oct Gj50 check had 75 of these.
   2. **Still below the floor with our discount removed:** we only write discounts, not regular prices, so it ends our `ai-price` discount and alerts "cost has passed the shelf price; the regular price needs changing".
   3. **The low price comes from a discount we didn't create** (e.g. the team's monthly push): held for a person; `SupersedeTeamRegularDiscounts` decides, as for the publisher.
+     *(Changed 31 Oct, the user's decision: the watcher ends a one-product team discount under the floor unless a chat rule
+     `protect-discount` protects it, and reports it; see `app-redesign-plan.md` and GO-LIVE.md.)*
 - Every action writes `AgentDecision` (source `CostWatcher`) and `PublishAudit`, so it shows in the feed and can be rolled back.
 - **During the hackathon** it polls the local data. The test and demo case: an injected, labelled cost rise in `PricingToolHackathon` is caught within one cycle and the sandbox discount is raised.
 - **Before go-live, find out** how often `ProductPricing` refreshes (that sets the real speed) and how fast NOP shows a changed discount (the cache question above).

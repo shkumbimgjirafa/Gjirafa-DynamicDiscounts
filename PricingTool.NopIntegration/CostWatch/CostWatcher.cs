@@ -32,6 +32,14 @@ public class CostWatcherOptions
 
     /// <summary>The replica feed watches SKUs whose current margin is within this many points of their floor.</summary>
     public decimal WatchHeadroomPp { get; set; } = 15m;
+
+    /// <summary>A cheaper team discount (one product, not ours) that keeps a price under its floor after a cost rise is ended so
+    /// the floor price applies, unless a chat rule "protect-discount" protects it (the user's decision, 31 Oct). Off: held for a person.</summary>
+    public bool EndTeamDeals { get; set; } = true;
+
+    /// <summary>An observation whose source starts with this was re-queued after Alpha confirmed the cost jump is real: it is
+    /// not held as a data error again.</summary>
+    public const string ConfirmedSource = "alpha-confirmed";
 }
 
 /// <summary>What publishing does for the watcher; the writer in production, a fake in tests.</summary>
@@ -55,18 +63,31 @@ public sealed class WriterCostPublisher : ICostPublisher
 {
     private readonly NopDiscountWriter _writer;
     private readonly AgentDbContext _db;
+    private readonly CostWatcherOptions _options;
+    private readonly TimeProvider _clock;
 
-    public WriterCostPublisher(NopDiscountWriter writer, AgentDbContext db)
+    public WriterCostPublisher(NopDiscountWriter writer, AgentDbContext db, IOptions<CostWatcherOptions> options, TimeProvider? clock = null)
     {
         _writer = writer;
         _db = db;
+        _options = options.Value;
+        _clock = clock ?? TimeProvider.System;
     }
 
     public async Task<(long BatchId, string Status, string? LeftOut)> RaiseAsync(int layerId, string sku, decimal price, decimal ceiling, decimal runCurrentPrice,
         decimal runOldPrice, CancellationToken ct)
     {
         var item = new PublishItem(sku, price, runOldPrice) { RunCurrentPrice = runCurrentPrice, RunOldPrice = runOldPrice, Ceiling = ceiling };
-        var o = await _writer.PublishAsync(new PublishRequest(layerId, new[] { item }) { RaiseRegularPrices = true }, ct);
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var protectedPatterns = _options.EndTeamDeals
+            ? await _db.ChatRules.AsNoTracking()
+                .Where(r => r.Kind == ChatRuleKinds.ProtectDiscount && r.RemovedUtc == null && (r.LayerId == null || r.LayerId == layerId) && r.FromDate <= today && r.ToDate >= today)
+                .Select(r => r.Value).ToListAsync(ct)
+            : new List<string>();
+        var o = await _writer.PublishAsync(new PublishRequest(layerId, new[] { item })
+        {
+            RaiseRegularPrices = true, EndTeamDeals = _options.EndTeamDeals, ProtectedDealPatterns = protectedPatterns,
+        }, ct);
         // app-deal-cheaper is information (our price went out on the web), not a reason the price didn't stand.
         return (o.BatchId, o.Status, o.Exceptions.FirstOrDefault(e => e.Sku == sku && e.Kind != "app-deal-cheaper")?.Kind);
     }
@@ -260,7 +281,7 @@ public sealed class CostWatcher
                     ["anchor"] = anchor, ["engineRun"] = run.Id,
                 };
 
-                if (risePct > _options.DataErrorRisePct)
+                if (risePct > _options.DataErrorRisePct && !o.Source.StartsWith(CostWatcherOptions.ConfirmedSource, StringComparison.Ordinal))
                 {
                     var d = Decision(o, band.BandId, category, floorPct, "hold", DecisionStatus.Held, "data-error-cost-jump",
                         $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} (+{risePct:0}%) looks like a data error (over {_options.DataErrorRisePct:0}%): nothing published; check the cost.", facts);
@@ -322,14 +343,16 @@ public sealed class CostWatcher
                             Done(o, "ended-our-discount", d, endBatch);
                             ended++;
                         }
-                        else
+                        else if (!_options.EndTeamDeals)
                         {
                             var d = Decision(o, band.BandId, category, floorPct, "hold", DecisionStatus.Held, "team-discount",
                                 why + " The low price comes from a discount we didn't create: a person decides.", facts);
                             Done(o, "held-team-discount", d);
                             held++;
                         }
-                        continue;
+                        if (endBatch is not null || !_options.EndTeamDeals) continue;
+                        // The low price is a deal we didn't create: publish the regular price itself, which ends that deal.
+                        price = Math.Min(shelf, ceiling);
                     }
                     var (batchId, status, leftOut) = await _publisher.RaiseAsync(o.LayerId, o.Sku, price, ceiling, current, s.OldPrice ?? current, ct);
                     facts["publishBatch"] = batchId;
@@ -338,9 +361,14 @@ public sealed class CostWatcher
                     if (status == "Published" && leftOut is null)
                     {
                         facts["publishedPrice"] = price;
-                        var d = Decision(o, band.BandId, category, floorPct, "raise-to-floor", DecisionStatus.Applied, null,
-                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} (+{risePct:0.#}%) put the live price {live:0.00} under the {floorPct:0.##}% floor ({floorPrice:0.00}): raised to {price:0.00}.", facts);
-                        Done(o, "raised", d, batchId);
+                        var endedDeals = await _db.PublishAudits.AsNoTracking().Where(a => a.BatchId == batchId && a.Change == "DiscountSuperseded")
+                            .Select(a => new { a.DiscountId, a.DiscountName, a.OldDiscountAmount }).ToListAsync(ct);
+                        if (endedDeals.Count > 0) facts["endedTeamDeals"] = endedDeals.Select(e => $"#{e.DiscountId} {e.DiscountName} at {e.OldDiscountAmount:0.00}").ToList();
+                        var dealsText = string.Join(", ", endedDeals.Select(e => $"'{e.DiscountName}' at {e.OldDiscountAmount:0.00}"));
+                        var d = Decision(o, band.BandId, category, floorPct, endedDeals.Count > 0 ? "end-team-deal" : "raise-to-floor", DecisionStatus.Applied, null,
+                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} (+{risePct:0.#}%) put the live price {live:0.00} under the {floorPct:0.##}% floor ({floorPrice:0.00}): " +
+                            (endedDeals.Count > 0 ? $"ended the team discount {dealsText} that sold under it; the price is {price:0.00}." : $"raised to {price:0.00}."), facts);
+                        Done(o, endedDeals.Count > 0 ? "ended-team-deal" : "raised", d, batchId);
                         raised++;
                     }
                     else if (status == "Stopped")
@@ -354,6 +382,14 @@ public sealed class CostWatcher
                             $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} put the live price {live:0.00} under the floor ({floorPrice:0.00}), but the cheaper price is the " +
                             "calculator's own earlier push, imported by the team: it stays until it ends or a person supersedes it.", facts);
                         Done(o, "held-own-push", d, batchId);
+                        held++;
+                    }
+                    else if (leftOut == "protected-deal")
+                    {
+                        var d = Decision(o, band.BandId, category, floorPct, "hold", DecisionStatus.Held, "protected-deal",
+                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} put the live price {live:0.00} under the floor ({floorPrice:0.00}); a cheaper team discount wins and " +
+                            "a rule given in the chat protects it, so it stays: the shopper pays under the floor until it ends.", facts);
+                        Done(o, "held-protected-deal", d, batchId);
                         held++;
                     }
                     else if (leftOut is not ("cheaper-deal" or "raised-under-team-deal"))

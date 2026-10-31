@@ -24,8 +24,10 @@ public class ChatController : Controller
     private readonly ExceptionsInbox _inbox;
     private readonly AgentModeStore _modes;
     private readonly ChatTurnLauncher _launcher;
+    private readonly ProblemPassLauncher _problems;
 
-    public ChatController(PricingToolDbContext db, AgentDbContext ai, AgentActivity activity, ExceptionsInbox inbox, AgentModeStore modes, ChatTurnLauncher launcher)
+    public ChatController(PricingToolDbContext db, AgentDbContext ai, AgentActivity activity, ExceptionsInbox inbox, AgentModeStore modes, ChatTurnLauncher launcher,
+        ProblemPassLauncher problems)
     {
         _db = db;
         _ai = ai;
@@ -33,6 +35,7 @@ public class ChatController : Controller
         _inbox = inbox;
         _modes = modes;
         _launcher = launcher;
+        _problems = problems;
     }
 
     public async Task<IActionResult> Index()
@@ -52,6 +55,7 @@ public class ChatController : Controller
             Thread = thread,
             ConversationId = await _ai.ChatMessages.MaxAsync(m => (long?)m.ConversationId),
             TurnRunning = _launcher.IsRunning,
+            ProblemsRunning = _problems.IsRunning,
             Answering = _launcher.Answering,
             Inbox = inbox,
             ComingUp = await _activity.ComingUpAsync(DateOnly.FromDateTime(DateTime.Now)),

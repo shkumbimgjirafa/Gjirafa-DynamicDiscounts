@@ -58,6 +58,7 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<DailyCycle>();
         services.AddScoped<IRunFacts, SqlRunFacts>();
         services.AddScoped<RunReportWriter>();
+        services.AddScoped<ProblemDesk>();
         services.AddScoped<ExceptionsInbox>();
         services.AddScoped<AgentToolLog>();
         services.AddScoped<AgentDataTools>();

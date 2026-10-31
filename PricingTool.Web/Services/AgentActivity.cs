@@ -59,8 +59,11 @@ public class AgentActivity
         foreach (var b in await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since).OrderByDescending(b => b.Id).Take(300).ToListAsync())
         {
             var allLeftOut = b.Status == "Failed" && b.Requested > 0 && b.Skipped >= b.Requested;
+            var oneSku = b.Kind == "Regular" && b.EngineRunId is null && b.Requested == 1 && b.Status == "Published" && b.RolledBackUtc is null;
             feed.Add(allLeftOut
                 ? new FeedItem(b.StartedUtc, "Publisher", b.LayerId, LeftOutLine(1), $"batch #{b.Id}: {b.Requested} SKU asked, {b.Skipped} left out", null, "pub|left-out")
+                : oneSku
+                ? new FeedItem(b.StartedUtc, "Publisher", b.LayerId, OneSkuLine(1), $"batch #{b.Id}: {b.Created:N0} created, {b.Updated:N0} updated, {b.TierRaised:N0} regular price raised", null, "pub|one-sku")
                 : b.Kind == "Expire" && b.Created + b.Updated == 0
                     ? new FeedItem(b.StartedUtc, "Publisher", b.LayerId, $"Expire batch #{b.Id} to {b.Target}: {b.Status}, {b.DiscountsEnded:N0} of our discounts ended", null, null)
                     : new FeedItem(b.StartedUtc, "Publisher", b.LayerId,
@@ -88,7 +91,8 @@ public class AgentActivity
             var first = members[0];
             if (members.Count == 1) { yield return first; continue; }
             var parts = first.Group!.Split('|');
-            var what = parts[0] == "cw" ? CostWatcherLine(parts[1], parts[2], parts[3].Length == 0 ? null : parts[3], members.Count) : LeftOutLine(members.Count);
+            var what = parts[0] == "cw" ? CostWatcherLine(parts[1], parts[2], parts[3].Length == 0 ? null : parts[3], members.Count)
+                : parts[1] == "one-sku" ? OneSkuLine(members.Count) : LeftOutLine(members.Count);
             var why = string.Join("\n", members.Take(60).Select(f => $"{f.Utc.ToLocalTime():HH:mm} {f.Why}")) + (members.Count > 60 ? $"\n… and {members.Count - 60} more" : "");
             yield return first with { What = what, Why = why, Count = members.Count };
         }
@@ -101,6 +105,7 @@ public class AgentActivity
         "cost-above-shelf" => "the new cost is above the shelf price",
         "data-error-cost-jump" or "data-error" => "the cost jump looks like a data error",
         "own-push" => "an earlier push of ours holds the price",
+        "protected-deal" => "a cheaper team deal sells under the floor, and a rule you gave protects it",
         null => null,
         _ => limit,
     };
@@ -110,10 +115,20 @@ public class AgentActivity
     {
         var skus = n == 1 ? "1 SKU" : $"{n:N0} SKUs";
         var why = LimitWords(limit);
-        return status == DecisionStatus.Held
-            ? $"Held {skus} for a person after a cost rise{(why is null ? "" : ": " + why)}"
-            : $"{char.ToUpperInvariant(action[0])}{action[1..]} on {skus} after a cost rise ({status}{(why is null ? "" : ", " + why)})";
+        return (status, action) switch
+        {
+            (DecisionStatus.Held, _) => $"Held {skus} for a person after a cost rise{(why is null ? "" : ": " + why)}",
+            (DecisionStatus.Applied, "end-team-deal") => $"Ended the team discount that kept {skus} under the floor after a cost rise; the floor-respecting price is on the shelf",
+            (DecisionStatus.Applied, "raise-to-floor") => $"Raised {skus} to the floor after a cost rise",
+            (DecisionStatus.Applied, "end-our-discount") => $"Ended our discount on {skus} after a cost rise, so the regular price applies",
+            (DecisionStatus.Applied, "end-campaign-discount") => $"Ended our campaign discount early on {skus}: the cost rise put it under the campaign's minimum margin",
+            _ => $"{char.ToUpperInvariant(action[0])}{action[1..]} on {skus} after a cost rise ({status}{(why is null ? "" : ", " + why)})",
+        };
     }
+
+    private static string OneSkuLine(int n) => n == 1
+        ? "Published one SKU's price (the cost watcher's raise)"
+        : $"Published {n:N0} single SKUs' prices (the cost watcher's raises)";
 
     private static string LeftOutLine(int n) => n == 1
         ? "A one-SKU publish wrote nothing: the SKU was left out (a cheaper deal or the shelf price)"

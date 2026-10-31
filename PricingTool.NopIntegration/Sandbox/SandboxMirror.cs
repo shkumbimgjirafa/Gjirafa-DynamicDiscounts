@@ -247,6 +247,18 @@ public sealed class SandboxMirror : ISandboxMirror
                 """, layer.StoreId, now, ct);
         }
 
+        // A deal the tool ended (a publish superseded it, not rolled back) stays ended: the live shop would end it the same way.
+        // The audit lives in the tool database's ai schema (absent from a bare sandbox, e.g. in tests).
+        bool hasAudit;
+        await using (var probe = new SqlCommand("SELECT CASE WHEN OBJECT_ID('ai.PublishAudit') IS NULL OR OBJECT_ID('ai.PublishBatch') IS NULL THEN 0 ELSE 1 END", local))
+            hasAudit = (int)(await probe.ExecuteScalarAsync(ct))! == 1;
+        var notEndedByUs = hasAudit
+            ? """
+              AND NOT EXISTS (SELECT 1 FROM ai.PublishAudit a JOIN ai.PublishBatch b ON b.Id = a.BatchId
+                              WHERE a.DiscountId = d.Id AND a.Change = 'DiscountSuperseded' AND a.Applied = 1 AND b.RolledBackUtc IS NULL)
+              """
+            : "";
+
         // One transaction for the whole change.
         int inserted, updated, mappings, productsAdded, flags, endDated, tierRefreshed, tierInserted;
         await using (var tx = (SqlTransaction)await local.BeginTransactionAsync(ct))
@@ -256,7 +268,8 @@ public sealed class SandboxMirror : ISandboxMirror
                 FROM [{s}].[Discount] d
                 JOIN [{s}].[{MapTable}] mm ON mm.SandboxId = d.Id
                 JOIN #md m ON m.LiveId = mm.LiveId
-                WHERE d.Name NOT LIKE '{OurPrefix}%' AND EXISTS (SELECT {List("m.")} EXCEPT SELECT {List("d.")});
+                WHERE d.Name NOT LIKE '{OurPrefix}%' AND EXISTS (SELECT {List("m.")} EXCEPT SELECT {List("d.")})
+                {notEndedByUs};
                 """, now, ct, tx);
             await ExecAsync(local, "CREATE TABLE #new (SandboxId int NOT NULL, LiveId int NOT NULL);", now, ct, tx);
             inserted = await ExecAsync(local, $"""

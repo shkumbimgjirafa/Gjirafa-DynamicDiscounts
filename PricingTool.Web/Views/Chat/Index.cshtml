@@ -67,6 +67,10 @@
             {
                 <div class="small text-muted mb-1"><span class="spinner-border spinner-border-sm"></span> @(Model.Answering ?? "Nova") is reading the data…</div>
             }
+            @if (Model.ProblemsRunning)
+            {
+                <div class="small text-muted mb-1"><span class="spinner-border spinner-border-sm"></span> Alpha is looking at what's waiting…</div>
+            }
             <div id="bottom"></div>
         </div>
         @if (isManager)
@@ -96,11 +100,19 @@
                 @if (inbox.WaitingCount == 0) { <p class="text-muted mb-0">Nothing: the agents settled everything themselves.</p> }
                 @foreach (var g in inbox.CostHoldSkus.GroupBy(h => h.Latest.Limit).OrderByDescending(g => g.Count()))
                 {
+                    var owners = g.Where(h => h.Latest.ReportedTo is not null).GroupBy(h => h.Latest.ReportedTo!).OrderByDescending(o => o.Count()).ToList();
                     <div class="mb-2">
                         <span class="badge bg-light text-dark border">@g.Count()</span>
                         SKU@(g.Count() == 1 ? "" : "s"): @PricingTool.Web.Services.AgentActivity.LimitWords(g.Key)
-                        <div class="text-muted">held by the cost watcher, @string.Join(", ", g.GroupBy(h => h.LayerId).Select(x => $"{x.Count()} on {Model.LayerName(x.Key)}")).
+                        <div class="text-muted">@string.Join(", ", g.GroupBy(h => h.LayerId).Select(x => $"{x.Count()} on {Model.LayerName(x.Key)}")).
                             <a asp-controller="Agent" asp-action="Exceptions" asp-fragment="cost-holds">the SKUs</a></div>
+                        @foreach (var o in owners)
+                        {
+                            <div><span class="text-muted">Alpha: for</span> <strong>@o.Key</strong> (@o.Count())</div>
+                            <details><summary class="text-muted">Alpha's notes</summary>
+                                @foreach (var h in o.Take(10)) { <div><code>@h.Sku</code>: @h.Latest.ReportNote</div> }</details>
+                        }
+                        @if (owners.Count == 0) { <div class="text-muted">Alpha hasn't looked at these yet.</div> }
                     </div>
                 }
                 @foreach (var p in inbox.CampaignPlans)
@@ -135,6 +147,14 @@
                 @if (inbox.WaitingCount > 0)
                 {
                     <a class="small" asp-controller="Agent" asp-action="Exceptions">All the details</a>
+                }
+                @if (isManager)
+                {
+                    <form method="post" asp-controller="Agent" asp-action="Problems" class="mt-2">
+                        <button class="btn btn-sm btn-outline-primary" disabled="@Model.ProblemsRunning">Ask Alpha to look now</button>
+                        <div class="text-muted">Code settles what it can (closes what resolved itself, ends a team discount under the floor), then
+                            Alpha looks at the rest and posts who can fix it. It also runs once a day.</div>
+                    </form>
                 }
             </div>
         </div>
@@ -242,7 +262,7 @@
         apply();
     })();
 </script>
-@if (Model.TurnRunning)
+@if (Model.TurnRunning || Model.ProblemsRunning)
 {
     <script>setTimeout(function () { location.reload(); }, 4000);</script>
 }

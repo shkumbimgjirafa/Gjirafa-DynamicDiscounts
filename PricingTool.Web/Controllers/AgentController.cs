@@ -69,6 +69,19 @@ public class AgentController : Controller
         return RedirectToAction(nameof(RunController.Index), "Run", null, "run-week");
     }
 
+    /// <summary>Alpha's problem pass now, in the background: code settles the holds it can, Alpha reports the rest in the chat.</summary>
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public IActionResult Problems([FromServices] Services.ProblemPassLauncher launcher)
+    {
+        if (launcher.TryStart())
+            TempData["Message"] = "Alpha is looking at what's waiting: code settles what it can first, then Alpha posts what's left and who can fix it here.";
+        else
+            TempData["Error"] = "Alpha is already looking: its post lands in the thread when it's done.";
+        return RedirectToAction(nameof(ChatController.Index), "Chat", null, "bottom");
+    }
+
     /// <summary>A message to the agents: Nova answers, "@alpha" asks Alpha. The turn runs in the background (the agents read
     /// data first, up to a minute or two); the Chat tab shows the message at once and the answer when it lands.</summary>
     [HttpPost]

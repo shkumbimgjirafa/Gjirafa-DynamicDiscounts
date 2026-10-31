@@ -64,6 +64,17 @@ public class AgentOptions
     /// stays in the chat. The address is still to be confirmed by the user.</summary>
     public string? ReportEmail { get; set; }
 
+    /// <summary>Who can fix what the agents can't, by role: Alpha's problem pass names one of these for each item it reports.
+    /// The names behind the roles are the user's to fill in (configuration <c>Agent:Owners</c>); until then the role is shown.</summary>
+    public Dictionary<string, string> Owners { get; set; } = new()
+    {
+        ["regular-prices"] = "Category manager (sets regular prices)",
+        ["cost-data"] = "Purchasing / ERP data owner (product costs)",
+        ["team-deals"] = "Campaign owner (the team's discounts)",
+        ["pricing-tool"] = "Pricing tool team (the app, publishes, the daily cycle)",
+        ["pricing-manager"] = "Pricing manager (decisions only a person may take)",
+    };
+
     public string ResolveToolsExecutable() =>
         Path.GetFullPath(string.IsNullOrWhiteSpace(ToolsExecutable) ? "PricingTool.AgentTools.exe" : ToolsExecutable,
             AppContext.BaseDirectory);

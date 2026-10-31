@@ -61,6 +61,8 @@ public static class NopPublisherServiceCollectionExtensions
         services.Configure<CostWatch.CostWatcherOptions>(config.GetSection(CostWatch.CostWatcherOptions.SectionName));
         services.AddScoped<CostWatch.ICostPublisher, CostWatch.WriterCostPublisher>();
         services.AddScoped<CostWatch.CostWatcher>();
+        services.AddScoped<CostWatch.HoldResolver>();
+        services.AddScoped<PricingTool.Agent.Operations.IHoldResolver>(sp => sp.GetRequiredService<CostWatch.HoldResolver>());
         services.AddScoped<CostWatch.ReplicaCostFeed>();
         services.AddScoped<PricingTool.Agent.Campaigns.ICampaignPublisher, CampaignPublisher>();
         if (config.GetValue<bool>("Publisher:ReplaceCsvPush"))

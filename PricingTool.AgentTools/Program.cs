@@ -877,6 +877,27 @@ switch (command)
         return status is "Succeeded" or "Warning" ? 0 : 1;
     }
 
+    case "resolve-holds":
+    case "problems":
+    {
+        // resolve-holds: code settles the cost watcher's holds it can (no model call). problems: that, then Alpha's problem pass.
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        if (command == "resolve-holds")
+        {
+            var v = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Operations.IHoldResolver>().ReviewAsync();
+            Console.WriteLine($"Re-check: {v.Fixed} fixed, {v.Resolved} closed, {v.StillHeld} still held.");
+            foreach (var l in v.Lines) Console.WriteLine("  " + l);
+            return 0;
+        }
+        var r = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Operations.ProblemDesk>().RunAsync();
+        Console.WriteLine($"{r.Status}: re-check {r.Review?.Fixed ?? 0} fixed, {r.Review?.Resolved ?? 0} closed, {r.Review?.StillHeld ?? 0} still held; " +
+                          $"Alpha reported {r.Reported}, confirmed {r.Confirmed}; post #{r.PostId?.ToString() ?? "-"} {r.Error}");
+        foreach (var l in r.Review?.Lines ?? Array.Empty<string>()) Console.WriteLine("  " + l);
+        return r.Status == "Failed" ? 1 : 0;
+    }
+
     case "run-report":
     {
         // run-report <batch id>: that publish's report (Alpha's account too unless --no-alpha); run-report --missing: every recent one without.

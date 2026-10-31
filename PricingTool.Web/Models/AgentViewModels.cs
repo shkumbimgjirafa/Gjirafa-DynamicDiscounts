@@ -40,6 +40,8 @@ public class ChatPageModel
     /// <summary>The conversation a new message continues (the newest one).</summary>
     public long? ConversationId { get; init; }
     public bool TurnRunning { get; init; }
+    /// <summary>Alpha's problem pass is running (from this page).</summary>
+    public bool ProblemsRunning { get; init; }
     public string? Answering { get; init; }
     public PricingTool.Agent.Operations.InboxSnapshot Inbox { get; init; } = new();
     public IReadOnlyList<CampaignRow> ComingUp { get; init; } = Array.Empty<CampaignRow>();

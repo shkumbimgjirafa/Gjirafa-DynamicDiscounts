@@ -236,6 +236,14 @@ public sealed class DailyCycle
             var waiting = await _db.CostObservations.CountAsync(o => o.ProcessedUtc == null, ct);
             return (StepStatus.Succeeded, $"cost watcher, last 24 h: {(done.Count == 0 ? "no cost moves" : string.Join(", ", done.Select(d => $"{d.Count} {d.Key}")))}; {waiting} waiting");
         });
+        // What the agents couldn't settle reaches a person once a day, with who can fix it (Alpha's problem pass, posted in the chat).
+        yield return new Step("problems", async ct =>
+        {
+            var r = await With((ProblemDesk d) => d.RunAsync(ct));
+            return (r.Status == "Failed" ? StepStatus.Failed : r.Status == "Skipped" ? StepStatus.Skipped : StepStatus.Succeeded,
+                $"{(r.Review is { } v ? $"re-check: {v.Fixed} fixed, {v.Resolved} closed, {v.StillHeld} still held; " : "")}" +
+                $"Alpha reported {r.Reported}, confirmed {r.Confirmed} real rises{(r.PostId is { } id ? $", posted message #{id}" : "")}{(r.Error is null ? "" : $" ({r.Error})")}");
+        });
         yield return new Step("weekly-report", async ct =>
         {
             if (day.DayOfWeek != c.NovaDay) return (StepStatus.Skipped, $"The weekly report is written on {c.NovaDay}s");

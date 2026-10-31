@@ -1012,7 +1012,8 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         var regular = TierRow(201, 46.50m, 59.50m);
         TierRow(202, 46.50m, 59.50m);
         TeamDeal("oct-deals-26-UNDER-TEAM", 44m, new[] { 202 });
-        var publisher = new PricingTool.NopIntegration.CostWatch.WriterCostPublisher(Writer(), _db);
+        var publisher = new PricingTool.NopIntegration.CostWatch.WriterCostPublisher(Writer(), _db,
+            Microsoft.Extensions.Options.Options.Create(new PricingTool.NopIntegration.CostWatch.CostWatcherOptions { EndTeamDeals = false }));
 
         var raised = await publisher.RaiseAsync(4, "AT-REGULAR", 49.50m, 58.50m, 46.50m, 59.50m, default);
         var underTeam = await publisher.RaiseAsync(4, "UNDER-TEAM", 49.50m, 58.50m, 44m, 59.50m, default);
@@ -1020,7 +1021,55 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         Assert.Equal(("Published", (string?)null), (raised.Status, raised.LeftOut));
         Assert.Equal((49.50m, 59.50m), Tier(regular));                           // a discount at 49.50 over a 46.50 regular price would change nothing
         Assert.Equal(49.50m, EngineShelf(201));
-        Assert.Equal("raised-under-team-deal", underTeam.LeftOut);               // the watcher holds it for a person
+        Assert.Equal("raised-under-team-deal", underTeam.LeftOut);               // the switch off: the watcher holds it for a person
         Assert.Equal(44m, EngineShelf(202));
+    }
+
+    [LocalDbFact]
+    public async Task Under_the_floor_the_cost_watcher_ends_a_one_product_team_deal_and_a_rollback_puts_it_back()
+    {
+        Product(201, "UNDER-TEAM", hasTier: true);
+        Product(202, "SHARED-A", hasTier: true);
+        Product(203, "SHARED-B", hasTier: true);
+        TierRow(201, 46.50m, 59.50m);
+        TierRow(202, 46.50m, 59.50m);
+        TierRow(203, 46.50m, 59.50m);
+        var team = TeamDeal("techtober-2026-UNDER-TEAM", 44m, new[] { 201 });
+        var shared = TeamDeal("oct-bundle", 44m, new[] { 202, 203 });         // covers two products: never ended
+        var publisher = new PricingTool.NopIntegration.CostWatch.WriterCostPublisher(Writer(), _db,
+            Microsoft.Extensions.Options.Options.Create(new PricingTool.NopIntegration.CostWatch.CostWatcherOptions()));   // on by default
+
+        var ended = await publisher.RaiseAsync(4, "UNDER-TEAM", 49.50m, 58.50m, 46.50m, 59.50m, default);
+        var kept = await publisher.RaiseAsync(4, "SHARED-A", 49.50m, 58.50m, 46.50m, 59.50m, default);
+
+        Assert.Equal(("Published", (string?)null), (ended.Status, ended.LeftOut));
+        Assert.Equal(49.50m, EngineShelf(201));                                  // the floor price is on the shelf
+        Assert.Equal(Now.AddSeconds(-1), Discounts().Single(d => d.Id == team).End);
+        var sup = await _db.PublishAudits.SingleAsync(a => a.Change == "DiscountSuperseded");
+        Assert.Equal((team, ended.BatchId), (sup.DiscountId!.Value, sup.BatchId));
+        Assert.Equal("raised-under-team-deal", kept.LeftOut);
+        Assert.Equal(Now.AddDays(20), Discounts().Single(d => d.Id == shared).End);
+
+        await Writer().RollbackAsync(ended.BatchId);
+        Assert.Equal(Now.AddDays(20), Discounts().Single(d => d.Id == team).End);   // the team deal is back
+        Assert.Equal(44m, EngineShelf(201));
+    }
+
+    [LocalDbFact]
+    public async Task A_team_deal_a_chat_rule_protects_stays_and_says_so()
+    {
+        Product(101, "SKU-A");
+        Product(102, "SKU-B");
+        var protectedDeal = TeamDeal("dd-SKU-A", 40m, new[] { 101 });
+        var other = TeamDeal("techtober-2026-SKU-B", 40m, new[] { 102 });
+
+        var outcome = await Writer().PublishAsync(Regular(4, ("SKU-A", 45m), ("SKU-B", 45m)) with { EndTeamDeals = true, ProtectedDealPatterns = new[] { "dd-" } });
+
+        var e = Assert.Single(outcome.Exceptions);
+        Assert.Equal(("SKU-A", "protected-deal"), (e.Sku, e.Kind));
+        Assert.Contains("rule given in the chat", e.Detail);
+        Assert.Equal(Now.AddDays(20), Discounts().Single(d => d.Id == protectedDeal).End);
+        Assert.Equal(Now.AddSeconds(-1), Discounts().Single(d => d.Id == other).End);   // ended: ours applies to SKU-B
+        Assert.Equal(1, outcome.Created);
     }
 }

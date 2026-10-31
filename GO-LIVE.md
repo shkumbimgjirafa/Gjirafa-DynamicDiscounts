@@ -26,6 +26,12 @@ step that copies the live shop's other discounts and regular prices into the san
   deal is an own push: the switch can't clear it). On 31 Oct, 96.5 % of the held prices were the calculator's own October
   pushes; with the switch on, 98.3 % of both KS layers' checked prices reached the sandbox shelf (171,108 of 174,087,
   measured on runs #1109 and #1107, then rolled back), and team deals held 2,969.
+- **Team deals under the floor after a cost rise (the user's decision, 31 Oct):** the cost watcher ends a cheaper team
+  discount that keeps a price under its floor (`CostWatcher:EndTeamDeals`, on), when the discount covers only that product
+  and no chat rule `protect-discount` matches its name; then the floor price applies. Audited like any supersede and
+  rolled back with its batch; the sandbox mirror leaves a deal the tool ended as ended. This reaches the live shop with
+  the publisher, so it is part of the go-live decision: turn `EndTeamDeals` off to go back to holding them for a person.
+  Regular publishes (Run week, the daily cycle) are unchanged: they still leave team deals to the switch above.
 - **App-only deals and the engine:** a cheaper app-only discount (`DiscountPlatformTypeId` 2) no longer stops a regular
   publish (the web price is ours; the app shopper keeps the cheaper). The engine (the imported calculator) still takes an
   app-only deal as a SKU's current price. Is that what the team wants it to read?

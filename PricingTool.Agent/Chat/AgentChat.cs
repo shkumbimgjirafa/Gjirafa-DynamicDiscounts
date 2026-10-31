@@ -207,7 +207,10 @@ public sealed class AgentChat
             await _db.SaveChangesAsync(ct);
             reply.RuleId = rule.Id;
             await AddAsync(conversation, "code", $"Rule #{rule.Id} in force: {rule.Kind} {rule.Value} from {from:yyyy-MM-dd} to {to:yyyy-MM-dd}" +
-                                                 $"{(rule.LayerId is { } layer ? $" on layer {layer}" : " on both layers")}. Campaign planning enforces it; it's listed on the Agent tab.",
+                                                 $"{(rule.LayerId is { } layer ? $" on layer {layer}" : " on both layers")}. " +
+                                                 (rule.Kind == ChatRuleKinds.ProtectDiscount
+                                                     ? "The publisher never ends a team discount whose name matches it, even under the floor"
+                                                     : "Campaign planning enforces it") + "; it's listed on the Chat tab.",
                 null, added, ct);
             return;
         }
@@ -282,6 +285,14 @@ public sealed class AgentChat
         await AddAsync(conversation, "code", why, null, added, ct);
         _logger.LogWarning("Chat {Conversation}: {Role} gave no valid answer", conversation, role);
         return why;
+    }
+
+    /// <summary>An agent's own message in the thread (a report, what it fixed, what needs a person), in the newest conversation:
+    /// the Chat tab shows one continuous thread.</summary>
+    public async Task<ChatMessage> PostAsync(string from, string text, long? callLogId = null, CancellationToken ct = default)
+    {
+        var conversation = await _db.ChatMessages.MaxAsync(m => (long?)m.ConversationId, ct) ?? 1;
+        return await AddAsync(conversation, from, text, callLogId, new List<ChatMessage>(), ct);
     }
 
     private async Task<ChatMessage> AddAsync(long conversation, string from, string text, long? callLogId, List<ChatMessage> added, CancellationToken ct, string? author = null)

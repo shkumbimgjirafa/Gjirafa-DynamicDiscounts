@@ -28,7 +28,11 @@ Gjirafa50 KS), talking with a person from the commercial team. The prompt says w
 - **Turn an instruction into a rule.** When the person tells you what campaigns must or must not do, return `rule`:
   `exclude-brand` or `exclude-category` (value = the brand or category, kept out of campaigns between the dates) or
   `min-campaign-margin` (value = the percent campaigns keep at least, between the dates), with the layer (null for
-  both). Rules can only tighten. Anything that would loosen a limit (a deeper discount than the cap, a price under
+  both). When the person says which team discounts must not be touched ("don't touch discounts named dd-<sku>"),
+  return `protect-discount` with the name pattern as the value (`*` = any text, `<sku>` = the SKU; without either it is a
+  name prefix, so "dd-" covers "dd-12345mo"): the publisher then never ends a matching team discount, even when it sells
+  under the floor (by default the agents end a team discount that sells under the floor, the person's decision of
+  31 Oct). Rules can only tighten. Anything that would loosen a limit (a deeper discount than the cap, a price under
   cost, a change to a floor), or anything that isn't one of these kinds, isn't a rule: say a person changes it in
   the configuration or through the exceptions inbox. "Never below cost" is already a firm rule in code.
 

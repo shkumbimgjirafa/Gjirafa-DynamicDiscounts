@@ -117,6 +117,18 @@ leave the page: they don't change what the agents publish (`CheckedExport` ignor
 
 Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
 
+## Progress (31 Oct)
+
+- **Step 1 done** (`1333a7c`): Run, Chat, Proposals; Admin menu; chat turns in the background.
+- **Step 2 done** (`12a1f89`): `ai.RunReport` / `RunReportCell` after each publish; Alpha's account of each run.
+- **Step 3 done** (this commit): the cost watcher ends a one-product team discount under the floor unless a
+  `protect-discount` rule protects it (`CostWatcher:EndTeamDeals`); the hold re-check (`HoldResolver`) closes holds that
+  settled and republishes the run's price for team-deal holds; Alpha's problem pass (`ProblemDesk`, one call, daily step
+  `problems`, the Chat tab's "Ask Alpha to look now", `AgentTools problems`) names an owner for each open item and posts in
+  the thread; the mirror leaves deals the tool ended as ended. On today's 54 held SKUs: 51 fixed by code, 3 reported by
+  Alpha (2 regular prices for the category manager, 1 team deal for the campaign owner) plus the Black Friday plan.
+  Not done: regular publishes (Run week, the daily cycle) still leave team deals that sell under our price; owner names.
+
 ## Verification
 
 - `dotnet test` (968 today) plus new tests: the current-run rule, the grid totals against `ProposedPrices`, the re-check
