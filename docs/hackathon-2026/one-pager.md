@@ -53,7 +53,7 @@ dead-stock runs. *It runs by itself (on the sandbox during the hackathon):* this
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 
-**Without the build, the engine runs only while one person runs it by hand** (assumed: that it stops when they stop). What is measured
+**The August–October runs were tests** (stated by the user), run by hand by one person with no schedule; the build turns them into a process that runs by itself (that the tests end without it is assumed). What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
 21 Jul, 6 Aug, 3 Sep, 6 Oct and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
 78 days (dead-stock runs in that gap on 3 Aug, 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only
@@ -63,7 +63,7 @@ value is the stream it makes permanent, plus the levers:
 
 | Where the claim's benefit comes from | € a month | Label |
 |---|---|---|
-| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; 'stops when the one person running it stops' assumed (E20, E28) |
+| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; 'the tests end without the build' assumed (E20, E28) |
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
 | MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |
@@ -90,7 +90,7 @@ sessions' AI usage of $613.69 API-equivalent, E18) and €6,927 running (AI
 | Track A score (/100; Evidence and Works are our own ratings) | 84 |
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
-automated and extended to every layer (robustness checks: E20, E27). That without the build it stops when the one person running it by hand stops (assumed; the
+automated and extended to every layer (robustness checks: E20, E27). That without the build the August–October tests end (assumed; the
 facts are E28). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The publisher now
 writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still wins
 until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes); the

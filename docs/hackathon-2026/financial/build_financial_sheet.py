@@ -316,7 +316,7 @@ put(wi, f"E{R['b0Used']}", "formula")
 put(wi, f"F{R['b0Used']}", "The before/after result, B0 in the claim; the same-weeks control and the season-adjusted result above are "
                           "checks, not used", NOTE)
 # The without-the-build line: an assumption, with the measured facts beside it (E28).
-put(wi, f"A{R['withoutBuild']}", "Without the build, the engine runs only while one person runs it by hand: it stops when they stop", BOLD)
+put(wi, f"A{R['withoutBuild']}", "The August–October runs were tests (stated by the user), run by hand by one person: without the build they end", BOLD)
 put(wi, f"B{R['withoutBuild']}", "yes", BLUE, None, YELLOW).border = BOX
 put(wi, f"D{R['withoutBuild']}", "assumed")
 put(wi, f"E{R['withoutBuild']}", "Facts (E28, measured): " + FIG["E28"]["method"], NOTE)
@@ -413,7 +413,7 @@ put(wsb, "A1", "Where the claim's benefit comes from (€ a month at full scope)
 header(wsb, 3, ["Line", "€ a month", "Label", "Source", "ID"])
 src = [
     ("The stream the build makes permanent: B0, the calculator's measured rate", f"=Inputs!C{R['b0Used']}",
-     "rate measured; 'stops when the one person running it stops' assumed", "E20 mid (GjirafaMall + Gjirafa50, Aug–Sep average); Inputs row " + str(R['withoutBuild']), "E20, E28"),
+     "rate measured; 'the tests end without the build' assumed", "E20 mid (GjirafaMall + Gjirafa50, Aug–Sep average); Inputs row " + str(R['withoutBuild']), "E20, E28"),
     ("Recovered leakage: raises that reach the shelf (lever 8)", f"=Inputs!C{R['lev1'] + 7}", "estimated", FIG["E24"]["name"], "E24"),
     ("Cadence: prices daily, not on a few manual dates (lever 5)", f"=Inputs!C{R['lev1'] + 4}", "estimated", FIG["E5"]["name"], "E5"),
     ("MK/AL coverage at Kosovo's tested rate (lever 4)", f"=Inputs!C{R['lev1'] + 3}", "estimated",

@@ -144,8 +144,8 @@ aspirational and the engine is rules plus statistics.
     between the manual engine as it ran and the automated one is already counted by levers 5, cadence; 8, raises that
     reach the shelf, from E23's pass-through; and 4, MK/AL coverage. B0 was measured on the manual process as it ran.)
   - Past months stay unclaimed, as the registration says; Aug–Sep is only evidence for the rate.
-  - The claim stays the full system's next 12 months (the user's decision, 31 Oct), with "it stops when the one person
-    running it stops" labelled assumed until the e-commerce owner's line or Mergim's ruling arrives.
+  - The claim stays the full system's next 12 months (the user's decision, 31 Oct), with "the August–October tests end
+    without the build" labelled assumed until the e-commerce owner's line or Mergim's ruling arrives.
 
 **The 10% bar (announced Fri 30 Oct; separate from the prizes, decided Wed 2 Dec).** A permanent
 10% raise and the "AI Pioneer" title for everyone who clears it; solo = 10%; no cap on how many.
@@ -731,8 +731,8 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
      terminal while talking (about 40 s).
    - The claim: €12,965 a month at full scope, 84 points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a
      month: GjirafaMall €8,006, Gjirafa50 €2,403; measured before and after each approval; robustness checks E20, E27),
-     and it runs by itself on the sandbox (this build: Run week, shown in step 2). Without the build it runs only while one
-     person runs it by hand (assumed: that it stops when they stop; the facts are E28).
+     and it runs by itself on the sandbox (this build: Run week, shown in step 2). The August–October runs were tests
+     (stated by the user); that they end without the build is assumed (the facts are E28).
    - The financial sheet's Summary and its "Benefit by source". Don't cite the year-over-year margin (E25): it doesn't
      separate the calculator. Say what's estimated and what's measured.
 6. **(25s) Ask.** A 6–8 week pilot on KS:
