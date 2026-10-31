@@ -139,7 +139,7 @@ back what hurts (tested; no pushed change has completed its window yet); a publi
 whole loop for a layer with one press; a backtest; and an app of four tabs: Run (the current run as live, its expected effect,
 Alpha's account), Chat (the agents' activity and only what needs a person), Campaigns (the calendar, with Nova to talk each
 campaign through: re-plan, cancel, a whole-shop campaign on both shops) and Proposals. **The AI decides, code enforces:** no model output changes a
-price, band or discount without passing limits written in C#; campaign terms a person gives in the chat are the model's reading of
+price, band or discount without passing limits written in C#; campaign terms a person gives in the chat (cancellations too) are the model's reading of
 the message, bounded by code but not checked against the message itself. During the hackathon the publisher writes only to a
 sandbox copy of the shop's price tables; going live is configuration, a DBA's grant, the shop's answers on its cache and
 `OldPrice`, and the owner's call on superseding (`GO-LIVE.md`), never yet run

@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 20:38",
+    "generated":  "2026-10-31 21:47",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -429,8 +429,8 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  613.69,
-                                      "sinceKickoffResponses":  3493,
+                                      "sinceKickoffUsd":  621.23,
+                                      "sinceKickoffResponses":  3514,
                                       "unattendedBlocksUsd":  375.49,
                                       "unattendedBlocksResponses":  1815
                                   },
@@ -446,7 +446,7 @@
                         "value":  {
                                       "attendedHours":  10.9,
                                       "unattendedBlocks":  47,
-                                      "rows":  80
+                                      "rows":  83
                                   },
                         "unit":  "hours",
                         "label":  "measured (Friday, attended rows timed by block) and estimated (Saturday: the user\u0027s own estimate, about 7 h); the person\u0027s time inside unattended blocks is not timed",
