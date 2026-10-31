@@ -95,6 +95,10 @@ public sealed class AgentChat
         sb.AppendLine($"- Publishes: {batches.Count(b => b.Status == "Published" && b.RolledBackUtc == null)} live, {batches.Count(b => b.RolledBackUtc != null)} rolled back " +
                       $"({batches.Where(b => b.RolledBackUtc == null).Sum(b => b.Created + b.Updated):N0} discounts and {batches.Where(b => b.RolledBackUtc == null).Sum(b => b.TierRaised + b.TierInserted):N0} " +
                       $"regular prices written to {(batches.FirstOrDefault()?.Target ?? "the sandbox")}).");
+        var valves = await _db.DailyCycleSteps.AsNoTracking()
+            .Where(s => s.Step == "size-check" && s.StartedUtc >= since && s.Detail != null && s.Detail.Contains("ran at once")).OrderBy(s => s.Id).ToListAsync(ct);
+        if (valves.Count > 0)
+            sb.AppendLine("- Size valve (LocalDB's 10 GB cap): " + string.Join("; ", valves.Select(v => $"{v.CycleDate:ddd dd MMM}: {v.Detail}")) + ".");
         // The daily publish to the sandbox, which follows the live shop: the shadow of the live shelf, the latest per layer.
         var shelf = batches.Where(b => b.Kind == "Regular" && b.Status == "Published" && b.RolledBackUtc == null)
             .GroupBy(b => b.LayerId).Select(g => g.OrderByDescending(b => b.Id).First()).OrderBy(b => b.LayerId).ToList();

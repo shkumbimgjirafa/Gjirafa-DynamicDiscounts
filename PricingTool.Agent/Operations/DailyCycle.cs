@@ -36,6 +36,9 @@ public interface ICheckedPricePublisher
 public interface ISandboxMirror
 {
     Task<(string Status, string Detail)> MirrorAsync(int layerId, long runId, CancellationToken ct = default);
+
+    /// <summary>Deletes the layer's mirrored copies ended more than <paramref name="days"/> days ago that no audit names.</summary>
+    Task<int> RetireAsync(int layerId, int days, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -116,12 +119,7 @@ public sealed class DailyCycle
     public IEnumerable<Step> Steps(DateOnly day)
     {
         var c = _options.Cycle;
-        yield return new Step("size-check", async ct =>
-        {
-            var (gb, warn) = await With((DatabaseMaintenance m) => m.SizeAsync(ct));
-            return (warn ? StepStatus.Warning : StepStatus.Succeeded,
-                $"{gb:0.00} GB used of LocalDB's 10 GB" + (warn ? $": over the {c.SizeWarningGb} GB warning line" : ""));
-        });
+        yield return new Step("size-check", ct => SizeValve.CheckAsync(c, new SizeValve.Probe(UsedGbAsync, TrimAsync), ct));
         yield return new Step("refresh-hk", async ct =>
         {
             var results = await With((HkRefresher h) => h.RefreshAsync(ct));
@@ -167,6 +165,7 @@ public sealed class DailyCycle
             yield return new Step($"mirror-L{layer}", async ct =>
             {
                 var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
+                if (SizeValve.SandboxPause(c, await UsedGbAsync(ct)) is { } full) return (StepStatus.Skipped, full);
                 using var scope = _sp.CreateScope();
                 if (scope.ServiceProvider.GetService<ISandboxMirror>() is not { } mirror)
                     return (StepStatus.NotBuilt, "no sandbox mirror in this host: the sandbox keeps the shop as it was seeded");
@@ -176,6 +175,7 @@ public sealed class DailyCycle
             yield return new Step($"publish-L{layer}", async ct =>
             {
                 var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
+                if (SizeValve.SandboxPause(c, await UsedGbAsync(ct)) is { } full) return (StepStatus.Skipped, full);
                 using var scope = _sp.CreateScope();
                 if (scope.ServiceProvider.GetService<ICheckedPricePublisher>() is not { } publisher)
                     return (StepStatus.NotBuilt, "no publisher in this host: the push file is the only path");
@@ -256,6 +256,24 @@ public sealed class DailyCycle
     }
 
     /// <summary>The cycle's successful engine run for the layer on the day (local), if there is one.</summary>
+    private async Task<decimal> UsedGbAsync(CancellationToken ct) => (await With((DatabaseMaintenance m) => m.SizeAsync(ct))).UsedGb;
+
+    /// <summary>The size valve's trim: one local run per layer (keeping the run behind each layer's latest export), publish
+    /// exceptions and the sandbox's mirrored copies older than <paramref name="days"/> days.</summary>
+    private async Task<string> TrimAsync(int days, CancellationToken ct)
+    {
+        var c = _options.Cycle;
+        var exported = await _db.ExportBatches.AsNoTracking().GroupBy(e => e.LayerId)
+            .Select(g => g.OrderByDescending(e => e.Id).First().RunId).ToListAsync(ct);
+        var (proposals, snapshots) = await With((DatabaseMaintenance m) => m.RetentionAsync(1, exported, ct));
+        var exceptions = await With((DatabaseMaintenance m) => m.ExceptionRetentionAsync(ct, days));
+        var mirrored = 0;
+        using (var scope = _sp.CreateScope())
+            if (scope.ServiceProvider.GetService<ISandboxMirror>() is { } mirror)
+                foreach (var layer in c.Layers) mirrored += await mirror.RetireAsync(layer, days, ct);
+        return $"{proposals:N0} proposals and {snapshots:N0} snapshot rows of older local runs, {exceptions:N0} publish exceptions, {mirrored:N0} mirrored discounts";
+    }
+
     private async Task<PricingRun?> TodaysRunAsync(int layer, DateOnly day, CancellationToken ct)
     {
         var start = day.ToDateTime(TimeOnly.MinValue);

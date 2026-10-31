@@ -38,7 +38,12 @@ public sealed class DatabaseMaintenance
     /// the imported prod runs carry no local proposals, so they are never touched. Batched like the tool's own
     /// retention: votes first, outcomes detached, 50k rows per delete.
     /// </summary>
-    public async Task<(int Proposals, int Snapshots)> RetentionAsync(CancellationToken ct = default)
+    public Task<(int Proposals, int Snapshots)> RetentionAsync(CancellationToken ct = default) =>
+        RetentionAsync(_options.KeepRunsPerLayer, Array.Empty<long>(), ct);
+
+    /// <summary>The same with <paramref name="keepRuns"/> runs per layer, never deleting the runs in <paramref name="alsoKeep"/>
+    /// (the size valve keeps the run behind each layer's latest export).</summary>
+    public async Task<(int Proposals, int Snapshots)> RetentionAsync(int keepRuns, IReadOnlyCollection<long> alsoKeep, CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
         await using var cmd = new SqlCommand("""
@@ -49,8 +54,10 @@ public sealed class DatabaseMaintenance
             FROM PricingTool.PricingRuns r
             WHERE EXISTS (SELECT 1 FROM PricingTool.ProposedPrices p WHERE p.PricingRunId = r.Id);
 
+            DECLARE @also TABLE (RunId bigint PRIMARY KEY);
+            INSERT INTO @also SELECT CAST(value AS bigint) FROM STRING_SPLIT(@AlsoKeep, ',') WHERE value <> '';
             DECLARE @drop TABLE (RunId bigint PRIMARY KEY);
-            INSERT INTO @drop SELECT RunId FROM @withProposals WHERE rn > @Keep;
+            INSERT INTO @drop SELECT RunId FROM @withProposals WHERE rn > @Keep AND RunId NOT IN (SELECT RunId FROM @also);
 
             UPDATE o SET o.ProposedPriceId = NULL
             FROM PricingTool.PriceChangeOutcomes o JOIN PricingTool.ProposedPrices p ON p.Id = o.ProposedPriceId
@@ -76,12 +83,14 @@ public sealed class DatabaseMaintenance
             WHILE @rows > 0
             BEGIN
                 DELETE TOP (50000) s FROM PricingTool.DailySnapshots s
-                WHERE s.SnapshotDate < (SELECT MIN(CAST(k.StartedUtc AS date)) FROM @withProposals k WHERE k.LayerId = s.LayerId AND k.rn <= @Keep);
+                WHERE s.SnapshotDate < (SELECT MIN(CAST(k.StartedUtc AS date)) FROM @withProposals k
+                                        WHERE k.LayerId = s.LayerId AND (k.rn <= @Keep OR k.RunId IN (SELECT RunId FROM @also)));
                 SET @rows = @@ROWCOUNT; SET @snaps += @rows;
             END
             SELECT @total, @snaps;
             """, conn) { CommandTimeout = 1800 };
-        cmd.Parameters.AddWithValue("@Keep", _options.KeepRunsPerLayer);
+        cmd.Parameters.AddWithValue("@Keep", keepRuns);
+        cmd.Parameters.AddWithValue("@AlsoKeep", string.Join(",", alsoKeep.Select(r => r.ToString(CultureInfo.InvariantCulture))));
         await using var r = await cmd.ExecuteReaderAsync(ct);
         await r.ReadAsync(ct);
         return (r.GetInt32(0), r.GetInt32(1));
@@ -95,7 +104,7 @@ public sealed class DatabaseMaintenance
     /// day (73k rows a day on 31 Oct, about 13 MB), which alone would take the 30-day projection to the 8 GB line; each batch keeps
     /// its own counts on its row.
     /// </summary>
-    public async Task<int> ExceptionRetentionAsync(CancellationToken ct = default)
+    public async Task<int> ExceptionRetentionAsync(CancellationToken ct = default, int days = ExceptionDays)
     {
         await using var conn = await OpenAsync(ct);
         await using var cmd = new SqlCommand("""
@@ -108,7 +117,7 @@ public sealed class DatabaseMaintenance
             END
             SELECT @total;
             """, conn) { CommandTimeout = 1800 };
-        cmd.Parameters.AddWithValue("@Cutoff", _clock.GetUtcNow().UtcDateTime.AddDays(-ExceptionDays));
+        cmd.Parameters.AddWithValue("@Cutoff", _clock.GetUtcNow().UtcDateTime.AddDays(-days));
         return (int)(await cmd.ExecuteScalarAsync(ct))!;
     }
 

@@ -161,6 +161,15 @@ public class CycleOptions
     public int KeepRunsPerLayer { get; set; } = 2;
     public decimal SizeWarningGb { get; set; } = 8m;
 
+    /// <summary>At this size the cycle's size check runs the retention at once with <see cref="TrimDays"/>-day windows and one
+    /// local run per layer (<see cref="SizeValve"/>).</summary>
+    public decimal SizeTrimGb { get; set; } = 8.5m;
+
+    /// <summary>At this size, after the trim, the sandbox steps (mirror and publish) wait for the day.</summary>
+    public decimal SizeStopSandboxGb { get; set; } = 9.5m;
+
+    public int TrimDays { get; set; } = 3;
+
     /// <summary>The newest days of sales lines are re-pulled every day: late cancellations still remove lines.</summary>
     public int SalesLateWindowDays { get; set; } = 14;
 

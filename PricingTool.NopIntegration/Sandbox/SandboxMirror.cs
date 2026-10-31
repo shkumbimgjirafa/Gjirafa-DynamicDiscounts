@@ -327,12 +327,43 @@ public sealed class SandboxMirror : ISandboxMirror
         await using (var cmd = new SqlCommand("SELECT COUNT(*) FROM #mt m WHERE EXISTS (SELECT 1 FROM #ours o WHERE o.ProductId = m.ProductId)", local))
             tierOurs = (int)(await cmd.ExecuteScalarAsync(ct))!;
 
-        // Retention, in batches: mirrored copies ended long ago that no audit names.
+        var deleted = await RetireCoreAsync(local, s, RetentionDays, now, ct);
+
+        var result = new MirrorResult(db, runId, products.Count, liveDiscounts, inserted, updated, mappings, productsAdded, flags, endDated,
+            tierRefreshed, tierInserted, tierOurs, deleted, timings, sw.ElapsedMilliseconds);
+        _logger.LogInformation("Sandbox mirror, layer {Layer}: {Detail}", layerId, result.Describe());
+        return result;
+    }
+
+    /// <summary>The size valve's trim (<see cref="ISandboxMirror.RetireAsync"/>): the retention with a shorter window.</summary>
+    public async Task<int> RetireAsync(int layerId, int days, CancellationToken ct = default)
+    {
+        if (!_options.IsSandbox) return 0;
+        var db = (await _toolDb.Layers.AsNoTracking().SingleAsync(l => l.Id == layerId, ct)).OperationalDatabase;
+        var shop = _options.ShopFor(db, _tool.ConnectionString);
+        if (!shop.Schema.StartsWith(SandboxSchema.SchemaPrefix, StringComparison.Ordinal)) return 0;
+        var batches = _db.PublishBatches.Where(b => b.Db == db).Select(b => b.Id);
+        var referenced = await _db.PublishAudits.AsNoTracking().Where(a => batches.Contains(a.BatchId) && a.DiscountId != null)
+            .Select(a => a.DiscountId!.Value).Distinct().ToListAsync(ct);
+        await using var local = new SqlConnection(shop.ConnectionString);
+        await local.OpenAsync(ct);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        await using (var exists = new SqlCommand($"SELECT OBJECT_ID('[{shop.Schema}].[{MapTable}]')", local))
+            if (await exists.ExecuteScalarAsync(ct) is DBNull or null) return 0;
+        await ExecAsync(local, "CREATE TABLE #ref (DiscountId int NOT NULL PRIMARY KEY);", now, ct);
+        await BulkIdsAsync(local, "#ref", referenced, ct);
+        return await RetireCoreAsync(local, shop.Schema, days, now, ct);
+    }
+
+    /// <summary>Deletes, in batches, the mirrored copies ended more than <paramref name="days"/> days ago that no audit names
+    /// (#ref on the connection), with their mappings and map rows. Never an <c>ai-</c> row.</summary>
+    private static async Task<int> RetireCoreAsync(SqlConnection local, string s, int days, DateTime now, CancellationToken ct)
+    {
         var deleted = 0;
         while (true)
         {
             await using var tx = (SqlTransaction)await local.BeginTransactionAsync(ct);
-            var n = await ExecAsync(local, $"""
+            await using var cmd = new SqlCommand($"""
                 DROP TABLE IF EXISTS #old;
                 SELECT TOP ({DeleteBatch}) mm.SandboxId INTO #old FROM [{s}].[{MapTable}] mm
                 JOIN [{s}].[Discount] d ON d.Id = mm.SandboxId
@@ -341,16 +372,14 @@ public sealed class SandboxMirror : ISandboxMirror
                 DELETE mm FROM [{s}].[{MapTable}] mm JOIN #old o ON o.SandboxId = mm.SandboxId;
                 DELETE d FROM [{s}].[Discount] d JOIN #old o ON o.SandboxId = d.Id;
                 SELECT COUNT(*) FROM #old;
-                """, now, ct, tx, scalar: true);
+                """, local, tx) { CommandTimeout = 600 };
+            cmd.Parameters.Add("@Cutoff", SqlDbType.DateTime2).Value = now.AddDays(-days);
+            var n = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
             await tx.CommitAsync(ct);
             deleted += n;
             if (n < DeleteBatch) break;
         }
-
-        var result = new MirrorResult(db, runId, products.Count, liveDiscounts, inserted, updated, mappings, productsAdded, flags, endDated,
-            tierRefreshed, tierInserted, tierOurs, deleted, timings, sw.ElapsedMilliseconds);
-        _logger.LogInformation("Sandbox mirror, layer {Layer}: {Detail}", layerId, result.Describe());
-        return result;
+        return deleted;
     }
 
     private static void AddDates(SqlCommand cmd, DateTime now)
