@@ -18,5 +18,44 @@ html {
 }
 
 body {
-  margin-bottom: 60px;
+  margin-bottom: 0;
+}
+
+.status-strip {
+  background: #f1f3f5;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.page-sub {
+  color: #6c757d;
+  margin-bottom: 0.75rem;
+}
+
+details.how > summary {
+  color: #6c757d;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+details.how[open] {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin-bottom: 0.75rem;
+}
+
+ul.value-list {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.tile {
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  height: 100%;
+}
+
+.tile .tile-value {
+  font-size: 1.35rem;
+  font-weight: 500;
 }

@@ -1,0 +1,18 @@
+@model IReadOnlyList<PricingTool.Web.ViewComponents.DataLoad>
+@{
+    var hk = Model.Where(l => l.TableName.StartsWith("hk.", StringComparison.OrdinalIgnoreCase)).ToList();
+    var tool = Model.Where(l => !l.TableName.StartsWith("hk.", StringComparison.OrdinalIgnoreCase)).ToList();
+    string Local(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM HH:mm");
+}
+<details>
+    <summary>Data sources: @hk.Count hk tables (@hk.Count(l => l.Source == "nop-replica") read from the shop's read-only replica)@(tool.Count > 0 ? $", {tool.Count} imported from the calculator's database" : ""); nothing here writes to a shop database</summary>
+    <table class="table table-sm small mt-2 mb-0 w-auto">
+        <thead><tr><th>Table</th><th>Source</th><th class="text-end">Rows</th><th>Loaded</th></tr></thead>
+        <tbody>
+        @foreach (var l in hk.Concat(tool))
+        {
+            <tr><td><code>@l.TableName</code></td><td>@l.Source</td><td class="text-end">@l.RowCount.ToString("N0")</td><td>@Local(l.ExtractedAtUtc)</td></tr>
+        }
+        </tbody>
+    </table>
+</details>

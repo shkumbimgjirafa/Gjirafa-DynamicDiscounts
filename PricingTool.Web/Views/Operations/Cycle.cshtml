@@ -9,12 +9,13 @@
 }
 
 <h1 class="h3">Daily cycle</h1>
-<p class="text-muted">
+<p class="page-sub">One cycle a day from @Model.Cycle.DailyStartLocal: refresh the data, run the engine, check the runs, export, measure, back up. AI calls: @(Model.AgentEnabled ? "on" : "off (kill switch)").</p>
+<details class="how"><summary>How this works</summary>
     The engine host on this laptop (<code>--hackathon-host</code>, see GO-LIVE-LAPTOP.md) runs one cycle a day, from @Model.Cycle.DailyStartLocal (or when it starts after that):
     size check → hk refresh → engine runs (layers @string.Join(", ", Model.Cycle.Layers)) → Alpha's pass (@(Model.Cycle.AlphaDay)s) → run checks → exports →
     money ledger → time sheet → retention → backup. A failed step doesn't stop the rest and is tried again after @Model.Cycle.RetryFailedAfterMinutes minutes,
-    three times a day at most. AI calls: @(Model.AgentEnabled ? "on" : "off (kill switch)").
-</p>
+    three times a day at most.
+</details>
 
 @foreach (var day in Model.Steps.GroupBy(s => s.CycleDate))
 {

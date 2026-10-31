@@ -12,11 +12,12 @@
 }
 
 <h1 class="h3">Campaigns</h1>
-<p class="text-muted">
-    Nova (campaign agent) writes a brief for each calendar campaign and proposes mini-campaigns; Alpha (pricing agent) answers with a plan code
-    computed; an accepted plan is published as time-boxed discounts (the sandbox during the hackathon). A campaign published ahead of its start
-    can be stopped until it goes live. Every expected figure is an estimate; measured results appear once a campaign has ended.
-</p>
+<p class="page-sub">Nova (campaign agent) writes the brief, Alpha (pricing agent) plans it, code checks it, and the publisher writes it as time-boxed discounts. You can stop a campaign until it starts.</p>
+<details class="how"><summary>How this works</summary>
+    Nova writes a brief for each calendar campaign and proposes mini-campaigns; Alpha answers with a plan code computed; an accepted plan is
+    published as time-boxed discounts (the sandbox during the hackathon). A campaign published ahead of its start can be stopped until it goes
+    live. Every expected figure is an estimate; measured results appear once a campaign has ended.
+</details>
 @if (isManager)
 {
     <form method="post" asp-controller="Agent" asp-action="Chat" class="card card-body mb-3"

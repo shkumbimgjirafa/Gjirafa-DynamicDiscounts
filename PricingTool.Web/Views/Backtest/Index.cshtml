@@ -15,17 +15,17 @@
 }
 
 <h1 class="h3">Backtest</h1>
-<p class="text-muted">
-    What v2 would have added, lever by lever, on booked sales lines (booked COGS, EUR VAT excluded), walk-forward, each line counted by one lever.
-    Every figure is <strong>estimated</strong> unless marked measured. Elasticity cases −0.5 / −1.0 / −2.0; the low case (−2.0) is the number for Finance.
+<p class="page-sub">What v2 would have added, lever by lever, on past sales. Every figure is <strong>estimated</strong> unless marked measured; the low case (e −2.0) is the number for Finance.</p>
+<details class="how"><summary>How this works</summary>
+    Booked sales lines (booked COGS, EUR VAT excluded), walk-forward, each line counted by one lever only. Elasticity cases −0.5 / −1.0 / −2.0.
     The method and what each lever rests on: <code>docs/hackathon-2026/backtest-results.md</code>.
-</p>
+</details>
 @if (Model is null || record is null)
 {
     <div class="alert alert-warning">No backtest stored yet. Run <code>PricingTool.AgentTools backtest-snapshot</code> (about a minute).</div>
     return;
 }
-<p class="small">Run #@record.Id, @record.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @record.CreatedBy (@record.Seconds s); data window
+<p class="small">Backtest run #@record.Id, @record.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") (@record.Seconds s); data window
     @Model.From.ToString("dd MMM yyyy") – @Model.To.AddDays(-1).ToString("dd MMM yyyy"). <a class="btn btn-sm btn-outline-primary ms-2" asp-action="Csv">Download CSV</a></p>
 
 <h2 class="h5 mt-3">Levers 1–3, 5, 6, 8: monthly average over Aug–Sep 2026, the calculator's era (EUR)</h2>

@@ -34,10 +34,8 @@ public class MoversController : Controller
         var layerId = await _layers.RequireCurrentIdAsync();
         var model = new MoversViewModel { SupplierId = supplierId };
 
-        var run = await _db.PricingRuns
-            .Where(r => r.LayerId == layerId && r.Status != RunStatus.Running)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefaultAsync();
+        var (run, passedOver) = await RunPicker.LatestWithRowsAsync(_db, layerId);
+        ViewData["RunNote"] = RunPicker.Note(passedOver, run);
         model.Run = run;
         if (run is null) return View(model);
 

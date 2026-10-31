@@ -6,12 +6,15 @@ namespace PricingTool.Web.Models;
 
 public sealed record LayerAutonomy(int LayerId, string Name, AutonomyMode Mode);
 
-/// <summary>One line of "What they did": who, when, what, and the reason behind it ("why?"), with a link to its page.</summary>
-public sealed record FeedItem(DateTime Utc, string Who, int? LayerId, string What, string? Why, string? Link);
+/// <summary>One line of "What they did": who, when, what, and the reason behind it ("why?"), with a link to its page.
+/// Lines with the same <paramref name="Group"/> close together (the cost watcher holding 40 SKUs in one sweep) are shown
+/// as one line of <paramref name="Count"/>, with each reason under "why?".</summary>
+public sealed record FeedItem(DateTime Utc, string Who, int? LayerId, string What, string? Why, string? Link, string? Group = null, int Count = 1);
 
-/// <summary>This week's numbers on the Agent tab (the last 7 days, real passes only).</summary>
+/// <summary>This week's numbers on the Today tab (the last 7 days, real passes only): Alpha's floor and target decisions
+/// applied and held, and the SKUs the cost watcher held for a person (once per layer and SKU).</summary>
 public sealed record WeekNumbers(int DecisionsApplied, int Held, int Publishes, int DiscountsWritten, int AiCalls, decimal AiCostUsd,
-    decimal? MeasuredGp30, int LedgerEntries);
+    decimal? MeasuredGp30, int LedgerEntries, int CostWatcherSkusHeld = 0);
 
 /// <summary>The Agent page: the switches a person holds, and what the agents did lately.</summary>
 public class AgentStatusViewModel
@@ -20,6 +23,8 @@ public class AgentStatusViewModel
     public IReadOnlyList<LayerAutonomy> Layers { get; init; } = Array.Empty<LayerAutonomy>();
     public PublisherOptions Publisher { get; init; } = new();
     public int Waiting { get; init; }
+    /// <summary>What is waiting, by kind (the same snapshot the Exceptions tab and its badge count).</summary>
+    public PricingTool.Agent.Operations.InboxSnapshot Inbox { get; init; } = new();
     public IReadOnlyList<AgentPass> RecentPasses { get; init; } = Array.Empty<AgentPass>();
     /// <summary>Per pass: applied decisions that changed a floor or target (a pass's Applied count includes its keeps).</summary>
     public IReadOnlyDictionary<long, int> Changed { get; init; } = new Dictionary<long, int>();

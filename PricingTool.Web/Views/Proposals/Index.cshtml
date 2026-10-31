@@ -144,9 +144,10 @@
             <button type="submit" class="btn btn-sm btn-outline-success" formaction="@Url.Action("ApproveAll")"
                     onclick="return confirm('Approve ALL @Model.TotalCount proposals matching the current filter?');">Approve all (filtered)</button>
             <button type="submit" class="btn btn-sm btn-outline-danger" formaction="@Url.Action("Reject")">Reject selected</button>
-            <button type="submit" class="btn btn-sm btn-warning ms-auto" formaction="@Url.Action("Push")"
-                    onclick="return confirm('Push all @Model.ApprovedCount APPROVED proposals of run #@Model.Run.Id to the integration point? This is the explicit live-price step.');">
-                ⬆ Push @Model.ApprovedCount approved
+            <span class="ms-auto small text-muted align-self-center">The agents publish through Run week (Today tab); this is the manual path.</span>
+            <button type="submit" class="btn btn-sm btn-outline-secondary" formaction="@Url.Action("Push")"
+                    onclick="return confirm('Export the @Model.ApprovedCount approved proposals of run #@Model.Run.Id through the manual push path (a file a person pushes)?');">
+                Export @Model.ApprovedCount approved (manual)
             </button>
         </div>
     }

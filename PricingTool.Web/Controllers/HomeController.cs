@@ -104,10 +104,8 @@ public class HomeController : Controller
         }
 
         // ---- Latest finished run: attribution + health flags.
-        var lastRun = await _db.PricingRuns
-            .Where(r => r.LayerId == layerId && r.Status != RunStatus.Running)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefaultAsync();
+        var (lastRun, passedOver) = await RunPicker.LatestWithRowsAsync(_db, layerId);
+        ViewData["RunNote"] = RunPicker.Note(passedOver, lastRun);
         model.LastRun = lastRun;
 
         if (lastRun is not null)

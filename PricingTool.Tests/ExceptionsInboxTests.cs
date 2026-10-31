@@ -94,6 +94,37 @@ public class ExceptionsInboxTests : IDisposable
     }
 
     [Fact]
+    public async Task A_cost_hold_waits_once_per_SKU_and_a_batch_whose_every_SKU_was_left_out_is_not_counted_again()
+    {
+        _ai.AgentPasses.Add(new AgentPass { Id = 1, LayerId = 4, Source = "CostWatcher", Mode = "Autonomous", StartedUtc = _recent, Status = "Succeeded" });
+        AgentDecision Hold(string sku) => new()
+        {
+            PassId = 1, LayerId = 4, BandId = 26, Category = "", Source = "CostWatcher", Action = "hold", Status = DecisionStatus.Held,
+            Limit = "team-discount", Reason = "a cheaper discount we didn't create wins", EvidenceRefs = $$"""{"sku":"{{sku}}","newCost":38.0}""", CreatedUtc = _recent,
+        };
+        _ai.AgentDecisions.AddRange(Hold("A"), Hold("A"), Hold("B"));        // A seen at two cost moves
+
+        var leftOut = Batch("Failed");                                        // the watcher's one-SKU raise, under a cheaper deal
+        (leftOut.Requested, leftOut.Skipped) = (1, 1);
+        var broken = Batch("Failed");                                         // failed with nothing recorded: a person looks
+        _ai.PublishBatches.AddRange(leftOut, broken);
+        _ai.SaveChanges();
+        _ai.PublishExceptions.Add(new PublishException { BatchId = leftOut.Id, Sku = "A", Kind = "cheaper-deal", Detail = "", CreatedUtc = _recent });
+        _ai.SaveChanges();
+
+        var inbox = await new ExceptionsInbox(_ai, _tool).LoadAsync();
+
+        Assert.Equal(3, inbox.CostHolds.Count);
+        Assert.Equal(new[] { ("B", 1), ("A", 2) }, inbox.CostHoldSkus.Select(g => (g.Sku, g.Ids.Count)));
+        var listed = inbox.Publishes.Single(p => p.Batch.Id == leftOut.Id);
+        Assert.True(listed.AllLeftOut);
+        Assert.False(listed.NeedsAPerson);
+        Assert.True(inbox.Publishes.Single(p => p.Batch.Id == broken.Id).NeedsAPerson);
+        Assert.Equal(2 + 1, inbox.WaitingCount);                              // two SKUs held + the batch that failed with no reason
+        Assert.Equal("#7", CostHoldGroup.SkuOf(new AgentDecision { Id = 7, EvidenceRefs = "[]" }));
+    }
+
+    [Fact]
     public async Task The_same_left_out_SKUs_every_day_count_once_with_the_days_they_were_seen()
     {
         var now = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc);

@@ -57,6 +57,7 @@ public class AgentController : Controller
             Layers = autonomy,
             Publisher = _publisher,
             Waiting = inbox.WaitingCount,
+            Inbox = inbox,
             RecentPasses = passes,
             Changed = changed,
             LayerNames = inbox.LayerNames,
@@ -152,14 +153,18 @@ public class AgentController : Controller
     private async Task<WeekNumbers> WeekAsync(DateTime since)
     {
         var real = _ai.AgentPasses.Where(p => !p.IsTest).Select(p => p.Id);
-        var decisions = await _ai.AgentDecisions.AsNoTracking().Where(d => d.CreatedUtc >= since && real.Contains(d.PassId) && d.Action != "keep")
+        var decisions = await _ai.AgentDecisions.AsNoTracking().Where(d => d.CreatedUtc >= since && real.Contains(d.PassId) && d.Action != "keep" && d.Source != "CostWatcher")
             .GroupBy(d => d.Status).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count);
+        // The cost watcher holds a SKU again at each cost move: count its holds once per layer and SKU, like the inbox.
+        var costHeld = (await _ai.AgentDecisions.AsNoTracking()
+                .Where(d => d.CreatedUtc >= since && real.Contains(d.PassId) && d.Source == "CostWatcher" && d.Status == DecisionStatus.Held).ToListAsync())
+            .Select(d => (d.LayerId, PricingTool.Agent.Operations.CostHoldGroup.SkuOf(d))).Distinct().Count();
         var batches = await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since && b.Status == "Published").ToListAsync();
         var calls = await _ai.AiCallLog.AsNoTracking().Where(c => c.CalledAtUtc >= since).ToListAsync();
         var ledger = await _ai.MoneyLedger.AsNoTracking().Where(m => m.Measured30Eur != null).ToListAsync();
         return new WeekNumbers(decisions.GetValueOrDefault(DecisionStatus.Applied), decisions.GetValueOrDefault(DecisionStatus.Held), batches.Count,
             batches.Sum(b => b.Created + b.Updated), calls.Count, calls.Sum(c => c.CostUsd ?? 0m),
-            ledger.Count > 0 ? ledger.Sum(m => m.Measured30Eur!.Value) : null, await _ai.MoneyLedger.CountAsync());
+            ledger.Count > 0 ? ledger.Sum(m => m.Measured30Eur!.Value) : null, await _ai.MoneyLedger.CountAsync(), costHeld);
     }
 
     /// <summary>"What they did": both agents' decisions and passes, the cost watcher, the campaign threads and the publishes, newest first.</summary>
@@ -171,12 +176,13 @@ public class AgentController : Controller
         foreach (var p in real.Where(p => p.Source != "CostWatcher"))
             feed.Add(new FeedItem(p.StartedUtc, p.Source, p.LayerId, $"{(p.Source == "Nova" ? "Weekly campaign pass" : "Weekly floor and target pass")} #{p.Id}: {p.Status}",
                 p.Summary ?? p.Error, null));
-        foreach (var d in await _ai.AgentDecisions.AsNoTracking().Where(d => realIds.Contains(d.PassId) && d.Action != "keep").OrderByDescending(d => d.Id).Take(60).ToListAsync())
-            feed.Add(new FeedItem(d.CreatedUtc, d.Source, d.LayerId,
-                d.Source == "CostWatcher"
-                    ? $"{d.Action} ({d.Status}{(d.Limit is null ? "" : ", " + d.Limit)})"
-                    : $"{d.Action} band {d.BandId} {d.Category}: floor {d.CurrentFloorPct:0.#} -> {d.ProposedFloorPct:0.#}%, target {d.CurrentTargetPct:0.#} -> {d.ProposedTargetPct:0.#}% ({d.Status})",
-                d.Reason, null));
+        foreach (var d in await _ai.AgentDecisions.AsNoTracking().Where(d => realIds.Contains(d.PassId) && d.Action != "keep").OrderByDescending(d => d.Id).Take(400).ToListAsync())
+            feed.Add(d.Source == "CostWatcher"
+                ? new FeedItem(d.CreatedUtc, d.Source, d.LayerId, CostWatcherLine(d.Action, d.Status, d.Limit, 1),
+                    $"{PricingTool.Agent.Operations.CostHoldGroup.SkuOf(d)}: {d.Reason}", null, $"cw|{d.Action}|{d.Status}|{d.Limit}")
+                : new FeedItem(d.CreatedUtc, d.Source, d.LayerId,
+                    $"{d.Action} band {d.BandId} {d.Category}: floor {d.CurrentFloorPct:0.#} -> {d.ProposedFloorPct:0.#}%, target {d.CurrentTargetPct:0.#} -> {d.ProposedTargetPct:0.#}% ({d.Status})",
+                    d.Reason, null));
         var messages = await (from m in _ai.CampaignMessages.AsNoTracking()
                               join b in _ai.CampaignBriefs.AsNoTracking() on m.BriefId equals b.Id
                               where !b.IsTest && m.CreatedUtc >= since
@@ -185,11 +191,66 @@ public class AgentController : Controller
         foreach (var x in messages)
             feed.Add(new FeedItem(x.m.CreatedUtc, x.m.From, x.LayerId, $"on {x.Name} (round {x.m.Round})", x.m.Text,
                 x.CalendarId is { } cid ? Url.Action("Detail", "Campaigns", new { id = cid }) : null));
-        foreach (var b in await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since).OrderByDescending(b => b.Id).Take(20).ToListAsync())
-            feed.Add(new FeedItem(b.StartedUtc, "Publisher", b.LayerId,
-                $"{b.Kind} batch #{b.Id} to {b.Target}: {b.Status}{(b.RolledBackUtc is null ? "" : ", rolled back")} ({b.Created} created, {b.Updated} updated)", null, null));
-        return feed.OrderByDescending(f => f.Utc).Take(80).ToList();
+        foreach (var b in await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since).OrderByDescending(b => b.Id).Take(300).ToListAsync())
+        {
+            var allLeftOut = b.Status == "Failed" && b.Requested > 0 && b.Skipped >= b.Requested;
+            feed.Add(allLeftOut
+                ? new FeedItem(b.StartedUtc, "Publisher", b.LayerId, LeftOutLine(1), $"batch #{b.Id}: {b.Requested} SKU asked, {b.Skipped} left out", null, "pub|left-out")
+                : b.Kind == "Expire" && b.Created + b.Updated == 0
+                    ? new FeedItem(b.StartedUtc, "Publisher", b.LayerId, $"Expire batch #{b.Id} to {b.Target}: {b.Status}, {b.DiscountsEnded:N0} of our discounts ended", null, null)
+                    : new FeedItem(b.StartedUtc, "Publisher", b.LayerId,
+                        $"{b.Kind} batch #{b.Id} to {b.Target}: {b.Status}{(b.RolledBackUtc is null ? "" : ", rolled back")} ({b.Created:N0} created, {b.Updated:N0} updated)", null, null));
+        }
+        return Group(feed.OrderByDescending(f => f.Utc)).Take(80).ToList();
     }
+
+    /// <summary>Folds lines of the same group (same agent, layer and kind, within 30 minutes of the group's newest line) into
+    /// one line with the count, at the newest line's place, keeping every reason under "why?". Other lines may fall between them.</summary>
+    private static IEnumerable<FeedItem> Group(IEnumerable<FeedItem> newestFirst)
+    {
+        var slots = new List<List<FeedItem>>();
+        var open = new Dictionary<(string, int?, string), List<FeedItem>>();
+        foreach (var f in newestFirst)
+        {
+            if (f.Group is null) { slots.Add(new List<FeedItem> { f }); continue; }
+            var key = (f.Who, f.LayerId, f.Group);
+            if (open.TryGetValue(key, out var members) && members[0].Utc - f.Utc <= TimeSpan.FromMinutes(30)) { members.Add(f); continue; }
+            open[key] = members = new List<FeedItem> { f };
+            slots.Add(members);
+        }
+        foreach (var members in slots)
+        {
+            var first = members[0];
+            if (members.Count == 1) { yield return first; continue; }
+            var parts = first.Group!.Split('|');
+            var what = parts[0] == "cw" ? CostWatcherLine(parts[1], parts[2], NullIfEmpty(parts[3]), members.Count) : LeftOutLine(members.Count);
+            var why = string.Join("\n", members.Take(60).Select(f => $"{f.Utc.ToLocalTime():HH:mm} {f.Why}")) + (members.Count > 60 ? $"\n… and {members.Count - 60} more" : "");
+            yield return first with { What = what, Why = why, Count = members.Count };
+        }
+    }
+
+    private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
+
+    /// <summary>The cost watcher's line in plain words: what it did to how many SKUs, and why.</summary>
+    private static string CostWatcherLine(string action, string status, string? limit, int n)
+    {
+        var skus = n == 1 ? "1 SKU" : $"{n:N0} SKUs";
+        var why = limit switch
+        {
+            "team-discount" => "a cheaper team deal sells under the new floor",
+            "cost-above-shelf" => "the new cost is above the shelf price",
+            "data-error" => "the cost jump looks like a data error",
+            null => null,
+            _ => limit,
+        };
+        return status == DecisionStatus.Held
+            ? $"Held {skus} for a person after a cost rise{(why is null ? "" : ": " + why)}"
+            : $"{char.ToUpperInvariant(action[0])}{action[1..]} on {skus} after a cost rise ({status}{(why is null ? "" : ", " + why)})";
+    }
+
+    private static string LeftOutLine(int n) => n == 1
+        ? "A one-SKU publish wrote nothing: the SKU was left out (its reason is on the Exceptions tab)"
+        : $"{n:N0} one-SKU publishes wrote nothing: each SKU was left out (the reasons are on the Exceptions tab)";
 
     /// <summary>"Coming up": campaigns starting in the next three weeks with their plan, and the veto window for published ones.</summary>
     private async Task<IReadOnlyList<CampaignRow>> ComingUpAsync(DateOnly today)
@@ -316,11 +377,16 @@ public class AgentController : Controller
             TempData["Error"] = $"Decision #{decisionId} is not a cost-watcher hold.";
             return RedirectToAction(nameof(Exceptions));
         }
-        d.Status = DecisionStatus.Handled;
-        d.ReviewedBy = Who;
-        d.ReviewedUtc = DateTime.UtcNow;
+        // The SKU waits once however many cost moves held it, so handling it clears all of its holds on the layer.
+        var sku = PricingTool.Agent.Operations.CostHoldGroup.SkuOf(d);
+        var holds = (await _ai.AgentDecisions.Where(x => x.LayerId == d.LayerId && x.Source == "CostWatcher" && x.Status == DecisionStatus.Held).ToListAsync())
+            .Where(x => PricingTool.Agent.Operations.CostHoldGroup.SkuOf(x) == sku).ToList();
+        var now = DateTime.UtcNow;
+        foreach (var h in holds) (h.Status, h.ReviewedBy, h.ReviewedUtc) = (DecisionStatus.Handled, Who, now);
         await _ai.SaveChangesAsync();
-        TempData["Message"] = $"Cost-watcher hold #{d.Id} marked handled.";
+        TempData["Message"] = holds.Count == 1
+            ? $"Cost-watcher hold #{d.Id} ({sku}) marked handled."
+            : $"{sku}: its {holds.Count} cost-watcher holds marked handled (#{string.Join(", #", holds.Select(h => h.Id))}).";
         return RedirectToAction(nameof(Exceptions));
     }
 

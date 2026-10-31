@@ -1,0 +1,8 @@
+@model IReadOnlyList<PricingTool.Web.ViewComponents.DataLoad>
+@{
+    DateTime? At(string table) => Model.FirstOrDefault(l => l.TableName == table)?.ExtractedAtUtc;
+    string Show(DateTime? utc) => utc is { } t ? DateTime.SpecifyKind(t, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM HH:mm") : "not loaded";
+}
+<span title="From hk.DataSources: the replica reads copied into the local hackathon database">
+    Local hackathon data: sales lines @Show(At("hk.SalesLines")), products and discounts @Show(At("hk.Products"))
+</span>

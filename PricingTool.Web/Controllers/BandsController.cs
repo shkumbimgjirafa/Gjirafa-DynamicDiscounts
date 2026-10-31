@@ -51,10 +51,7 @@ public class BandsController : Controller
         // Actual band-blended margins from the most recent completed run for this layer. Pricing % uses the
         // anchor (FinalPrice) — the same basis the margin-target guardrail now trims on; Current % uses the
         // live price. Both aggregate over priced SKUs with a known cost (skipped/no-cost rows excluded).
-        var run = await _db.PricingRuns
-            .Where(r => r.LayerId == layerId && r.Status != RunStatus.Running)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefaultAsync();
+        var (run, _) = await RunPicker.LatestWithRowsAsync(_db, layerId);
         if (run is not null)
         {
             vm.RunId = run.Id;

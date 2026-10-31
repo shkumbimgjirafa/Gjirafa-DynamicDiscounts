@@ -6,11 +6,12 @@
 }
 
 <h1 class="h3">Time sheet: hours saved</h1>
-<p class="text-muted">
+<p class="page-sub">The hours the app saves: one row per real task, the minutes it takes by hand against the measured minutes it takes now.</p>
+<details class="how"><summary>How this works</summary>
     Every real task the app does writes its own row (the run check, the export for the push, Alpha's weekly pass); test runs never do.
     "Minutes after" is the task's measured wall clock. "Minutes before" is the time the task takes by hand: you set it once per task type,
     and until then that type's rows are kept but not exported. The daily cycle exports the organisers' template (columns A–H) and CSV/JSON.
-</p>
+</details>
 @if (!Model.OwnerEmailSet)
 {
     <div class="alert alert-warning py-2">Column B (who) is blank: set <code>Agent:TimeSheetOwnerEmail</code> in user-secrets for the Web and Engine projects.</div>

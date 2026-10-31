@@ -56,7 +56,8 @@
     <div class="col-md-6">
         <div class="card"><div class="card-body">
             <h6>On-demand</h6>
-            <p class="text-muted mb-2">Runs the full pricing cycle immediately (pull → snapshot → propose). Produces proposals only — live prices are untouched until a Manager pushes.</p>
+            <p class="text-muted mb-2">Runs the engine once now (pull → snapshot → propose) and stops there: no checker, no publish. For the whole
+                loop (Alpha, the engine, the run checker, the sandbox publish), use Run week on the Today tab.</p>
             <div class="d-flex gap-2">
                 <form method="post" asp-action="RunNow">
                     @Html.AntiForgeryToken()

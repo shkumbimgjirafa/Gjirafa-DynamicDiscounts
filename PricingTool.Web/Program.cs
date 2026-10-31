@@ -101,7 +101,7 @@ app.MapHealthChecks("/healthz");
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    pattern: "{controller=Agent}/{action=Index}/{id?}");
 
 // Migrate + seed on startup (bands, schedule defaults, demo history, and the initial Porta admin).
 using (var scope = app.Services.CreateScope())

@@ -265,6 +265,21 @@ public sealed class EvidenceService
         _ => "",
     };
 
+    /// <summary>A figure's value as HTML: a ranged figure as its "central (low / high)" line, and every other part as nested
+    /// "name: value" lists (three levels, then the one-line form), so a breakdown reads as a list rather than one line of JSON.</summary>
+    public static string ShowHtml(JsonElement v, int depth = 0)
+    {
+        static string E(string s) => System.Net.WebUtility.HtmlEncode(s);
+        if (v.ValueKind != JsonValueKind.Object) return E(Show(v));
+        if (depth > 2) return E(Short(v));
+        var ranged = (Has(v, "central") || Has(v, "mid")) && Has(v, "low") && Has(v, "high");
+        var skip = ranged ? new[] { "central", "mid", "low", "high" } : Array.Empty<string>();
+        var head = ranged ? E(Show(v).Split("; ")[0]) : "";
+        var items = v.EnumerateObject().Where(p => !skip.Contains(p.Name))
+            .Select(p => $"<li><span class=\"text-muted\">{E(p.Name)}:</span> {ShowHtml(p.Value, depth + 1)}</li>").ToList();
+        return head + (items.Count == 0 ? "" : $"<ul class=\"value-list\">{string.Join("", items)}</ul>");
+    }
+
     private static string Extra(JsonElement v, params string[] skip)
     {
         var rest = v.EnumerateObject().Where(p => !skip.Contains(p.Name)).Select(p => $"{p.Name}: {Short(p.Value)}").ToList();

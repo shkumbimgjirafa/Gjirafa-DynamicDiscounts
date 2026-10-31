@@ -7,12 +7,13 @@
 }
 
 <h1 class="h3">Money ledger</h1>
-<p class="text-muted">
+<p class="page-sub">What the applied prices earned: measured 7 and 30 days after they went out, against the holdout categories. Anything not yet measured counts as €0.</p>
+<details class="how"><summary>How this works</summary>
     Condition 4 of the 10 % bar: the gross profit the applied prices made, measured in the 30 days, against three times the monthly raise.
     Every pushed export is measured at 7 and 30 days from the refreshed sales lines (booked COGS), as a difference-in-differences against the
     holdout categories. <strong>Conservative by rule:</strong> a window not yet complete, or not attributable (holdout too thin), counts as €0.
     The expected figure is an estimate made at export time and is never added to a total.
-</p>
+</details>
 
 <div class="row g-3 mb-4">
     <div class="col-md-3">
@@ -57,11 +58,11 @@
     </div>
 </div>
 
-<h2 class="h5">Exports for the team's push</h2>
+<h2 class="h5">Export files <span class="small text-muted">the manual path, next to the agents' sandbox publishes</span></h2>
 <p class="text-muted small">
     The daily cycle writes one file per layer from the checked run: warned and blocked rows held back, holdout categories left out
     (@string.Join("; ", Model.Holdouts.Select(h => $"layer {h.Key}: {string.Join(", ", h.Value)}"))).
-    Once the team has pushed a file, mark it here: that records it as applied (an Approval) and starts its measurement.
+    When a person pushes a file to the shop, mark it here: that records it as applied (an Approval) and starts its measurement.
 </p>
 <table class="table table-sm align-middle">
     <thead><tr>
@@ -82,7 +83,7 @@
             <td class="text-end">@b.LeftOutByCheck.ToString("N0")</td>
             <td class="text-end">@b.LeftOutHoldout.ToString("N0")</td>
             <td class="text-end">€@b.ExpectedGp30Eur.ToString("N0")</td>
-            <td class="small text-break" style="max-width:280px">@b.FilePath</td>
+            <td class="small text-break" style="max-width:280px" title="@b.FilePath">@System.IO.Path.GetFileName(b.FilePath)</td>
             <td>
                 @if (b.ApprovalId is { } a)
                 {
@@ -90,7 +91,7 @@
                 }
                 else if (isManager)
                 {
-                    <form method="post" asp-action="MarkPushed" onsubmit="return confirm('Record export #@b.Id as pushed by the team? Its measurement starts now.');">
+                    <form method="post" asp-action="MarkPushed" onsubmit="return confirm('Record export #@b.Id as pushed to the shop by a person? Its measurement starts now.');">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="exportBatchId" value="@b.Id" />
                         <button class="btn btn-sm btn-outline-primary">Mark as pushed</button>

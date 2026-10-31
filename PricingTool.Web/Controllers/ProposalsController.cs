@@ -61,10 +61,15 @@ public class ProposalsController : Controller
         };
 
         // Only ever resolve a run within the current layer (scoped lookup, not a global Find).
-        var run = filter.RunId.HasValue
-            ? await _db.PricingRuns.FirstOrDefaultAsync(r => r.Id == filter.RunId.Value && r.LayerId == layerId)
-            : await _db.PricingRuns.Where(r => r.LayerId == layerId && r.Status != RunStatus.Running)
-                .OrderByDescending(r => r.Id).FirstOrDefaultAsync();
+        PricingRun? run;
+        if (filter.RunId.HasValue)
+            run = await _db.PricingRuns.FirstOrDefaultAsync(r => r.Id == filter.RunId.Value && r.LayerId == layerId);
+        else
+        {
+            var (latest, passedOver) = await RunPicker.LatestWithRowsAsync(_db, layerId);
+            run = latest;
+            ViewData["RunNote"] = RunPicker.Note(passedOver, latest);
+        }
         if (run is null) return View(model);
         model.Run = run;
         model.Filter.RunId = run.Id;
@@ -145,8 +150,7 @@ public class ProposalsController : Controller
 
         var run = filter.RunId.HasValue
             ? await _db.PricingRuns.FirstOrDefaultAsync(r => r.Id == filter.RunId.Value && r.LayerId == layerId)
-            : await _db.PricingRuns.Where(r => r.LayerId == layerId && r.Status != RunStatus.Running)
-                .OrderByDescending(r => r.Id).FirstOrDefaultAsync();
+            : (await RunPicker.LatestWithRowsAsync(_db, layerId)).Run;
         if (run is null)
         {
             TempData["Error"] = "No run to export.";
@@ -238,8 +242,7 @@ public class ProposalsController : Controller
 
         var run = filter.RunId.HasValue
             ? await _db.PricingRuns.FirstOrDefaultAsync(r => r.Id == filter.RunId.Value && r.LayerId == layerId)
-            : await _db.PricingRuns.Where(r => r.LayerId == layerId && r.Status != RunStatus.Running)
-                .OrderByDescending(r => r.Id).FirstOrDefaultAsync();
+            : (await RunPicker.LatestWithRowsAsync(_db, layerId)).Run;
         if (run is null)
         {
             TempData["Error"] = "No run to export.";

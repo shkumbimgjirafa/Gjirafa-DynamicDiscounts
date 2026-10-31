@@ -13,10 +13,35 @@ public sealed record PlanWaiting(CampaignPlan Plan, string Campaign, string Goal
 
 public sealed record PublishProblem(PublishBatch Batch, IReadOnlyList<(string Kind, int Count)> Exceptions)
 {
+    /// <summary>Wrote nothing because every SKU it was given was left out with a recorded reason (e.g. the cost watcher's
+    /// one-SKU raise under a cheaper team deal). The reasons are listed once per SKU, and a cost-watcher SKU also waits as
+    /// its hold, so the batch doesn't count a second time.</summary>
+    public bool AllLeftOut => Batch.Status == "Failed" && Batch.Requested > 0 && Batch.Skipped >= Batch.Requested && Exceptions.Count > 0;
+
     /// <summary>Stopped (a switch), failed, or rolled back because prices did not read back: a person should look.
-    /// A rollback after a clean read-back was asked for by a person (e.g. a canary) and a published batch with a few
-    /// exceptions (e.g. a cheaper team deal) are listed but don't count as waiting.</summary>
-    public bool NeedsAPerson => Batch.Status is "Stopped" or "Failed" || Batch.Status == "RolledBack" && Batch.RoundTripMismatches > 0;
+    /// A rollback after a clean read-back was asked for by a person (e.g. a canary), a published batch with a few
+    /// exceptions (e.g. a cheaper team deal) and a batch whose every SKU was left out are listed but don't count as waiting.</summary>
+    public bool NeedsAPerson => Batch.Status == "Stopped" || Batch.Status == "Failed" && !AllLeftOut
+                                || Batch.Status == "RolledBack" && Batch.RoundTripMismatches > 0;
+}
+
+/// <summary>One SKU's cost-watcher holds. The watcher reads every cost move, so the same SKU can be held more than once
+/// in a day; it waits for a person once, and "handled" clears all of its holds.</summary>
+public sealed record CostHoldGroup(int LayerId, string Sku, AgentDecision Latest, IReadOnlyList<long> Ids)
+{
+    /// <summary>The SKU a cost-watcher decision is about, from its evidence (<c>{"sku": ...}</c>); its id when there is none.</summary>
+    public static string SkuOf(AgentDecision d)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(d.EvidenceRefs ?? "");
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("sku", out var sku) && sku.GetString() is { Length: > 0 } s)
+                return s;
+        }
+        catch (System.Text.Json.JsonException) { }
+        return $"#{d.Id}";
+    }
 }
 
 /// <summary>One SKU the publisher left out or flagged, once over the recent days: on how many days, when last, and why.</summary>
@@ -53,6 +78,12 @@ public sealed class InboxSnapshot
     /// <summary>The cost watcher's holds (a data-error cost jump, a cost above the shelf price, a cheaper team discount), real only.</summary>
     public IReadOnlyList<AgentDecision> CostHolds { get; init; } = Array.Empty<AgentDecision>();
 
+    /// <summary>The cost watcher's holds once per layer and SKU, newest first: what is counted as waiting.</summary>
+    public IReadOnlyList<CostHoldGroup> CostHoldSkus => CostHolds
+        .GroupBy(d => (d.LayerId, Sku: CostHoldGroup.SkuOf(d)))
+        .Select(g => new CostHoldGroup(g.Key.LayerId, g.Key.Sku, g.OrderByDescending(d => d.Id).First(), g.Select(d => d.Id).ToList()))
+        .OrderByDescending(g => g.Latest.Id).ToList();
+
     /// <summary>Campaign briefs held on a cap a person may lift (too many mini-campaigns at once), real passes only.</summary>
     public IReadOnlyList<CampaignBrief> HeldBriefs { get; init; } = Array.Empty<CampaignBrief>();
 
@@ -62,7 +93,7 @@ public sealed class InboxSnapshot
     public IReadOnlyDictionary<int, string> LayerNames { get; init; } = new Dictionary<int, string>();
 
     public int WaitingCount => Decisions.Count + BlockedRuns.Count + Publishes.Count(p => p.NeedsAPerson) + FailedSteps.Count + Pauses.Count + HeldBriefs.Count
-                               + CostHolds.Count + CampaignPlans.Count;
+                               + CostHoldSkus.Count + CampaignPlans.Count;
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";
 }
