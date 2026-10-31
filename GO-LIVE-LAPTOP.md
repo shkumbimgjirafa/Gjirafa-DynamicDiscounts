@@ -89,6 +89,24 @@ hour, three times a day at most. Steps not built yet are logged as NotBuilt.
    applied (an Approval) and starts its 7- and 30-day measurement against the holdout.
 4. Look at the **Agent** page's "Waiting for you" (the exceptions inbox). On a normal day it is empty.
 
+## Memory on this laptop (for you to decide; nothing here is changed for you)
+
+On 31 Oct at 07:27 LocalDB's process stopped in the middle of a GjirafaMall publish, about 25 s after Windows flagged
+the web app's memory during that layer's Run week (an engine run of 511,398 SKUs; the laptop has 15.8 GB, with the Claude
+app and two Power BI gateways also using about 3.6 GB). The cause isn't established; the publisher now repairs an
+interrupted batch by itself. Two things would lower the chance:
+
+- **Cap LocalDB's memory.** SQL Server takes memory until the machine is short, and LocalDB is one instance shared by
+  this database and the main repo's development database. A cap of about 4 GB leaves room for the engine host:
+  `sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'max server memory (MB)', 4096; RECONFIGURE;"`
+  (needs `sqlcmd`; undo with 2147483647). It is instance-wide, so it is yours to decide.
+- **Close the web app when you don't use it.** The engine host runs the daily cycle on its own; the web app is only for
+  looking and pressing buttons. Measured on 31 Oct: a GjirafaMall engine run (511,398 SKUs) in the web app peaked at
+  1,605 MB private memory, free memory fell to 618 MB and SQL Server gave back 440 MB of its working set while it ran. The
+  calculator's engine (imported, unchanged) holds the whole run in memory; the publish after it is small (the engine host
+  peaked at 228 MB publishing 134,834 prices). The daily cycle runs the same engine run in the engine host at 07:00, so
+  that is the hour to leave the laptop alone.
+
 ## Where things are
 
 Paths as seen from a Claude session; in Explorer, prefix `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\`
