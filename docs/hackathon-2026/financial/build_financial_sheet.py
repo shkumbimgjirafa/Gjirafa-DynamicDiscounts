@@ -85,17 +85,19 @@ R = dict(rate=5, hours=6, person=7, build=8, training=9, setup=10, ai=11, server
          first=15, pilot=16, share=17, months=18, buildAi=19, fx=20,
          levHead=22, base=23, catch=24, lev1=25, lev8=32, levSum=33, levCheck=34, holdout=35,
          b0Head=36, b0Low=37, b0Mid=38, b0High=39, b0UsedHead=41, b0Used=42,
-         judgeHead=44, evA=45, evB=46, works=47,
+         withoutBuild=43, judgeHead=44, evA=45, evB=46, works=47,
          aiHead=49, aiFirst=50, aiLast=54, aiSum=55)
 I = {k: f"Inputs!$B${r}" for k, r in R.items()}
 
 built = datetime.now().strftime("%Y-%m-%d %H:%M")
 snapshot = FIG["E1"]["source"]
 cols = ["B", "C", "D", "E", "F", "G"]
-# Framing B's claim is B · Mid; B · Low carries the controlled measurement; B · High (E20's quoted season-adjusted case) is
-# shown, not claimed.
-scen = ["A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High (not claimed)"]
-lever_col = {"B": "B", "C": "C", "D": "D", "E": "B", "F": "C", "G": "D"}  # scenario -> Inputs column
+# One framing, one number (the user's decision, 31 Oct): column F is the claim; the other columns of the same model are
+# sensitivity (the levers alone, other elasticities) or a robustness check of B0 (E20 low), never alternative claims.
+scen = ["Sensitivity: levers only, e −2", "Sensitivity: levers only, e −1", "Sensitivity: levers only, e −0.5",
+        "Robustness check: B0 at E20 low, levers e −2", "The claim", "Sensitivity: B0 at E20 high (quoted), levers e −0.5"]
+CLAIM = 'F'
+lever_col = {"B": "B", "C": "C", "D": "D", "E": "B", "F": "C", "G": "D"}  # model column -> Inputs column
 
 # ---------------------------------------------------------------- Summary
 ws = wb.active
@@ -106,55 +108,49 @@ put(ws, "A2", f"Built {built} by docs/hackathon-2026/financial/build_financial_s
               "judgment); every cell below is a formula.", NOTE, wrap=True)
 ws.merge_cells("A2:G2")
 ws.row_dimensions[2].height = 40
-put(ws, "A3", "Our claim is framing B at B · Mid: the automated system's next 12 months at the calculator's measured rate "
-              "(B0 = E20 mid, measured before and after each approval, not controlled) plus the levers' central case. Under it, "
-              "B · Low carries the controlled measurement (E20 low). B · High uses E20's season-adjusted case, quoted from the main "
-              "repo: shown, not claimed. Framing A, the levers alone (1–8, backtested), is the conservative cross-check. B claims "
-              "no past euro: the registration said the calculator's Aug–Sep result is not claimed, and B uses it as the rate. "
-              "Payback is computed from the ramp on Inputs rows 15–18 (built in month 1, then the pilot), not tuned. Which "
-              "framing counts is the organisers' call.",
+put(ws, "A3", "The claim: framing B, the automated system's next 12 months at the calculator's measured rate (B0 = E20 mid, "
+              "measured before and after each approval; robustness checks: E20, E27) plus the levers this build adds (central "
+              "case), with the holdout categories' share left out. B claims no past euro: the registration said the calculator's "
+              "Aug–Sep result is not claimed, and B uses it as the rate. Payback is computed from the ramp on Inputs rows 15–18 "
+              "(built in month 1, then the pilot), not tuned. The same model's sensitivity and B0's robustness check are on the "
+              "Financial case and Payback sheets, labelled.",
     NOTE, wrap=True)
-put(ws, "A4", '="The claim, framing B (B · Mid): "&TEXT(F6,"€#,##0")&" a month at full scope; year 1: net benefit "&TEXT(F7,"€#,##0")'
-              '&", ROI "&TEXT(F10,"0%")&", payback "&TEXT(F13,"0.0")&" months, "&TEXT(F20,"0")&"/100. Under it, the controlled '
-              'measurement (B · Low): "&TEXT(E6,"€#,##0")&" a month, "&TEXT(E20,"0")&"/100. Framing A (A · Mid), the cross-check: "&TEXT(C20,"0")&"/100"', BOLD)
+put(ws, "A4", '="The claim: "&TEXT(B6,"€#,##0")&" a month at full scope; year 1: net benefit "&TEXT(B7,"€#,##0")'
+              '&", ROI "&TEXT(B10,"0%")&", payback "&TEXT(B13,"0.0")&" months, "&TEXT(B20,"0")&"/100"', BOLD)
 ws.merge_cells("A4:G4")
 ws.merge_cells("A3:G3")
 ws.row_dimensions[3].height = 52
 
-header(ws, 5, ["Row (weight)"] + scen)
-ev_row = {"B": R["evA"], "C": R["evA"], "D": R["evA"], "E": R["evB"], "F": R["evB"], "G": R["evB"]}
+header(ws, 5, ["Row (weight)", "The claim (framing B)"])
 rows = [
-    ("Monthly benefit at full scope (€/month)", "='Financial case'!{c}4", EUR, GREEN),
-    ("Net benefit, year 1 (€)", "='Financial case'!{c}10", EUR, GREEN),
-    ("  Net benefit rating (0–5)", "=IF({c}7>100000,5,IF({c}7>40000,4,IF({c}7>15000,3,IF({c}7>5000,2,IF({c}7>0,1,0)))))", "0", BLACK),
-    ("  Net benefit points (40)", "={c}8/5*40", NUM0, BLACK),
-    ("ROI, year 1", "='Financial case'!{c}11", PCT, GREEN),
-    ("  ROI rating (0–5)", "=IF({c}10>2,5,IF({c}10>1,4,IF({c}10>0.5,3,IF({c}10>0.25,2,IF({c}10>0,1,0)))))", "0", BLACK),
-    ("  ROI points (10)", "={c}11/5*10", NUM0, BLACK),
-    ("Payback (months)", "='Financial case'!{c}13", NUM1, GREEN),
-    ("  Payback rating (0–5)", "=IF(ISNUMBER({c}13),IF({c}13<=1,5,IF({c}13<=3,4,IF({c}13<=6,3,IF({c}13<=9,2,IF({c}13<=12,1,0))))),0)", "0", BLACK),
-    ("  Payback points (10)", "={c}14/5*10", NUM0, BLACK),
-    ("Evidence rating (0–5, judgment)", "=Inputs!$B${e}", "0", GREEN),
-    ("  Evidence points (20)", "={c}16/5*20", NUM0, BLACK),
+    ("Monthly benefit at full scope (€/month)", f"='Financial case'!{CLAIM}4", EUR, GREEN),
+    ("Net benefit, year 1 (€)", f"='Financial case'!{CLAIM}10", EUR, GREEN),
+    ("  Net benefit rating (0–5)", "=IF(B7>100000,5,IF(B7>40000,4,IF(B7>15000,3,IF(B7>5000,2,IF(B7>0,1,0)))))", "0", BLACK),
+    ("  Net benefit points (40)", "=B8/5*40", NUM0, BLACK),
+    ("ROI, year 1", f"='Financial case'!{CLAIM}11", PCT, GREEN),
+    ("  ROI rating (0–5)", "=IF(B10>2,5,IF(B10>1,4,IF(B10>0.5,3,IF(B10>0.25,2,IF(B10>0,1,0)))))", "0", BLACK),
+    ("  ROI points (10)", "=B11/5*10", NUM0, BLACK),
+    ("Payback (months)", f"='Financial case'!{CLAIM}13", NUM1, GREEN),
+    ("  Payback rating (0–5)", "=IF(ISNUMBER(B13),IF(B13<=1,5,IF(B13<=3,4,IF(B13<=6,3,IF(B13<=9,2,IF(B13<=12,1,0))))),0)", "0", BLACK),
+    ("  Payback points (10)", "=B14/5*10", NUM0, BLACK),
+    ("Evidence rating (0–5, judgment)", f"=Inputs!$B${R['evB']}", "0", GREEN),
+    ("  Evidence points (20)", "=B16/5*20", NUM0, BLACK),
     ("Works rating (0–5, judgment)", f"=Inputs!$B${R['works']}", "0", GREEN),
-    ("  Works points (20)", "={c}18/5*20", NUM0, BLACK),
-    ("Total (/100)", "={c}9+{c}12+{c}15+{c}17+{c}19", NUM0, BLACK),
-    ("Prize eligible (Works ≥ 3)", '=IF({c}18>=3,"Yes","No")', None, BLACK),
+    ("  Works points (20)", "=B18/5*20", NUM0, BLACK),
+    ("Total (/100)", "=B9+B12+B15+B17+B19", NUM0, BLACK),
+    ("Prize eligible (Works ≥ 3)", '=IF(B18>=3,"Yes","No")', None, BLACK),
 ]
 for i, (lab, f, fmt, font) in enumerate(rows):
     r = 6 + i
     put(ws, f"A{r}", lab, BOLD if not lab.startswith("  ") else BLACK)
-    for c in cols:
-        cell = put(ws, f"{c}{r}", f.format(c=c, e=ev_row[c]), font, fmt)
-        cell.border = BOX
+    put(ws, f"B{r}", f, font, fmt).border = BOX
     if lab.startswith("Total"):
-        for c in ["A"] + cols:
+        for c in ("A", "B"):
             ws[f"{c}{r}"].fill = TOTAL
             ws[f"{c}{r}"].font = Font(name=ARIAL, size=10, bold=True)
 put(ws, "A23", "Reference: the worked example in the hackathon rules scores 76 / 100.", NOTE)
-put(ws, "A24", "Evidence and Works are our own judgment ratings (Inputs rows 44–46), with the reason next to each; a juror "
-               "may rate them lower. Low / Mid / High differ only in the money: elasticity, the test-phase case and the "
-               "campaign curve.", NOTE, wrap=True)
+put(ws, "A24", "Evidence and Works are our own judgment ratings (Inputs rows 45–47), with the reason next to each; a juror "
+               "may rate them lower. Where the benefit comes from, line by line: the 'Benefit by source' sheet.", NOTE, wrap=True)
 ws.merge_cells("A24:G24")
 ws.row_dimensions[24].height = 30
 
@@ -164,8 +160,8 @@ for i, (lab, thr) in enumerate([("2 (net > €5k)", 5000), ("3 (net > €15k)", 
                                 ("4 (net > €40k)", 40000), ("5 (net > €100k)", 100000)]):
     r = 27 + i
     put(ws, f"A{r}", lab)
-    put(ws, f"B{r}", f"=({thr}+'Financial case'!$B$9)/'Financial case'!$B$5", BLACK, EUR).border = BOX
-put(ws, "A31", "Costs are the same in every scenario; benefit ramps up through the pilot (Inputs rows 15–18).", NOTE)
+    put(ws, f"B{r}", f"=({thr}+'Financial case'!${CLAIM}$9)/'Financial case'!${CLAIM}$5", BLACK, EUR).border = BOX
+put(ws, "A31", "Costs are the same in every column of the model; benefit ramps up through the pilot (Inputs rows 15–18).", NOTE)
 
 put(ws, "A33", "Rules that apply (hackathon Track A)", BOLD)
 for i, t in enumerate([
@@ -268,7 +264,7 @@ for i, (fid, lab) in enumerate(lev):
                 "without a push. " + note)
     put(wi, f"F{r}", note, NOTE)
     put(wi, f"G{r}", fid, BOLD)
-put(wi, f"A{R['levSum']}", "New benefit, framing A (sum of levers 1–8)", BOLD)
+put(wi, f"A{R['levSum']}", "The levers this build adds (sum of levers 1–8)", BOLD)
 for col in "BCD":
     c = put(wi, f"{col}{R['levSum']}", f"=SUM({col}{R['lev1']}:{col}{R['lev8']})", BLACK, EUR)
     c.border = BOX
@@ -292,16 +288,16 @@ put(wi, f"F{R['holdout']}", "The agents never change the holdout categories, so 
                             "changed prices in them in the 31 Oct exports (Gj50 6,759 of 51,391; Mall 16,874 of 169,081); "
                             "the backtest itself doesn't leave them out", NOTE)
 
-header(wi, R["b0Head"], ["Framing B: the calculator's test phase (B0), three cases", "Value", "Unit", "Label", "Source / note", "", "ID"])
+header(wi, R["b0Head"], ["B0, the calculator's measured rate (the claim uses Mid; Low and High are checks)", "Value", "Unit", "Label", "Source / note", "", "ID"])
 b0 = [
-    ("b0Low", "Same-weeks control (changed vs unchanged products)", "low",
+    ("b0Low", "Same-weeks control (changed vs unchanged products): a robustness check of B0", "low",
      "One run per KS layer: GjirafaMall's of 3 Sep vs the products it kept (€3,263) + Gjirafa50's of 21 Jul vs products "
      "not in it (€1,139; it changed every product it held). With Mall's other control (not in the approval) €5.2k. A test "
      "phase with a control, not a randomized test. Recomputed here: evidence/e20-test-phase.sql"),
-    ("b0Mid", "Before/after on the approvals, KS, Aug–Sep average", "mid",
+    ("b0Mid", "Before/after on the approvals, KS, Aug–Sep average: B0 in the claim", "mid",
      "Aug €11,068 · Sep €9,749 (Approvals' 30-day profit windows, SKU-deduped, booked COGS; 27 Oct in the main repo: "
      "€11,184 · €10,079, before late cancellations). Not controlled. Recomputed here: evidence/e20-test-phase.sql"),
-    ("b0High", "Same, season-adjusted with 2025's same weeks (quoted; not part of the claim)", "high",
+    ("b0High", "Same, season-adjusted with 2025's same weeks: sensitivity (quoted; not part of the claim)", "high",
      "Aug €11.9k · Sep €13.8k. Not controlled; layer-level GP growth did not beat 2025's seasonality, so this is the top "
      "of the range. Quoted from the main repo (the 2025 adjustment isn't recomputed here)"),
 ]
@@ -313,23 +309,29 @@ for key, lab, case, src in b0:
     put(wi, f"D{r}", label("E20", case))
     put(wi, f"E{r}", src, NOTE)
     put(wi, f"G{r}", "E20", BOLD)
-header(wi, R["b0UsedHead"], ["B0 used per scenario", "Low", "Mid", "High", "Label", "Why"])
+header(wi, R["b0UsedHead"], ["B0 used per model column", "Low", "Mid (the claim)", "High", "Label", "Why"])
 put(wi, f"A{R['b0Used']}", "B0 (€/month)", BOLD)
 for col, key in zip("BCD", ("b0Low", "b0Mid", "b0High")):
     c = put(wi, f"{col}{R['b0Used']}", f"=B{R[key]}", BLACK, EUR)
     c.border = BOX
     c.fill = TOTAL
 put(wi, f"E{R['b0Used']}", "formula")
-put(wi, f"F{R['b0Used']}", "Mid = the before/after result, framing B's claim · Low = the controlled measurement, shown under it · "
-                          "High = the season-adjusted result, quoted, not part of the claim", NOTE)
+put(wi, f"F{R['b0Used']}", "Mid = the before/after result, B0 in the claim · Low = the same-weeks control, a robustness check · "
+                          "High = the season-adjusted result, quoted, sensitivity only", NOTE)
+# The without-the-build line: an assumption, with the measured facts beside it (E28).
+put(wi, f"A{R['withoutBuild']}", "Without the build, the test ends: no one runs the engine by hand as a permanent process", BOLD)
+put(wi, f"B{R['withoutBuild']}", "yes", BLUE, None, YELLOW).border = BOX
+put(wi, f"D{R['withoutBuild']}", "assumed")
+put(wi, f"E{R['withoutBuild']}", "Facts (E28, measured): " + FIG["E28"]["method"], NOTE)
+put(wi, f"G{R['withoutBuild']}", "E28", BOLD)
 
 header(wi, R["judgeHead"], ["Judgment ratings (one per row; they don't depend on the money case)", "Rating", "", "", "Label", "Why"])
 judgments = [
-    ("evA", "Evidence rating, framing A (0–5)", 3,
+    ("evA", "Evidence rating, the levers alone (sensitivity, 0–5)", 3,
      "3 = a real baseline from company data, tested on past data: every lever is a walk-forward backtest on booked sales "
      "lines with booked COGS, rerunnable from the Backtest page and numbers.json. Not more: the elasticities are assumed, "
      "lever 4 borrows the test phase's rate, and nothing has been measured live yet"),
-    ("evB", "Evidence rating, framing B (0–5)", 3,
+    ("evB", "Evidence rating, the claim (framing B, 0–5)", 3,
      "B0 was measured on the real shop with real sales (the low case with a same-weeks control on each KS layer), before "
      "the hackathon; this build recomputes the low and mid cases from its own data, but they are one run per layer, and "
      "the mid and high cases are before/after, not controlled"),
@@ -388,7 +390,7 @@ benefit = {"B": f"=Inputs!B{s}*(1-Inputs!B{ho})", "C": f"=Inputs!C{s}*(1-Inputs!
            "E": f"=(Inputs!B{s}+Inputs!B{b})*(1-Inputs!B{ho})", "F": f"=(Inputs!C{s}+Inputs!C{b})*(1-Inputs!C{ho})",
            "G": f"=(Inputs!D{s}+Inputs!D{b})*(1-Inputs!D{ho})"}
 lines = [
-    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "Framing A: levers 1–8 · Framing B: + B0 (the test phase's rate); the holdout share left out"),
+    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "The claim (column F): B0 at E20 mid + levers 1–8, central · the other columns: sensitivity and B0's robustness check · the holdout share left out"),
     (5, "Months of full benefit in year 1", f"={I['months']}", NUM1, GREEN, "After the build month: the pilot at its share, then full scope"),
     (6, "First-year benefit", "={c}4*{c}5", EUR, BLACK, "Extra margin in the first 12 months"),
     (7, "One-time cost", f"=({I['hours']}+{I['person']}+{I['build']}+{I['training']})*{I['rate']}+{I['setup']}+{I['buildAi']}*{I['fx']}", EUR, GREEN,
@@ -413,6 +415,51 @@ wf.column_dimensions["A"].width = 32
 for c in cols:
     wf.column_dimensions[c].width = 12
 wf.column_dimensions["H"].width = 70
+
+# ---------------------------------------------------------------- Benefit by source
+wsb = wb.create_sheet("Benefit by source")
+put(wsb, "A1", "Where the claim's benefit comes from (€ a month at full scope)", TITLE)
+header(wsb, 3, ["Line", "€ a month", "Label", "Source", "ID"])
+src = [
+    ("The stream the build makes permanent: B0, the calculator's measured rate", f"=Inputs!C{R['b0Used']}",
+     "rate measured; 'ends without the build' assumed", "E20 mid (GjirafaMall + Gjirafa50, Aug–Sep average); Inputs row " + str(R['withoutBuild']), "E20, E28"),
+    ("Recovered leakage: raises that reach the shelf (lever 8)", f"=Inputs!C{R['lev1'] + 7}", "estimated", FIG["E24"]["name"], "E24"),
+    ("Cadence: prices daily, not on a few manual dates (lever 5)", f"=Inputs!C{R['lev1'] + 4}", "estimated", FIG["E5"]["name"], "E5"),
+    ("MK/AL coverage at Kosovo's tested rate (lever 4)", f"=Inputs!C{R['lev1'] + 3}", "estimated",
+     f"€{v('E4', 'low'):,.0f} at E20's same-weeks rate; MK/AL had no two-month test of their own", "E4"),
+    ("The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7)",
+     f"=Inputs!C{R['lev1']}+Inputs!C{R['lev1'] + 1}+Inputs!C{R['lev1'] + 2}+Inputs!C{R['lev1'] + 5}+Inputs!C{R['lev1'] + 6}", "estimated",
+     "E1, E2, E3, E6, E7 (walk-forward backtest)", "E1–E3, E6, E7"),
+]
+for i, (lab, f, lab2, source, fid) in enumerate(src):
+    r = 4 + i
+    put(wsb, f"A{r}", lab)
+    put(wsb, f"B{r}", f, BLACK, EUR).border = BOX
+    put(wsb, f"C{r}", lab2)
+    put(wsb, f"D{r}", source, NOTE)
+    put(wsb, f"E{r}", fid, BOLD)
+put(wsb, "A9", "Before the holdout share", BOLD)
+put(wsb, "B9", "=SUM(B4:B8)", BLACK, EUR).border = BOX
+put(wsb, "A10", "The holdout categories' share, left out")
+put(wsb, "B10", f"=-B9*Inputs!C{R['holdout']}", BLACK, EUR).border = BOX
+put(wsb, "C10", "estimated")
+put(wsb, "A11", "The claim: monthly benefit at full scope", BOLD)
+c = put(wsb, "B11", "=B9+B10", BLACK, EUR)
+c.border = BOX
+c.fill = TOTAL
+put(wsb, "C11", f'=IF(ROUND(B11,0)=ROUND(\'Financial case\'!{CLAIM}4,0),"matches the Financial case","DIFFERS")')
+put(wsb, "A12", "Months that count in year 1", BOLD)
+put(wsb, "B12", f"={I['months']}", BLACK, NUM1).border = BOX
+put(wsb, "D12", "Built in month 1, a two-month pilot at an assumed quarter of the benefit, then full scope (Inputs rows 15–18)", NOTE)
+put(wsb, "A13", "Hours saved", BOLD)
+put(wsb, "B13", "not counted")
+put(wsb, "D13", "Hours, never euros: the time sheet's minutes per task aren't set yet (they wait for the user), and hours saved are not benefit here", NOTE)
+put(wsb, "A15", "GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies.", NOTE)
+put(wsb, "A16", "Cancelled orders are excluded; returns after delivery are not netted out.", NOTE)
+wsb.column_dimensions["A"].width = 70
+wsb.column_dimensions["B"].width = 14
+wsb.column_dimensions["C"].width = 34
+wsb.column_dimensions["D"].width = 70
 
 # ---------------------------------------------------------------- Payback
 wp = wb.create_sheet("Payback")

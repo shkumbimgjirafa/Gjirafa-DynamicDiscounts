@@ -51,38 +51,61 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
     }
 
     [Fact]
-    public void Framing_Bs_figures_are_the_same_in_numbers_json_the_sheet_the_one_pager_HACKATHON_and_the_page()
+    public async Task The_one_claim_is_the_same_in_numbers_json_the_sheet_the_one_pager_HACKATHON_and_the_page()
     {
         var evidence = RepoEvidence();
         var dir = evidence.Directory();
-        var e20 = evidence.ReadNumbers().Figures.Single(f => f.Id == "E20");
+        var figures = evidence.ReadNumbers().Figures;
+        var e20 = figures.Single(f => f.Id == "E20");
         var b0 = new[] { "low", "mid", "high" }.Select(k => e20.Value.GetProperty(k).GetDecimal()).ToArray();
+        var byShop = e20.Value.GetProperty("byShopAugSepAvg");
+        var (mall, gj50) = (byShop.GetProperty("mallKs").GetDecimal(), byShop.GetProperty("gj50Ks").GetDecimal());
         string Eur(decimal x) => "€" + Math.Round(x).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+        decimal Num(string s) => decimal.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+
+        // The evidence keeps every check: E20 low and high (labelled, never "scenario"), E27, and the split by shop adds up to B0.
+        Assert.StartsWith("robustness check", e20.Label.GetProperty("low").GetString());
+        Assert.Contains("not part of the claim", e20.Label.GetProperty("high").GetString());
+        Assert.InRange(mall + gj50 - b0[1], -1m, 1m);
+        var e27 = figures.Single(f => f.Id == "E27");
+        Assert.StartsWith("robustness check", e27.Label.GetString());
+        Assert.Equal(3, e27.Value.GetProperty("total").EnumerateObject().Count());                  // all three columns, the €2.7k one too
+        Assert.NotNull(e27.Recompute);                                                              // rerun live on the Evidence page
+        Assert.All(figures, f => Assert.DoesNotContain("scenario", f.Label.ToString(), StringComparison.OrdinalIgnoreCase));
 
         var sheet = Path.Combine(dir, "..", "Financial sheet.xlsx");
         var inputs = SheetValues(sheet, "Inputs");
         var b0Rows = new[] { "Same-weeks control", "Before/after on the approvals", "Same, season-adjusted" }
-            .Select(label => decimal.Parse(inputs["B" + inputs.Single(c => c.Key.StartsWith('A') && c.Value.StartsWith(label, StringComparison.Ordinal)).Key[1..]],
-                System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            .Select(label => Num(inputs["B" + inputs.Single(c => c.Key.StartsWith('A') && c.Value.StartsWith(label, StringComparison.Ordinal)).Key[1..]])).ToArray();
         Assert.Equal(b0, b0Rows);                                                                   // the sheet types E20 in
-        Assert.Contains("not part of the claim", e20.Label.GetProperty("high").GetString());          // E20 high is kept, labelled
         var caseSheet = SheetValues(sheet, "Financial case");
-        decimal Cell(string c) => decimal.Parse(caseSheet[c], System.Globalization.CultureInfo.InvariantCulture);
-        var (claim, controlled, notClaimed) = (Cell("F4"), Cell("E4"), Cell("G4"));                   // B · Mid, B · Low, B · High
-        Assert.Contains("not claimed", caseSheet.Single(c => c.Value.StartsWith("B · High", StringComparison.Ordinal)).Value);
+        Assert.Equal("The claim", caseSheet["F3"]);
+        Assert.All(new[] { "B3", "C3", "D3", "E3", "G3" }, c => Assert.Matches("^(Sensitivity|Robustness check):", caseSheet[c]));
+        var summary = SheetValues(sheet, "Summary");
+        var (claim, score) = (Num(summary["B6"]), Num(summary["B20"]));
+        Assert.Equal(Num(caseSheet["F4"]), claim);                                                  // the Summary shows column F alone
+        var bySource = SheetValues(sheet, "Benefit by source");
+        Assert.Equal(b0[1], Num(bySource["B4"]));
+        Assert.Equal(Math.Round(claim, 2), Math.Round(Num(bySource["B11"]), 2));
+        var others = new[] { "B4", "C4", "D4", "E4", "G4" }.Select(c => Num(caseSheet[c])).ToArray();
 
         var onePager = File.ReadAllText(Path.Combine(dir, "..", "one-pager.md"));
         var hackathon = File.ReadAllText(Path.Combine(dir, "..", "..", "..", "HACKATHON.md"));
         foreach (var doc in new[] { onePager, hackathon })
         {
-            // The claim (E20 mid, B · Mid) and, under it, the controlled measurement (E20 low, B · Low).
-            foreach (var x in new[] { b0[1], claim, b0[0], controlled }) Assert.Contains(Eur(x), doc);
-            // €13,000 is never part of the claim: B · High's total isn't quoted, and every sentence naming E20 high says so.
-            Assert.DoesNotContain(Eur(notClaimed), doc);
-            var sentences = System.Text.RegularExpressions.Regex.Split(doc.Replace('\n', ' '), @"(?<=\.)\s+");
-            Assert.All(sentences.Where(x => x.Contains(Eur(b0[2]), StringComparison.Ordinal)), x => Assert.Contains("not part of the claim", x));
+            // One claim with its score, B0 and B0 by shop; no alternative total, no other B0, no second framing.
+            foreach (var x in new[] { claim, b0[1], mall, gj50 }) Assert.Contains(Eur(x), doc);
+            Assert.Contains($"{score:0} points", doc);
+            Assert.Contains("robustness checks: E20, E27", doc);
+            foreach (var x in others.Append(b0[0]).Append(b0[2])) Assert.DoesNotContain(Eur(x), doc);
+            foreach (var word in new[] { "framing A", "cross-check", "controlled measurement", "scenario" })
+                Assert.DoesNotContain(word, doc, StringComparison.OrdinalIgnoreCase);
         }
-        Assert.Contains($"{Eur(b0[1])[1..]} ({Eur(b0[0])[1..]} / {Eur(b0[2])[1..]})", EvidenceService.Show(e20.Value));   // the Evidence page
+
+        Assert.Contains($"{Eur(b0[1])[1..]} ({Eur(b0[0])[1..]} / {Eur(b0[2])[1..]})", EvidenceService.Show(e20.Value));
+        var page = Assert.IsType<EvidencePage>(Assert.IsType<ViewResult>(await new EvidenceController(evidence).Index(CancellationToken.None)).Model);
+        var shown = Assert.NotNull(page.Claim);
+        Assert.Equal((Math.Round(claim), score), (Math.Round(shown.Monthly), shown.Score));              // the page's headline
     }
 
     [Theory]

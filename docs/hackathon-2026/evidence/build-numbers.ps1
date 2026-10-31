@@ -272,8 +272,9 @@ $aug = Round0 $byMonth['2026-08'].Total; $sep = Round0 $byMonth['2026-09'].Total
 $e20Months = [ordered]@{}
 foreach ($m in '2026-08', '2026-09') { $e20Months[$m] = [ordered]@{ mallKs = Round0 $byMonth[$m].MallKs; gj50Ks = Round0 $byMonth[$m].Gj50Ks; total = Round0 $byMonth[$m].Total
     byApproval = "$($byMonth[$m].Spans)" } }
-Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = $mallKept + $gj50NotIn; mid = Round0 $byMonth['Aug-Sep average'].Total; high = 13000; byMonth = $e20Months; controls = [ordered]@{ mall25VsKept = $mallKept; mall25VsNotInApproval = $mallNotIn; gj50No1VsNotInApproval = $gj50NotIn } }) 'EUR/month' `
-    ([ordered]@{ low = 'measured, same-weeks control, one run per layer, the stricter control on Mall'; mid = 'measured before/after, not controlled'; high = 'estimated: before/after season-adjusted with 2025, not controlled; quoted from the main repo, not recomputed, not part of the claim' }) `
+Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = $mallKept + $gj50NotIn; mid = Round0 $byMonth['Aug-Sep average'].Total; high = 13000; byShopAugSepAvg = [ordered]@{ mallKs = Round0 $byMonth['Aug-Sep average'].MallKs; gj50Ks = Round0 $byMonth['Aug-Sep average'].Gj50Ks }
+        byMonth = $e20Months; controls = [ordered]@{ mall25VsKept = $mallKept; mall25VsNotInApproval = $mallNotIn; gj50No1VsNotInApproval = $gj50NotIn } }) 'EUR/month' `
+    ([ordered]@{ low = 'robustness check: measured, same-weeks control, one run per layer, the stricter control on Mall'; mid = 'measured before/after each approval, not controlled (B0 in the claim)'; high = 'sensitivity: estimated, before/after season-adjusted with 2025, not controlled; quoted from the main repo, not recomputed, not part of the claim' }) `
     "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept $mallKept + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval $gj50NotIn (with Mall's other control, vs not in the approval, $mallNotIn + $gj50NotIn = $($mallNotIn + $gj50NotIn)); mid: before/after on the approvals, SKU-deduplicated spans (Aug $aug, Sep $sep; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025's seasonal growth)" `
     'PricingTool.Approvals / ApprovalItems (copied from the deployed tool DB) and hk.SalesLines, booked COGS' 'docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)'
 # E21 from e21-by-cause.sql: the same rule, floors and scope as `backtest-below-floor` (its totals tie to it to the euro),
@@ -352,15 +353,71 @@ Add 'E26' "Sales Report tie-out: each approval's 30-day gross profit before it, 
     'PricingTool.Approvals / ApprovalItems, hk.SalesLines' 'docs/hackathon-2026/evidence/e26-sales-report-tie-out.sql (this script runs it)'
 Recompute 'E26' 'e26-sales-report-tie-out.sql' $e26Sets @($e26Sets[0].Rows | ForEach-Object { C "#$($_.ApprovalId) from hk.SalesLines" 0 'FromSalesLines' @{ ApprovalId = "$($_.ApprovalId)" } })
 
+# E27: B0 against a comparison group, a robustness check (Prompt 15): the same approvals and spans as E20, campaign days
+# out, three ways per shop; September separates cleanly, August's run coincided with restocking.
+$e27Sets = RunFile 'e20-aug-sep-comparison.sql'
+function E27Row($month, $shop) { $e27Sets[0].Rows | Where-Object { $_.Month -eq $month -and $_.Shop -eq $shop } | Select-Object -First 1 }
+$e27Shops = [ordered]@{}
+foreach ($shop in 'GjirafaMall KS', 'Gjirafa50 KS') {
+    $r = E27Row 'Aug-Sep avg' $shop
+    $e27Shops[$shop] = [ordered]@{ beforeAfter = Round0 $r.BeforeAfter; vsUntouched = Round0 $r.VsUntouched; vsUntouchedSoldInBothWindows = Round0 $r.VsUntouchedBoth }
+}
+$e27Total = [ordered]@{ beforeAfter = ($e27Shops.Values | ForEach-Object { $_.beforeAfter } | Measure-Object -Sum).Sum
+    vsUntouched = ($e27Shops.Values | ForEach-Object { $_.vsUntouched } | Measure-Object -Sum).Sum
+    vsUntouchedSoldInBothWindows = ($e27Shops.Values | ForEach-Object { $_.vsUntouchedSoldInBothWindows } | Measure-Object -Sum).Sum }
+$sepMall = E27Row '2026-09' 'GjirafaMall KS'
+$a12 = $e27Sets[1].Rows | Where-Object { $_.ApprovalId -eq 12 } | Select-Object -First 1
+$p25 = $e27Sets[2].Rows | Where-Object { $_.ApprovalId -eq 25 -and $_.Grp -eq 'repriced' } | Select-Object -First 1
+$u25 = $e27Sets[2].Rows | Where-Object { $_.ApprovalId -eq 25 -and $_.Grp -eq 'untouched' } | Select-Object -First 1
+function Pct($a, $b) { [math]::Round(100.0 * ([double]$b - [double]$a) / [double]$a, 0) }
+Add 'E27' "B0 against untouched products in the same category and weeks, Aug-Sep 2026 (a robustness check of E20)" ([ordered]@{
+        byShop = $e27Shops; total = $e27Total
+        september = [ordered]@{ gjirafaMallVsUntouched = Round0 $sepMall.VsUntouched; gjirafaMallSoldInBothWindows = Round0 $sepMall.VsUntouchedBoth }
+        run12 = [ordered]@{ repricedSkusSoldInEitherWindow = [int]$a12.RepricedSkus; soldInBothWindows = [int]$a12.RepricedSkusBoth }
+        run25SoldInBothWindows = [ordered]@{ gpPerUnitBefore = [decimal]$p25.GpPerUnitBefore; gpPerUnitAfter = [decimal]$p25.GpPerUnitAfter
+            gpPerUnitChangePct = Pct $p25.GpPerUnitBefore $p25.GpPerUnitAfter; unitsChangePct = Pct $p25.UnitsBefore $p25.UnitsAfter
+            untouchedGpPerUnitChangePct = Pct $u25.GpPerUnitBefore $u25.GpPerUnitAfter; untouchedUnitsChangePct = Pct $u25.UnitsBefore $u25.UnitsAfter } }) 'EUR/month' 'robustness check: measured' `
+    ("The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced $($e27Total.beforeAfter); against untouched SKUs of the same shop and category in the same weeks $($e27Total.vsUntouched) when every SKU that sold in either window counts, and $($e27Total.vsUntouchedSoldInBothWindows) when only SKUs that sold in both windows count (August's run coincided with restocking: #12 repriced $($a12.RepricedSkus) SKUs that sold in either window, $($a12.RepricedSkusBoth) in both). " +
+     "September alone gives GjirafaMall KS $(Round0 $sepMall.VsUntouched) against untouched SKUs and $(Round0 $sepMall.VsUntouchedBoth) on SKUs that sold in both windows. On run #25's SKUs that sold in both windows, gross profit per unit rose $(Pct $p25.GpPerUnitBefore $p25.GpPerUnitAfter) % with units $(Pct $p25.UnitsBefore $p25.UnitsAfter) %, against $(Pct $u25.GpPerUnitBefore $u25.GpPerUnitAfter) % and $(Pct $u25.UnitsBefore $u25.UnitsAfter) % on untouched SKUs. GjirafaMall lines are Gjirafa's own vendors only, at booked cost; returns after delivery are not netted out.") `
+    'PricingTool.Approvals / ApprovalItems, hk.SalesLines, hk.Products, hk.CampaignWindows' 'docs/hackathon-2026/evidence/e20-aug-sep-comparison.sql (three result sets; this script runs it)'
+Recompute 'E27' 'e20-aug-sep-comparison.sql' $e27Sets @(
+    (C 'Aug-Sep, before/after, both shops' 0 'BeforeAfter' @{ Month = 'Aug-Sep avg' } 'sum'),
+    (C 'Aug-Sep, vs untouched SKUs, both shops' 0 'VsUntouched' @{ Month = 'Aug-Sep avg' } 'sum'),
+    (C 'Aug-Sep, vs untouched, SKUs that sold in both windows' 0 'VsUntouchedBoth' @{ Month = 'Aug-Sep avg' } 'sum'),
+    (C 'September, GjirafaMall KS vs untouched' 0 'VsUntouched' @{ Month = '2026-09'; Shop = 'GjirafaMall KS' }),
+    (C 'September, GjirafaMall KS, sold in both windows' 0 'VsUntouchedBoth' @{ Month = '2026-09'; Shop = 'GjirafaMall KS' }))
+
+# E28: the test, run by hand, the facts beside the without-the-build line (Prompt 15). The line itself is an assumption
+# (the sheet's Inputs); these are what was measured.
+$e28Sets = RunFile 'e28-runs-by-hand.sql'
+function RunDays($shop, $kind) { @($e28Sets[0].Rows | Where-Object { $_.Shop -eq $shop -and $_.Kind -eq $kind } | ForEach-Object { ([datetime]$_.RunDay).ToString('yyyy-MM-dd') }) }
+$gj50Gap = ($e28Sets[1].Rows | Where-Object { $_.Shop -eq 'Gjirafa50 KS' } | ForEach-Object { N0 $_.DaysToNext } | Measure-Object -Maximum).Maximum
+$mkal = [ordered]@{}; foreach ($r in $e28Sets[2].Rows) { $mkal["$($r.Layer) $($r.Month)"] = ([datetime]$r.FirstDay).ToString('yyyy-MM-dd') }
+$ksSets = @($e28Sets[3].Rows | Where-Object { $_.Shop -eq 'GjirafaMall KS' } | ForEach-Object { [int]$_.LiveDays } | Measure-Object -Minimum -Maximum)
+$e23rows = @(($figures | Where-Object { $_.id -eq 'E23' }).value.perApproval | Where-Object { $_.approval -in 12, 25 })
+$oldPct = [math]::Round(100.0 * ($e23rows | ForEach-Object { [double]$_.atOldPrice } | Measure-Object -Sum).Sum / ($e23rows | ForEach-Object { [double]$_.units } | Measure-Object -Sum).Sum, 0)
+$mallRuns = RunDays 'GjirafaMall KS' 'regular'; $gj50Runs = RunDays 'Gjirafa50 KS' 'regular'; $gj50Dead = RunDays 'Gjirafa50 KS' 'dead stock'
+Add 'E28' 'The test, run by hand: the facts beside the without-the-build line (Kosovo runs, MK/AL pushes)' ([ordered]@{
+        gjirafaMallKsRegularRuns = $mallRuns; gjirafa50KsRegularRuns = $gj50Runs; gjirafa50KsDeadStockRuns = $gj50Dead; gjirafa50KsLongestGapDays = $gj50Gap
+        mkalFullPushes = $mkal; unitsAtOldPriceAugSepPct = $oldPct }) 'dates / days' 'measured' `
+    ("The deployed tool's runs (PricingTool.Approvals) and the sets pushed to the shops (hk.PushDatesKs, hk.PushDatesMkAl): one person ran them by hand from 21 Jul, with no schedule. " +
+     "GjirafaMall KS regular runs on $($mallRuns -join ', '); Gjirafa50 KS regular runs on $($gj50Runs -join ', ') ($gj50Gap days from the first to the second), with dead-stock runs on $(($gj50Dead | Where-Object { $_ -lt '2026-10-01' }) -join ', '). " +
+     "MK/AL full pushes (50,000+ public discounts started in a month): $(($mkal.GetEnumerator() | ForEach-Object { "$($_.Key) from $($_.Value)" }) -join '; '). " +
+     "GjirafaMall KS's sets of 50,000+ public discounts stayed live $($ksSets.Minimum)-$($ksSets.Maximum) days. Even when a run went live, $oldPct % of the units on SKUs approvals #12 and #25 raised still sold at the old price in Aug-Sep (E23); late October's 70-84 % was the month two push sets overlapped.") `
+    'PricingTool.Approvals / ApprovalItems, hk.PushDatesKs, hk.PushDatesMkAl' 'docs/hackathon-2026/evidence/e28-runs-by-hand.sql (four result sets; this script runs it)'
+Recompute 'E28' 'e28-runs-by-hand.sql' $e28Sets @((C "Gjirafa50 KS: days from 21 Jul to its next regular run" 1 'DaysToNext' @{ Shop = 'Gjirafa50 KS' }),
+    (C 'GjirafaMall AL: discounts pushed in Sep (the one full MK/AL push in Aug-Sep)' 2 'Discounts' @{ Layer = 'GjirafaMall AL'; Month = '2026-09' }),
+    (C 'GjirafaMall MK: discounts in its first full push, Oct' 2 'Discounts' @{ Layer = 'GjirafaMall MK'; Month = '2026-10' }))
+
 # Why the calculator's figure moved since the registration (the Evidence page shows it with E20).
 $e20 = $figures | Where-Object { $_.id -eq 'E20' }
-$e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) a month (E20 mid), and that is framing B's claim. The controlled measurement, $($e20.value.low) (E20 low, a same-weeks control run on 27 Oct), is shown under it; it likely understates the effect, because shoppers moving from changed to kept products lift the comparison group. The season-adjusted $($e20.value.high) (E20 high) is quoted from the main repo and is not part of the claim."
+$e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) a month (E20 mid), the claim's rate. Its robustness checks are E20 low (a same-weeks control) and E27 (against untouched products in the same category and weeks); E20 high (season-adjusted, quoted from the main repo) is sensitivity, not part of the claim."
 
 foreach ($f in $figures) { if ($recomputes.ContainsKey($f.id)) { $f.recompute = $recomputes[$f.id] } }
 
 $out = [ordered]@{
     generated = (Get-Date).ToString('yyyy-MM-dd HH:mm'); generator = 'docs/hackathon-2026/evidence/build-numbers.ps1'
-    note = 'Every figure carries its label. The claim is framing B: the rollout of the test phase (E20, B0) plus the levers. Framing A, the levers alone (E8), is the cross-check; the two are never blended.'
+    note = 'Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.'
     figures = $figures
 }
 $json = $out | ConvertTo-Json -Depth 6

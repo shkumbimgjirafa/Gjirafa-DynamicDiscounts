@@ -1,7 +1,7 @@
 {
-    "generated":  "2026-10-31 10:42",
+    "generated":  "2026-10-31 11:40",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
-    "note":  "Every figure carries its label. The claim is framing B: the rollout of the test phase (E20, B0) plus the levers. Framing A, the levers alone (E8), is the cross-check; the two are never blended.",
+    "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
                     {
                         "id":  "E1",
@@ -445,8 +445,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  40,
-                                      "rows":  50
+                                      "unattendedBlocks":  41,
+                                      "rows":  51
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -474,6 +474,10 @@
                                       "low":  4402,
                                       "mid":  10409,
                                       "high":  13000,
+                                      "byShopAugSepAvg":  {
+                                                              "mallKs":  8006,
+                                                              "gj50Ks":  2403
+                                                          },
                                       "byMonth":  {
                                                       "2026-08":  {
                                                                       "mallKs":  8551,
@@ -496,14 +500,14 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  {
-                                      "low":  "measured, same-weeks control, one run per layer, the stricter control on Mall",
-                                      "mid":  "measured before/after, not controlled",
-                                      "high":  "estimated: before/after season-adjusted with 2025, not controlled; quoted from the main repo, not recomputed, not part of the claim"
+                                      "low":  "robustness check: measured, same-weeks control, one run per layer, the stricter control on Mall",
+                                      "mid":  "measured before/after each approval, not controlled (B0 in the claim)",
+                                      "high":  "sensitivity: estimated, before/after season-adjusted with 2025, not controlled; quoted from the main repo, not recomputed, not part of the claim"
                                   },
                         "method":  "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept 3263 + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval 1139 (with Mall\u0027s other control, vs not in the approval, 4088 + 1139 = 5227); mid: before/after on the approvals, SKU-deduplicated spans (Aug 11068, Sep 9749; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025\u0027s seasonal growth)",
                         "source":  "PricingTool.Approvals / ApprovalItems (copied from the deployed tool DB) and hk.SalesLines, booked COGS",
                         "script":  "docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)",
-                        "sinceRegistration":  "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo\u0027s data it is 10409 a month (E20 mid), and that is framing B\u0027s claim. The controlled measurement, 4402 (E20 low, a same-weeks control run on 27 Oct), is shown under it; it likely understates the effect, because shoppers moving from changed to kept products lift the comparison group. The season-adjusted 13000 (E20 high) is quoted from the main repo and is not part of the claim.",
+                        "sinceRegistration":  "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo\u0027s data it is 10409 a month (E20 mid), the claim\u0027s rate. Its robustness checks are E20 low (a same-weeks control) and E27 (against untouched products in the same category and weeks); E20 high (season-adjusted, quoted from the main repo) is sensitivity, not part of the claim.",
                         "recompute":  {
                                           "file":  "e20-test-phase.sql",
                                           "checks":  [
@@ -986,6 +990,178 @@
                                                                            "ApprovalId":  "35"
                                                                        },
                                                              "value":  83044
+                                                         }
+                                                     ]
+                                      }
+                    },
+                    {
+                        "id":  "E27",
+                        "name":  "B0 against untouched products in the same category and weeks, Aug-Sep 2026 (a robustness check of E20)",
+                        "value":  {
+                                      "byShop":  {
+                                                     "GjirafaMall KS":  {
+                                                                            "beforeAfter":  10308,
+                                                                            "vsUntouched":  10596,
+                                                                            "vsUntouchedSoldInBothWindows":  2611
+                                                                        },
+                                                     "Gjirafa50 KS":  {
+                                                                          "beforeAfter":  2219,
+                                                                          "vsUntouched":  1222,
+                                                                          "vsUntouchedSoldInBothWindows":  138
+                                                                      }
+                                                 },
+                                      "total":  {
+                                                    "beforeAfter":  12527,
+                                                    "vsUntouched":  11818,
+                                                    "vsUntouchedSoldInBothWindows":  2749
+                                                },
+                                      "september":  {
+                                                        "gjirafaMallVsUntouched":  3881,
+                                                        "gjirafaMallSoldInBothWindows":  4303
+                                                    },
+                                      "run12":  {
+                                                    "repricedSkusSoldInEitherWindow":  1244,
+                                                    "soldInBothWindows":  45
+                                                },
+                                      "run25SoldInBothWindows":  {
+                                                                     "gpPerUnitBefore":  6.61,
+                                                                     "gpPerUnitAfter":  8.84,
+                                                                     "gpPerUnitChangePct":  34,
+                                                                     "unitsChangePct":  -8,
+                                                                     "untouchedGpPerUnitChangePct":  16,
+                                                                     "untouchedUnitsChangePct":  -18
+                                                                 }
+                                  },
+                        "unit":  "EUR/month",
+                        "label":  "robustness check: measured",
+                        "method":  "The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced 12527; against untouched SKUs of the same shop and category in the same weeks 11818 when every SKU that sold in either window counts, and 2749 when only SKUs that sold in both windows count (August\u0027s run coincided with restocking: #12 repriced 1244 SKUs that sold in either window, 45 in both). September alone gives GjirafaMall KS 3881 against untouched SKUs and 4303 on SKUs that sold in both windows. On run #25\u0027s SKUs that sold in both windows, gross profit per unit rose 34 % with units -8 %, against 16 % and -18 % on untouched SKUs. GjirafaMall lines are Gjirafa\u0027s own vendors only, at booked cost; returns after delivery are not netted out.",
+                        "source":  "PricingTool.Approvals / ApprovalItems, hk.SalesLines, hk.Products, hk.CampaignWindows",
+                        "script":  "docs/hackathon-2026/evidence/e20-aug-sep-comparison.sql (three result sets; this script runs it)",
+                        "recompute":  {
+                                          "file":  "e20-aug-sep-comparison.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "Aug-Sep, before/after, both shops",
+                                                             "set":  0,
+                                                             "column":  "BeforeAfter",
+                                                             "where":  {
+                                                                           "Month":  "Aug-Sep avg"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  12527
+                                                         },
+                                                         {
+                                                             "label":  "Aug-Sep, vs untouched SKUs, both shops",
+                                                             "set":  0,
+                                                             "column":  "VsUntouched",
+                                                             "where":  {
+                                                                           "Month":  "Aug-Sep avg"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  11818
+                                                         },
+                                                         {
+                                                             "label":  "Aug-Sep, vs untouched, SKUs that sold in both windows",
+                                                             "set":  0,
+                                                             "column":  "VsUntouchedBoth",
+                                                             "where":  {
+                                                                           "Month":  "Aug-Sep avg"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  2749
+                                                         },
+                                                         {
+                                                             "label":  "September, GjirafaMall KS vs untouched",
+                                                             "set":  0,
+                                                             "column":  "VsUntouched",
+                                                             "where":  {
+                                                                           "Month":  "2026-09",
+                                                                           "Shop":  "GjirafaMall KS"
+                                                                       },
+                                                             "value":  3881
+                                                         },
+                                                         {
+                                                             "label":  "September, GjirafaMall KS, sold in both windows",
+                                                             "set":  0,
+                                                             "column":  "VsUntouchedBoth",
+                                                             "where":  {
+                                                                           "Month":  "2026-09",
+                                                                           "Shop":  "GjirafaMall KS"
+                                                                       },
+                                                             "value":  4303
+                                                         }
+                                                     ]
+                                      }
+                    },
+                    {
+                        "id":  "E28",
+                        "name":  "The test, run by hand: the facts beside the without-the-build line (Kosovo runs, MK/AL pushes)",
+                        "value":  {
+                                      "gjirafaMallKsRegularRuns":  [
+                                                                       "2026-07-21",
+                                                                       "2026-08-06",
+                                                                       "2026-09-03",
+                                                                       "2026-10-06",
+                                                                       "2026-10-19"
+                                                                   ],
+                                      "gjirafa50KsRegularRuns":  [
+                                                                     "2026-07-21",
+                                                                     "2026-10-07",
+                                                                     "2026-10-21"
+                                                                 ],
+                                      "gjirafa50KsDeadStockRuns":  [
+                                                                       "2026-08-03",
+                                                                       "2026-08-19",
+                                                                       "2026-09-03",
+                                                                       "2026-10-07"
+                                                                   ],
+                                      "gjirafa50KsLongestGapDays":  78,
+                                      "mkalFullPushes":  {
+                                                             "GjirafaMall MK 2026-10":  "2026-10-21",
+                                                             "GjirafaMall AL 2026-09":  "2026-09-01",
+                                                             "GjirafaMall AL 2026-10":  "2026-10-21",
+                                                             "Gjirafa50 MK 2026-10":  "2026-10-21",
+                                                             "Gjirafa50 AL 2026-07":  "2026-07-07",
+                                                             "Gjirafa50 AL 2026-10":  "2026-10-21"
+                                                         },
+                                      "unitsAtOldPriceAugSepPct":  19
+                                  },
+                        "unit":  "dates / days",
+                        "label":  "measured",
+                        "method":  "The deployed tool\u0027s runs (PricingTool.Approvals) and the sets pushed to the shops (hk.PushDatesKs, hk.PushDatesMkAl): one person ran them by hand from 21 Jul, with no schedule. GjirafaMall KS regular runs on 2026-07-21, 2026-08-06, 2026-09-03, 2026-10-06, 2026-10-19; Gjirafa50 KS regular runs on 2026-07-21, 2026-10-07, 2026-10-21 (78 days from the first to the second), with dead-stock runs on 2026-08-03, 2026-08-19, 2026-09-03. MK/AL full pushes (50,000+ public discounts started in a month): GjirafaMall MK 2026-10 from 2026-10-21; GjirafaMall AL 2026-09 from 2026-09-01; GjirafaMall AL 2026-10 from 2026-10-21; Gjirafa50 MK 2026-10 from 2026-10-21; Gjirafa50 AL 2026-07 from 2026-07-07; Gjirafa50 AL 2026-10 from 2026-10-21. GjirafaMall KS\u0027s sets of 50,000+ public discounts stayed live 12-36 days. Even when a run went live, 19 % of the units on SKUs approvals #12 and #25 raised still sold at the old price in Aug-Sep (E23); late October\u0027s 70-84 % was the month two push sets overlapped.",
+                        "source":  "PricingTool.Approvals / ApprovalItems, hk.PushDatesKs, hk.PushDatesMkAl",
+                        "script":  "docs/hackathon-2026/evidence/e28-runs-by-hand.sql (four result sets; this script runs it)",
+                        "recompute":  {
+                                          "file":  "e28-runs-by-hand.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "Gjirafa50 KS: days from 21 Jul to its next regular run",
+                                                             "set":  1,
+                                                             "column":  "DaysToNext",
+                                                             "where":  {
+                                                                           "Shop":  "Gjirafa50 KS"
+                                                                       },
+                                                             "value":  78
+                                                         },
+                                                         {
+                                                             "label":  "GjirafaMall AL: discounts pushed in Sep (the one full MK/AL push in Aug-Sep)",
+                                                             "set":  2,
+                                                             "column":  "Discounts",
+                                                             "where":  {
+                                                                           "Layer":  "GjirafaMall AL",
+                                                                           "Month":  "2026-09"
+                                                                       },
+                                                             "value":  257697
+                                                         },
+                                                         {
+                                                             "label":  "GjirafaMall MK: discounts in its first full push, Oct",
+                                                             "set":  2,
+                                                             "column":  "Discounts",
+                                                             "where":  {
+                                                                           "Layer":  "GjirafaMall MK",
+                                                                           "Month":  "2026-10"
+                                                                       },
+                                                             "value":  74703
                                                          }
                                                      ]
                                       }

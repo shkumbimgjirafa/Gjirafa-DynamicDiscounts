@@ -37,59 +37,60 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 69 % of normal margin kept against 70-80 %; E11); the campaign estimates
 aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim is framing B: €12,965 a month at full scope, 84 points.**
-It is the calculator's rate, B0 = €10,409 a month (E20 mid), carried by the automated system, plus the central
-case of the levers this build adds, with the holdout categories (about 11% of the changed prices) left out. B0 is
-measured from the shop's booked sales lines with booked COGS, before and after each approval, on both Kosovo layers: Aug
-€11,068 (GjirafaMall €8,551, Gjirafa50 €2,517) and Sep €9,749
-(€7,461, €2,288), each approval's 30-day lift spread over the days it was live. So Gjirafa50's
-part carries approval #1's lift from around 21 Jul, and August is mostly approval #12, whose own same-weeks comparison
-isn't separable from restocking (E20 lists each month by approval). `evidence/e20-test-phase.sql` recomputes it from this
-repo's data and the Evidence page reruns it live as a read-only user (about 9 s); its sales lines reproduce the tool's own
-30-day profit before each of eight approvals within 2 % (E26), which checks the data, not the
-cause. It is not controlled; the controlled measurement is €4,402 a month (E20 low; with it and the levers' low case, framing B is
-€5,694 a month, 68 points). That likely understates the effect: its comparison group is products the calculator
-kept at their price, and shoppers moving from changed to kept products lift that group (GjirafaMall's run of 3 Sep
-measures €3,263 against the products it kept and €4,088 against products
-not in it), though the calculator chose what to change, which could push the other way. E20's season-adjusted
-€13,000 is quoted from the main repo and not part of the claim.
+**Money (12 months). The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit
+€107,205, ROI 672%, payback 3.3 months).
 
-*"B0 is the non-AI calculator's money."* The calculator is declared existing code and part of the submitted system.
-Framing B claims no past euro: it is the next 12 months of the automated system, with Aug–Sep 2026 as the measured
-evidence for the rate. Today that rate depends on one person pushing prices by hand, and the push loses part of it: in
-Aug–Sep 17–20 % of the units on SKUs an approval raised still sold at the old price, 70–84 % in late October (E23,
-measured). What v2 adds by closing those gaps is counted once, in the levers (8, 5 and 4), not added to B0.
+**Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
+€8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
+E20, E27 (the Evidence page reruns both). Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
+dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS, shown live on Monday on fresh data: the
+proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
+query.
 
-Framing A, the cross-check, counts only the levers, backtested walk-forward on booked sales lines:
-€1,996 / €4,158 / €8,675 a month at full scope before the holdout share
-(E8, estimated, every lever on the calculator's era, Aug–Sep 2026), short of the €12.2k a month that the top net-benefit band needs with
-these costs. Most of it comes from automation (the loss block, cost reaction, daily checked prices, MK/AL coverage,
-raises that reach the shelf: €249, E24), not from the model's own floor choices, which the backtest
-scores at €2 a month (E2). The year ramps up: built in month 1, a
+**Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
+(E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
+21 Jul, 6 Aug, 3 Sep, 6 Oct and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
+78 days (dead-stock runs on 3 Aug, 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only
+GjirafaMall AL had a full push. Even when it ran, 19 % of the units on raised products still
+sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So the build's
+value is the stream it makes permanent, plus the levers:
+
+| Where the claim's benefit comes from | € a month | Label |
+|---|---|---|
+| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; 'ends without the build' assumed (E20, E28) |
+| Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
+| Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
+| MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |
+| The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7) | €2,188 | estimated (E1–E3, E6, E7) |
+| The holdout categories' share, left out | −€1,602 | estimated |
+| **The claim, at full scope** | **€12,965** | |
+| Hours saved | not counted | hours, never euros |
+
+The levers come mostly from automation, not from the model's own floor choices (lever 2, €2 a
+month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies; cancelled
+orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
 fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
 €9,039 one-time (hackathon hours at €50, 160 hours to production including code review, the build
 sessions' AI usage of $393.76 API-equivalent, E18) and €6,921 running (AI
 €68 a month from the measured cost per call, E19; maintenance and review hours), €15,959 in all.
-Which framing counts is the organisers' call.
 
-| Year 1 | B · Mid (the claim) | B · Low (controlled B0) | A · Low | A · Mid | A · High |
-|---|---|---|---|---|---|
-| Extra gross profit a month at full scope | €12,965 | €5,694 | €1,776 | €3,701 | €7,721 |
-| Net benefit (9.5 full-benefit months − all costs) | €107,205 | €38,136 | €917 | €19,196 | €57,388 |
-| ROI | 672% | 239% | 6% | 120% | 360% |
-| Payback (months) | 3.3 | 4.5 | 11.2 | 5.9 | 4.0 |
-| Track A score (/100; Evidence and Works are our own ratings) | 84 | 68 | 40 | 66 | 76 |
+| Year 1 | The claim |
+|---|---|
+| Extra gross profit a month at full scope | €12,965 |
+| Net benefit (9.5 full-benefit months − all costs) | €107,205 |
+| ROI | 672% |
+| Payback (months) | 3.3 |
+| Track A score (/100; Evidence and Works are our own ratings) | 84 |
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
-automated and extended to every layer: framing B rests on it, and it isn't controlled (the controlled measurement is
-€4,402). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
-publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still
-wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes).
-In today's process 17–20 % of the units on SKUs an approval raised still sold at the old price in Aug–Sep, 70–84 % in late
-October (E23); the levers' gain on lines sold under a team deal (€378 a month) counts only in the high case. That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
-the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). The pilot's holdout categories turn
-these into measurements.
+automated and extended to every layer (robustness checks: E20, E27). That without the build the test ends (assumed; the
+facts are E28). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The publisher now
+writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still wins
+until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes); the
+levers' gain on lines sold under a team deal (€378 a month) is left out of the claim.
+That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change: the claim scores changed prices
+at elasticity −1 (assumed). The pilot's holdout categories turn these into measurements.
 
 **The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,

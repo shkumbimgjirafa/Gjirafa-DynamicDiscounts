@@ -698,18 +698,13 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
 5. **(45s) Money, shown on the Evidence page, computed live** (not on a slide). Built 31 Oct: open the **Evidence** tab
    (2 s); the plan's list is at the top; press **Recompute live** on E20 and let it run while you talk (9 s; "3 of 3
    match, run as evidence_reader"):
-   - Backtest result, with its elasticity sensitivity.
-   - *(Updated 31 Oct: framing B is the claim, the user's decision.)* "We already ran the test": the calculator's
-     measured rate, B0 = €10,409 a month (E20 mid, before and after each approval, not controlled), carried by the
-     automated system plus the levers: €12,965 a month, 84 points. Under it, the controlled measurement, €4,402 (E20
-     low), which likely understates the effect (shoppers moving to the kept products lift the comparison group). The
-     season-adjusted €13,000 is quoted and not part of the claim. v2 is the rollout: automatic, weekly, every layer;
-     framing B claims the next 12 months, not the past.
-   - Why the rate needs v2: the manual push loses part of it (E23: 17–20 % of raised units sold at the old price in
-     Aug–Sep, 70–84 % in late October); what closing those gaps adds is counted once, in levers 8, 5 and 4.
-   - Framing A, the levers alone (E8), as the cross-check. Don't cite the year-over-year margin (E25): it doesn't
-     separate the calculator.
-   - The financial sheet totals.
+   - *(Updated 31 Oct: one framing, one number, the user's decision.)* The claim: €12,965 a month at full scope, 84
+     points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a month: GjirafaMall €8,006, Gjirafa50
+     €2,403; measured before and after each approval; robustness checks E20, E27 on the Evidence page), and it runs by
+     itself (this build: Run week on Gjirafa50 KS, live). Without the build the test ends (assumed; the facts are E28).
+   - On the Evidence tab, show the claim's line and the "Benefit by source" rows; recompute E20 live.
+   - Don't cite the year-over-year margin (E25): it doesn't separate the calculator.
+   - The financial sheet's Summary: the claim and its score.
    - Say what's estimated and what's measured.
 6. **(25s) Ask.** A 6–8 week pilot on KS:
    - **Black Friday (27 Nov) planned by the two agents**, with a campaign holdout

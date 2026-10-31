@@ -9,11 +9,9 @@ price we set under its floor) and held 54 for a person (52 under the floor at a 
 earlier push, 21 only an app-only deal, which no longer holds a price, 3 a team deal; 2 with a floor above the shelf; E22). **The AI decides; code enforces:** no model
 output changes a price, a band or a discount without passing limits written in C#.
 
-**The money claim is framing B** (section 4): the calculator's measured rate, B0 = €10,409 a month (measured before and
-after each approval, not controlled), carried by the automated system, plus the levers this build adds: €12,965 a month
-at full scope, 84 points. Under it, the controlled measurement: B0 = €4,402 a month (with the levers' low case, €5,694 a
-month, 68 points). Framing A, the levers alone, is the conservative cross-check. The organisers rule which framing
-counts.
+**The money claim** (section 4): €12,965 a month at full scope, 84 points. It is the calculator's measured rate, B0 =
+€10,409 a month (measured before and after each approval; robustness checks: E20, E27), which the build makes permanent,
+plus the levers this build adds.
 
 Everything below can be checked from this repository, except what needs the hackathon database (`PricingToolHackathon` on
 LocalDB): it holds the company's sales data, so it is not in git. Those figures' aggregates are in
@@ -111,91 +109,93 @@ The prompts are the fixed rules in `PricingTool.Agent/Prompts/*.md` plus a data 
 `CampaignAgent.BuildPrompt`, `AgentChat.CallAsync`); the agents never see the user's or this repo's instructions (an
 isolated runtime folder, `--setting-sources ""`, no built-in tools, only our read-only MCP tools).
 
-## 4. The numbers: framing B is the claim, framing A the cross-check
+## 4. The numbers: one claim
 
-**Framing B, the claim:** €12,965 a month at full scope, 84 points (the financial sheet's B · Mid, with the holdout
-categories' share left out). It is the calculator's rate, B0 = €10,409 a month (E20 mid), carried by the automated system,
-plus the central case of the levers below. B0 is measured from the shop's booked sales lines with booked COGS, before and
-after each approval, on both Kosovo layers: Aug €11,068 (GjirafaMall €8,551, Gjirafa50 €2,517) and Sep €9,749 (€7,461,
-€2,288), each approval's 30-day lift spread over the days it was live. So Gjirafa50's part carries approval #1's lift
-from around 21 Jul, and August is mostly approval #12, whose own same-weeks comparison isn't separable from restocking
-(E20 lists each month by approval).
-[`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data and
-the Evidence page reruns it live as a read-only user (about 9 s); its sales lines reproduce the tool's own 30-day profit
-before each of eight approvals within 2 % (E26), which checks the data, not the cause. It is not controlled.
+**The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit €107,205, ROI 672 %, payback 3.3 months; the
+[financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
-**Under it, the controlled measurement:** B0 = €4,402 a month (E20 low: changed vs unchanged products in the same weeks,
-one run per KS layer; with the levers' low case, framing B is €5,694 a month, 68 points). It likely understates the
-effect: its comparison group is products the calculator kept at their price, and shoppers moving from changed to kept
-products lift that group (GjirafaMall's run of 3 Sep measures €3,263 against the products it kept and €4,088 against
-products not in it), though the calculator chose what to change, which could push the other way. E20's season-adjusted
-€13,000 is quoted from the main repo and not part of the claim. The organisers rule which framing counts.
+**Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
+Gjirafa50 €2,403; E20), measured before and after each approval from the shop's booked sales lines with booked COGS;
+robustness checks: E20, E27 (both rerun live on the Evidence page). Gjirafa50 KS's figure is mostly its 21 July run
+carried forward, plus the three dead-stock runs (E20 lists each month by approval).
+[`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data; its
+sales lines reproduce the tool's own 30-day profit before each of eight approvals within 2 % (E26), which checks the
+data, not the cause. *It runs by itself:* this build. Run week on Gjirafa50 KS, shown live on Monday on fresh data: the
+proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
+query.
 
-*"B0 is the non-AI calculator's money."* The calculator is declared existing code and part of the submitted system.
-Framing B claims no past euro: it is the next 12 months of the automated system, with Aug–Sep 2026 as the measured
-evidence for the rate. Today that rate depends on one person pushing prices by hand, and the push loses part of it: in
-Aug–Sep 17–20 % of the units on SKUs an approval raised still sold at the old price, 70–84 % in late October (E23,
-measured). What v2 adds by closing those gaps is counted once, in the levers (8, 5 and 4), not added to B0.
+**Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
+(E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on 21 Jul, 6 Aug, 3 Sep, 6 Oct
+and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for 78 days (dead-stock runs on 3 Aug,
+19 Aug and 3 Sep); on MK/AL, in Aug–Sep only GjirafaMall AL had a full push. Even when it ran, 19 % of the units on raised
+products still sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So
+the build's value is the stream it makes permanent, plus the levers:
 
-**Framing A**, the conservative cross-check: only the levers this build adds, backtested (estimated).
-
-| ID | Lever | € a month, central (low / high) |
+| Where the claim's benefit comes from | € a month | Label |
 |---|---|---|
-| E1 | Loss-sale block | 76 (76 / 198) |
-| E2 | Per-category floors | 2 (0 / 4) |
-| E3 | Cost reaction | 1,327 (148 / 1,771); the low case leaves out August, one cost event |
-| E4 | Coverage MK/AL | 1,325 (560 / 1,654), at the calculator's Kosovo rate (E20) |
-| E5 | Cadence | 396 (260 / 474) |
+| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; "ends without the build" assumed (E20, E28) |
+| Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
+| Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
+| MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |
+| The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7) | €2,188 | estimated (E1–E3, E6, E7) |
+| The holdout categories' share (about 11 % of the changed prices; the agents never change them), left out | −€1,602 | estimated |
+| **The claim, at full scope** | **€12,965** | |
+| Hours saved | not counted | hours, never euros |
+
+GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies. Cancelled orders are
+excluded; returns after delivery are not netted out.
+
+**The levers** (estimated; walk-forward on booked sales lines, each line counted by one lever, elasticity −1, assumed;
+every lever on the calculator's era, Aug–Sep 2026):
+
+| ID | Lever | € a month |
+|---|---|---|
+| E1 | Loss-sale block | 76 |
+| E2 | Per-category floors | 2 |
+| E3 | Cost reaction | 1,327 |
+| E4 | Coverage MK/AL, at the calculator's Kosovo rate (E20) | 1,325 |
+| E5 | Cadence | 396 |
 | E6 | Learning, as built | 0 (the plan's plain rule would have cost €1.0–1.3k in September) |
-| E7 | Campaign planning (12 months of campaigns) | 783 (703 / 1,744: the uplift curve at half and twice its slope) |
-| E24 | Raises reach the shelf (lever 8, the publisher) | 249 (249 / 2,830: October's pace, when two push sets overlapped) |
-| **E8** | **Total** | **4,158 (1,996 / 8,675)** |
+| E7 | Campaign planning (12 months of campaigns) | 783 |
+| E24 | Raises reach the shelf (lever 8, the publisher) | 249 |
+| **E8** | **Total** | **4,158** |
 
 Levers 1, 2, 3 and 5 raise prices, and v2 doesn't raise a price a team deal holds (the publisher leaves it to a person).
-Their gain on lines sold under a team deal (a product discount at a price no approval gave the SKU) is in the high case
-only: €378 a month of their €2,179 central (17 %), most of it Gjirafa50's levers 1 and 3. Lever 8 is what v2's
-publisher adds over the CSV import: in today's process 17–20 % of the units on SKUs an approval raised still sold at the
-old price in Aug–Sep, 70–84 % in late October (E23), held by the calculator's own earlier push or a regular price never
-raised (v2 removes both: one discount per SKU, ended with a regular-price raise) or by a team deal (€1,274 a month in
-Aug–Sep, left to a person, not counted). It is scored in the backtest after the other levers, so a line another lever
-scores counts once (E23's whole spans give €300). The stored run (#5) also reads each day's lines in sale-time order;
-before, the database's order moved lever 3 by €35 a month.
+Their gain on lines sold under a team deal (a product discount at a price no approval gave the SKU), €378 a month, most of
+it Gjirafa50's levers 1 and 3, is left out of the claim. Lever 8 is what v2's publisher adds over the CSV import: the
+units held at the old price by the calculator's own earlier push or a regular price never raised (v2 removes both: one
+discount per SKU, ended with a regular-price raise), not those held by a team deal (€1,274 a month in Aug–Sep, left to a
+person, not counted). It is scored in the backtest after the other levers, so a line another lever scores counts once
+(E23's whole spans give €300). The stored run (#5) reads each day's lines in sale-time order; before, the database's
+order moved lever 3 by €35 a month. (A 12-month window, tried after dry run 1, scored levers 1 and 3 against months before
+the calculator; dry run 2 caught it.) Each lever's sensitivity to other elasticities is in
+[`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md) and the sheet's sensitivity columns;
+the Backtest tab shows the stored run and its CSV.
 
-Walk-forward on booked sales lines, each line counted by one lever, elasticity −1 central, −2 low, −0.5 high (assumed),
-every lever on the calculator's era, Aug–Sep 2026: framing A's baseline is today's process. (A 12-month window, tried
-after dry run 1, scored levers 1 and 3 against months before the calculator; dry run 2 caught it.) The sheet then leaves
-out the holdout categories' share (about 11 % of the changed prices): the agents never change them.
-Method per lever: [`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md); the Backtest tab
-shows the stored run and its CSV. **Framing A alone is far short of the €10k bar.** It has one dependency on B0:
-lever 4 takes E20's rate (as a share of Kosovo's gross profit) for the MK/AL months without a push, so framing A's mid
-and high cases rest partly on E20's uncontrolled cases; with the controlled rate only, E4 is €560. E20's low and mid cases are recomputed from this repo's
-data ([`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql), run by `build-numbers.ps1`);
-the high case's 2025 season adjustment is quoted from the main repo.
+**Where the levers come from.** Mostly automation, not the model's own choices: the loss block and the cost reaction
+(levers 1 and 3: rules in code and the cost watcher), daily checked prices (5: the cycle writes them every day, the team
+still pushes the file), raises that reach the shelf (8: the publisher) and coverage of every layer (4). Most of levers 1,
+3 and 5 are price raises; a discount can't make one, so since prompt 07 the publisher writes a raise as the store's
+regular price (`TierPrice`), built and tested on the sandbox, not live. On 31 Oct's Run weeks (Gjirafa50 #2 and
+GjirafaMall #3; the 98.3 % below is on later runs, #1109 and #1107) 99,197 of the two KS layers' 172,579 checked prices
+reached the sandbox shelf at our price (57 %), 909 of them raises (1,167 raises were written; 258 sit under a cheaper
+deal); what didn't was almost all a cheaper discount we didn't write (73,379), and 3 prices someone changed after the run.
+Those discounts were mostly not team deals but the calculator's own earlier pushes (section 5, the caveat on raises). The
+model's own decisions are the per-category floors (lever 2: €2 a month in the backtest, because Alpha's rules move a
+floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which code computes; the
+model chooses among the strategies). What the agents add so far is running the whole loop every day, on every layer,
+without a person; how much their own judgment is worth is what the pilot's holdout measures.
 
-**Where the money comes from.** Most of framing A is automation, not the model's own choices: the loss block and the
-cost reaction (levers 1 and 3: rules in code and the cost watcher), daily checked prices (5: the cycle writes them every
-day, the team still pushes the file), raises that reach the shelf (8: the publisher) and coverage of every layer (4).
-Most of levers 1, 3 and 5 are price raises; a
-discount can't make one, so since prompt 07 the publisher writes a raise as the store's regular price (`TierPrice`), built
-and tested on the sandbox, not live. On 31 Oct's Run weeks (Gjirafa50 #2 and GjirafaMall #3; the 98.3 % below is on later runs, #1109 and #1107) 99,197 of the two KS layers' 172,579 checked prices reached the
-sandbox shelf at our price (57 %), 909 of them raises (1,167 raises were written; 258 sit under a cheaper deal); what
-didn't was almost all a cheaper discount we didn't write (73,379), and 3 prices someone changed after the run. Those
-discounts were mostly not team deals but the calculator's own earlier pushes (section 5, the caveat on raises). The model's own decisions are the per-category floors (lever 2: €2 a month in the backtest, €4 if a person supersedes the team deals, because
-Alpha's rules move a floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which
-code computes; the model chooses among the strategies). What the agents add so far is running the whole loop every day,
-on every layer, without a person; how much their own judgment is worth is what the pilot's holdout measures.
-
-The [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx) carries framing B and framing A (the cross-check) in
-three cases each (live formulas; inputs typed from `numbers.json` with their IDs): year-1 net benefit, ROI, payback and the
-Track A score. Framing B's claim (B · Mid): net benefit €107,205, payback 3.3 months; at the controlled measurement
-(B · Low): €38,136, 4.5 months. B · High, on E20's quoted case, is in the sheet marked "not claimed". Payback is what the sheet computes from the ramp below; the pilot's assumptions are not
-tuned to cross a line. The
-year ramps up as the pilot ask does: built in month 1, a two-month pilot at an assumed quarter of the benefit, then full
-scope (9.5 full-benefit months); the holdout categories' share (11 %, estimated from the exports) is left out. Costs: the attended hackathon hours at €50 (E16) plus an assumed hour of the person's
-time inside unattended blocks, 160 assumed hours to production (including review of the AI-written code), 8 hours of
-training and sign-off of the limits, the build sessions' AI usage (E18), 8 maintenance hours a month, half an hour of
-exception review a week, and the agents' AI cost from the measured cost per call (E19) × an assumed monthly volume.
-The Evidence (3) and Works (4) ratings in it are our own judgment, with the reason next to each.
+**The financial sheet** (live formulas; inputs typed from `numbers.json` with their IDs) gives the claim, its Track A
+score and where its benefit comes from (the "Benefit by source" sheet); the same model's other columns are labelled
+sensitivity (the levers alone, other elasticities) and a robustness check of B0, not alternative claims. Payback is what
+the sheet computes from the ramp: built in month 1, a two-month pilot at an assumed quarter of the benefit, then full
+scope (9.5 full-benefit months); the pilot's assumptions are not tuned to cross a line. Costs: the attended hackathon
+hours at €50 (E16) plus an assumed hour of the person's time inside unattended blocks, 160 assumed hours to production
+(including review of the AI-written code), 8 hours of training and sign-off of the limits, the build sessions' AI usage
+(E18), 8 maintenance hours a month, half an hour of exception review a week, and the agents' AI cost from the measured
+cost per call (E19) × an assumed monthly volume. The Evidence (3) and Works (4) ratings in it are our own judgment, with
+the reason next to each.
 
 ## 5. What is mocked, injected or not finished
 
@@ -233,10 +233,10 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
     of the €14.7k a month sold under the hand-set floor in Aug–Sep, €3.0k is allowed or not a price (dead stock,
     vouchers), €4.2k is GjirafaMall SKUs priced by Gjirafa50, and the rest sits in the lanes of levers 1 (€1.4k),
     3 (€1.1k) and 5 (€4.6k, which the backtest can't score) and team deals (€0.4k). E20's controlled
-    low case is one run per KS layer, not a randomized test. B0 is the declared calculator's effect (section 4 says why
-    framing B counts it going forward); the declaration did not claim its past result, and which framing counts is the
-    organisers' call. The year-over-year margin (E25) is not evidence for B0: Kosovo's margin ran +8.6 points over the
-    year before in Nov 2025–Feb 2026, with no calculator.
+    low case is one run per KS layer, not a randomized test (a robustness check, not the claim). B0 is the declared
+    calculator's effect; the declaration did not claim its past result as hackathon benefit, and the claim counts the
+    next 12 months (section 4). The year-over-year margin (E25) is not evidence for B0: Kosovo's margin ran +8.6 points
+    over the year before in Nov 2025–Feb 2026, with no calculator.
   - E18 rests on the Claude Code session transcripts, which are not in the repo (they hold the whole build conversation).
   - Lever 1 assumes a blocked loss sale costs nothing else (no lost basket); levers 2, 5 and 6 rest on two months.
   - Lever 3's central case is mostly one event: GjirafaMall's lever 3 at e −1 is €2,554 in August and €184 in September

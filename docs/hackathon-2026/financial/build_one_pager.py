@@ -35,18 +35,32 @@ def k(x):
     return f"€{x / 1000:.1f}k"
 
 
-# Framing B is the claim at B · Mid (the user's decision, 31 Oct); B · Low carries the controlled measurement, shown under it;
-# B · High (E20's quoted case) is not claimed, so it isn't in the table. A is the cross-check.
-cols = {"B · Mid (the claim)": "F", "B · Low (controlled B0)": "E", "A · Low": "B", "A · Mid": "C", "A · High": "D"}
+# One framing, one number (the user's decision, 31 Oct): the claim is the sheet's column F and its score; where it comes
+# from is the sheet's 'Benefit by source'. The model's other columns are sensitivity, not alternative claims.
+claim = {k: case[f"F{r}"].value for k, r in (("month", 4), ("net", 10), ("roi", 11), ("payback", 13))}
+score = summary["B20"].value
 money = "\n".join([
-    "| Year 1 | " + " | ".join(cols) + " |",
-    "|---|" + "---|" * len(cols),
-    "| Extra gross profit a month at full scope | " + " | ".join(eur(case[f"{c}4"].value) for c in cols.values()) + " |",
-    "| Net benefit (11 live months − all costs) | " + " | ".join(eur(case[f"{c}10"].value) for c in cols.values()) + " |",
-    "| ROI | " + " | ".join(f"{case[f'{c}11'].value:.0%}" for c in cols.values()) + " |",
-    "| Payback (months) | " + " | ".join(f"{case[f'{c}13'].value:.1f}" for c in cols.values()) + " |",
-    "| Track A score (/100; Evidence and Works are our own ratings) | " + " | ".join(f"{summary[f'{c}20'].value:.0f}" for c in cols.values()) + " |",
+    "| Year 1 | The claim |",
+    "|---|---|",
+    f"| Extra gross profit a month at full scope | {eur(claim['month'])} |",
+    f"| Net benefit (11 live months − all costs) | {eur(claim['net'])} |",
+    f"| ROI | {claim['roi']:.0%} |",
+    f"| Payback (months) | {claim['payback']:.1f} |",
+    f"| Track A score (/100; Evidence and Works are our own ratings) | {score:.0f} |",
 ])
+src_ws = wb["Benefit by source"]
+
+
+def src_row(r):
+    note = f"; {src_ws[f'D{r}'].value}" if src_ws[f'E{r}'].value == "E4" else ""
+    return f"| {src_ws[f'A{r}'].value} | {eur(src_ws[f'B{r}'].value)} | {src_ws[f'C{r}'].value} ({src_ws[f'E{r}'].value}{note}) |"
+
+
+sources = "\n".join(["| Where the claim's benefit comes from | € a month | Label |", "|---|---|---|"]
+                    + [src_row(r) for r in range(4, 9)]
+                    + [f"| The holdout categories' share, left out | −{eur(-src_ws['B10'].value)} | estimated |",
+                       f"| **The claim, at full scope** | **{eur(src_ws['B11'].value)}** | |",
+                       "| Hours saved | not counted | hours, never euros |"])
 total_cost = case["B9"].value
 one_time = case["B7"].value
 running = case["B8"].value
@@ -59,8 +73,15 @@ band5 = summary["B30"].value
 holdout = next(r[1].value for r in inputs.iter_rows(min_col=1, max_col=2) if str(r[0].value or "").startswith("Holdout categories"))
 per_ty = v("E11")
 e20 = v("E20")
-m8, m9 = e20["byMonth"]["2026-08"], e20["byMonth"]["2026-09"]
-ctl = e20["controls"]
+shop = e20["byShopAugSepAvg"]
+e28 = v("E28")
+
+
+def days(isos):
+    from datetime import date
+    ds = [date.fromisoformat(x) for x in isos]
+    t = [f"{d.day} {d:%b}" for d in ds]
+    return ", ".join(t[:-1]) + " and " + t[-1] if len(t) > 1 else t[0]
 e21 = v("E21")
 cw = v("E22")
 
@@ -111,53 +132,45 @@ reproduction test fails by one point (expected margin {per_ty['expectedMarginPct
 {per_ty['keptPctOurBase']} % of normal margin kept against {per_ty['requiredKeptPct']} %; E11); the campaign estimates
 aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim is framing B: {eur(case['F4'].value)} a month at full scope, {summary['F20'].value:.0f} points.**
-It is the calculator's rate, B0 = {eur(e20['mid'])} a month (E20 mid), carried by the automated system, plus the central
-case of the levers this build adds, with the holdout categories (about {holdout:.0%} of the changed prices) left out. B0 is
-measured from the shop's booked sales lines with booked COGS, before and after each approval, on both Kosovo layers: Aug
-{eur(m8['total'])} (GjirafaMall {eur(m8['mallKs'])}, Gjirafa50 {eur(m8['gj50Ks'])}) and Sep {eur(m9['total'])}
-({eur(m9['mallKs'])}, {eur(m9['gj50Ks'])}), each approval's 30-day lift spread over the days it was live. So Gjirafa50's
-part carries approval #1's lift from around 21 Jul, and August is mostly approval #12, whose own same-weeks comparison
-isn't separable from restocking (E20 lists each month by approval). `evidence/e20-test-phase.sql` recomputes it from this
-repo's data and the Evidence page reruns it live as a read-only user (about 9 s); its sales lines reproduce the tool's own
-30-day profit before each of eight approvals within {v('E26', 'maxAbsDiffPct')} % (E26), which checks the data, not the
-cause. It is not controlled; the controlled measurement is {eur(e20['low'])} a month (E20 low; with it and the levers' low case, framing B is
-{eur(case['E4'].value)} a month, {summary['E20'].value:.0f} points). That likely understates the effect: its comparison group is products the calculator
-kept at their price, and shoppers moving from changed to kept products lift that group (GjirafaMall's run of 3 Sep
-measures {eur(ctl['mall25VsKept'])} against the products it kept and {eur(ctl['mall25VsNotInApproval'])} against products
-not in it), though the calculator chose what to change, which could push the other way. E20's season-adjusted
-{eur(e20['high'])} is quoted from the main repo and not part of the claim.
+**Money (12 months). The claim: {eur(claim['month'])} a month at full scope, {score:.0f} points** (year 1: net benefit
+{eur(claim['net'])}, ROI {claim['roi']:.0%}, payback {claim['payback']:.1f} months).
 
-*"B0 is the non-AI calculator's money."* The calculator is declared existing code and part of the submitted system.
-Framing B claims no past euro: it is the next 12 months of the automated system, with Aug–Sep 2026 as the measured
-evidence for the rate. Today that rate depends on one person pushing prices by hand, and the push loses part of it: in
-Aug–Sep 17–20 % of the units on SKUs an approval raised still sold at the old price, 70–84 % in late October (E23,
-measured). What v2 adds by closing those gaps is counted once, in the levers (8, 5 and 4), not added to B0.
+**Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = {eur(e20['mid'])} a month (GjirafaMall
+{eur(shop['mallKs'])}, Gjirafa50 {eur(shop['gj50Ks'])}; E20), measured before and after each approval; robustness checks:
+E20, E27 (the Evidence page reruns both). Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
+dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS, shown live on Monday on fresh data: the
+proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
+query.
 
-Framing A, the cross-check, counts only the levers, backtested walk-forward on booked sales lines:
-{eur(v('E8', 'low'))} / {eur(v('E8', 'central'))} / {eur(v('E8', 'high'))} a month at full scope before the holdout share
-(E8, estimated, every lever on the calculator's era, Aug–Sep 2026), short of the {k(band5)} a month that the top net-benefit band needs with
-these costs. Most of it comes from automation (the loss block, cost reaction, daily checked prices, MK/AL coverage,
-raises that reach the shelf: {eur(v('E24', 'central'))}, E24), not from the model's own floor choices, which the backtest
-scores at {eur(v('E2', 'central'))} a month (E2). The year ramps up: built in month 1, a
+**Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
+(E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
+{days(e28['gjirafaMallKsRegularRuns'])}; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
+{e28['gjirafa50KsLongestGapDays']} days (dead-stock runs on {days([d for d in e28['gjirafa50KsDeadStockRuns'] if d < '2026-10-01'])}); on MK/AL, in Aug–Sep only
+GjirafaMall AL had a full push. Even when it ran, {e28['unitsAtOldPriceAugSepPct']} % of the units on raised products still
+sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So the build's
+value is the stream it makes permanent, plus the levers:
+
+{sources}
+
+The levers come mostly from automation, not from the model's own floor choices (lever 2, {eur(v('E2', 'central'))} a
+month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies; cancelled
+orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
 {pilot:g}-month pilot at {share:.0%} of the benefit, then full scope ({months:g} full-benefit months), so payback can't
 fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
 {eur(one_time)} one-time (hackathon hours at €50, {build_hours:g} hours to production including code review, the build
 sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) and {eur(running)} running (AI
 {eur(ai_month)} a month from the measured cost per call, E19; maintenance and review hours), {eur(total_cost)} in all.
-Which framing counts is the organisers' call.
 
 {money}
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
-automated and extended to every layer: framing B rests on it, and it isn't controlled (the controlled measurement is
-{eur(e20['low'])}). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
-publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still
-wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes).
-In today's process 17–20 % of the units on SKUs an approval raised still sold at the old price in Aug–Sep, 70–84 % in late
-October (E23); the levers' gain on lines sold under a team deal ({eur(v('E8', 'underTeamDealCentral'))} a month) counts only in the high case. That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
-the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). The pilot's holdout categories turn
-these into measurements.
+automated and extended to every layer (robustness checks: E20, E27). That without the build the test ends (assumed; the
+facts are E28). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The publisher now
+writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still wins
+until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes); the
+levers' gain on lines sold under a team deal ({eur(v('E8', 'underTeamDealCentral'))} a month) is left out of the claim.
+That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change: the claim scores changed prices
+at elasticity −1 (assumed). The pilot's holdout categories turn these into measurements.
 
 **The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,

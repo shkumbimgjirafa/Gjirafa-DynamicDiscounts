@@ -32,7 +32,11 @@ public sealed record EvidenceFigure(string Id, string Name, JsonElement Value, s
     EvidenceRecompute? Recompute, string? SinceRegistration);
 
 public sealed record EvidencePage(string Generated, string Note, IReadOnlyList<EvidenceFigure> Figures,
-    IReadOnlyDictionary<string, IReadOnlyList<string>> Uses, IReadOnlyDictionary<string, DateTime> Loads, string? LoadsError);
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Uses, IReadOnlyDictionary<string, DateTime> Loads, string? LoadsError)
+{
+    /// <summary>The claim as the financial sheet computes it (its Summary: monthly benefit, net benefit, score), or null.</summary>
+    public (decimal Monthly, decimal Net, decimal Score)? Claim { get; init; }
+}
 
 public sealed record RecomputeLine(string FigureId, string Label, decimal? Stored, decimal? Live)
 {
@@ -118,8 +122,17 @@ public sealed class EvidenceService
                 foreach (Match m in IdToken.Matches(lines[i])) Use(m.Value, $"{label} line {i + 1}");
         }
         var sheet = Path.Combine(dir, "..", "Financial sheet.xlsx");
+        (decimal, decimal, decimal)? claim = null;
         if (File.Exists(sheet))
+        {
             foreach (var (id, cell) in SheetCells(sheet)) Use(id, $"sheet {cell}");
+            var summary = SheetValues(sheet, "Summary");
+            if (summary.TryGetValue("B6", out var m) && summary.TryGetValue("B7", out var n) && summary.TryGetValue("B20", out var sc)
+                && decimal.TryParse(m, NumberStyles.Float, CultureInfo.InvariantCulture, out var md)
+                && decimal.TryParse(n, NumberStyles.Float, CultureInfo.InvariantCulture, out var nd)
+                && decimal.TryParse(sc, NumberStyles.Float, CultureInfo.InvariantCulture, out var sd))
+                claim = (md, nd, sd);
+        }
 
         Dictionary<string, DateTime> loads = new(StringComparer.OrdinalIgnoreCase);
         string? loadsError = null;
@@ -131,7 +144,8 @@ public sealed class EvidenceService
             while (await rd.ReadAsync(ct)) loads[rd.GetString(0)] = rd.GetDateTime(1);
         }
         catch (SqlException ex) { loadsError = ex.Message; }
-        return new EvidencePage(generated, note, figures, uses.ToDictionary(u => u.Key, u => (IReadOnlyList<string>)u.Value), loads, loadsError);
+        return new EvidencePage(generated, note, figures, uses.ToDictionary(u => u.Key, u => (IReadOnlyList<string>)u.Value), loads, loadsError)
+            { Claim = claim };
     }
 
     /// <summary>The hk tables a figure rests on (an agent view counts as the hk table under it) and when each was loaded.</summary>
@@ -186,6 +200,24 @@ public sealed class EvidenceService
         await using var impersonate = new SqlCommand($"EXECUTE AS USER = '{_options.ReaderUser.Replace("'", "''")}';", conn);
         await impersonate.ExecuteNonQueryAsync(ct);
         return conn;
+    }
+
+    /// <summary>One sheet's cells with a value (Excel's cached value for a formula; shared strings resolved), by reference.</summary>
+    public static Dictionary<string, string> SheetValues(string xlsx, string sheetName)
+    {
+        using var zip = ZipFile.OpenRead(xlsx);
+        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        XNamespace rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        XDocument Load(string name) { using var s = zip.GetEntry(name)!.Open(); return XDocument.Load(s); }
+        var shared = zip.GetEntry("xl/sharedStrings.xml") is null ? new List<string>()
+            : Load("xl/sharedStrings.xml").Root!.Elements(ns + "si").Select(si => string.Concat(si.Descendants(ns + "t").Select(t => t.Value))).ToList();
+        var sheet = Load("xl/workbook.xml").Root!.Descendants(ns + "sheet").FirstOrDefault(x => (string?)x.Attribute("name") == sheetName);
+        if (sheet is null) return new Dictionary<string, string>();
+        var target = Load("xl/_rels/workbook.xml.rels").Root!.Elements().Single(e => (string)e.Attribute("Id")! == (string)sheet.Attribute(rel + "id")!)
+            .Attribute("Target")!.Value.TrimStart('/');
+        return Load(target.StartsWith("xl/", StringComparison.Ordinal) ? target : "xl/" + target).Descendants(ns + "c")
+            .Where(c => c.Element(ns + "v") is not null)
+            .ToDictionary(c => (string)c.Attribute("r")!, c => (string?)c.Attribute("t") == "s" ? shared[int.Parse(c.Element(ns + "v")!.Value, CultureInfo.InvariantCulture)] : c.Element(ns + "v")!.Value);
     }
 
     /// <summary>The cells of the financial sheet that name an ID (sheet!cell), read from the xlsx itself.</summary>
