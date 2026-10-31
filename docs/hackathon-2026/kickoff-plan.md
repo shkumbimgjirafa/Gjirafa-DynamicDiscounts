@@ -707,8 +707,8 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - Close with the replay of October's Për ty (E11, E12 in the evidence file): the agents' plan vs the hand plan vs what
      happened.
 4. **(30s) Safety without approvals.**
-   - In the terminal: `cost-watch --inject 4 <sku> <cost> --test`; the Chat tab shows the raise to the floor within one
-     watch, with the reason. (Real ones: on 31 Oct the watcher read the morning's 293 cost moves within 1–9 minutes, E22.)
+   - In the terminal: `cost-watch --inject 4 <sku> <cost> --test`; the command prints the watch's decision on the injected
+     cost (raised to the floor, or held, with the reason). It runs against the test database, so it never shows in the app. (Real ones: on 31 Oct the watcher read the morning's 293 cost moves within 1–9 minutes, E22.)
    - An out-of-range decision is rejected by code; the kill switch and autonomy on the Run tab; the holdout categories
      marked in the grid; the audit log under Admin; the AI calls with their cost (E15: 85 live calls, $10.29, measured).
 5. **(45s) Money: the evidence file and the sheet.**

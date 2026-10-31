@@ -167,7 +167,8 @@ public sealed class FloorTargetAgent
         await _db.SaveChangesAsync(CancellationToken.None);
         await ApplyAsync(layerId, decisions.Where(d => d.Status == DecisionStatus.Applied && d.Action != "keep").ToList(), overrides);
 
-        pass.Applied = decisions.Count(d => d.Status == DecisionStatus.Applied);
+        // Changes applied: a "keep" passes the limits too, but changes nothing (a pass that kept every row applied none).
+        pass.Applied = decisions.Count(d => d.Status == DecisionStatus.Applied && d.Action != "keep");
         pass.Held = decisions.Count(d => d.Status == DecisionStatus.Held);
         pass.Rejected = decisions.Count(d => d.Status == DecisionStatus.Rejected);
         pass.Pending = decisions.Count(d => d.Status == DecisionStatus.Pending);

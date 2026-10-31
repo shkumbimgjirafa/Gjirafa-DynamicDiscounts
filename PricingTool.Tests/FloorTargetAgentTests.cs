@@ -141,7 +141,7 @@ public class FloorTargetAgentTests : IDisposable
         Assert.Equal(("floor 13%, target 23%", "floor 14%, target 24%"), (audit.OldValue, audit.NewValue));
 
         var pass = await _db.AgentPasses.SingleAsync();
-        Assert.Equal((3, 1, 0, 0, "Autonomous"), (pass.Applied, pass.Held, pass.Rejected, pass.Pending, pass.Mode));
+        Assert.Equal((1, 1, 0, 0, "Autonomous"), (pass.Applied, pass.Held, pass.Rejected, pass.Pending, pass.Mode));   // one change; the two keeps change nothing
         Assert.Equal(pass.CallTag, (await _db.AiCallLog.SingleAsync()).CallTag);
         Assert.Contains("\"row\":\"26/Aksesorë\"", d["Aksesorë"].EvidenceRefs);
 

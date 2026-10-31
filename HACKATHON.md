@@ -88,16 +88,16 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 | Agent | The model proposes | Code decides | Where |
 |---|---|---|---|
 | **Alpha, weekly floors and targets** | keep / raise / lower per band × category, with reason and evidence | `SafetyLimits.Evaluate`: a step of at most 1 point a week counted from last week's value, the layer's hard minimum, target ≥ floor, thin data kept, holdout categories untouched, paused categories held; then `AgentDecision` rows (applied / held / rejected) and, for applied ones, the `BandCategoryRule` the engine prices with | `PricingTool.Agent/Alpha/FloorTargetAgent.cs:149` → `Alpha/SafetyLimits.cs:37` → `FloorTargetAgent.cs:165` |
-| **Nova, weekly briefs** | campaign briefs (dates, scope, goal, depth, minimum margin) and lessons | `CampaignLimits.Evaluate`: lead time, calendar window, length, no overlap with a main campaign, holdout, two minis at once, depth cap 25 %; a minimum margin never under 3 % (code raises it, also in review rounds); a goal a person set overrides Nova's | `Campaigns/CampaignAgent.cs:150` |
+| **Nova, weekly briefs** | campaign briefs (dates, scope, goal, depth, minimum margin) and lessons | `CampaignLimits.Evaluate`: lead time, calendar window, length, no overlap with a main campaign, holdout, two minis at once, depth cap 25 % (90 % for one campaign whose cap a person lifted in the chat, see Chat); a minimum margin never under 3 % (code raises it, also in review rounds); a goal a person set overrides Nova's | `Campaigns/CampaignAgent.cs:150` |
 | **Campaign planning** | Alpha chooses one of four strategies code computed; Nova accepts or adjusts | `CampaignPlanner` computes every price (charm-rounded, never under cost or at today's price, depth cap, holdout, minimum margin of at least 3 %); only a listed strategy is accepted; a person's goal can't be changed by Nova; a plan short of it is held | `Campaigns/CampaignPlanning.cs:352`, `:190` |
 | **Run checker** | pass / hold / fix per flagged row of an engine run | `RunCheckRules` judge every row in code; the model can't downgrade a rule's block to a pass or a warn: it can only replace the price with one that passes every rule again (then the row is "fixed" and that price is exported); anything the model escalates becomes a block | `Checker/RunChecker.cs:79`, `:132` |
-| **Chat** | a reply, a brief, or a rule | briefs go through `CampaignLimits` and the planning loop; rules only tighten (exclude a brand or category, raise a campaign's minimum margin) and campaign planning enforces them; what-if figures come from code (`what_if_floor`) | `Chat/AgentChat.cs:228` |
+| **Chat** | a reply, briefs, rules, a goal, campaigns to cancel | briefs go through `CampaignLimits` and the planning loop. Rules: `exclude-brand`, `exclude-category` and `min-campaign-margin` only tighten (campaign planning enforces them); `protect-discount` stops the agents from ending team discounts whose name matches a pattern, even under the floor (a bare `*` covers every team discount); `margin-target` raises a shop's prices to an effective margin on given days, never above a regular price. A person's campaign terms (no depth cap, up to 90 %; every SKU in stock; discount optimization off on the campaign's days), a binding goal and the rule values are the model's reading of the person's message: code checks their ranges and records them under the person's name, but doesn't parse the message itself. What-if figures come from code (`what_if_floor`) | `Chat/AgentChat.cs` |
 | **Cost watcher** | nothing: no model | raises to the floor, holds a data-error jump, ends a discount above the shelf, judges a live campaign on its own minimum margin | `NopIntegration/CostWatch/CostWatcher.cs` |
 | **Publisher** | nothing | with `Publisher:Target` = Sandbox (every config in this repo) the writer refuses any schema but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly; a raise above the run's max(anchor, current) is refused again here, and a regular price someone changed since the run is never overwritten | `NopIntegration/PublisherOptions.cs:58`, `NopRegularPriceWriter.Decide` |
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
-`ai.AgentQueryLog`. The agents' runtime Claude calls: 53 calls, $7.90 in the live database and 5 calls, $1.03 in the test
-database (E15). The two Claude Code sessions that built this used $393.76 since kickoff (the three AI-judge dry runs included), $298.03 of it in the unattended
+`ai.AgentQueryLog`. The agents' runtime Claude calls: 85 calls, $10.29 in the live database and 5 calls, $1.03 in the test
+database (E15). The Claude Code sessions that built this used $559.09 since kickoff (API-equivalent; the five AI-judge dry runs and the released data session's share included), $356.51 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -120,12 +120,14 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit €107,205, ROI 672 %, payback 3.3 months; the
+**The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit €107,033, ROI 664 %, payback 3.4 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
 Gjirafa50 €2,403; E20), measured before and after each approval from the shop's booked sales lines with booked COGS;
-robustness checks: E20, E27 (both rerun whenever the evidence file is written). Gjirafa50 KS's figure is mostly its 21 July run
+robustness checks: E20, E27 (both rerun whenever the evidence file is written): against untouched products in the same
+shop and category it holds (€11.8k) when every product counts, and it is €2.7k when only products that sold in both windows
+count (August's run coincided with restocking); September alone gives €3.9–4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run
 carried forward, plus the three dead-stock runs (E20 lists each month by approval).
 [`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data; its
 sales lines reproduce the tool's own 30-day profit before each of eight approvals within 2 % (E26), which checks the
@@ -300,7 +302,7 @@ the reason next to each.
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
 | The organisers' AI Pioneer meter (31 Oct, at Mergca's request) | The build sessions report through Claude Code hooks in this project's `.claude/settings.local.json` (git-ignored); the agents' own calls through `HacktrackMeter` (one event per attempt that reached the model, task name, requests and tokens; labelled injected tests are not counted) handing each event to the organisers' `hook.js`. The team token lives only in that ignored file and in the user's environment variables, never in a tracked file |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $345.49 API-equivalent; $527.40 since the kickoff (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $356.51 API-equivalent; $559.09 since the kickoff (E18) |
 
 ## 7. Tests
 

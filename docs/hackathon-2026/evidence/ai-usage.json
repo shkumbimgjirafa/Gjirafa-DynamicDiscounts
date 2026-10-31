@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-31 16:26",
+  "generated": "2026-10-31 17:37",
   "label": "measured tokens; API-equivalent cost at list prices (the actual spend is the flat Claude subscription)",
   "prices": "USD per million tokens from the claude-api skill (cached 2026-10-06): claude-opus-5-5 4.0/20.0, cache read 0.2; claude-sonnet-5-5 2.0/10.0, cache read 0.2; claude-opus-5 5.0/25.0, cache read 0.5; claude-opus-4-8 5.0/25.0, cache read 0.5; claude-fable-5-1 10.0/50.0, cache read 0.25; claude-haiku-5-5 0.1/0.5, cache read 0.01; cache writes 1.25x input (5 min), 2x (1 h)",
   "sources": [
@@ -16,7 +16,7 @@
     {
       "transcript": "ca16b95f-eea9-432e-905a-90b2780b8d8b.jsonl",
       "from": "start",
-      "responses": 524
+      "responses": 623
     },
     {
       "transcript": "agent-a754ddfa71544fa35.jsonl",
@@ -36,7 +36,7 @@
     {
       "transcript": "agent-a1e96aa8152dcc7d1.jsonl",
       "from": "start",
-      "responses": 28
+      "responses": 103
     },
     {
       "transcript": "agent-a754ddfa71544fa35.jsonl",
@@ -58,14 +58,14 @@
     "<synthetic>"
   ],
   "sinceKickoff": {
-    "responses": 3068,
+    "responses": 3242,
     "tokens": {
-      "input": 6340,
-      "output": 3936694,
-      "cacheWrite": 7761526,
-      "cacheRead": 1489822522
+      "input": 6704,
+      "output": 4094305,
+      "cacheWrite": 8377241,
+      "cacheRead": 1588972197
     },
-    "usdApiEquivalent": 527.4,
+    "usdApiEquivalent": 559.09,
     "extras": [
       {
         "label": "data session a425eebb (transcript released; its share as counted at 31 Oct 10:23)",
@@ -86,18 +86,22 @@
       {
         "label": "ai-judge dry run 3b",
         "usd": 3.65
+      },
+      {
+        "label": "ai-judge dry run 4",
+        "usd": 4.8404
       }
     ]
   },
   "unattendedBlocks": {
-    "responses": 1723,
+    "responses": 1751,
     "tokens": {
-      "input": 3550,
-      "output": 2215843,
-      "cacheWrite": 4049883,
-      "cacheRead": 889735459
+      "input": 3610,
+      "output": 2242432,
+      "cacheWrite": 4104390,
+      "cacheRead": 915789385
     },
-    "usdApiEquivalent": 345.49,
+    "usdApiEquivalent": 356.51,
     "extras": [
       {
         "label": "data session a425eebb (transcript released; its share as counted at 31 Oct 10:23)",
@@ -118,6 +122,10 @@
       {
         "label": "ai-judge dry run 3b",
         "usd": 3.65
+      },
+      {
+        "label": "ai-judge dry run 4",
+        "usd": 4.8404
       }
     ]
   },
@@ -1061,6 +1069,82 @@
         "cacheRead": 21655668
       },
       "usdApiEquivalent": 6.55
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "16:10",
+      "to": "16:38",
+      "unattended": false,
+      "responses": 165,
+      "tokens": {
+        "input": 344,
+        "output": 144678,
+        "cacheWrite": 364473,
+        "cacheRead": 65913231
+      },
+      "usdApiEquivalent": 18.29
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "16:12",
+      "to": "16:40",
+      "unattended": false,
+      "responses": 174,
+      "tokens": {
+        "input": 360,
+        "output": 147952,
+        "cacheWrite": 371793,
+        "cacheRead": 72851631
+      },
+      "usdApiEquivalent": 19.8
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "16:50",
+      "to": "17:06",
+      "unattended": false,
+      "responses": 19,
+      "tokens": {
+        "input": 42,
+        "output": 21612,
+        "cacheWrite": 357567,
+        "cacheRead": 15574727
+      },
+      "usdApiEquivalent": 5.69
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "17:25",
+      "to": "17:26",
+      "unattended": true,
+      "responses": 6,
+      "tokens": {
+        "input": 14,
+        "output": 4363,
+        "cacheWrite": 8695,
+        "cacheRead": 5446261
+      },
+      "usdApiEquivalent": 1.25
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "17:26",
+      "to": "17:55",
+      "unattended": true,
+      "responses": 22,
+      "tokens": {
+        "input": 46,
+        "output": 22226,
+        "cacheWrite": 45812,
+        "cacheRead": 20607665
+      },
+      "usdApiEquivalent": 9.77,
+      "extras": [
+        {
+          "label": "ai-judge dry run 4",
+          "usd": 4.8404
+        }
+      ]
     }
   ]
 }

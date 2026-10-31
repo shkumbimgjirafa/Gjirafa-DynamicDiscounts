@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 16:27",
+    "generated":  "2026-10-31 17:38",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -429,10 +429,10 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  527.4,
-                                      "sinceKickoffResponses":  3068,
-                                      "unattendedBlocksUsd":  345.49,
-                                      "unattendedBlocksResponses":  1723
+                                      "sinceKickoffUsd":  559.09,
+                                      "sinceKickoffResponses":  3242,
+                                      "unattendedBlocksUsd":  356.51,
+                                      "unattendedBlocksResponses":  1751
                                   },
                         "unit":  "USD (API-equivalent)",
                         "label":  "measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)",
@@ -445,8 +445,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  42,
-                                      "rows":  65
+                                      "unattendedBlocks":  44,
+                                      "rows":  70
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
