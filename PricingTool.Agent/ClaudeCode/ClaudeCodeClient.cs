@@ -57,10 +57,11 @@ public sealed class ClaudeCodeClient
     private readonly ILogger<ClaudeCodeClient> _logger;
     private readonly TimeProvider _clock;
     private readonly IKillSwitch _killSwitch;
+    private readonly IUsageMeter? _meter;
 
     public ClaudeCodeClient(
         IOptions<AgentOptions> options, IProcessRunner runner, AgentDbContext db,
-        ILogger<ClaudeCodeClient> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null)
+        ILogger<ClaudeCodeClient> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null, IUsageMeter? meter = null)
     {
         _options = options.Value;
         _runner = runner;
@@ -68,6 +69,7 @@ public sealed class ClaudeCodeClient
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
         _killSwitch = killSwitch ?? new ConfigKillSwitch(_options);
+        _meter = meter;
     }
 
     public async Task<AgentCallResult> CallAsync(AgentCallRequest request, CancellationToken ct = default)
@@ -360,6 +362,11 @@ public sealed class ClaudeCodeClient
         _db.AiCallLog.Add(entry);
         // The log row must survive the caller's cancellation: the call has already been made and paid for.
         await _db.SaveChangesAsync(CancellationToken.None);
+        // Each attempt that reached the model is one AI task for the organisers' meter; a labelled injected test isn't the solution's use.
+        if (process is not null && !request.Purpose.StartsWith("[INJECTED-TEST]", StringComparison.Ordinal))
+            _meter?.Record(new UsageEvent(HacktrackMeter.TaskOf(request.Role, request.Purpose), entry.CalledAtUtc, _clock.GetUtcNow().UtcDateTime,
+                env?.NumTurns is > 0 ? env.NumTurns.Value : 1, entry.InputTokens + entry.CacheReadTokens + entry.CacheCreationTokens, entry.OutputTokens,
+                entry.Success));
         return entry.Id;
     }
 

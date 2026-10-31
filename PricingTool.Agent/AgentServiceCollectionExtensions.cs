@@ -31,6 +31,7 @@ public static class AgentServiceCollectionExtensions
                           .EnableRetryOnFailure()));
 
         services.AddSingleton<IProcessRunner, ProcessRunner>();
+        services.AddSingleton<IUsageMeter, HacktrackMeter>();
         services.AddScoped<ClaudeCodeClient>();
 
         services.AddSingleton(new AgentDataSource(config.GetConnectionString("PricingToolDb")!));

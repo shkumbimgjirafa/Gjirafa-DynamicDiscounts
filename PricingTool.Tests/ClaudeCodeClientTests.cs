@@ -91,6 +91,67 @@ public class ClaudeCodeClientTests : IDisposable
     private AgentCallRequest Request(AgentRole role = AgentRole.RunChecker, string? schema = Schema) =>
         new(role, "unit-test", "Judge these rows: [secret-free test prompt]", _systemPrompt) { JsonSchema = schema };
 
+    private sealed class Meter : IUsageMeter
+    {
+        public List<UsageEvent> Events { get; } = new();
+        public void Record(UsageEvent e) => Events.Add(e);
+    }
+
+    [Fact]
+    public async Task Each_attempt_that_reached_the_model_is_one_task_for_the_meter_and_an_injected_test_is_not()
+    {
+        var meter = new Meter();
+        var runner = new FakeRunner()
+            .Returns(Ok(Envelope(structured: """{"action":"keep","confidence":0.8}""")))
+            .Returns(Ok(Envelope(structured: """{"action":"keep","confidence":0.8}""")));
+        var client = new ClaudeCodeClient(Options.Create(new AgentOptions { Enabled = true, RuntimeDirectory = Path.Combine(_dir, "runtime"), TimeoutSeconds = 60 }),
+            runner, _db, NullLogger<ClaudeCodeClient>.Instance, meter: meter);
+
+        await client.CallAsync(Request(AgentRole.Alpha) with { Purpose = "campaign-plan brief 10 r1" });
+        await client.CallAsync(Request() with { Purpose = "[INJECTED-TEST] run check 7" });
+
+        var e = Assert.Single(meter.Events);                                                // the labelled test isn't counted
+        Assert.Equal(("alpha campaign-plan brief", 1, 4420L, 45L, true), (e.Task, e.AiRequests, e.TokensIn, e.TokensOut, e.Ok));   // input + cache, output
+        Assert.True(e.EndedUtc >= e.StartedUtc);
+    }
+
+    [Fact]
+    public void The_meter_names_a_task_without_its_ids_and_sends_what_hook_js_takes()
+    {
+        Assert.Equal("nova chat", HacktrackMeter.TaskOf(AgentRole.Nova, "chat 4"));
+        Assert.Equal("alpha problems", HacktrackMeter.TaskOf(AgentRole.Alpha, "problems"));
+        var json = HacktrackMeter.Json(new UsageEvent("nova chat", new DateTime(2026, 10, 31, 16, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 10, 31, 16, 0, 15, DateTimeKind.Utc), 2, 1275, 300, true));
+        foreach (var part in new[] { "\"kind\":\"run\"", "\"task\":\"nova chat\"", "\"ai_requests\":2", "\"tokens_in\":1275", "\"tokens_out\":300", "\"ok\":true",
+                     "\"started_at\":\"2026-10-31T16:00:00.0000000Z\"" })
+            Assert.Contains(part, json);
+    }
+
+    [Fact]
+    public async Task The_meter_hands_node_the_event_intact()
+    {
+        // A stand-in for the organisers' hook.js that only writes down what it was given: nothing is sent anywhere.
+        var hook = Path.Combine(_dir, "fake-hook.js");
+        var got = Path.Combine(_dir, "got.json");
+        File.WriteAllText(hook, $"require('fs').writeFileSync({JsonSerializer.Serialize(got)}, process.argv[3]);");
+        var (oldHook, oldToken) = (Environment.GetEnvironmentVariable("HACKTRACK_HOOK"), Environment.GetEnvironmentVariable("HACKTRACK_TOKEN"));
+        try
+        {
+            Environment.SetEnvironmentVariable("HACKTRACK_HOOK", hook);
+            Environment.SetEnvironmentVariable("HACKTRACK_TOKEN", "test-token");
+            var e = new UsageEvent("nova chat \"quoted\" task", DateTime.UtcNow, DateTime.UtcNow, 1, 10, 2, true);
+            new HacktrackMeter(NullLogger<HacktrackMeter>.Instance).Record(e);
+            for (var i = 0; i < 100 && !File.Exists(got); i++) await Task.Delay(100);
+            if (!File.Exists(got)) return;                                              // no node on this machine: nothing to check
+            Assert.Equal(HacktrackMeter.Json(e), File.ReadAllText(got));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HACKTRACK_HOOK", oldHook);
+            Environment.SetEnvironmentVariable("HACKTRACK_TOKEN", oldToken);
+        }
+    }
+
     [Fact]
     public async Task Builds_an_isolated_headless_command_with_the_prompt_on_stdin()
     {
