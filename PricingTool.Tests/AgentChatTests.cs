@@ -255,7 +255,8 @@ public class AgentChatTests : IDisposable
         Assert.Single(await _db.CampaignCalendar.ToListAsync());                                      // no new campaign
         var e = await _db.CampaignCalendar.SingleAsync();
         Assert.Equal((50000m, "manager@test on the Campaigns tab (conversation 1)"), (e.GoalValue!.Value, e.GoalSetBy));
-        Assert.Contains("set by manager@test in this conversation (binding)", t.Added[2].Text);
+        Assert.Contains("Goal gross-profit 57,456 → gross-profit 50,000, set by manager@test in this conversation (binding)", t.Added[2].Text);
+        Assert.Equal((PlanStatus.Superseded, false), ((await _db.CampaignPlans.OrderBy(p => p.Id).FirstAsync()).Status, (await _db.CampaignPlans.OrderBy(p => p.Id).FirstAsync()).WaitsForPerson));  // the held plan waits for nobody now
         Assert.Contains("it replaces the earlier publish", t.Added[3].Text);
         Assert.All(await _db.ChatMessages.ToListAsync(), m => Assert.Equal(ChatTopics.Campaign(entry.Id), m.Topic));
     }

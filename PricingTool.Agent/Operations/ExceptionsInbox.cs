@@ -161,11 +161,14 @@ public sealed class ExceptionsInbox
                 .Where(d => d.Status == DecisionStatus.Held && d.Source == "CostWatcher" && _ai.AgentPasses.Any(p => p.Id == d.PassId && !p.IsTest))
                 .OrderByDescending(d => d.Id).ToListAsync(ct),
             HeldBriefs = await _ai.CampaignBriefs.AsNoTracking().Where(b => b.Status == BriefStatus.Held && !b.IsTest).OrderByDescending(b => b.Id).ToListAsync(ct),
-            // The latest plan of each brief only: an older held plan a newer one replaced waits for nobody.
+            // The latest plan of each brief only, and of the campaign's latest brief: an older held plan a newer plan or a
+            // re-brief replaced waits for nobody.
             CampaignPlans = await (from p in _ai.CampaignPlans.AsNoTracking()
                                    join b in _ai.CampaignBriefs.AsNoTracking() on p.BriefId equals b.Id
                                    where !p.IsTest && (p.Status == PlanStatus.Held || p.WaitsForPerson)
                                          && !_ai.CampaignPlans.Any(n => n.BriefId == p.BriefId && n.Id > p.Id)
+                                         && !(b.CalendarId != null && _ai.CampaignBriefs.Any(n => n.CalendarId == b.CalendarId && n.Id > b.Id && !n.IsTest
+                                                                                               && n.Status != BriefStatus.Rejected))
                                    orderby p.Id descending
                                    select new PlanWaiting(p, b.Name, b.GoalType, b.GoalValue)).ToListAsync(ct),
             LayerNames = await _tool.Layers.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.DisplayName, ct),

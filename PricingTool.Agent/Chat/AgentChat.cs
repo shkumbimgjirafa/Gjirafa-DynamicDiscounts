@@ -343,10 +343,15 @@ public sealed class AgentChat
         }
         foreach (var older in await _db.CampaignBriefs.Where(o => o.CalendarId == entry.Id && o.Id != brief.Id && o.Status == BriefStatus.Proposed && !o.IsTest).ToListAsync(ct))
             older.Status = BriefStatus.Superseded;
+        // A plan of an older brief that waited for a person waits for nobody now: the re-brief replaces it.
+        var olderBriefs = _db.CampaignBriefs.Where(o => o.CalendarId == entry.Id && o.Id != brief.Id).Select(o => o.Id);
+        foreach (var waiting in await _db.CampaignPlans.Where(p => olderBriefs.Contains(p.BriefId) && (p.Status == PlanStatus.Held || p.WaitsForPerson)).ToListAsync(ct))
+            (waiting.Status, waiting.WaitsForPerson) = (waiting.Status == PlanStatus.Held ? PlanStatus.Superseded : waiting.Status, false);
         var goalNote = "";
         if (entry.GoalType != brief.GoalType || entry.GoalValue != brief.GoalValue)
         {
-            goalNote = $" Goal {(entry.GoalType is null ? "none" : $"{entry.GoalType} {entry.GoalValue:N0}")} → {brief.GoalType} {brief.GoalValue:N0}, set by {author} in this conversation (binding).";
+            static string G(string? type, decimal? value) => type is null ? "none" : type == "margin" ? $"margin {value:0.#}%" : $"{type} {value:N0}";
+            goalNote = $" Goal {G(entry.GoalType, entry.GoalValue)} → {G(brief.GoalType, brief.GoalValue)}, set by {author} in this conversation (binding).";
             (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = (brief.GoalType, brief.GoalValue, $"{author} on the Campaigns tab (conversation {conversation})");
         }
         var termsBefore = Terms(entry);
