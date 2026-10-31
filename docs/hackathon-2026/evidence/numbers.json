@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 08:22",
+    "generated":  "2026-10-31 08:51",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.",
     "figures":  [
@@ -200,14 +200,14 @@
                         "id":  "E15",
                         "name":  "Agents\u0027 runtime Claude calls (Alpha, Nova, the run checker, the chat), as logged",
                         "value":  {
-                                      "liveCalls":  51,
-                                      "liveUsd":  6.96,
+                                      "liveCalls":  53,
+                                      "liveUsd":  7.90,
                                       "testCalls":  5,
                                       "testUsd":  1.03,
-                                      "inputTokens":  1269,
-                                      "outputTokens":  291408,
-                                      "cacheReadTokens":  441823,
-                                      "cacheCreationTokens":  423458
+                                      "inputTokens":  1279,
+                                      "outputTokens":  331481,
+                                      "cacheReadTokens":  497629,
+                                      "cacheCreationTokens":  475581
                                   },
                         "unit":  "calls / USD",
                         "label":  "measured",
@@ -220,8 +220,8 @@
                         "name":  "Cost of one agent call by kind (live database)",
                         "value":  {
                                       "alphaWeeklyPass":  {
-                                                              "calls":  6,
-                                                              "avgUsd":  0.3706
+                                                              "calls":  7,
+                                                              "avgUsd":  0.4108
                                                           },
                                       "chat":  {
                                                    "calls":  11,
@@ -236,8 +236,8 @@
                                                            "avgUsd":  0.0393
                                                        },
                                       "runCheck":  {
-                                                       "calls":  10,
-                                                       "avgUsd":  0.2623
+                                                       "calls":  11,
+                                                       "avgUsd":  0.2647
                                                    }
                                   },
                         "unit":  "USD per call",
@@ -266,8 +266,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  29,
-                                      "rows":  39
+                                      "unattendedBlocks":  31,
+                                      "rows":  41
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -394,6 +394,12 @@
                                       "risesStillAboveTheFloor":  102,
                                       "raised":  0,
                                       "heldTeamDeal":  52,
+                                      "heldTeamDealBy":  {
+                                                             "ownEarlierPush":  28,
+                                                             "appOnlyOnly":  21,
+                                                             "teamDeal":  3,
+                                                             "noCheaperDealFound":  0
+                                                         },
                                       "heldCostAboveShelf":  2,
                                       "heldDataError":  0,
                                       "observations":  461,
@@ -405,9 +411,9 @@
                                   },
                         "unit":  "SKUs / minutes",
                         "label":  "measured",
-                        "method":  "The replica\u0027s costs refreshed that morning; the feed read the costs of the SKUs no other rule owns that sit near their floor, and 293 had moved at least 0.5 % from the engine run\u0027s. No rise was raised: 102 of the 156 rises left the live price above its floor, 52 put it under but the price was a cheaper team deal (held for a person: the publisher leaves those alone), and 2 had a floor above max(anchor, current) (held: the regular price needs changing); no jump looked like a data error. The rebuild spanned two polls: 168 of the 461 observations were the same moves seen again (each held a second time); the feed now skips a cost already observed since the run. Ten observations were checked by hand against the engine run (hours.md, 31 Oct).",
-                        "source":  "ai.CostObservation, ai.AgentDecision",
-                        "script":  "docs/hackathon-2026/evidence/e22-cost-watch.sql (this script runs it)"
+                        "method":  "The replica\u0027s costs refreshed that morning; the feed read the costs of the SKUs no other rule owns that sit near their floor, and 293 had moved at least 0.5 % from the engine run\u0027s. No rise was raised: 102 of the 156 rises left the live price above its floor, 52 put it under but the price was a cheaper deal (held for a person: the publisher leaves those alone), and 2 had a floor above max(anchor, current) (held: the regular price needs changing); no jump looked like a data error. The rebuild spanned two polls: 168 of the 461 observations were the same moves seen again (each held a second time); the feed now skips a cost already observed since the run. What held the 52 (Prompt 10, on the sandbox\u0027s discounts at the observation): 28 the calculator\u0027s own earlier push (an October set the team imported, carrying a price an approval gave that SKU), 21 only an app-only deal (no longer a hold: the web price is ours, written since 31 Oct), 3 a real team deal. With the go-live switch on (own pushes superseded), 49 of the 52 would have been raised; with it off (the default), 21. Ten observations were checked by hand against the engine run (hours.md, 31 Oct).",
+                        "source":  "ai.CostObservation, ai.AgentDecision, ai.PublishException, the sandbox discounts, PricingTool.Approvals / ApprovalItems",
+                        "script":  "docs/hackathon-2026/evidence/e22-cost-watch.sql (two result sets; this script runs it)"
                     }
                 ]
 }

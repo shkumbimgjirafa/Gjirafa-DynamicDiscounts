@@ -22,7 +22,7 @@ public sealed record PublishProblem(PublishBatch Batch, IReadOnlyList<(string Ki
 /// <summary>One SKU the publisher left out or flagged, once over the recent days: on how many days, when last, and why.</summary>
 public sealed record PublishSkuLine(string Sku, int Days, DateTime LastUtc, string Detail);
 
-/// <summary>A layer's publish exceptions of one kind counted once per SKU (the same cheaper-team-deal SKUs come back every
+/// <summary>A layer's publish exceptions of one kind counted once per SKU (the same cheaper-deal SKUs come back every
 /// day, about 73k rows a day on both KS layers): how many SKUs, how many first seen in the last day, the most days any was
 /// seen, and the latest few with their reason.</summary>
 public sealed record PublishSkuGroup(int LayerId, string Kind, int Skus, int NewInLastDay, int MostDays, IReadOnlyList<PublishSkuLine> Latest);

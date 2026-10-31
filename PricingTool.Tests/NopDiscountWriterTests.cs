@@ -199,7 +199,7 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         { RaiseRegularPrices = true };
 
     /// <summary>A public amount deal the team made (not ours), mapped to the given products.</summary>
-    private int TeamDeal(string name, decimal amount, int[] productIds, int store = 2, DateTime? end = null, string schema = G50)
+    private int TeamDeal(string name, decimal amount, int[] productIds, int store = 2, DateTime? end = null, string schema = G50, short platform = 0)
     {
         using var c = _fixture.Open();
         using var cmd = new SqlCommand($"""
@@ -207,13 +207,14 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
                 RequiresCouponCode, IsCumulative, DiscountLimitationId, LimitationTimes, AppliedToSubCategories, StoreId, DiscountApplyTypeId,
                 DiscountPlatformTypeId, IsVendorDiscount{(schema == Mall ? ", DisplayAvailabilityTime" : "")})
             OUTPUT inserted.Id
-            VALUES (@Name, 2, 0, 0, @Amount, @Start, @End, 0, 0, 0, 0, 0, @Store, 2, 0, 0{(schema == Mall ? ", 0" : "")})
+            VALUES (@Name, 2, 0, 0, @Amount, @Start, @End, 0, 0, 0, 0, 0, @Store, 2, @Platform, 0{(schema == Mall ? ", 0" : "")})
             """, c);
         cmd.Parameters.AddWithValue("@Name", name);
         cmd.Parameters.AddWithValue("@Amount", amount);
         cmd.Parameters.AddWithValue("@Start", Now.AddDays(-10));
         cmd.Parameters.AddWithValue("@End", end ?? Now.AddDays(20));
         cmd.Parameters.AddWithValue("@Store", store);
+        cmd.Parameters.AddWithValue("@Platform", platform);
         var id = (int)cmd.ExecuteScalar()!;
         foreach (var p in productIds) Exec(c, $"INSERT INTO [{schema}].[Discount_AppliedToProducts] VALUES ({id}, {p})");
         return id;
@@ -488,38 +489,104 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         Assert.Equal((false, (string?)null), Flags(101));
     }
 
+    /// <summary>A price the tool approved for the SKU (approval #32, Gjirafa50 KS, pushed and imported by the team as a set).</summary>
+    private void Approved(string sku, decimal newPrice, long approvalId = 32, int layer = 4)
+    {
+        if (!_tool.Approvals.Any(a => a.Id == approvalId))
+            _tool.Approvals.Add(new Approval { Id = approvalId, LayerId = layer, ApprovedUtc = Now.AddDays(-24), ApprovedBy = "team", CreatedUtc = Now.AddDays(-24) });
+        _tool.ApprovalItems.Add(new ApprovalItem { ApprovalId = approvalId, Sku = sku, OldPrice = newPrice + 5m, NewPrice = newPrice });
+        _tool.SaveChanges();
+    }
+
     [LocalDbFact]
-    public async Task Supersede_on_end_dates_a_team_regular_discount_on_that_product_only()
+    public async Task Supersede_on_end_dates_only_the_calculators_own_earlier_push_on_that_product()
     {
         Product(101, "SKU-A");
         Product(102, "SKU-B");
         Product(103, "SKU-C");
-        var regular = TeamDeal("oct-disc-ks-26", 45m, new[] { 101 });
-        var shared = TeamDeal("oct-disc-ks-26-bundle", 45m, new[] { 102, 103 });     // covers two products: never superseded
-        var campaign = TeamDeal("black-friday-25", 40m, new[] { 103 });
+        Product(104, "SKU-D");
+        Approved("SKU-A", 45m);
+        Approved("SKU-B", 45m);
+        Approved("SKU-D", 46m);
+        var ownPush = TeamDeal("oct-deals-26-SKU-A", 45m, new[] { 101 });
+        var shared = TeamDeal("oct-deals-26-bundle", 45m, new[] { 102, 103 });     // covers two products: never superseded
+        var campaign = TeamDeal("black-friday-25", 40m, new[] { 103 });          // a team deal: never superseded
+        var teamAtOtherPrice = TeamDeal("oct-disc-ks-26-SKU-D", 44m, new[] { 104 }); // the name looks regular, the price isn't approved
 
-        var outcome = await Writer(o => { o.SupersedeTeamRegularDiscounts = true; o.TeamRegularNamePatterns.Add("%-disc-%"); })
-            .PublishAsync(Regular(4, ("SKU-A", 49m), ("SKU-B", 49m), ("SKU-C", 49m)));
+        var outcome = await Writer(o => o.SupersedeTeamRegularDiscounts = true)
+            .PublishAsync(Regular(4, ("SKU-A", 49m), ("SKU-B", 49m), ("SKU-C", 49m), ("SKU-D", 49m)));
 
         Assert.Equal(1, outcome.Created);
         var d = Discounts().ToDictionary(x => x.Id);
-        Assert.Equal(Now.AddSeconds(-1), d[regular].End);                              // ended: ours applies to SKU-A now
+        Assert.Equal(Now.AddSeconds(-1), d[ownPush].End);                              // ended: ours applies to SKU-A now
         Assert.Equal(Now.AddDays(20), d[shared].End);
         Assert.Equal(Now.AddDays(20), d[campaign].End);
-        Assert.Equal(new[] { "SKU-B", "SKU-C" }, outcome.Exceptions.Select(e => e.Sku).Order());
+        Assert.Equal(Now.AddDays(20), d[teamAtOtherPrice].End);
+        Assert.Equal(new[] { ("SKU-B", "own-push"), ("SKU-C", "cheaper-deal"), ("SKU-D", "cheaper-deal") },
+            outcome.Exceptions.Select(e => (e.Sku, e.Kind)).OrderBy(x => x.Sku));
         var sup = await _db.PublishAudits.SingleAsync(a => a.Change == "DiscountSuperseded");
-        Assert.Equal((regular, Now.AddDays(20)), (sup.DiscountId!.Value, sup.OldEndDateUtc!.Value));
+        Assert.Equal((ownPush, Now.AddDays(20)), (sup.DiscountId!.Value, sup.OldEndDateUtc!.Value));
+        await Writer().RollbackAsync(outcome.BatchId);
+        Assert.Equal(Now.AddDays(20), Discounts().Single(x => x.Id == ownPush).End);   // the rollback puts the push back
     }
 
     [LocalDbFact]
-    public async Task Supersede_off_leaves_the_team_regular_discount_and_skips_the_sku()
+    public async Task The_calculators_own_earlier_push_is_told_apart_from_a_team_deal()
+    {
+        Product(101, "SKU-A");
+        Product(102, "SKU-B");
+        Approved("SKU-A", 45m);
+        var ownPush = TeamDeal("oct-all-disc-26-xk-SKU-A", 45m, new[] { 101 });
+        TeamDeal("techtober-2026", 45m, new[] { 102 });
+
+        var outcome = await Writer().PublishAsync(Regular(4, ("SKU-A", 49m), ("SKU-B", 49m)));
+
+        Assert.Equal(new[] { ("SKU-A", "own-push"), ("SKU-B", "cheaper-deal") }, outcome.Exceptions.Select(e => (e.Sku, e.Kind)).OrderBy(x => x.Sku));
+        Assert.Contains("approval #32", outcome.Exceptions.Single(e => e.Sku == "SKU-A").Detail);
+        Assert.Equal(Now.AddDays(20), Discounts().Single(x => x.Id == ownPush).End);   // switch off: left as it is
+    }
+
+    [LocalDbFact]
+    public async Task A_team_deal_under_the_price_makes_it_a_team_deal_hold_even_when_our_own_push_is_cheapest()
+    {
+        Product(101, "SKU-A");
+        Approved("SKU-A", 44m);
+        var ownPush = TeamDeal("oct-deals-26-SKU-A", 44m, new[] { 101 });
+        var techtober = TeamDeal("techtober-2026", 46m, new[] { 101 });
+
+        var outcome = await Writer(o => o.SupersedeTeamRegularDiscounts = true).PublishAsync(Regular(4, ("SKU-A", 49m)));
+
+        var e = Assert.Single(outcome.Exceptions);
+        Assert.Equal("cheaper-deal", e.Kind);                                           // the switch can't clear it: not "own-push"
+        Assert.Contains($"#{techtober}", e.Detail);
+        Assert.Equal((0, Now.AddDays(20)), (outcome.Created, Discounts().Single(x => x.Id == ownPush).End));
+    }
+
+    [LocalDbFact]
+    public async Task An_app_only_deal_does_not_stop_a_regular_publish_and_is_noted()
+    {
+        Product(101, "SKU-A");
+        var app = TeamDeal("oct-app-deals-26-7", 45m, new[] { 101 }, platform: 2);
+
+        var outcome = await Writer().PublishAsync(Regular(4, ("SKU-A", 49m)));
+
+        Assert.Equal((1, 0, 0), (outcome.Created, outcome.Skipped, outcome.RoundTripMismatches));   // the web price is ours
+        var e = Assert.Single(outcome.Exceptions);
+        Assert.Equal("app-deal-cheaper", e.Kind);
+        Assert.Contains($"#{app}", e.Detail);
+        Assert.Equal(Now.AddDays(20), Discounts().Single(x => x.Id == app).End);       // left as it is: the app shopper keeps it
+    }
+
+    [LocalDbFact]
+    public async Task Supersede_off_leaves_the_calculators_earlier_push_and_skips_the_sku()
     {
         Product(101, "SKU-A");
         var regular = TeamDeal("oct-disc-ks-26", 45m, new[] { 101 });
 
-        var outcome = await Writer(o => o.TeamRegularNamePatterns.Add("%-disc-%")).PublishAsync(Regular(4, ("SKU-A", 49m)));
+        Approved("SKU-A", 45m);
+        var outcome = await Writer().PublishAsync(Regular(4, ("SKU-A", 49m)));
 
-        Assert.Equal((0, "cheaper-deal"), (outcome.Created, outcome.Exceptions.Single().Kind));
+        Assert.Equal((0, "own-push"), (outcome.Created, outcome.Exceptions.Single().Kind));
         Assert.Equal(Now.AddDays(20), Discounts().Single(x => x.Id == regular).End);
     }
 

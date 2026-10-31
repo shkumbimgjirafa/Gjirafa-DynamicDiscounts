@@ -87,13 +87,14 @@ briefs with goals, and Alpha turns each into a plan that code computes (four str
 cost or a 3 % margin on any SKU). An AI run checker confirms, escalates or fixes flagged prices, and can't lift a
 rule's block; a cost watcher checks costs every 15 minutes (on 31 Oct it read the morning's {cw['distinctMoves']} real cost moves within
 {cw['minutesAfterRefresh']['first']:g}–{cw['minutesAfterRefresh']['last']:g} minutes of the refresh, raised none because no rise put a price we set under its floor, and held
-{cw['heldTeamDeal'] + cw['heldCostAboveShelf']} for a person: {cw['heldTeamDeal']} under the floor at a cheaper team deal, {cw['heldCostAboveShelf']} with a floor above the shelf; E22); an outcome tracker measures every applied change and rolls
+{cw['heldTeamDeal'] + cw['heldCostAboveShelf']} for a person: {cw['heldTeamDeal']} under the floor at a cheaper deal, of them {cw['heldTeamDealBy']['teamDeal']} a team deal and the rest the calculator's own earlier push or an app-only deal, {cw['heldCostAboveShelf']} with a floor above the shelf; E22); an outcome tracker measures every applied change and rolls
 back what hurts; a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
 whole loop for a layer with one press; a backtest; a chat. **The AI decides, code enforces:** no model output changes a
 price, band or discount without passing limits written in C#. During the hackathon the publisher writes only to a
 sandbox copy of the shop's price tables; going live is configuration and a DBA's grant (`GO-LIVE.md`), never yet run
 against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
-Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); a cheaper team deal held the rest.
+Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); the rest were held by cheaper discounts,
+96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). Superseding only those, 98.3 % reached it.
 
 **What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
 SKUs; run checks; checked exports with the holdout left out); Alpha's weekly pass #2 changed 8 band × category rules,
@@ -121,8 +122,8 @@ Which framing counts is the organisers' call.
 {money}
 
 **Biggest unproven assumptions.** That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
-publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper team deal still wins
-until a person supersedes it (43 % of the checked prices on 31 Oct). That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
+publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still
+wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes). That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
 the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). Framing B also assumes the test
 phase's rate holds once automated and extended to every layer. The pilot's holdout categories turn these into
 measurements.

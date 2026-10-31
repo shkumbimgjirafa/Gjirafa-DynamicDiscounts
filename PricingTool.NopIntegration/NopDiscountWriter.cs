@@ -1,5 +1,4 @@
 using System.Data;
-using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -178,7 +177,7 @@ public sealed class NopDiscountWriter
             // Round-trip: the winning public deal on each product must be ours, at our price; a regular price must read
             // back as written, with none of our ai-price discounts still under it.
             var check = request.Kind == PublishKinds.Campaign ? window.Start : now;
-            var mismatches = await VerifyAsync(conn, shop.Schema, layer.StoreId, written, check, batch, exceptions, ct)
+            var mismatches = await VerifyAsync(conn, shop.Schema, layer.StoreId, written, check, batch, exceptions, !request.AppOnly, ct)
                              + await VerifyRegularAsync(conn, shop.Schema, layer.StoreId, regular, now, batch, exceptions, ct);
             batch.RoundTripChecked = written.Count + regular.Count;
             batch.RoundTripMismatches = mismatches;
@@ -211,7 +210,16 @@ public sealed class NopDiscountWriter
 
     private sealed record ProductState(int Id, bool HasDiscountsApplied, string? StoreIds, bool HasTierPrices);
     private sealed record OurDiscount(int Id, int ProductId, decimal Amount, DateTime? Start, DateTime? End);
-    private sealed record OtherDeal(int Id, int ProductId, string Name, decimal Amount, DateTime? End, int Products);
+    /// <summary>A live public amount deal we didn't create. <see cref="AppOnly"/>: DiscountPlatformTypeId 2, it doesn't set the web
+    /// price. <see cref="OwnPushApproval"/>: the approval whose price for this SKU it carries (the calculator's earlier push,
+    /// imported by the team as a discount set), null for a team deal.</summary>
+    private sealed record OtherDeal(int Id, int ProductId, string Name, decimal Amount, DateTime? End, int Products, bool AppOnly)
+    {
+        public long? OwnPushApproval { get; set; }
+        public bool IsOwnPush => OwnPushApproval is not null;
+        /// <summary>The calculator's own earlier push on this one product: the only deal superseding may end.</summary>
+        public bool Supersedable => Products == 1 && IsOwnPush && !Name.StartsWith(OurPrefix, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>A price whose regular price now applies (raised, inserted, or already the regular price): what the round-trip
     /// expects to read back.</summary>
@@ -253,7 +261,7 @@ public sealed class NopDiscountWriter
             WHERE d.Name = r.Name AND d.StoreId = @Store;
 
             SELECT d.Id, dap.Product_Id, d.Name, d.DiscountAmount, d.EndDateUtc,
-                   (SELECT COUNT(*) FROM [{schema}].[Discount_AppliedToProducts] x WHERE x.Discount_Id = d.Id)
+                   (SELECT COUNT(*) FROM [{schema}].[Discount_AppliedToProducts] x WHERE x.Discount_Id = d.Id), d.DiscountPlatformTypeId
             FROM #req r
             JOIN [{schema}].[Product] p ON p.Sku = r.Sku AND p.Deleted = 0
             JOIN [{schema}].[Discount_AppliedToProducts] dap ON dap.Product_Id = p.Id
@@ -273,8 +281,18 @@ public sealed class NopDiscountWriter
             await rd.NextResultAsync(ct);
             while (await rd.ReadAsync(ct))
                 others.Add(new OtherDeal(rd.GetInt32(0), rd.GetInt32(1), rd.GetString(2), rd.GetDecimal(3),
-                    rd.IsDBNull(4) ? null : rd.GetDateTime(4), rd.GetInt32(5)));
+                    rd.IsDBNull(4) ? null : rd.GetDateTime(4), rd.GetInt32(5), Convert.ToInt32(rd.GetValue(6)) == 2));
         }
+        // Which of them carry a price the calculator approved for that SKU on this store (its own earlier push).
+        if (others.Count > 0)
+        {
+            var skuOf = products.Where(p => p.Value.Count == 1).ToDictionary(p => p.Value[0].Id, p => p.Key);
+            var approved = await ApprovedPricesAsync(layer, others.Select(o => skuOf.GetValueOrDefault(o.ProductId)).OfType<string>().Distinct().ToList(), ct);
+            foreach (var o in others)
+                if (skuOf.TryGetValue(o.ProductId, out var sku) && approved.TryGetValue((sku, Math.Round(o.Amount, 2)), out var approval))
+                    o.OwnPushApproval = approval;
+        }
+        var regularRequest = request.Kind == PublishKinds.Regular;
 
         // 1b. Raises: the store's regular price per product (the newest TierPrice row, as the engine reads it), and what our
         // own last regular-price write left on each row.
@@ -311,7 +329,20 @@ public sealed class NopDiscountWriter
                 }
                 ours.TryGetValue(item.Sku, out var mine);
                 var live = mine is not null && (mine.End is null || mine.End > now) ? mine : null;
-                var team = others.Where(o => o.ProductId == product.Id && o.Amount < decision.NewPrice).OrderBy(o => o.Amount).FirstOrDefault();
+                var under = others.Where(o => o.ProductId == product.Id && o.Amount < decision.NewPrice).OrderBy(o => o.Amount).ToList();
+                if (under.FirstOrDefault(o => o.AppOnly) is { } app)
+                    exceptions.Add(AppDealCheaper(batch, item.Sku, app, decision.NewPrice));
+                under = under.Where(o => !o.AppOnly).ToList();
+                if (under.Count > 0 && CanSupersede(request, under))
+                {
+                    foreach (var c in under)
+                    {
+                        supersede.Add(c);
+                        audits.Add(Audit(batch, item.Sku, product.Id, "DiscountSuperseded", now, a => { a.DiscountId = c.Id; a.DiscountName = c.Name; a.OldDiscountAmount = c.Amount; a.OldEndDateUtc = c.End; a.NewEndDateUtc = Expired(now); }));
+                    }
+                    under.Clear();
+                }
+                var team = under.Count > 0 ? Blocking(under) : null;
                 if (decision.Action == TierDecision.AtTier && live is null) { regular.Add((item, product, tier, decision, null, team)); continue; }
                 if (decision.Action == TierDecision.Raise)
                     audits.Add(Audit(batch, item.Sku, product.Id, "TierPriceUpdated", now, a => { a.TierPriceId = tier!.Id; a.OldTierPrice = tier.Price; a.OldTierOldPrice = tier.OldPrice; a.NewTierPrice = decision.NewPrice; a.NewTierOldPrice = decision.NewOldPrice; a.ProposalId = item.ProposalId; }));
@@ -332,15 +363,21 @@ public sealed class NopDiscountWriter
                 continue;
             }
             var cheaper = others.Where(o => o.ProductId == product.Id && o.Amount <= item.Price).OrderBy(o => o.Amount).ToList();
+            if (regularRequest && cheaper.FirstOrDefault(o => o.AppOnly) is { } appDeal)
+            {
+                // An app-only deal doesn't set the web price: ours goes out (web and app) and the app shopper keeps the cheaper.
+                exceptions.Add(AppDealCheaper(batch, item.Sku, appDeal, item.Price));
+                cheaper = cheaper.Where(o => !o.AppOnly).ToList();
+            }
             if (cheaper.Count > 0)
             {
-                var canSupersede = request.Kind == PublishKinds.Regular && _options.SupersedeTeamRegularDiscounts
-                    && cheaper.All(o => o.Products == 1 && IsTeamRegular(o.Name));
-                if (!canSupersede)
+                if (!CanSupersede(request, cheaper))
                 {
-                    var c = cheaper[0];
-                    exceptions.Add(Exception(batch, item.Sku, "cheaper-deal",
-                        $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} is cheaper than {item.Price:0.00} and is not ours; left as it is."));
+                    var c = Blocking(cheaper);
+                    exceptions.Add(c.IsOwnPush
+                        ? Exception(batch, item.Sku, "own-push", $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} carries the price approval #{c.OwnPushApproval} gave this SKU " +
+                                                                 $"(the calculator's earlier push, imported by the team) and is cheaper than {item.Price:0.00}; left as it is.")
+                        : Exception(batch, item.Sku, "cheaper-deal", $"Discount #{c.Id} '{c.Name}' at {c.Amount:0.00} is cheaper than {item.Price:0.00} and is not ours; left as it is."));
                     continue;
                 }
                 foreach (var c in cheaper)
@@ -490,6 +527,7 @@ public sealed class NopDiscountWriter
             {
                 exceptions.Add(Exception(batch, r.Item.Sku, "changed-since-run", "The shop's regular price changed between the read and the write: left as it is."));
                 batch.ChangedSinceRun++;
+                foreach (var a in auditsBySku[r.Item.Sku].Where(a => a.Change == "DiscountSuperseded")) a.Applied = true;   // the #sup update ran
                 continue;
             }
             foreach (var a in auditsBySku[r.Item.Sku])
@@ -503,9 +541,13 @@ public sealed class NopDiscountWriter
             if (r.TeamDeal is { } team && r.Decision.Action != TierDecision.AtTier)
             {
                 batch.RaisedUnderTeamDeal++;
-                exceptions.Add(Exception(batch, r.Item.Sku, "raised-under-team-deal",
-                    $"Regular price raised to {r.Decision.NewPrice:0.00}, but discount #{team.Id} '{team.Name}' at {team.Amount:0.00} is cheaper and not ours: " +
-                    "the shopper keeps paying it until a person supersedes it."));
+                exceptions.Add(team.IsOwnPush
+                    ? Exception(batch, r.Item.Sku, "raised-under-own-push",
+                        $"Regular price raised to {r.Decision.NewPrice:0.00}, but discount #{team.Id} '{team.Name}' at {team.Amount:0.00} carries approval #{team.OwnPushApproval}'s " +
+                        "price (the calculator's earlier push, imported by the team): the shopper pays it until it ends or a person supersedes it.")
+                    : Exception(batch, r.Item.Sku, "raised-under-team-deal",
+                        $"Regular price raised to {r.Decision.NewPrice:0.00}, but discount #{team.Id} '{team.Name}' at {team.Amount:0.00} is cheaper and not ours: " +
+                        "the shopper keeps paying it until a person supersedes it."));
             }
             regularDone.Add(new TierWritten(r.Item, r.Product.Id, r.Decision.NewPrice));
         }
@@ -565,7 +607,7 @@ public sealed class NopDiscountWriter
     /// <summary>For every published product, the lowest public amount deal live at <paramref name="at"/> must be
     /// ours and at our price. Returns the number of mismatches (each also an exception row).</summary>
     private async Task<int> VerifyAsync(SqlConnection conn, string schema, int storeId, IReadOnlyList<(PublishItem Item, int ProductId, string Name)> written,
-        DateTime at, PublishBatch batch, List<PublishException> exceptions, CancellationToken ct)
+        DateTime at, PublishBatch batch, List<PublishException> exceptions, bool webPrice, CancellationToken ct)
     {
         if (written.Count == 0) return 0;
         await Exec(conn, null, "DROP TABLE IF EXISTS #rt; CREATE TABLE #rt (ProductId int NOT NULL PRIMARY KEY);", ct);
@@ -584,11 +626,13 @@ public sealed class NopDiscountWriter
                 JOIN [{schema}].[Discount] d ON d.Id = dap.Discount_Id
                 WHERE d.StoreId = @Store AND d.DiscountApplyTypeId = 2 AND d.RequiresCouponCode = 0 AND d.UsePercentage = 0
                   AND @At BETWEEN ISNULL(d.StartDateUtc, '1900-01-01') AND ISNULL(d.EndDateUtc, '2999-01-01')
+                  AND (@Web = 0 OR d.DiscountPlatformTypeId <> 2)
             ) x WHERE x.rn = 1
             """, conn))
         {
             cmd.Parameters.AddWithValue("@Store", storeId);
             cmd.Parameters.Add("@At", SqlDbType.DateTime2).Value = at;
+            cmd.Parameters.AddWithValue("@Web", webPrice);
             await using var rd = await cmd.ExecuteReaderAsync(ct);
             while (await rd.ReadAsync(ct)) winners[rd.GetInt32(0)] = (rd.GetString(1), rd.GetDecimal(2));
         }
@@ -979,10 +1023,34 @@ public sealed class NopDiscountWriter
         return (Truncate(start), Truncate(end));
     }
 
-    private bool IsTeamRegular(string name) =>
-        !name.StartsWith(OurPrefix, StringComparison.OrdinalIgnoreCase)
-        && _options.TeamRegularNamePatterns.Any(p => Regex.IsMatch(name,
-            "^" + Regex.Escape(p).Replace("%", ".*").Replace("_", ".") + "$", RegexOptions.IgnoreCase));
+    /// <summary>With <see cref="PublisherOptions.SupersedeTeamRegularDiscounts"/> on, a regular publish ends the cheaper deals when every
+    /// one of them is the calculator's own earlier push on this one product (a single-product discount carrying a price the tool
+    /// approved for the SKU). A team deal, or a set covering several products, is never ended.</summary>
+    private bool CanSupersede(PublishRequest request, IReadOnlyCollection<OtherDeal> cheaper) =>
+        request.Kind == PublishKinds.Regular && _options.SupersedeTeamRegularDiscounts && cheaper.All(o => o.Supersedable);
+
+    /// <summary>The deal that says why a price stays held: the cheapest team deal under the price; the calculator's own earlier
+    /// push only when nothing else is under it (a team deal under the price holds it whatever the switch says).</summary>
+    private static OtherDeal Blocking(IReadOnlyList<OtherDeal> cheaper) => cheaper.FirstOrDefault(o => !o.IsOwnPush) ?? cheaper[0];
+
+    private PublishException AppDealCheaper(PublishBatch b, string sku, OtherDeal d, decimal price) =>
+        Exception(b, sku, "app-deal-cheaper", $"App-only discount #{d.Id} '{d.Name}' at {d.Amount:0.00} is cheaper in the app; on the web the price is ours, " +
+                                              $"{price:0.00} (information: written all the same).");
+
+    /// <summary>(SKU, price) → approval: the prices the tool's approvals gave these SKUs on any layer of this store.</summary>
+    private async Task<Dictionary<(string, decimal), long>> ApprovedPricesAsync(LayerRef layer, IReadOnlyCollection<string> skus, CancellationToken ct)
+    {
+        var result = new Dictionary<(string, decimal), long>();
+        if (skus.Count == 0) return result;
+        var layers = await _toolDb.Layers.AsNoTracking().Where(l => l.StoreId == layer.StoreId).Select(l => l.Id).ToListAsync(ct);
+        foreach (var part in skus.Chunk(2000))
+            foreach (var i in await (from i in _toolDb.ApprovalItems.AsNoTracking()
+                                     join a in _toolDb.Approvals.AsNoTracking() on i.ApprovalId equals a.Id
+                                     where part.Contains(i.Sku) && layers.Contains(a.LayerId)
+                                     select new { i.Sku, i.NewPrice, i.ApprovalId }).ToListAsync(ct))
+                result.TryAdd((i.Sku, Math.Round(i.NewPrice, 2)), i.ApprovalId);
+        return result;
+    }
 
     private static PublishAudit Audit(PublishBatch b, string sku, int productId, string change, DateTime now, Action<PublishAudit> set)
     {

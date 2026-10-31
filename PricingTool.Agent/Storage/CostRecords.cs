@@ -18,8 +18,9 @@ public class CostObservation
 
     public DateTime? ProcessedUtc { get; set; }
 
-    /// <summary>raised / held-data-error / ended-our-discount / held-cost-above-shelf / held-team-discount / held-not-published (changed since
-    /// the run, or didn't read back) / above-floor / not-a-rise / unknown-sku.</summary>
+    /// <summary>raised / held-data-error / ended-our-discount / held-cost-above-shelf / held-team-discount / held-own-push (the calculator's
+    /// earlier push, imported by the team) / held-not-published (changed since the run, or didn't read back) / above-floor / not-a-rise /
+    /// unknown-sku.</summary>
     public string? Outcome { get; set; }
     public long? DecisionId { get; set; }
     public long? PublishBatchId { get; set; }

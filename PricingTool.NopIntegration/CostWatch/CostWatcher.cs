@@ -67,7 +67,8 @@ public sealed class WriterCostPublisher : ICostPublisher
     {
         var item = new PublishItem(sku, price, runOldPrice) { RunCurrentPrice = runCurrentPrice, RunOldPrice = runOldPrice, Ceiling = ceiling };
         var o = await _writer.PublishAsync(new PublishRequest(layerId, new[] { item }) { RaiseRegularPrices = true }, ct);
-        return (o.BatchId, o.Status, o.Exceptions.FirstOrDefault(e => e.Sku == sku)?.Kind);
+        // app-deal-cheaper is information (our price went out on the web), not a reason the price didn't stand.
+        return (o.BatchId, o.Status, o.Exceptions.FirstOrDefault(e => e.Sku == sku && e.Kind != "app-deal-cheaper")?.Kind);
     }
 
     public async Task<long?> EndOurDiscountAsync(int layerId, string sku, CancellationToken ct)
@@ -346,6 +347,14 @@ public sealed class CostWatcher
                     {
                         _logger.LogInformation("Cost watcher: publishing stopped for {Sku}; the observation waits.", o.Sku);
                         continue;                                                    // a switch stopped publishing: try again next watch
+                    }
+                    else if (leftOut is "own-push" or "raised-under-own-push")
+                    {
+                        var d = Decision(o, band.BandId, category, floorPct, "hold", DecisionStatus.Held, "own-push",
+                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} put the live price {live:0.00} under the floor ({floorPrice:0.00}), but the cheaper price is the " +
+                            "calculator's own earlier push, imported by the team: it stays until it ends or a person supersedes it.", facts);
+                        Done(o, "held-own-push", d, batchId);
+                        held++;
                     }
                     else if (leftOut is not ("cheaper-deal" or "raised-under-team-deal"))
                     {

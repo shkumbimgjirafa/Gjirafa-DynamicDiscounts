@@ -16,9 +16,17 @@ the code that runs against the shop. Nothing below has been done yet.
 - **Cache:** how does a discount written outside the store app become visible? Today's monthly pushes
   are visible after `<to ask>`. Use the same mechanism: `HttpEndpoint` (URL + token) or
   `WaitForExpiry` (the shop's cache time).
-- **Superseding the team's regular discounts:** the commercial owner decides whether
-  `SupersedeTeamRegularDiscounts` is on, and which name patterns are "regular" (e.g. `%-disc-%`).
-  Off means a cheaper team discount on a SKU wins and the SKU goes to the exceptions inbox.
+- **Superseding the calculator's own earlier pushes:** the commercial owner decides whether
+  `SupersedeTeamRegularDiscounts` is on. On, a regular publish ends a cheaper discount only when it is the calculator's own
+  earlier push imported by the team: a single-product discount carrying a price the tool approved for that SKU. A team deal
+  (`techtober-2026`, a warehouse deal, a campaign) is never ended. Off (the default), such a SKU goes to the exceptions
+  inbox, as "own-push" or "cheaper-deal" (a SKU with a team deal under the price is "cheaper-deal" even when its cheapest
+  deal is an own push: the switch can't clear it). On 31 Oct, 96.5 % of the held prices were the calculator's own October
+  pushes; with the switch on, 98.3 % of both KS layers' checked prices reached the sandbox shelf (171,108 of 174,087,
+  measured on runs #1109 and #1107, then rolled back), and team deals held 2,969.
+- **App-only deals and the engine:** a cheaper app-only discount (`DiscountPlatformTypeId` 2) no longer stops a regular
+  publish (the web price is ours; the app shopper keeps the cheaper). The engine (the imported calculator) still takes an
+  app-only deal as a SKU's current price. Is that what the team wants it to read?
 - **Index on GjirafaEcommerce:** its `Discount` has only `PK_Discount` (GjirafaMall also has two
   covering indexes). The publisher reads through `Discount_AppliedToProducts` (indexed) and never
   scans `Discount` by name, so none is needed; confirm with the DBA.
@@ -89,3 +97,5 @@ Regular prices (`TierPrice`, the newest row of the product and store, which is w
 | `Product.HasTierPrices` | 1 when the publisher inserts the store's first row |
 | our `ai-price-<layer>-<sku>` discount | ended (`EndDateUtc` = now) in the same transaction, or it would keep the old price on the shelf |
 | a cheaper team deal | left as it is: the shopper keeps paying it ("raised under a team deal", in the exceptions inbox) |
+| the calculator's own earlier push (a cheaper single-product discount carrying a price the tool approved) | left as it is ("raised under our own push"), or ended in the same transaction with `SupersedeTeamRegularDiscounts` on |
+| a cheaper app-only discount | left as it is: the app shopper keeps it; the web price is ours (noted, "app-deal-cheaper") |

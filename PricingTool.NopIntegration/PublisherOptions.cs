@@ -36,13 +36,11 @@ public class PublisherOptions
     /// stops, its prices fall back to the shelf price within this many days.</summary>
     public int RollingExpiryDays { get; set; } = 7;
 
-    /// <summary>When on, a cheaper team regular discount on the SKU (name matching <see cref="TeamRegularNamePatterns"/>)
-    /// is end-dated so ours applies. Off by default: the commercial owner decides before go-live. Campaign
-    /// discounts we didn't create are never touched either way.</summary>
+    /// <summary>When on, a regular publish end-dates a cheaper deal on the SKU when it is the calculator's own earlier push: a
+    /// single-product discount carrying a price the tool approved for that SKU (imported by the team as a discount set). A team
+    /// deal is never touched, nor a campaign. Off by default: the commercial owner decides before go-live. (Until 31 Oct this
+    /// matched names, and a pattern like "%-disc-%" would also have matched campaigns.)</summary>
     public bool SupersedeTeamRegularDiscounts { get; set; }
-
-    /// <summary>SQL LIKE patterns of the team's regular monthly discount names, e.g. "%-disc-%".</summary>
-    public List<string> TeamRegularNamePatterns { get; set; } = new();
 
     /// <summary>Above this share of round-trip mismatches in a batch, the batch is rolled back automatically.</summary>
     public decimal RoundTripRollbackPct { get; set; } = 5m;

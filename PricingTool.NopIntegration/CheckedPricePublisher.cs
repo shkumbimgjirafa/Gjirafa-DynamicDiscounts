@@ -42,12 +42,19 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
         $"{set.Prices.Count:N0} checked prices ({set.HeldByCheck:N0} held by check #{set.Check?.Id}, {set.HoldoutLeftOut:N0} holdout left out" +
         (set.PausedRaisesLeftOut > 0 ? $", {set.PausedRaisesLeftOut:N0} raises in paused categories left out)" : ")");
 
-    /// <summary>A publish's counts in one line: discounts, regular prices, and what was left alone.</summary>
-    public static string Describe(PublishOutcome o) =>
-        $"discounts created {o.Created:N0}, updated {o.Updated:N0}, unchanged {o.Unchanged:N0}, ended {o.DiscountsEnded:N0}; " +
-        $"regular prices raised {o.TierRaised:N0}" + (o.TierInserted > 0 ? $" (+{o.TierInserted:N0} inserted)" : "") +
-        $", of them under a cheaper team deal {o.RaisedUnderTeamDeal:N0}; skipped as changed since the run {o.ChangedSinceRun:N0}, skipped in all {o.Skipped:N0}" +
-        (o.Reconciled.Count > 0 ? $"; interrupted batch {string.Join(", ", o.Reconciled.Select(b => $"#{b}"))} reconciled first" : "");
+    /// <summary>A publish's counts in one line: discounts, regular prices, and what was left alone and why: the calculator's own
+    /// earlier push (imported by the team) apart from a team deal, and app-only deals (noted, ours written for the web).</summary>
+    public static string Describe(PublishOutcome o)
+    {
+        int Kind(string k) => o.Exceptions.Count(e => e.Kind == k);
+        return $"discounts created {o.Created:N0}, updated {o.Updated:N0}, unchanged {o.Unchanged:N0}, ended {o.DiscountsEnded:N0}; " +
+               $"regular prices raised {o.TierRaised:N0}" + (o.TierInserted > 0 ? $" (+{o.TierInserted:N0} inserted)" : "") +
+               $", of them under a cheaper deal {o.RaisedUnderTeamDeal:N0} (our own earlier push {Kind("raised-under-own-push"):N0}, a team deal {Kind("raised-under-team-deal"):N0}); " +
+               $"left to a cheaper deal: our own earlier push {Kind("own-push"):N0}, a team deal {Kind("cheaper-deal"):N0}; " +
+               $"cheaper only in the app (ours written for the web) {Kind("app-deal-cheaper"):N0}; " +
+               $"skipped as changed since the run {o.ChangedSinceRun:N0}, skipped in all {o.Skipped:N0}" +
+               (o.Reconciled.Count > 0 ? $"; interrupted batch {string.Join(", ", o.Reconciled.Select(b => $"#{b}"))} reconciled first" : "");
+    }
 
     public async Task<(string Status, string Detail)> PublishCheckedAsync(int layerId, long runId, CancellationToken ct = default)
     {

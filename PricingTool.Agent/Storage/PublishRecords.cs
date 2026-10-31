@@ -97,8 +97,9 @@ public class PublishException
     public long BatchId { get; set; }
     public string Sku { get; set; } = "";
 
-    /// <summary>unresolved-sku / cheaper-deal / at-or-above-shelf / chunk-failed / round-trip; regular prices:
-    /// raised-under-team-deal / changed-since-run / above-ceiling / no-ceiling.</summary>
+    /// <summary>unresolved-sku / cheaper-deal (a team deal) / own-push (the calculator's earlier push, imported by the team) /
+    /// app-deal-cheaper (information: an app-only deal, ours written for the web) / at-or-above-shelf / chunk-failed / round-trip;
+    /// regular prices: raised-under-team-deal / raised-under-own-push / changed-since-run / above-ceiling / no-ceiling.</summary>
     public string Kind { get; set; } = "";
     public string Detail { get; set; } = "";
     public DateTime CreatedUtc { get; set; }

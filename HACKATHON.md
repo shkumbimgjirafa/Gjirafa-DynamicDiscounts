@@ -5,8 +5,8 @@ floor and target per main category. **Nova**, the campaign agent, writes campaig
 plan that code computes. A publisher writes the shop's prices itself, cuts as NOP discounts and raises as the store's
 regular price (only to the `shop_sandbox_*` schemas during the hackathon), and a cost watcher checks costs every 15 minutes:
 on 31 Oct it read the morning's 293 real cost moves within 1–9 minutes of the replica's refresh, raised none (no rise put a
-price we set under its floor) and held 54 for a person (52 under the floor at a cheaper team deal, 2 with a floor above
-the shelf; E22). **The AI decides; code enforces:** no model
+price we set under its floor) and held 54 for a person (52 under the floor at a cheaper deal: 28 the calculator's own
+earlier push, 21 only an app-only deal, which no longer holds a price, 3 a team deal; 2 with a floor above the shelf; E22). **The AI decides; code enforces:** no model
 output changes a price, a band or a discount without passing limits written in C#.
 
 Everything below can be checked from this repository, except what needs the hackathon database (`PricingToolHackathon` on
@@ -129,9 +129,9 @@ cost reaction (levers 1 and 3: rules in code and the cost watcher), daily checke
 day, the team still pushes the file) and coverage of every layer (4). Most of levers 1, 3 and 5 are price raises; a
 discount can't make one, so since prompt 07 the publisher writes a raise as the store's regular price (`TierPrice`), built
 and tested on the sandbox, not live. On 31 Oct's Run weeks 99,197 of the two KS layers' 172,579 checked prices reached the
-sandbox shelf at our price (57 %), 909 of them raises (1,167 raises were written; 258 sit under a cheaper team deal); what
-didn't was almost all a cheaper team deal (73,379, which a person supersedes or not), and 3 prices someone changed after
-the run. The model's own decisions are the per-category floors (lever 2: €4 a month in the backtest, because
+sandbox shelf at our price (57 %), 909 of them raises (1,167 raises were written; 258 sit under a cheaper deal); what
+didn't was almost all a cheaper discount we didn't write (73,379), and 3 prices someone changed after the run. Those
+discounts were mostly not team deals but the calculator's own earlier pushes (section 5, the caveat on raises). The model's own decisions are the per-category floors (lever 2: €4 a month in the backtest, because
 Alpha's rules move a floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which
 code computes; the model chooses among the strategies). What the agents add so far is running the whole loop every day,
 on every layer, without a person; how much their own judgment is worth is what the pilot's holdout measures. Framing B claims no past euro: the declaration said the calculator's measured past result is not claimed, and
@@ -189,8 +189,18 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
   - A goal typed in the chat is the person's, binding on Nova, but the number stored is Nova's reading of the message,
     not one code parsed (`ai-judge/code-review-1.md`, finding 3).
   - Raises are written as the regular price on the sandbox only; going live needs the `TierPrice` grant and the shop's
-    answer on its price cache and the `OldPrice` convention (`GO-LIVE.md`). A cheaper team deal still wins over our price
-    (raise or cut) until a person supersedes it: on 31 Oct that held 43 % of the checked prices off the sandbox shelf.
+    answer on its price cache and the `OldPrice` convention (`GO-LIVE.md`). A cheaper discount we didn't write still wins
+    over our price (raise or cut) until a person supersedes it: on 31 Oct that held 43 % of the checked prices off the
+    sandbox shelf. It was mostly not team deals: 96.5 % of the held prices carried a price one of the calculator's own
+    approvals gave that SKU (its October pushes, which the team imports as discount sets, all ending by 4 Nov); over a
+    third of GjirafaMall's (23.5 % of all) were app-only, which don't set the web price (written for the web since
+    Prompt 10); real team deals held 1.5 % of the checked prices. With a go-live switch that supersedes only the
+    calculator's own earlier pushes (single-product, carrying an approved price), 171,108 of 174,087 checked prices
+    (98.3 %) reached the sandbox shelf (measured 31 Oct on runs #1109 and #1107, then rolled back); the rest were team
+    deals (2,969) and 10 prices changed since the run. The switch stays off until the commercial owner decides.
+    Today's process stacks its own pushes: approval #37's set was imported on 20 Oct while #32's stayed live to 31 Oct,
+    and the shop applies the cheaper, so #37's raises didn't reach the shelf. That is why v2 keeps one discount per SKU,
+    updated in place, and ends its own in the same transaction as a regular-price raise.
   - With `Publisher:Target` = Sandbox the guard is on the schema name (`shop_sandbox_*`), not the server.
   - The hackathon's 8,000-request bar: the agents make about 290 calls a month by design (one per run or pass, never
     one per product), and no call is made to raise a count.
