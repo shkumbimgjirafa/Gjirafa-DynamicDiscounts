@@ -20,6 +20,7 @@ user-secrets store, the tool DB's is passed in at run time.
 | `hk.LivePriceSchema` | NOP replica, metadata only | `live_price_schema.sql` | Columns, indexes and triggers of `TierPrice` (the shelf price per store) and the price columns of `Product`; both shop DBs |
 | `hk.TierPriceConventions`, `hk.TierPriceMarginProbe` | NOP replica, aggregates only | `tier_price_conventions.sql`, `tier_price_margin_probe.sql` | How tier rows are used per shop and store (one row per product, updated in place); what `ProfitMargin` holds (a legacy value, not a margin) |
 | `hk.TierPricesKs` | NOP replica | `tier_prices_ks.sql` | Today's newest KS (StoreId 2) tier row per product, both shops: seeds the regular-price publisher's sandbox |
+| `hk.SalesLineDiscountsKs` | NOP replica (Sales Report lines) | `sales_line_discounts_ks.sql` | KS lines from 2026-06-01 by `SrLineId`: product, promotion, order-level (voucher) and supplier discount, line totals; splits E21 by cause (`evidence/e21-by-cause.sql`) |
 
 Generic runner: `Copy-ReplicaQuery.ps1 -SqlFile … -DestTable … -CreateSql …`.
 
