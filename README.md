@@ -16,7 +16,8 @@ Pushing approved prices to the platform is a separate, explicit, Manager-trigger
 
 This repository is the Gjirafa AI Hackathon 2026 build (Track A): two AI agents and a NOP discount publisher on top of the
 calculator below. What's new, how to run it in five steps, where the AI's output becomes a decision, what is mocked or
-unfinished, and how every figure reproduces: [`HACKATHON.md`](HACKATHON.md).
+unfinished, and how every figure reproduces: [`HACKATHON.md`](HACKATHON.md). The app's tabs are Run, Chat, Campaigns and
+Proposals; the evidence is a file, [`docs/hackathon-2026/evidence/evidence.html`](docs/hackathon-2026/evidence/evidence.html).
 
 The rest of this README is the calculator's own, as imported. Three files it links to belong to the main repo and
 were not copied here: `scripts/usp_GetDailyPricingDataset.sql`, `docs/algorithms/cross-dock.md` and

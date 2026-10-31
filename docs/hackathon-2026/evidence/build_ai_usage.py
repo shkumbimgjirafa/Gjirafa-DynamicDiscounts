@@ -57,7 +57,7 @@ def responses(path, since):
             if since and t < since:
                 continue
             seen[m["id"]] = (t, m.get("model", "?"), m["usage"])        # the last copy carries the final usage
-    return list(seen.values())
+    return seen
 
 
 def blocks():
@@ -80,6 +80,7 @@ def blocks():
 
 def main(args):
     resp, sources, extras = [], [], []
+    counted = set()                     # message ids already counted: a subagent's transcript can sit under two session folders
     for a in args:
         if a.startswith("extra:"):
             name, _, rest = a[len("extra:"):].partition("=")
@@ -88,8 +89,9 @@ def main(args):
             continue
         path, _, since_txt = a.partition("@")
         since = datetime.fromisoformat(since_txt).replace(tzinfo=timezone.utc) if since_txt else None
-        r = responses(path, since)
-        resp += r
+        r = {k: v for k, v in responses(path, since).items() if k not in counted}
+        counted.update(r)
+        resp += r.values()
         sources.append({"transcript": Path(path).name, "from": since_txt or "start", "responses": len(r)})
     unpriced = sorted({m for _, m, _ in resp if m not in PRICES})
     priced = [(t, m, u) for t, m, u in resp if m in PRICES]

@@ -85,6 +85,17 @@ builder.Services.AddPortaAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
+// "--evidence-html <file>": writes the evidence as one HTML file (every SQL figure recomputed now, read-only) and exits. The
+// proof lives in files, not in the live app (the user's decision, 31 Oct); the demo writes it and opens it.
+if (args.SkipWhile(a => a != "--evidence-html").Skip(1).FirstOrDefault() is { } evidenceFile)
+{
+    using var scope = app.Services.CreateScope();
+    var html = await EvidenceHtml.RenderAsync(scope.ServiceProvider.GetRequiredService<EvidenceService>());
+    await File.WriteAllTextAsync(evidenceFile, html, new System.Text.UTF8Encoding(false));
+    Console.WriteLine($"Evidence written to {Path.GetFullPath(evidenceFile)}");
+    return;
+}
+
 // Must run before anything that inspects the scheme/host (redirects, cookies, etc.).
 app.UseForwardedHeaders();
 

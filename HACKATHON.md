@@ -9,6 +9,12 @@ price we set under its floor) and held 54 for a person (52 under the floor at a 
 earlier push, 21 only an app-only deal, which no longer holds a price, 3 a team deal; 2 with a floor above the shelf; E22). **The AI decides; code enforces:** no model
 output changes a price, a band or a discount without passing limits written in C#.
 
+The app has four tabs: **Run** (the current run, treated as live: what it changed, its expected effect on the shelf, Alpha's
+account of it, Run week), **Chat** (the agents' activity, the chat with them, and only what they couldn't settle
+themselves), **Campaigns** (the calendar, and a conversation with Nova about each campaign) and **Proposals**. The proof
+lives in files, not in the app: [`evidence.html`](docs/hackathon-2026/evidence/evidence.html), the financial sheet and the
+one-pager.
+
 **The money claim** (section 4): €12,965 a month at full scope, 84 points. It is the calculator's measured rate, B0 =
 €10,409 a month (measured before and after each approval; robustness checks: E20, E27), which the build makes permanent,
 plus the levers this build adds.
@@ -28,29 +34,29 @@ are generated from the same file (`docs/hackathon-2026/financial/build_financial
 - **Commit 1** (`b3f19a6`, Fri 30 Oct 16:50) is documentation. **Commit 2** (`9c977ca`, 16:50) is the labelled import of the
   existing calculator from the main repo at `b184ff55458c3fe0cc4dfe88a8e3aa38ac8c5f42`: declared, not hackathon work.
 - **Everything after `9c977ca` is hackathon work**, made after the 16:30 kickoff:
-  `git log --format='%h %ad %s' --date=iso 9c977ca..HEAD` (170 commits at `d980294`, 31 Oct 10:12, the state dry run 3
-  reviewed).
+  `git log --format='%h %ad %s' --date=iso 9c977ca..HEAD` (197 commits at `3116cab`, 31 Oct 16:07; recounted at the
+  freeze).
 - Commit 1 also carries what was prepared before the kickoff: the plan, the registration text (`DECLARATION.md`),
   `hours.md`, the draft financial sheet and its generator (`financial/build_financial_sheet.py`, rewritten since),
   `excel_recalc.ps1`, the instructions for Claude (`CLAUDE.md`), `.gitignore`, and a Word document on the shop
   platform's discount integration (`docs/Dynamic Discounts Platform integration.docx`). They are the plan and the
   financial case's tooling, not solution code; the organisers can rule on that.
-- `git diff --shortstat 9c977ca..HEAD`: 310 files changed, 74,237 insertions, 223 deletions at `d980294` (migrations
+- `git diff --shortstat 9c977ca..HEAD`: 373 files changed, 97,150 insertions, 318 deletions at `3116cab` (migrations
   and their designer files included). The counts below are new files at that commit (`git diff --name-only
-  --diff-filter=A 9c977ca..d980294 -- <project>`).
+  --diff-filter=A 9c977ca..3116cab -- <project>`).
 
 ### New vs reused
 
 | | Files | What |
 |---|---|---|
-| **New project `PricingTool.Agent`** | 124 | The agents: Alpha (`Alpha/`), Nova and campaign planning (`Campaigns/`), the run checker (`Checker/`), the outcome tracker, daily cycle, money ledger, time sheet, exceptions inbox (`Operations/`), the chat (`Chat/`), the backtest (`Backtest/`), the Claude Code client (`ClaudeCode/`), the data tools (`Tools/`), prompts (`Prompts/`), its own schema `ai.*` and migrations (`Storage/`) |
+| **New project `PricingTool.Agent`** | 149 | The agents: Alpha (`Alpha/`), Nova and campaign planning (`Campaigns/`), the run checker (`Checker/`), the outcome tracker, daily cycle, money ledger, time sheet, exceptions inbox (`Operations/`), the chat (`Chat/`), the backtest (`Backtest/`), the Claude Code client (`ClaudeCode/`), the data tools (`Tools/`), prompts (`Prompts/`), its own schema `ai.*` and migrations (`Storage/`) |
 | **New project `PricingTool.AgentTools`** | 5 | The agents' read-only data tools as an MCP server, and every command used to run, check and reproduce (`backtest-*`, `reproduce-per-ty`, `plan-campaign`, …) |
-| **New project `PricingTool.NopIntegration`** | 21 | The NOP discount writer (create, update in place, expire, time-boxed campaigns, round-trip check, audit and rollback) and the regular-price writer, the sandbox and its mirror of the live shop, the cost watcher and its replica feed |
-| **New in `PricingTool.Web`** | 21 | `AgentController`, `CampaignsController`, `BacktestController`, `OperationsController` and their views: the Agent tab, the Campaigns tab, the exceptions inbox, the chat, the backtest page, the ledger, the time sheet, the daily cycle; since `d980294` also `EvidenceController`, `EvidenceService` and the Evidence page |
+| **New project `PricingTool.NopIntegration`** | 22 | The NOP discount writer (create, update in place, expire, time-boxed campaigns, round-trip check, audit and rollback) and the regular-price writer, the sandbox and its mirror of the live shop, the cost watcher and its replica feed |
+| **New in `PricingTool.Web`** | 32 | `RunController`, `ChatController`, `CampaignsController`, `AgentController` (the agents' actions), `OperationsController`, `BacktestController`, `EvidenceController` and their views, with `RunReportService`, `AgentActivity`, `ChatTurnLauncher`, `ProblemPassLauncher`, `RunWeekLauncher`, `RunPicker`, `EvidenceService` and `EvidenceHtml`: the Run, Chat and Campaigns tabs, Run week, the back-office pages (daily cycle, time sheet), and the writer of the evidence file. The Evidence and Backtest pages still exist but are no longer linked: the proof lives in files |
 | **New in `PricingTool.Engine`** | 3 | The hackathon host: `DailyCycleWorker`, `CostWatcherWorker`, `appsettings.Hackathon.json` |
-| **Changed in the imported projects** | 20 | Per-category floors (`Core/Domain/CategoryBands.cs`, `PriceBandConfig.cs`, `MarginTargetService`, `Data/Entities/BandCategoryRule.cs`, `PricingRunCategoryRule.cs`, `PricingToolDbContext`, `DependencyInjection`, `BandConfigProvider`, `PricingRunOrchestrator`, `CategoryMapReader`); `RoundingService.IsOnGrid` (the run checker's off-grid test); the hackathon environment and its guard (Web and Engine `Program.cs`, `launchSettings.json`, `.csproj`); the employee email removed (`appsettings.json`, `PortaOptions.cs`, `User.cs`, `DbSeeder.cs`); the nav links and the inbox badge (`_Layout.cshtml`, `WaitingBadgeViewComponent`, `ViewModels.cs`). `git diff --name-only 9c977ca..HEAD -- PricingTool.Core PricingTool.Data PricingTool.Engine PricingTool.Web` lists them with the new files |
-| **Tests (`PricingTool.Tests`)** | 31 | New test classes for every agent, limit, publisher path and backtest lever |
-| **Docs and scripts** | 67 | `docs/hackathon-2026/` (plan, hours, prompts, the data dictionary, backtest results, failure cases, evidence), the export SQL, the laptop scripts, `GO-LIVE.md`, `GO-LIVE-LAPTOP.md` |
+| **Changed in the imported projects** | 30 | Per-category floors (`Core/Domain/CategoryBands.cs`, `PriceBandConfig.cs`, `MarginTargetService`, `Data/Entities/BandCategoryRule.cs`, `PricingRunCategoryRule.cs`, `PricingToolDbContext`, `DependencyInjection`, `BandConfigProvider`, `PricingRunOrchestrator`, `CategoryMapReader`); `RoundingService.IsOnGrid` (the run checker's off-grid test); the hackathon environment and its guard (Web and Engine `Program.cs`, `launchSettings.json`, `.csproj`); the employee email removed (`appsettings.json`, `PortaOptions.cs`, `User.cs`, `DbSeeder.cs`); the navigation (Run · Chat · Campaigns · Proposals, an Admin menu), the layout and its styles, and the waiting badge (`_Layout.cshtml`, `site.css`, `WaitingBadgeViewComponent`, `ViewModels.cs`); the Web `Program.cs` also writes the evidence file (`--evidence-html`). `git diff --name-only 9c977ca..HEAD -- PricingTool.Core PricingTool.Data PricingTool.Engine PricingTool.Web` lists them with the new files |
+| **Tests (`PricingTool.Tests`)** | 36 | New test classes for every agent, limit, publisher path and backtest lever |
+| **Docs and scripts** | 75 | `docs/hackathon-2026/` (plan, hours, prompts, the data dictionary, backtest results, failure cases, evidence), the export SQL, the laptop scripts, `GO-LIVE.md`, `GO-LIVE-LAPTOP.md` |
 
 Reused: the calculator's engine (changed only in the files listed above), the band and rounding logic it already had, its Web pages (proposals, bands,
 schedule, audit log) and its tests (692 at import, all still passing).
@@ -59,14 +65,17 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (967 passed, 1 skipped: the opt-in real headless call; E17).
-   The **Evidence** tab lists every figure of `numbers.json` with its label, method, sources (and when each was loaded) and
-   where it is used (the one-pager, the financial sheet's cells, this file). Nine figures whose script is a SQL file
-   (E12–E14, E20–E23, E25, E26) recompute live on the page: it runs that exact file as `evidence_reader`, a database user
-   that can only read, and compares each cell with the stored value (31 Oct: all nine matched; E20 in 9 s).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1012 passed, 1 skipped: the opt-in real headless call; E17).
+   The evidence is a file:
+   `dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`
+   writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
+   method, sources (and when each was loaded) and where it is used (the one-pager, the financial sheet's cells, this file),
+   and the figures whose script is a SQL file (11 files: E12–E14, E20–E23, E25–E28) rerun as it is written, as
+   `evidence_reader`, a database user that can only read, each cell compared with the stored value (31 Oct 16:3x: 45 of
+   45 matched, 34 s).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
    engine refuse to start in any other environment)
-   (Agent, Campaigns, Backtest, Exceptions tabs).
+   (Run, Chat, Campaigns, Proposals; an Admin menu for the daily cycle, the audit log, the time sheet and users).
 4. The engine host (daily cycle at 07:00 plus the 15-minute cost watcher): `powershell -ExecutionPolicy Bypass -File scripts\run-laptop-host.ps1`.
 5. Reproduce the figures: `PricingTool.AgentTools backtest-snapshot`, then
    `powershell -ExecutionPolicy Bypass -File docs\hackathon-2026\evidence\build-numbers.ps1`.
@@ -116,7 +125,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
 Gjirafa50 €2,403; E20), measured before and after each approval from the shop's booked sales lines with booked COGS;
-robustness checks: E20, E27 (both rerun live on the Evidence page). Gjirafa50 KS's figure is mostly its 21 July run
+robustness checks: E20, E27 (both rerun whenever the evidence file is written). Gjirafa50 KS's figure is mostly its 21 July run
 carried forward, plus the three dead-stock runs (E20 lists each month by approval).
 [`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data; its
 sales lines reproduce the tool's own 30-day profit before each of eight approvals within 2 % (E26), which checks the
@@ -217,12 +226,22 @@ the reason next to each.
   - **The planner's campaign estimates aren't calibrated yet:** too few comparable past campaigns for a leave-one-out
     factor (E10); about 44 % of a Mall campaign's GP comes from SKUs with no recent sales (E9).
   - **The Monday report** is written in the chat; its email is not built (the address isn't confirmed).
-  - **The laptop start-up task** is written but not registered (the user's step); today the host is started by hand.
+  - **The laptop start-up task** is registered but disabled (the user's step); the host is started by hand (restarted
+    31 Oct 16:04 on the current build), so a reboot stops the daily cycle until someone starts it.
+  - **Setting a price on the Proposals tab doesn't publish it** (the app redesign's step 5): prices go out through the
+    daily cycle, Run week or the checked push file.
+  - **A shop's effective margin for some days** (a `margin-target` rule given in the chat; GjirafaMall 19.5 % and Gjirafa50
+    15 % on 1–3 Nov, the user's) is tested but first applies in the 1 Nov 07:00 cycle. At the prices going out that
+    morning both shops are estimated above target (20.4 % and 19.9 %, volume unchanged), so it should raise nothing;
+    Gjirafa50's booked margin is lower (12.3 % on the same products) because the live shop still charges its own prices.
+  - **A person's campaign terms** (no depth cap, every SKU in stock, the engine's discount optimization off on the
+    campaign's days, a margin goal spent down to) are tested; Java e Portokalltë 2026 (4–9 Nov, both shops) is to be
+    planned again with them, and the discount-optimization switch first flips on 4 Nov.
   - **Minutes saved per task** are not set, so the time sheet exports no rows yet.
   - **Campaign what-ifs** go through a brief and the planning loop; only the floor what-if has its own tool.
   - **To the live shop, the checked push file is still the path.** The daily cycle writes it, and since prompt 07 also
     publishes the same checked prices to the sandbox (`publish-L<layer>`, from the 1 Nov cycle on the restarted host). The
-    whole loop on demand is **Run week** on the Agent tab (Alpha → engine → run checker → the checked prices to the
+    whole loop on demand is **Run week** on the Run tab (Alpha → engine → run checker → the checked prices to the
     sandbox → read-back; `RunWeekLoop`). Cuts go out as discounts, raises as the store's regular price
     (`NopRegularPriceWriter`); the cost watcher's raise to the floor goes the same way.
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
@@ -251,36 +270,40 @@ the reason next to each.
     not one code parsed (`ai-judge/code-review-1.md`, finding 3).
   - Raises are written as the regular price on the sandbox only; going live needs the `TierPrice` grant and the shop's
     answer on its price cache and the `OldPrice` convention (`GO-LIVE.md`). A cheaper discount we didn't write still wins
-    over our price (raise or cut) until a person supersedes it: on 31 Oct that held 43 % of the checked prices off the
-    sandbox shelf. It was mostly not team deals: 96.5 % of the held prices carried a price one of the calculator's own
+    over our price (raise or cut) until a person supersedes it: on the morning of 31 Oct that held 43 % of the checked
+    prices off the sandbox shelf. It was mostly not team deals: 96.5 % of the held prices carried a price one of the calculator's own
     approvals gave that SKU (its October pushes, which the team imports as discount sets, all ending by 4 Nov); over a
     third of GjirafaMall's (23.5 % of all) were app-only, which don't set the web price (written for the web since
     Prompt 10); real team deals held 1.5 % of the checked prices. With a go-live switch that supersedes only the
     calculator's own earlier pushes (single-product, carrying an approved price), 171,108 of 174,087 checked prices
     (98.3 %) reached the sandbox shelf (measured 31 Oct on runs #1109 and #1107, then rolled back); the rest were team
-    deals (2,969) and 10 prices changed since the run. The switch stays off until the commercial owner decides.
+    deals (2,969) and 10 prices changed since the run. **The user turned the switch on that afternoon**
+    (`SupersedeTeamRegularDiscounts`), and also held back the margin target trim's cuts (`HoldBackTrimCuts`: the shelf
+    estimate showed cuts landing while cheaper deals blocked most raises). Republished: 49,214 of 50,969 GjirafaMall prices
+    (run #1107, batch #10164) and 25,390 of 26,604 Gjirafa50 prices (#1109, #10162) are on the sandbox shelf; real team
+    deals still hold 1,754 and 1,214. Their expected effect is on the Run tab (estimated, the last 30 days' units).
     Today's process stacks its own pushes: approval #37's set was imported on 20 Oct while #32's stayed live to 31 Oct,
     and the shop applies the cheaper, so #37's raises didn't reach the shelf. That is why v2 keeps one discount per SKU,
     updated in place, and ends its own in the same transaction as a regular-price raise.
   - With `Publisher:Target` = Sandbox the guard is on the schema name (`shop_sandbox_*`), not the server.
   - The hackathon's 8,000-request bar: the agents make about 290 calls a month by design (one per run or pass, never
-    one per product), and no call is made to raise a count.
+    one per product; 85 live calls so far, E15), and no call is made to raise a count.
 
 ## 6. Rule compliance
 
 | Rule | Proof |
 |---|---|
 | Read-only data access; no shop writes | The replica connection exists only in user-secrets (`ConnectionStrings:SourceReadOnly`); the agents' `query_data` runs SELECT-only on `agent.*` views with a 30 s timeout and 500-row cap (`QuerySqlGuard`, tested); the publisher writes only `shop_sandbox_*` |
-| Every copied dataset is logged | `hk.DataSources`: 37 rows (source, time, row count, the SQL file in `docs/hackathon-2026/exports/`) |
+| Every copied dataset is logged | `hk.DataSources`: 40 rows (source, time, row count, the SQL file in `docs/hackathon-2026/exports/`) |
 | No personal data | Sales lines carry no order, customer, email, name or address; the AI call log redacts emails. The imported calculator's default admin was an employee's work email: removed from this tree on 31 Oct (it remains in the import commit) |
 | No live system written | The replica and a one-time read-only copy of the tool database are read, both allowed at the kickoff. On 31 Oct a web start with the wrong launch profile (Development) migrated and seeded the main repo's *local* development database `PricingTool` on this laptop. Five minutes later, after a backup, its schema changes were reverted (every object created at 00:20:58–59 dropped). The demo data it seeded is still there (one demo run #40010 with its 360 proposals, one day of snapshots and KPIs, and 360 updated dead-stock states): the backup was taken after the start, so the updated rows' earlier values can't be restored, and removing only the inserted rows would leave that database inconsistent; the user decides (`docs/hackathon-2026/ai-judge/dry-run-1.md`). The web app and the engine now refuse to start in any environment but Hackathon |
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $298.03 API-equivalent (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $345.49 API-equivalent; $527.40 since the kickoff (E18) |
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 967 passed, 1 skipped (31 Oct, 10:11; three runs in a row at 10:05, 13–14 s each). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 1012 passed, 1 skipped (31 Oct, 16:03). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

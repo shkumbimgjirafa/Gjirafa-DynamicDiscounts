@@ -21,13 +21,17 @@ rule's block; a cost watcher checks costs every 15 minutes (on 31 Oct it read th
 0.7–9.1 minutes of the refresh, raised none because no rise put a price we set under its floor, and held
 54 for a person: 52 under the floor at a cheaper deal, of them 3 a team deal and the rest the calculator's own earlier push or an app-only deal, 2 with a floor above the shelf; E22); an outcome tracker is built to measure every applied change and roll
 back what hurts (tested; no pushed change has completed its window yet); a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
-whole loop for a layer with one press; a backtest; a chat. **The AI decides, code enforces:** no model output changes a
+whole loop for a layer with one press; a backtest; and an app of four tabs: Run (the current run as live, its expected effect,
+Alpha's account), Chat (the agents' activity and only what needs a person), Campaigns (the calendar, with Nova to talk each
+campaign through: re-plan, cancel, a whole-shop campaign on both shops) and Proposals. **The AI decides, code enforces:** no model output changes a
 price, band or discount without passing limits written in C#. During the hackathon the publisher writes only to a
 sandbox copy of the shop's price tables; going live is configuration, a DBA's grant, the shop's answers on its cache and
 `OldPrice`, and the owner's call on superseding (`GO-LIVE.md`), never yet run
 against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
 Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); the rest were held by cheaper discounts,
-96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). Superseding only those, 98.3 % reached it.
+96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). The user then
+switched on superseding only those, and held back the margin trim's cuts: 49,214 of 50,969 GjirafaMall and 25,390 of 26,604
+Gjirafa50 checked prices are on the sandbox shelf.
 
 **What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
 SKUs; run checks; checked exports with the holdout left out); Alpha's weekly pass #2 changed 8 band × category rules,
@@ -35,14 +39,15 @@ each by one point, within its limits; Nova planned Black Friday 2026 against the
 held for that person because the arithmetic falls short of it. **Not finished, and shown as such:** the Për ty
 reproduction test fails by one point (expected margin 14.9 % within bounds, but
 69 % of normal margin kept against 70-80 %; E11); the campaign estimates
-aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
+aren't calibrated yet (E10); the Monday email isn't built and the start-up task is disabled; setting a price on the
+Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
 **Money (12 months). The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit
-€107,205, ROI 672%, payback 3.3 months).
+€107,064, ROI 665%, payback 3.4 months).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
-E20, E27 (the Evidence page reruns both). Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
+E20, E27 (the evidence file reruns both). Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
 dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS, shown live on Monday on fresh data: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
@@ -71,16 +76,16 @@ month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no
 orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
 fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
-€9,039 one-time (hackathon hours at €50, 160 hours to production including code review, the build
-sessions' AI usage of $393.76 API-equivalent, E18) and €6,921 running (AI
-€68 a month from the measured cost per call, E19; maintenance and review hours), €15,959 in all.
+€9,172 one-time (hackathon hours at €50, 160 hours to production including code review, the build
+sessions' AI usage of $527.40 API-equivalent, E18) and €6,927 running (AI
+€69 a month from the measured cost per call, E19; maintenance and review hours), €16,100 in all.
 
 | Year 1 | The claim |
 |---|---|
 | Extra gross profit a month at full scope | €12,965 |
-| Net benefit (9.5 full-benefit months − all costs) | €107,205 |
-| ROI | 672% |
-| Payback (months) | 3.3 |
+| Net benefit (9.5 full-benefit months − all costs) | €107,064 |
+| ROI | 665% |
+| Payback (months) | 3.4 |
 | Track A score (/100; Evidence and Works are our own ratings) | 84 |
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once

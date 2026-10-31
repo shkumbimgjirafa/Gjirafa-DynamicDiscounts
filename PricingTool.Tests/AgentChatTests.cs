@@ -324,7 +324,7 @@ public class AgentChatTests : IDisposable
         return entry;
     }
 
-    private static JsonObject Main(int layer, string start, string end, bool terms = false) => new()
+    private static JsonObject WholeShop(int layer, string start, string end, bool terms = false) => new()
     {
         ["kind"] = "main", ["layer"] = layer, ["name"] = "Java e Portokalltë 2026", ["scopeKind"] = "all", ["scopeValue"] = null, ["startDate"] = start, ["endDate"] = end,
         ["goalType"] = terms ? "margin" : "gross-profit", ["goalValue"] = terms ? 17m : 15000m, ["minMarginPct"] = 8m, ["maxDepthPct"] = terms ? 90m : 20m,
@@ -334,7 +334,7 @@ public class AgentChatTests : IDisposable
     [Fact]
     public async Task A_persons_terms_go_on_the_campaign_under_their_name_and_lift_its_depth_cap()
     {
-        Says("Java e Portokalltë at a 17% effective margin, no cap, every SKU in stock, discount optimization off on its days.", briefs: new[] { Main(1, "2026-11-09", "2026-11-14", terms: true) });
+        Says("Java e Portokalltë at a 17% effective margin, no cap, every SKU in stock, discount optimization off on its days.", briefs: new[] { WholeShop(1, "2026-11-09", "2026-11-14", terms: true) });
 
         var t = await Chat().AskAsync(null, "No cap, effective margin 17%, every SKU in stock, turn off discount optimization", "manager@test", topic: ChatTopics.NewCampaign);
 
@@ -352,7 +352,7 @@ public class AgentChatTests : IDisposable
         var toys = await MiniAsync(1, "Fëmijë: pre-holiday toys push", new DateOnly(2026, 11, 11), new DateOnly(2026, 11, 15));
         var blackFriday = await BlackFridayAsync(new DateOnly(2026, 11, 27));
         Says("I've cleared November for Java e Portokalltë and Black Friday, and briefed Java e Portokalltë on both shops.",
-            briefs: new[] { Main(4, "2026-11-09", "2026-11-14"), Main(1, "2026-11-09", "2026-11-14") }, cancel: new[] { laptops.Id, toys.Id });
+            briefs: new[] { WholeShop(4, "2026-11-09", "2026-11-14"), WholeShop(1, "2026-11-09", "2026-11-14") }, cancel: new[] { laptops.Id, toys.Id });
 
         var t = await Chat().AskAsync(null, "Remove this month's campaigns, keep Black Friday; 9-14 Nov is Java e Portokalltë on both shops, 15k each",
             "manager@test", topic: ChatTopics.NewCampaign);
@@ -377,7 +377,7 @@ public class AgentChatTests : IDisposable
     {
         var laptops = await MiniAsync(4, "Laptopë: mini-campaign Nov 2026", new DateOnly(2026, 11, 10), new DateOnly(2026, 11, 12));
         var running = await MiniAsync(4, "Already running", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 4));
-        Says("Briefed.", briefs: new[] { Main(4, "2026-11-09", "2026-11-14") }, cancel: new[] { running.Id });
+        Says("Briefed.", briefs: new[] { WholeShop(4, "2026-11-09", "2026-11-14") }, cancel: new[] { running.Id });
 
         var t = await Chat().AskAsync(null, "Java e Portokalltë 9-14 Nov on Gjirafa50, and stop the running one", "manager@test");
 

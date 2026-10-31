@@ -611,7 +611,9 @@ for 30 days on real data, on its own.
 - **Run check results.**
 - **Backtest results** with a CSV download.
 - **AI call log:** tokens and cost.
-- **Evidence page (targets Evidence 5, "measured live in the demo, every input sourced").** Every money figure is computed live from the hackathon DB. Each row shows its query, source table, export time and label (measured / estimated / assumed):
+- **Evidence page (targets Evidence 5, "measured live in the demo, every input sourced").** *(31 Oct: built as a page, then moved
+  out of the app into a generated file, `docs/hackathon-2026/evidence/evidence.html`, which reruns the same SQL figures as
+  it is written; the user's decision that proof lives in files, not in the live app.)* Every money figure is computed live from the hackathon DB. Each row shows its query, source table, export time and label (measured / estimated / assumed):
   - the calculator's Aug–Sep lift. Recommended figure: seasonally adjusted with 2025's same windows, August's gain carried into September: Aug €11.9k, Sep €13.8k, ≈ €13k/month. Floor ≈ €4.5k/month; unadjusted ≈ €10k/month, which is the figure in the registration form. Show all three, and explain why the number moved since registration, so the reviewer sees consistency rather than a changed claim.
   - the YoY margin fingerprint: Kosovo margin 4–5 points above last year since the tool, 1–4 points before
     *(Superseded 31 Oct by E25: Aug–Sep 2026 +4.7 points, but Nov 2025–Feb 2026 +8.6 with no calculator, so it is not
@@ -676,38 +678,49 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
 
 ## 7. Demo script (4 minutes + 4 minutes of questions)
 
-1. **(20s) The problem.** Today the calculator only reads and calculates. A person sets every floor and target by hand, plans campaigns in spreadsheets, exports prices and creates the discounts in the shop. Show the declaration slide: what existed and what's new.
-2. **(60s) Pricing loop, with no clicks in between.** Press "Run week" for Gjirafa50 KS in Autonomous mode (it takes about
-   4–6 minutes: press it before the demo and show its timeline; never a GjirafaMall run during the demo):
-   - The agent calls its tools and applies N floor/target changes within the limits, each with a reason. Open one reason.
-   - The engine recalculates locally.
-   - The run checker holds X prices with reasons. Show one held real cost jump and one injected test case.
-   - The publisher writes M discount records and R regular-price raises to the shop sandbox, exactly as the shop stores
-     them (a discount can only lower a price, so a raise is the store's regular price), and expires the ones they replace;
-     the rest are left to cheaper team deals, which a person supersedes or not.
-   - The exceptions inbox shows only the few items that need a person.
-3. **(60s) Nova and Alpha planning a campaign.** Hand a juror the keyboard on the Campaigns tab, e.g. "Plan a 3-day laptops campaign next week, €4k profit":
-   - The campaign agent writes the brief using the laptops uplift history.
-   - The pricing agent answers with the plan and whether the goal is reachable. The exchange is visible.
-   - The time-boxed discounts appear in the sandbox, with the holdout marked.
-   - Close with the replay of October's Për ty: what the agents' plan would have earned vs what happened.
+*(Rewritten 31 Oct evening for the app as it is now: four tabs, Run · Chat · Campaigns · Proposals, and the evidence as a
+file. The earlier version named the Agent tab, the exceptions inbox and the Evidence tab, which the redesign replaced.)*
+
+**Before the demo** (10 minutes ahead): press **Run week** for Gjirafa50 KS on the Run tab (about 5 minutes; never a
+GjirafaMall run during the demo); write the evidence file (`dotnet run --project PricingTool.Web --no-build
+--launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`, about 40 s) and open it in a
+browser tab; open the financial sheet on its Summary; have a terminal ready in the repo.
+
+1. **(20s) The problem.** Today the calculator only reads and calculates. A person sets every floor and target by hand,
+   plans campaigns in spreadsheets, exports prices and creates the discounts in the shop. Show the declaration slide:
+   what existed and what's new.
+2. **(60s) The pricing loop, with no clicks in between: the Run tab.**
+   - Run week's timeline (Alpha, engine, run checker, publish, read-back): one press.
+   - Alpha's account of the run, in its words, and the floors and targets by category × band (a shaded cell is one Alpha
+     set for that category; Gjirafa50 has eight). Open one reason.
+   - What changed: raises and cuts, what the run checker held and why, what reached the sandbox shelf (a discount can only
+     lower a price, so a raise is written as the store's regular price), and the expected gross profit a month
+     (estimated, with its elasticity range).
+   - Then the **Chat** tab: the agents' activity in one thread, and "Waiting for you" with only what they couldn't settle
+     (a few items, each with Alpha's note on who should act).
+3. **(60s) Nova and Alpha plan a campaign: the Campaigns tab.** Hand a juror the keyboard, no campaign picked: "Plan a
+   3-day laptops campaign next week on Gjirafa50, €4k profit".
+   - Nova writes the brief; code checks it against the limits; Alpha plans it; Nova reviews; an accepted plan is
+     published to the sandbox, time-boxed, with its holdout. It appears on the calendar.
+   - Open it: the card says where it stands (expected SKUs, depth, gross profit and margin, estimated; the goal check)
+     with Stop until it starts. Ask Nova about it ("why is it short of the goal?"): it answers from the campaign's record.
+   - Close with the replay of October's Për ty (E11, E12 in the evidence file): the agents' plan vs the hand plan vs what
+     happened.
 4. **(30s) Safety without approvals.**
-   - An out-of-range decision is rejected by code.
-   - A simulated sales drop in one category triggers the automatic rollback and pause.
-   - An injected cost rise: the feed shows it raised to the floor within a minute, with the reason. (Real ones too: on
-     31 Oct the watcher read the morning's 293 cost moves within 1–9 minutes and held 54 for a person, E22.)
-   - Show the kill switch, the holdout categories, the audit log, and the AI call log with its cost.
-5. **(45s) Money, shown on the Evidence page, computed live** (not on a slide). Built 31 Oct: open the **Evidence** tab
-   (2 s); the plan's list is at the top; press **Recompute live** on E20 and let it run while you talk (9 s; "3 of 3
-   match, run as evidence_reader"):
-   - *(Updated 31 Oct: one framing, one number, the user's decision.)* The claim: €12,965 a month at full scope, 84
-     points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a month: GjirafaMall €8,006, Gjirafa50
-     €2,403; measured before and after each approval; robustness checks E20, E27 on the Evidence page), and it runs by
-     itself (this build: Run week on Gjirafa50 KS, live). Without the build the test ends (assumed; the facts are E28).
-   - On the Evidence tab, show the claim's line and the "Benefit by source" rows; recompute E20 live.
-   - Don't cite the year-over-year margin (E25): it doesn't separate the calculator.
-   - The financial sheet's Summary: the claim and its score.
-   - Say what's estimated and what's measured.
+   - In the terminal: `cost-watch --inject 4 <sku> <cost> --test`; the Chat tab shows the raise to the floor within one
+     watch, with the reason. (Real ones: on 31 Oct the watcher read the morning's 293 cost moves within 1–9 minutes, E22.)
+   - An out-of-range decision is rejected by code; the kill switch and autonomy on the Run tab; the holdout categories
+     marked in the grid; the audit log under Admin; the AI calls with their cost (E15: 85 live calls, $10.29, measured).
+5. **(45s) Money: the evidence file and the sheet.**
+   - The evidence file, written before the demo: "Recomputed now: 45 of 45 checks match", every figure with its label
+     (measured, estimated, assumed), method, sources and where it is used. If there is time, run the command again in the
+     terminal while talking (about 40 s).
+   - The claim: €12,965 a month at full scope, 84 points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a
+     month: GjirafaMall €8,006, Gjirafa50 €2,403; measured before and after each approval; robustness checks E20, E27),
+     and it runs by itself (this build: Run week, shown in step 2). Without the build the test ends (assumed; the facts
+     are E28).
+   - The financial sheet's Summary and its "Benefit by source". Don't cite the year-over-year margin (E25): it doesn't
+     separate the calculator. Say what's estimated and what's measured.
 6. **(25s) Ask.** A 6–8 week pilot on KS:
    - **Black Friday (27 Nov) planned by the two agents**, with a campaign holdout
    - the publisher switched from sandbox to the shop for a few categories in autonomous mode
@@ -715,13 +728,13 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
 
    That makes the go/no-go measured, not estimated.
 
-Timing: 20 + 60 + 60 + 30 + 45 + 25 = 240 seconds.
+Timing: 20 + 60 + 60 + 30 + 45 + 25 = 240 seconds. Not timed yet on this version: rehearse it twice.
 
-**In the 4 minutes of questions:** when a juror asks a data question no screen covers, type it into the
-chat. The agent writes its own `query_data` query, answers, and the query shows under "What it looked at".
+**In the 4 minutes of questions:** when a juror asks a data question no screen covers, type it into the chat (the Chat
+tab; start with `@alpha` for pricing). The agent writes its own `query_data` query and answers from it.
 
-Have the backup video and screenshots ready in case the network or API fails during the demo (shot list:
-`docs/hackathon-2026/demo-backup-video.md`; timings measured in `demo-dry-run-2.md`).
+Have the backup video and screenshots ready in case the network or Claude fails during the demo (shot list:
+`docs/hackathon-2026/demo-backup-video.md`).
 
 ## 8. Submission checklist
 
@@ -734,7 +747,7 @@ Have the backup video and screenshots ready in case the network or API fails dur
     - B3: campaign planning (lever 7), the replayed gain per campaign day × the campaign days in the next 12 months' calendar. Count only the margin, never campaign revenue.
     - **Two tabs, one per framing; the headline follows the organisers' answer.**
       - **Framing A:** levers 1–7 only.
-      - **Framing B:** adds B0, the rollout of what the test phase (v0.5) measured, as the automated system's forecast run-rate, plus levers 1–7 on top. It's labelled "forecast from measured history". B0 per scenario, each one a real measurement: Low = same-weeks control ≈ €4k/month (one run on one layer, so a floor), Mid = measured before/after ≈ €10.6k/month, High = season-adjusted ≈ €13k/month. **Evidence rates 5 under framing B**: the rate was measured live on the real shop and the Evidence page recomputes it in the demo. The measured €10.6k alone clears the net-benefit band-5 line (≈ €10.3k/month) before any new lever.
+      - **Framing B:** adds B0, the rollout of what the test phase (v0.5) measured, as the automated system's forecast run-rate, plus levers 1–7 on top. It's labelled "forecast from measured history". B0 per scenario, each one a real measurement: Low = same-weeks control ≈ €4k/month (one run on one layer, so a floor), Mid = measured before/after ≈ €10.6k/month, High = season-adjusted ≈ €13k/month. **Evidence rates 5 under framing B**: the rate was measured live on the real shop and the evidence file recomputes it in the demo. The measured €10.6k alone clears the net-benefit band-5 line (≈ €10.3k/month) before any new lever.
     - **Consistent with the registration:** the declaration said the calculator's *measured past result* (Aug–Sep) is not claimed. Framing B claims no past euro. It claims the **next 12 months** of an automated system and uses the past as evidence for the rate. Say this in one line in `HACKATHON.md` and the one-pager.
     - Hours saved are never counted (capacity only).
     - All benefit is on own-retail SKUs, so margin counts in full. No marketplace seller sales are included.
@@ -782,7 +795,7 @@ files. That is prompt injection. Any careful reviewer flags it, and it would cos
 | Does the AI really decide anything? | Point to the exact methods where the model's output becomes a decision (`FloorTargetAgent` → `SafetyLimits` → `AgentDecision`). Include a sample of real logged prompts and responses (no keys). |
 | Are the safety limits real? | They're enforced in code (`SafetyLimits`), not in the prompt, and covered by unit tests: out-of-range values, malformed output, thin data, kill switch. |
 | Is anything mocked? | `PricingEngine:UseDemoData=false` in `appsettings.Hackathon.json`. Injected test rows are tagged `[INJECTED-TEST]` in data and UI. `HACKATHON.md` lists every mock and every unfinished feature. |
-| Do the numbers reproduce? | Every figure has an ID (E1, E2, …) in `docs/hackathon-2026/evidence/numbers.json` with value, label (measured / estimated / assumed), method, source and script path. The one-pager, the Evidence page and the financial sheet all read the same IDs, so they can't drift apart. Each script reruns against `PricingToolHackathon`. |
+| Do the numbers reproduce? | Every figure has an ID (E1, E2, …) in `docs/hackathon-2026/evidence/numbers.json` with value, label (measured / estimated / assumed), method, source and script path. The one-pager, the evidence file and the financial sheet all read the same IDs, so they can't drift apart. Each script reruns against `PricingToolHackathon`. |
 | Is the financial sheet right? | Live Excel formulas, not pasted values. One inputs sheet with source and label columns. ROI, payback and score bands computed by formula, following the rules' Track A formula exactly. |
 | Are the claims calibrated? | State the caveats ourselves: the calculator's gain is before/after and seasonally adjusted with 2025 (an estimate, not causal); the backtest is an estimate. No "AI-powered" fluff, no number without its label. |
 | Rule compliance? | A checklist in `HACKATHON.md` with proof for each rule: connection strings point only to LocalDB; `hk.DataSources` lists every file; exported columns contain no personal data; `git grep` finds no keys or passwords in the submitted tree. |

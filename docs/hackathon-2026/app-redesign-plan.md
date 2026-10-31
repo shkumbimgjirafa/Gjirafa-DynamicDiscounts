@@ -186,6 +186,16 @@ Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
   planner's estimate, so 15% needs a shift toward its higher-margin SKUs and may stay out of reach (the plan says so).
   The engine host must run this build by 4 Nov for the switch to happen.
 
+- **Step 6, the evidence and the docs (31 Oct evening).** The evidence is a file: `PricingTool.Web --evidence-html <file>`
+  (`EvidenceHtml`, the same `EvidenceService` the page used) writes `docs/hackathon-2026/evidence/evidence.html`, every
+  figure with its label, method, sources and uses, and the 11 SQL-backed figures rerun as `evidence_reader` while it is
+  written (45 of 45 checks matched, 34 s). The Evidence and Backtest pages stay in the code, unlinked. Rebuilt: the build
+  sessions' AI usage (the data session's transcript was released, so its share is carried over as a labelled extra; the
+  builder now drops a response counted in two transcripts), `numbers.json`, the financial sheet (claim unchanged,
+  €12,965 a month, 84 points; year-1 net €107,064) and the one-pager. `HACKATHON.md`, the README, the demo script (plan
+  section 7) and the backup video's shot list describe the four tabs and the file. Not done: step 5 (Proposals publish);
+  the demo isn't rehearsed on this version; the UI/UX review (an independent agent) is running.
+
 ## Verification
 
 - `dotnet test` (968 today) plus new tests: the current-run rule, the grid totals against `ProposedPrices`, the re-check
