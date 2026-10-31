@@ -77,18 +77,25 @@ public sealed class ReplicaCostFeed
             refreshed++;
 
             // Both KS layers share the country's costs: one read for the union of their watched SKUs.
-            var watchedByLayer = new Dictionary<int, Dictionary<string, decimal>>();
+            var watchedByLayer = new Dictionary<int, (Dictionary<string, decimal> Watched, DateTime? RunStartedUtc)>();
             foreach (var layer in country) watchedByLayer[layer.Id] = await WatchedAsync(layer, ct);
-            var skus = watchedByLayer.Values.SelectMany(w => w.Keys).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var skus = watchedByLayer.Values.SelectMany(w => w.Watched.Keys).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             var costs = skus.Count == 0 ? new Dictionary<string, decimal>() : await CostsAsync(conn, country.Key, skus, ct);
             read += costs.Count;
-            foreach (var (layerId, watched) in watchedByLayer)
-                foreach (var (sku, old) in watched)
+            foreach (var (layerId, (watched, runStarted)) in watchedByLayer)
+            {
+                // The cost each SKU was last observed at since the run: the replica's rebuild spans several polls.
+                var observed = runStarted is not { } since ? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+                    : (await _db.CostObservations.AsNoTracking().Where(o => o.LayerId == layerId && o.Source == "replica" && o.ObservedUtc >= since)
+                            .Select(o => new { o.Id, o.Sku, o.Pptcv }).ToListAsync(ct))
+                        .GroupBy(o => o.Sku, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(g => g.Key, g => g.OrderByDescending(o => o.Id).First().Pptcv, StringComparer.OrdinalIgnoreCase);
+                foreach (var (sku, cost) in NewMoves(watched, costs, observed, _options.MinRisePct))
                 {
-                    if (!costs.TryGetValue(sku, out var cost) || old <= 0 || Math.Abs(100m * (cost - old) / old) < _options.MinRisePct) continue;
-                    _db.CostObservations.Add(new CostObservation { LayerId = layerId, Sku = sku, Pptcv = Math.Round(cost, 4), ObservedUtc = latest.Value, Source = "replica" });
+                    _db.CostObservations.Add(new CostObservation { LayerId = layerId, Sku = sku, Pptcv = cost, ObservedUtc = latest.Value, Source = "replica" });
                     observations++;
                 }
+            }
             if (setting is null)
             {
                 setting = new ToolSetting { Key = key };
@@ -102,6 +109,24 @@ public sealed class ReplicaCostFeed
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Cost feed: {Refreshed} countries refreshed, {Read} costs read, {Observations} moved, {Ms} ms", refreshed, read, observations, sw.ElapsedMilliseconds);
         return new CostFeedResult(layers.Select(l => l.TranslationCountryId).Distinct().Count(), refreshed, read, observations, sw.ElapsedMilliseconds, null);
+    }
+
+    /// <summary>
+    /// The moves worth an observation: a watched SKU whose replica cost (rounded to 4 places) differs from the run's by at least
+    /// <paramref name="minMovePct"/>, and isn't the cost already observed for it since that run. On 31 Oct the rebuild of the
+    /// replica's costs spanned two polls, and the second saw 168 of the first's moves again (each held a second time).
+    /// </summary>
+    public static IEnumerable<(string Sku, decimal Cost)> NewMoves(IReadOnlyDictionary<string, decimal> watched, IReadOnlyDictionary<string, decimal> costs,
+        IReadOnlyDictionary<string, decimal> alreadyObserved, decimal minMovePct)
+    {
+        foreach (var (sku, old) in watched)
+        {
+            if (!costs.TryGetValue(sku, out var raw) || old <= 0) continue;
+            var cost = Math.Round(raw, 4);
+            if (Math.Abs(100m * (cost - old) / old) < minMovePct) continue;
+            if (alreadyObserved.TryGetValue(sku, out var seen) && seen == cost) continue;
+            yield return (sku, cost);
+        }
     }
 
     /// <summary>PPTCV per SKU for one country: the SKUs bulk-copied into a temp table (tempdb works on the read-only
@@ -128,13 +153,13 @@ public sealed class ReplicaCostFeed
     }
 
     /// <summary>SKU → the latest run's cost, for SKUs in local stock or sold in 30 days whose margin is within the headroom of the band
-    /// floor, leaving out the lanes the watcher never touches (<see cref="CostWatchLanes"/>).</summary>
-    private async Task<Dictionary<string, decimal>> WatchedAsync(Layer layer, CancellationToken ct)
+    /// floor, leaving out the lanes the watcher never touches (<see cref="CostWatchLanes"/>); and when that run started.</summary>
+    private async Task<(Dictionary<string, decimal> Watched, DateTime? RunStartedUtc)> WatchedAsync(Layer layer, CancellationToken ct)
     {
         var run = await _tool.PricingRuns.AsNoTracking()
             .Where(r => r.LayerId == layer.Id && (r.Status == RunStatus.Succeeded || r.Status == RunStatus.SucceededWithErrors))
             .OrderByDescending(r => r.Id).FirstOrDefaultAsync(ct);
-        if (run is null) return new Dictionary<string, decimal>();
+        if (run is null) return (new Dictionary<string, decimal>(), null);
         var date = run.StartedUtc.Date;
         var bands = await _bands.GetBandsAsync(layer.Id, ct);
         var rows = await (from s in _tool.DailySnapshots.AsNoTracking()
@@ -154,6 +179,6 @@ public sealed class ReplicaCostFeed
             var margin = 100m * (r.Price - r.Cost) / r.Price;
             if (margin < band.MarginFloorPct + _options.WatchHeadroomPp) watched.TryAdd(r.Sku, r.Cost);
         }
-        return watched;
+        return (watched, run.StartedUtc);
     }
 }

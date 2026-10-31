@@ -3,7 +3,10 @@
 Two AI agents on top of the existing pricing calculator (v0.5). **Alpha**, the pricing agent, sets each price band's
 floor and target per main category. **Nova**, the campaign agent, writes campaign briefs, and Alpha turns each one into a
 plan that code computes. A publisher writes the shop's prices itself, cuts as NOP discounts and raises as the store's
-regular price (only to the `shop_sandbox_*` schemas during the hackathon), and a cost watcher checks costs every 15 minutes. **The AI decides; code enforces:** no model
+regular price (only to the `shop_sandbox_*` schemas during the hackathon), and a cost watcher checks costs every 15 minutes:
+on 31 Oct it read the morning's 293 real cost moves within 1–9 minutes of the replica's refresh, raised none (no rise put a
+price we set under its floor) and held 54 for a person (52 under the floor at a cheaper team deal, 2 with a floor above
+the shelf; E22). **The AI decides; code enforces:** no model
 output changes a price, a band or a discount without passing limits written in C#.
 
 Everything below can be checked from this repository, except what needs the hackathon database (`PricingToolHackathon` on

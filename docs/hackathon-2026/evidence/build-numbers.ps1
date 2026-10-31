@@ -222,6 +222,18 @@ Add 'E21' 'Below-floor GP forgone, Kosovo: by month (Jun-Oct 2026) and, in the c
      "Cause 5 as context only: on SKUs today's engine run raises, about $(Round0 ((N0 $raisedToday[1]) + (N0 $raisedToday[4]))) a month (Mall $(Round0 (N0 $raisedToday[1])), Gj50 $(Round0 (N0 $raisedToday[4]))), a proxy (August's runs weren't kept), not in the sheet. The totals equal PricingTool.AgentTools backtest-below-floor 1 4.") `
     'hk.SalesLines, hk.SalesLineDiscountsKs, PricingTool.AuditLog, PricingTool.Approvals / ApprovalItems, band config' 'docs/hackathon-2026/evidence/e21-by-cause.sql (three result sets; this script runs it); totals also by PricingTool.AgentTools backtest-below-floor 1 4'
 
+# E22: the cost watcher on its first real cost refresh, from the ai tables (aggregates only).
+$cw = (QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 (Join-Path $here 'e22-cost-watch.sql')))[0].Rows[0]
+Add 'E22' 'Cost watcher on the first real cost refresh (31 Oct 2026, both KS layers)' ([ordered]@{
+        distinctMoves = $cw.DistinctMoves; rises = $cw.Rises; falls = $cw.Falls; risesStillAboveTheFloor = $cw.RisesStillAboveTheFloor; raised = $cw.Raised
+        heldTeamDeal = $cw.HeldTeamDeal; heldCostAboveShelf = $cw.HeldCostAboveShelf; heldDataError = $cw.HeldDataError
+        observations = $cw.Observations; repeatsOfTheSameMove = $cw.RepeatsOfTheSameMove
+        minutesAfterRefresh = [ordered]@{ first = [math]::Round($cw.FirstSecondsAfterRefresh / 60.0, 1); last = [math]::Round($cw.LastSecondsAfterRefresh / 60.0, 1) } }) 'SKUs / minutes' 'measured' `
+    ("The replica's costs refreshed that morning; the feed read the costs of the SKUs no other rule owns that sit near their floor, and $($cw.DistinctMoves) had moved at least 0.5 % from the engine run's. " +
+     "No rise was raised: $($cw.RisesStillAboveTheFloor) of the $($cw.Rises) rises left the live price above its floor, $($cw.HeldTeamDeal) put it under but the price was a cheaper team deal (held for a person: the publisher leaves those alone), and $($cw.HeldCostAboveShelf) had a floor above max(anchor, current) (held: the regular price needs changing); no jump looked like a data error. " +
+     "The rebuild spanned two polls: $($cw.RepeatsOfTheSameMove) of the $($cw.Observations) observations were the same moves seen again (each held a second time); the feed now skips a cost already observed since the run. Ten observations were checked by hand against the engine run (hours.md, 31 Oct).") `
+    'ai.CostObservation, ai.AgentDecision' 'docs/hackathon-2026/evidence/e22-cost-watch.sql (this script runs it)'
+
 $out = [ordered]@{
     generated = (Get-Date).ToString('yyyy-MM-dd HH:mm'); generator = 'docs/hackathon-2026/evidence/build-numbers.ps1'
     note = 'Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.'

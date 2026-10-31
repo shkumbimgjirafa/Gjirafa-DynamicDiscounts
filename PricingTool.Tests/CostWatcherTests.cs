@@ -234,4 +234,16 @@ public class CostWatcherTests : IDisposable
         Assert.Equal(1, (await Watcher().WatchAsync()).Raised);
         Assert.True((await _ai.AgentPasses.SingleAsync()).IsTest);             // an injected observation makes a test pass
     }
+
+    [Fact]
+    public void A_move_already_observed_since_the_run_is_not_observed_again_when_the_replica_rebuild_spans_two_polls()
+    {
+        var watched = new Dictionary<string, decimal> { ["A"] = 10m, ["B"] = 20m, ["C"] = 30m, ["D"] = 40m };
+        var costs = new Dictionary<string, decimal> { ["A"] = 11.00004m, ["B"] = 20.05m, ["C"] = 33m, ["D"] = 44m };
+        var seen = new Dictionary<string, decimal> { ["A"] = 11m, ["C"] = 32m };     // A seen at this cost by the first poll; C moved on since
+
+        var moves = PricingTool.NopIntegration.CostWatch.ReplicaCostFeed.NewMoves(watched, costs, seen, 0.5m).ToList();
+
+        Assert.Equal(new[] { ("C", 33m), ("D", 44m) }, moves);                   // B moved under 0.5 %: noise
+    }
 }

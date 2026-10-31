@@ -16,7 +16,9 @@ price).
 each band's floor and target per main category every week. **Nova**, the campaign agent, keeps the calendar, writes
 briefs with goals, and Alpha turns each into a plan that code computes (four strategies, charm-rounded, never under
 cost or a 3 % margin on any SKU). An AI run checker confirms, escalates or fixes flagged prices, and can't lift a
-rule's block; a cost watcher checks costs every 15 minutes; an outcome tracker measures every applied change and rolls
+rule's block; a cost watcher checks costs every 15 minutes (on 31 Oct it read the morning's 293 real cost moves within
+0.7–9.1 minutes of the refresh, raised none because no rise put a price we set under its floor, and held
+54 for a person: 52 under the floor at a cheaper team deal, 2 with a floor above the shelf; E22); an outcome tracker measures every applied change and rolls
 back what hurts; a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
 whole loop for a layer with one press; a backtest; a chat. **The AI decides, code enforces:** no model output changes a
 price, band or discount without passing limits written in C#. During the hackathon the publisher writes only to a
