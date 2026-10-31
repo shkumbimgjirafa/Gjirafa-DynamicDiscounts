@@ -33,6 +33,15 @@ public class PublishBatch
     public int Skipped { get; set; }
     public int RoundTripChecked { get; set; }
     public int RoundTripMismatches { get; set; }
+
+    /// <summary>Regular prices (TierPrice): rows raised in place and rows inserted, of which raised while a cheaper team
+    /// deal stays on the shelf; SKUs left alone because the shop's row changed since the run; our ai-price discounts ended
+    /// because the regular price now applies.</summary>
+    public int TierRaised { get; set; }
+    public int TierInserted { get; set; }
+    public int RaisedUnderTeamDeal { get; set; }
+    public int ChangedSinceRun { get; set; }
+    public int DiscountsEnded { get; set; }
     public string? Note { get; set; }
 }
 
@@ -47,7 +56,8 @@ public class PublishAudit
     public string Sku { get; set; } = "";
     public int? ProductId { get; set; }
 
-    /// <summary>DiscountCreated / DiscountUpdated / DiscountExpired / DiscountSuperseded / ProductFlags.</summary>
+    /// <summary>DiscountCreated / DiscountUpdated / DiscountExpired / DiscountSuperseded / ProductFlags; regular prices:
+    /// TierPriceUpdated / TierPriceInserted / ProductHasTierPrices.</summary>
     public string Change { get; set; } = "";
 
     public int? DiscountId { get; set; }
@@ -63,6 +73,16 @@ public class PublishAudit
     public string? OldStoreIds { get; set; }
     public string? NewStoreIds { get; set; }
 
+    /// <summary>The TierPrice row (the store's regular price) and its Price / OldPrice before and after; an inserted row
+    /// has no old values. The proposal the price came from, when the publish carried it.</summary>
+    public int? TierPriceId { get; set; }
+    public decimal? OldTierPrice { get; set; }
+    public decimal? OldTierOldPrice { get; set; }
+    public decimal? NewTierPrice { get; set; }
+    public decimal? NewTierOldPrice { get; set; }
+    public bool? OldHasTierPrices { get; set; }
+    public long? ProposalId { get; set; }
+
     /// <summary>False when the shop write it was written for did not happen (the chunk failed).</summary>
     public bool Applied { get; set; }
     public DateTime CreatedUtc { get; set; }
@@ -77,7 +97,8 @@ public class PublishException
     public long BatchId { get; set; }
     public string Sku { get; set; } = "";
 
-    /// <summary>unresolved-sku / cheaper-deal / at-or-above-shelf / chunk-failed / round-trip.</summary>
+    /// <summary>unresolved-sku / cheaper-deal / at-or-above-shelf / chunk-failed / round-trip; regular prices:
+    /// raised-under-team-deal / changed-since-run / above-ceiling / no-ceiling.</summary>
     public string Kind { get; set; } = "";
     public string Detail { get; set; } = "";
     public DateTime CreatedUtc { get; set; }

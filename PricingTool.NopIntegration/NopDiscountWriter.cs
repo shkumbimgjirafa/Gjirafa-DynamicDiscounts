@@ -20,10 +20,23 @@ public static class PublishKinds
 
 /// <summary>One price to publish: the final price the shopper should pay, and the shelf price when known
 /// (a discount can only lower a price, so a price at or above the shelf can't be published as one).</summary>
-public sealed record PublishItem(string Sku, decimal Price, decimal? ShelfPrice = null);
+public sealed record PublishItem(string Sku, decimal Price, decimal? ShelfPrice = null)
+{
+    /// <summary>What the engine run saw (the proposal's CurrentPrice and OldPrice): a raise goes ahead only while the shop's
+    /// regular price still matches them (<see cref="NopRegularPriceWriter.Decide"/>). Null: not compared.</summary>
+    public decimal? RunCurrentPrice { get; init; }
+    public decimal? RunOldPrice { get; init; }
+    /// <summary>The run's max(anchor, current): a raise above it is refused. A raise without it isn't written.</summary>
+    public decimal? Ceiling { get; init; }
+    public long? ProposalId { get; init; }
+}
 
 public sealed record PublishRequest(int LayerId, IReadOnlyList<PublishItem> Items)
 {
+    /// <summary>Regular prices only: a price at or above the store's regular price (the newest TierPrice row) is written
+    /// to that row (<see cref="NopRegularPriceWriter"/>) instead of being refused as a discount; below it, the discount
+    /// path. On for Run week and the daily cycle's sandbox publish; off for the cost watcher and the canary.</summary>
+    public bool RaiseRegularPrices { get; init; }
     public string Kind { get; init; } = PublishKinds.Regular;
     /// <summary>Campaigns: the key in ai-campaign-&lt;key&gt;-&lt;sku&gt; and the window the discount is live in.</summary>
     public string? CampaignKey { get; init; }
@@ -36,7 +49,15 @@ public sealed record PublishRequest(int LayerId, IReadOnlyList<PublishItem> Item
 
 public sealed record PublishOutcome(
     long BatchId, string Status, int Created, int Updated, int Unchanged, int Skipped,
-    int RoundTripChecked, int RoundTripMismatches, bool RolledBack, IReadOnlyList<PublishException> Exceptions);
+    int RoundTripChecked, int RoundTripMismatches, bool RolledBack, IReadOnlyList<PublishException> Exceptions)
+{
+    /// <summary>Regular prices: see <see cref="PublishBatch.TierRaised"/> and the counts beside it.</summary>
+    public int TierRaised { get; init; }
+    public int TierInserted { get; init; }
+    public int RaisedUnderTeamDeal { get; init; }
+    public int ChangedSinceRun { get; init; }
+    public int DiscountsEnded { get; init; }
+}
 
 /// <summary>
 /// Writes prices into a shop's NOP discount tables the way nopCommerce's discount module does when an admin
@@ -49,7 +70,9 @@ public sealed record PublishOutcome(
 /// (~5k SKUs) is one short transaction; a SKU that already has a cheaper public deal we didn't create is left
 /// alone (a team regular discount is end-dated only when SupersedeTeamRegularDiscounts is on, and only if it
 /// covers that one product); afterwards the round-trip check reads the winning deal back, and too many
-/// mismatches roll the batch back. Only configuration differs between the sandbox and the shop.
+/// mismatches roll the batch back. Only configuration differs between the sandbox and the shop. With
+/// <see cref="PublishRequest.RaiseRegularPrices"/>, a price at or above the store's regular price goes to
+/// <see cref="NopRegularPriceWriter"/> in the same chunk transaction instead (prompt 07).
 /// </summary>
 public sealed class NopDiscountWriter
 {
@@ -66,6 +89,9 @@ public sealed class NopDiscountWriter
 
     /// <summary>Tests only: runs inside each chunk's transaction after its writes, before the commit.</summary>
     internal Func<int, Task>? BeforeChunkCommit { get; set; }
+
+    /// <summary>Tests only: runs after each chunk's read and audit, before its transaction (someone else's change in between).</summary>
+    internal Func<int, Task>? AfterChunkRead { get; set; }
 
     public NopDiscountWriter(IOptions<PublisherOptions> options, AgentDataSource tool, AgentDbContext db, PricingToolDbContext toolDb,
         IShopCacheInvalidator cache, ILogger<NopDiscountWriter> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null)
@@ -127,6 +153,7 @@ public sealed class NopDiscountWriter
         }
 
         var written = new List<(PublishItem Item, int ProductId, string Name)>();
+        var regular = new List<TierWritten>();
         await using (var conn = new SqlConnection(shop.ConnectionString))
         {
             await conn.OpenAsync(ct);
@@ -134,21 +161,26 @@ public sealed class NopDiscountWriter
             foreach (var chunk in items.OrderBy(i => i.Sku, StringComparer.Ordinal).Chunk(Math.Max(1, _options.ChunkSize)))
             {
                 chunkNo++;
-                var result = await PublishChunkAsync(conn, shop.Schema, layer, request, batch, window, now, chunk, chunkNo, exceptions, ct);
-                written.AddRange(result);
+                var (discounts, tiers) = await PublishChunkAsync(conn, shop.Schema, layer, request, batch, window, now, chunk, chunkNo, exceptions, ct);
+                written.AddRange(discounts);
+                regular.AddRange(tiers);
             }
 
-            await _cache.InvalidateAsync(layer.Db, written.Select(w => w.ProductId).Distinct().ToList(), ct);
+            await _cache.InvalidateAsync(layer.Db, written.Select(w => w.ProductId).Concat(regular.Select(r => r.ProductId)).Distinct().ToList(), ct);
 
-            // Round-trip: the winning public deal on each product must be ours, at our price.
+            // Round-trip: the winning public deal on each product must be ours, at our price; a regular price must read
+            // back as written, with none of our ai-price discounts still under it.
             var check = request.Kind == PublishKinds.Campaign ? window.Start : now;
-            var mismatches = await VerifyAsync(conn, shop.Schema, layer.StoreId, written, check, batch, exceptions, ct);
-            batch.RoundTripChecked = written.Count;
+            var mismatches = await VerifyAsync(conn, shop.Schema, layer.StoreId, written, check, batch, exceptions, ct)
+                             + await VerifyRegularAsync(conn, shop.Schema, layer.StoreId, regular, now, batch, exceptions, ct);
+            batch.RoundTripChecked = written.Count + regular.Count;
             batch.RoundTripMismatches = mismatches;
         }
 
         _db.PublishExceptions.AddRange(exceptions);
-        batch.Skipped = exceptions.Select(e => e.Sku).Distinct().Count(sku => written.All(w => w.Item.Sku != sku)) + canaryLeftOut;
+        batch.Skipped = exceptions.Select(e => e.Sku).Distinct()
+            .Count(sku => written.All(w => w.Item.Sku != sku) && regular.All(r => r.Item.Sku != sku)) + canaryLeftOut;
+        written.AddRange(regular.Select(r => (r.Item, r.ProductId, "")));
         batch.Status = written.Count == 0 && items.Count > 0 ? "Failed" : "Published";
         batch.FinishedUtc = Truncate(_clock.GetUtcNow().UtcDateTime);
         await _db.SaveChangesAsync(CancellationToken.None);
@@ -163,17 +195,26 @@ public sealed class NopDiscountWriter
         }
 
         return new PublishOutcome(batch.Id, rolledBack ? "RolledBack" : batch.Status, batch.Created, batch.Updated, batch.Unchanged,
-            batch.Skipped, batch.RoundTripChecked, batch.RoundTripMismatches, rolledBack, exceptions);
+            batch.Skipped, batch.RoundTripChecked, batch.RoundTripMismatches, rolledBack, exceptions)
+        {
+            TierRaised = batch.TierRaised, TierInserted = batch.TierInserted, RaisedUnderTeamDeal = batch.RaisedUnderTeamDeal,
+            ChangedSinceRun = batch.ChangedSinceRun, DiscountsEnded = batch.DiscountsEnded,
+        };
     }
 
-    private sealed record ProductState(int Id, bool HasDiscountsApplied, string? StoreIds);
+    private sealed record ProductState(int Id, bool HasDiscountsApplied, string? StoreIds, bool HasTierPrices);
     private sealed record OurDiscount(int Id, int ProductId, decimal Amount, DateTime? Start, DateTime? End);
     private sealed record OtherDeal(int Id, int ProductId, string Name, decimal Amount, DateTime? End, int Products);
 
-    private async Task<List<(PublishItem, int, string)>> PublishChunkAsync(SqlConnection conn, string schema, LayerRef layer,
+    /// <summary>A price whose regular price now applies (raised, inserted, or already the regular price): what the round-trip
+    /// expects to read back.</summary>
+    private sealed record TierWritten(PublishItem Item, int ProductId, decimal Regular);
+
+    private async Task<(List<(PublishItem, int, string)> Discounts, List<TierWritten> Regular)> PublishChunkAsync(SqlConnection conn, string schema, LayerRef layer,
         PublishRequest request, PublishBatch batch, (DateTime Start, DateTime End) window, DateTime now, PublishItem[] chunk, int chunkNo,
         List<PublishException> exceptions, CancellationToken ct)
     {
+        var raises = request.RaiseRegularPrices && request.Kind == PublishKinds.Regular;
         // 1. Read: products by SKU, our discounts on them, and other public amount deals active in the window.
         await Exec(conn, null, "DROP TABLE IF EXISTS #req; CREATE TABLE #req (Sku nvarchar(400) NOT NULL PRIMARY KEY, Name nvarchar(400) NOT NULL);", ct);
         var req = new DataTable();
@@ -184,14 +225,14 @@ public sealed class NopDiscountWriter
 
         var products = new Dictionary<string, List<ProductState>>(StringComparer.Ordinal);
         await using (var cmd = new SqlCommand($"""
-            SELECT r.Sku, p.Id, p.HasDiscountsApplied, p.HasDiscountsAppliedStoreIds
+            SELECT r.Sku, p.Id, p.HasDiscountsApplied, p.HasDiscountsAppliedStoreIds{(raises ? ", p.HasTierPrices" : ", CAST(0 AS bit)")}
             FROM #req r JOIN [{schema}].[Product] p ON p.Sku = r.Sku AND p.Deleted = 0
             """, conn))
         await using (var rd = await cmd.ExecuteReaderAsync(ct))
             while (await rd.ReadAsync(ct))
             {
                 if (!products.TryGetValue(rd.GetString(0), out var list)) products[rd.GetString(0)] = list = new();
-                list.Add(new ProductState(rd.GetInt32(1), rd.GetBoolean(2), rd.IsDBNull(3) ? null : rd.GetString(3)));
+                list.Add(new ProductState(rd.GetInt32(1), rd.GetBoolean(2), rd.IsDBNull(3) ? null : rd.GetString(3), rd.GetBoolean(4)));
             }
 
         var ours = new Dictionary<string, OurDiscount>(StringComparer.Ordinal);
@@ -228,17 +269,57 @@ public sealed class NopDiscountWriter
                     rd.IsDBNull(4) ? null : rd.GetDateTime(4), rd.GetInt32(5)));
         }
 
+        // 1b. Raises: the store's regular price per product (the newest TierPrice row, as the engine reads it), and what our
+        // own last regular-price write left on each row.
+        var tiers = new Dictionary<int, TierRow>();
+        var lastWrites = new Dictionary<int, (decimal Price, decimal OldPrice)>();
+        if (raises)
+        {
+            tiers = await NopRegularPriceWriter.ReadAsync(conn, null, schema, layer.StoreId,
+                products.Values.Where(l => l.Count == 1).Select(l => l[0].Id).ToList(), ct);
+            lastWrites = await LastRegularWritesAsync(layer, schema, tiers.Values.Select(t => t.Id).ToList(), ct);
+        }
+
         // 2. Decide per SKU, and write the previous state of everything to be touched before touching it.
         var rows = new List<(PublishItem Item, ProductState Product, string Name, OurDiscount? Ours, bool Write, string? NewStoreIds)>();
         var supersede = new List<OtherDeal>();
         var audits = new List<PublishAudit>();
+        var regular = new List<(PublishItem Item, ProductState Product, TierRow? Tier, TierDecision Decision, OurDiscount? Ours, OtherDeal? TeamDeal)>();
         foreach (var item in chunk)
         {
             var name = NameFor(request, item.Sku);
             if (!products.TryGetValue(item.Sku, out var found)) { exceptions.Add(Exception(batch, item.Sku, "unresolved-sku", "No live product with this SKU in the shop.")); continue; }
             if (found.Count > 1) { exceptions.Add(Exception(batch, item.Sku, "ambiguous-sku", $"{found.Count} live products share this SKU.")); continue; }
             var product = found[0];
-            if (item.ShelfPrice is { } shelf && item.Price >= shelf)
+            // The one rule: at or above the store's regular price (or no regular price yet) the regular price is written;
+            // below it, the discount path.
+            if (raises && (!tiers.TryGetValue(product.Id, out TierRow? tier) || item.Price >= tier.Price))
+            {
+                var decision = NopRegularPriceWriter.Decide(item, tier, tier is null ? null : lastWrites.TryGetValue(tier.Id, out var w) ? w : null);
+                if (decision.Action == TierDecision.Refuse)
+                {
+                    exceptions.Add(Exception(batch, item.Sku, decision.ExceptionKind!, decision.Detail!));
+                    if (decision.ExceptionKind == "changed-since-run") batch.ChangedSinceRun++;
+                    continue;
+                }
+                ours.TryGetValue(item.Sku, out var mine);
+                var live = mine is not null && (mine.End is null || mine.End > now) ? mine : null;
+                var team = others.Where(o => o.ProductId == product.Id && o.Amount < decision.NewPrice).OrderBy(o => o.Amount).FirstOrDefault();
+                if (decision.Action == TierDecision.AtTier && live is null) { regular.Add((item, product, tier, decision, null, team)); continue; }
+                if (decision.Action == TierDecision.Raise)
+                    audits.Add(Audit(batch, item.Sku, product.Id, "TierPriceUpdated", now, a => { a.TierPriceId = tier!.Id; a.OldTierPrice = tier.Price; a.OldTierOldPrice = tier.OldPrice; a.NewTierPrice = decision.NewPrice; a.NewTierOldPrice = decision.NewOldPrice; a.ProposalId = item.ProposalId; }));
+                if (decision.Action == TierDecision.Insert)
+                {
+                    audits.Add(Audit(batch, item.Sku, product.Id, "TierPriceInserted", now, a => { a.NewTierPrice = decision.NewPrice; a.NewTierOldPrice = decision.NewOldPrice; a.ProposalId = item.ProposalId; }));
+                    if (!product.HasTierPrices)
+                        audits.Add(Audit(batch, item.Sku, product.Id, "ProductHasTierPrices", now, a => a.OldHasTierPrices = false));
+                }
+                if (live is not null)
+                    audits.Add(Audit(batch, item.Sku, product.Id, "DiscountUpdated", now, a => { a.DiscountId = live.Id; a.DiscountName = name; a.OldDiscountAmount = live.Amount; a.NewDiscountAmount = live.Amount; a.OldStartDateUtc = live.Start; a.NewStartDateUtc = live.Start; a.OldEndDateUtc = live.End; a.NewEndDateUtc = Expired(now); }));
+                regular.Add((item, product, tier, decision, live, team));
+                continue;
+            }
+            if (!raises && item.ShelfPrice is { } shelf && item.Price >= shelf)
             {
                 exceptions.Add(Exception(batch, item.Sku, "at-or-above-shelf", $"Price {item.Price:0.00} is not below the shelf price {shelf:0.00}: a discount can't raise a price; the regular price needs changing."));
                 continue;
@@ -280,11 +361,15 @@ public sealed class NopDiscountWriter
         }
         _db.PublishAudits.AddRange(audits);
         await _db.SaveChangesAsync(ct);
+        if (AfterChunkRead is not null) await AfterChunkRead(chunkNo);
 
-        // 3. Write the chunk in one short transaction: update in place, insert new (with their mapping), merge flags.
+        // 3. Write the chunk in one short transaction: update in place, insert new (with their mapping), merge flags; the
+        // regular prices, and our discounts ended where the regular price now applies.
         var writes = rows.Where(r => r.Write).ToList();
+        var tierWrites = regular.Where(r => r.Decision.Action != TierDecision.AtTier || r.Ours is not null).ToList();
         var created = new Dictionary<string, int>(StringComparer.Ordinal);
-        if (writes.Count > 0 || supersede.Count > 0)
+        var tierDone = new Dictionary<int, (string Kind, int TierId)>();
+        if (writes.Count > 0 || supersede.Count > 0 || tierWrites.Count > 0)
         {
             await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
             try
@@ -346,6 +431,20 @@ public sealed class NopDiscountWriter
                     await using var rd = await cmd.ExecuteReaderAsync(ct);
                     while (await rd.ReadAsync(ct)) created[rd.GetString(1)] = rd.GetInt32(0);
                 }
+                if (tierWrites.Count > 0)
+                {
+                    await Exec(conn, tx, NopRegularPriceWriter.WriteTableDdl, ct);
+                    var tw = NopRegularPriceWriter.WriteTable();
+                    foreach (var r in tierWrites)
+                        tw.Rows.Add(r.Item.Sku, r.Product.Id, r.Decision.Action, (object?)r.Tier?.Id ?? DBNull.Value, r.Decision.NewPrice, r.Decision.NewOldPrice,
+                            (object?)r.Tier?.Price ?? DBNull.Value, (object?)r.Tier?.OldPrice ?? DBNull.Value, (object?)r.Ours?.Id ?? DBNull.Value);
+                    await BulkCopy(conn, tx, "#tw", tw, ct);
+                    await using var cmd = new SqlCommand(NopRegularPriceWriter.WriteSql(schema), conn, tx) { CommandTimeout = 300 };
+                    cmd.Parameters.AddWithValue("@Store", layer.StoreId);
+                    cmd.Parameters.Add("@Now", SqlDbType.DateTime2).Value = Expired(now);
+                    await using var rd = await cmd.ExecuteReaderAsync(ct);
+                    while (await rd.ReadAsync(ct)) tierDone[rd.GetInt32(2)] = (rd.GetString(0), rd.GetInt32(1));
+                }
                 if (BeforeChunkCommit is not null) await BeforeChunkCommit(chunkNo);
                 await tx.CommitAsync(ct);
             }
@@ -353,23 +452,102 @@ public sealed class NopDiscountWriter
             {
                 await tx.RollbackAsync(CancellationToken.None);
                 _logger.LogWarning(ex, "Batch {Batch} chunk {Chunk} failed and was rolled back; nothing in it was written.", batch.Id, chunkNo);
-                foreach (var r in rows)
-                    exceptions.Add(Exception(batch, r.Item.Sku, "chunk-failed", $"Chunk {chunkNo} was rolled back: {ex.Message}"));
-                return new List<(PublishItem, int, string)>();
+                foreach (var sku in rows.Select(r => r.Item.Sku).Concat(regular.Select(r => r.Item.Sku)))
+                    exceptions.Add(Exception(batch, sku, "chunk-failed", $"Chunk {chunkNo} was rolled back: {ex.Message}"));
+                return (new(), new());
             }
         }
 
-        // 4. The writes happened: mark their audit rows, with the ids of the discounts just created.
-        foreach (var a in audits)
+        // 4. The writes happened: mark their audit rows, with the ids of the discounts just created. A regular price the
+        // transaction didn't write (its row changed between the read and the write) keeps its audits unapplied.
+        var regularSkus = regular.Select(r => r.Item.Sku).ToHashSet(StringComparer.Ordinal);
+        foreach (var a in audits.Where(a => !regularSkus.Contains(a.Sku)))
         {
             a.Applied = true;
             if (a.Change == "DiscountCreated" && a.DiscountName is { } n && created.TryGetValue(n, out var id)) a.DiscountId = id;
         }
         batch.Created += rows.Count(r => r.Ours is null);
-        batch.Updated += audits.Count(a => a.Change == "DiscountUpdated");
+        batch.Updated += audits.Count(a => a.Change == "DiscountUpdated" && !regularSkus.Contains(a.Sku));
         batch.Unchanged += rows.Count(r => r.Ours is not null && audits.All(a => !(a.Change == "DiscountUpdated" && a.Sku == r.Item.Sku)));
+
+        var regularDone = new List<TierWritten>();
+        foreach (var r in regular)
+        {
+            var done = tierDone.TryGetValue(r.Product.Id, out var t);
+            if (r.Decision.Action != TierDecision.AtTier && !done)
+            {
+                exceptions.Add(Exception(batch, r.Item.Sku, "changed-since-run", "The shop's regular price changed between the read and the write: left as it is."));
+                batch.ChangedSinceRun++;
+                continue;
+            }
+            foreach (var a in audits.Where(a => a.Sku == r.Item.Sku))
+            {
+                a.Applied = true;
+                if (a.Change == "TierPriceInserted") a.TierPriceId = t.TierId;
+            }
+            if (r.Decision.Action == TierDecision.Raise) batch.TierRaised++;
+            if (r.Decision.Action == TierDecision.Insert) batch.TierInserted++;
+            if (r.Ours is not null) batch.DiscountsEnded++;
+            if (r.TeamDeal is { } team && r.Decision.Action != TierDecision.AtTier)
+            {
+                batch.RaisedUnderTeamDeal++;
+                exceptions.Add(Exception(batch, r.Item.Sku, "raised-under-team-deal",
+                    $"Regular price raised to {r.Decision.NewPrice:0.00}, but discount #{team.Id} '{team.Name}' at {team.Amount:0.00} is cheaper and not ours: " +
+                    "the shopper keeps paying it until a person supersedes it."));
+            }
+            regularDone.Add(new TierWritten(r.Item, r.Product.Id, r.Decision.NewPrice));
+        }
         await _db.SaveChangesAsync(CancellationToken.None);
-        return rows.Select(r => (r.Item, r.Product.Id, r.Name)).ToList();
+        return (rows.Select(r => (r.Item, r.Product.Id, r.Name)).ToList(), regularDone);
+    }
+
+    /// <summary>What our own last applied regular-price write left on each tier row (on this shop and schema), so a row
+    /// that still holds it isn't taken for someone else's change.</summary>
+    private async Task<Dictionary<int, (decimal Price, decimal OldPrice)>> LastRegularWritesAsync(LayerRef layer, string schema,
+        IReadOnlyCollection<int> tierIds, CancellationToken ct)
+    {
+        var result = new Dictionary<int, (decimal, decimal)>();
+        if (tierIds.Count == 0) return result;
+        foreach (var ids in tierIds.Chunk(2000))
+        {
+            var rows = await _db.PublishAudits.AsNoTracking()
+                .Where(a => a.TierPriceId != null && ids.Contains(a.TierPriceId.Value) && a.Applied && a.RolledBackUtc == null
+                            && (a.Change == "TierPriceUpdated" || a.Change == "TierPriceInserted")
+                            && _db.PublishBatches.Any(b => b.Id == a.BatchId && b.Db == layer.Db && b.ShopSchema == schema))
+                .Select(a => new { a.Id, Tier = a.TierPriceId!.Value, a.NewTierPrice, a.NewTierOldPrice }).ToListAsync(ct);
+            foreach (var g in rows.GroupBy(x => x.Tier))
+            {
+                var last = g.OrderByDescending(x => x.Id).First();
+                if (last.NewTierPrice is { } p && last.NewTierOldPrice is { } o) result[g.Key] = (p, o);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Each regular price written must read back as the engine would compute it: the tier row at the new price,
+    /// and no ai-price discount of ours still under it. A cheaper team deal winning is expected (raised under a team
+    /// deal). Returns the number of mismatches (each also an exception row).</summary>
+    private static async Task<int> VerifyRegularAsync(SqlConnection conn, string schema, int storeId, IReadOnlyList<TierWritten> written, DateTime at,
+        PublishBatch batch, List<PublishException> exceptions, CancellationToken ct)
+    {
+        if (written.Count == 0) return 0;
+        var shelves = await NopRegularPriceWriter.ShelfPricesAsync(conn, null, schema, storeId, written.Select(w => w.ProductId).ToList(), at, ct);
+        var mismatches = 0;
+        foreach (var w in written)
+        {
+            var s = shelves.GetValueOrDefault(w.ProductId);
+            var regularOk = s.Regular is { } r && Math.Round(r, 2) == Math.Round(w.Regular, 2);
+            var oursUnder = s.Deal is { } d && d.StartsWith("ai-price-", StringComparison.Ordinal) && s.Shelf < w.Regular;
+            if (regularOk && !oursUnder) continue;
+            mismatches++;
+            exceptions.Add(new PublishException
+            {
+                BatchId = batch.Id, Sku = w.Item.Sku, Kind = "round-trip", CreatedUtc = at,
+                Detail = $"Regular price reads back {(s.Regular is { } x ? x.ToString("0.00") : "none")}, expected {w.Regular:0.00}" +
+                         (oursUnder ? $"; our '{s.Deal}' still sets the shelf at {s.Shelf:0.00}." : "."),
+            });
+        }
+        return mismatches;
     }
 
     /// <summary>For every published product, the lowest public amount deal live at <paramref name="at"/> must be
@@ -492,7 +670,8 @@ public sealed class NopDiscountWriter
 
     /// <summary>Restores every row the batch changed, from its audit: updated discounts get their old amount
     /// and dates back, created ones are expired (never deleted), superseded team discounts get their end date
-    /// back, product flags are restored exactly. One transaction.</summary>
+    /// back, product flags are restored exactly; a raised regular price gets its Price and OldPrice back, a tier row
+    /// this writer inserted is deleted. One transaction. Not stopped by the kill switch: it stops publishing, not undoing.</summary>
     public async Task<int> RollbackAsync(long batchId, CancellationToken ct = default)
     {
         var batch = await _db.PublishBatches.SingleAsync(b => b.Id == batchId, ct);
@@ -518,6 +697,13 @@ public sealed class NopDiscountWriter
                     p => { Dt(p, "@End", a.OldEndDateUtc); p.AddWithValue("@Id", a.DiscountId!.Value); }),
                 "ProductFlags" => ($"UPDATE [{s}].[Product] SET HasDiscountsApplied = @Flag, HasDiscountsAppliedStoreIds = @Ids WHERE Id = @Id",
                     p => { p.AddWithValue("@Flag", a.OldHasDiscountsApplied ?? false); p.AddWithValue("@Ids", (object?)a.OldStoreIds ?? DBNull.Value); p.AddWithValue("@Id", a.ProductId!.Value); }),
+                "TierPriceUpdated" => ($"UPDATE [{s}].[TierPrice] SET Price = @Price, OldPrice = @Old WHERE Id = @Id",
+                    p => { p.AddWithValue("@Price", a.OldTierPrice!.Value); p.AddWithValue("@Old", a.OldTierOldPrice!.Value); p.AddWithValue("@Id", a.TierPriceId!.Value); }),
+                // Only a row this writer inserted (the audit holds its id).
+                "TierPriceInserted" => ($"DELETE FROM [{s}].[TierPrice] WHERE Id = @Id AND ProductId = @Product",
+                    p => { p.AddWithValue("@Id", a.TierPriceId!.Value); p.AddWithValue("@Product", a.ProductId!.Value); }),
+                "ProductHasTierPrices" => ($"UPDATE [{s}].[Product] SET HasTierPrices = @Flag WHERE Id = @Id",
+                    p => { p.AddWithValue("@Flag", a.OldHasTierPrices ?? false); p.AddWithValue("@Id", a.ProductId!.Value); }),
                 _ => throw new InvalidOperationException($"Audit #{a.Id}: unknown change '{a.Change}'."),
             };
             await using var cmd = new SqlCommand(sql, conn, tx);

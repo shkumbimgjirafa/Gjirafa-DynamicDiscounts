@@ -111,16 +111,92 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         cmd.ExecuteNonQuery();
     }
 
-    private void Product(int id, string sku, bool has = false, string? storeIds = null, string schema = G50)
+    private void Product(int id, string sku, bool has = false, string? storeIds = null, string schema = G50, bool hasTier = false)
     {
         using var c = _fixture.Open();
-        using var cmd = new SqlCommand($"SET IDENTITY_INSERT [{schema}].[Product] ON; INSERT INTO [{schema}].[Product] (Id, Sku, HasTierPrices, Deleted, HasDiscountsApplied, HasDiscountsAppliedStoreIds) VALUES (@Id, @Sku, 0, 0, @Has, @Ids); SET IDENTITY_INSERT [{schema}].[Product] OFF;", c);
+        using var cmd = new SqlCommand($"SET IDENTITY_INSERT [{schema}].[Product] ON; INSERT INTO [{schema}].[Product] (Id, Sku, HasTierPrices, Deleted, HasDiscountsApplied, HasDiscountsAppliedStoreIds) VALUES (@Id, @Sku, @Tier, 0, @Has, @Ids); SET IDENTITY_INSERT [{schema}].[Product] OFF;", c);
         cmd.Parameters.AddWithValue("@Id", id);
         cmd.Parameters.AddWithValue("@Sku", sku);
+        cmd.Parameters.AddWithValue("@Tier", hasTier);
         cmd.Parameters.AddWithValue("@Has", has);
         cmd.Parameters.AddWithValue("@Ids", (object?)storeIds ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
+
+    /// <summary>A regular-price row (the store's TierPrice) as the live shop keeps it: no role, quantity 0, no dates.</summary>
+    private int TierRow(int productId, decimal price, decimal oldPrice, string schema = G50, int store = 2)
+    {
+        using var c = _fixture.Open();
+        using var cmd = new SqlCommand($"""
+            INSERT INTO [{schema}].[TierPrice] (CustomerRoleId, ProductId, StoreId, Quantity, Price, StartDateTimeUtc, EndDateTimeUtc, OldPrice, ProfitMargin)
+            OUTPUT inserted.Id VALUES (NULL, @P, @Store, 0, @Price, NULL, NULL, @Old, 1.1)
+            """, c);
+        cmd.Parameters.AddWithValue("@P", productId);
+        cmd.Parameters.AddWithValue("@Store", store);
+        cmd.Parameters.AddWithValue("@Price", price);
+        cmd.Parameters.AddWithValue("@Old", oldPrice);
+        return (int)cmd.ExecuteScalar()!;
+    }
+
+    private (decimal Price, decimal Old) Tier(int id, string schema = G50)
+    {
+        using var c = _fixture.Open();
+        using var cmd = new SqlCommand($"SELECT Price, OldPrice FROM [{schema}].[TierPrice] WHERE Id = {id}", c);
+        using var r = cmd.ExecuteReader();
+        r.Read();
+        return (r.GetDecimal(0), r.GetDecimal(1));
+    }
+
+    /// <summary>The whole row as SQL Server renders it (every column, NULLs included): equal strings = the same values.</summary>
+    private string? RowJson(int tierId, string schema = G50)
+    {
+        using var c = _fixture.Open();
+        using var cmd = new SqlCommand($"SELECT * FROM [{schema}].[TierPrice] WHERE Id = {tierId} FOR JSON PATH, INCLUDE_NULL_VALUES", c);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    /// <summary>The shelf price as the engine's own source query computes it (SourceQueries: #tier the newest row of the
+    /// store, #disc the lowest live public deal, then the CurrentPrice case), read on the sandbox at the test's clock.</summary>
+    private decimal? EngineShelf(int productId, string schema = G50, int store = 2)
+    {
+        using var c = _fixture.Open();
+        using var cmd = new SqlCommand($"""
+            SELECT t.ProductId, t.Price, t.OldPrice INTO #tier FROM (
+                SELECT tp.ProductId, tp.Price, tp.OldPrice, ROW_NUMBER() OVER (PARTITION BY tp.ProductId ORDER BY tp.Id DESC) AS rn
+                FROM [{schema}].[TierPrice] tp WHERE tp.StoreId = @StoreId AND tp.ProductId = @P) t
+            WHERE t.rn = 1;
+            SELECT x.ProductId, x.DiscountedPrice INTO #disc FROM (
+                SELECT dap.Product_Id AS ProductId,
+                       IIF(d.UsePercentage = 1, ISNULL(NULLIF(t.OldPrice, 0), t.Price) * (1 - d.DiscountPercentage / 100.0), d.DiscountAmount) AS DiscountedPrice,
+                       ROW_NUMBER() OVER (PARTITION BY dap.Product_Id ORDER BY IIF(d.UsePercentage = 1,
+                           ISNULL(NULLIF(t.OldPrice, 0), t.Price) * (1 - d.DiscountPercentage / 100.0), d.DiscountAmount) ASC) AS rn
+                FROM [{schema}].[Discount_AppliedToProducts] dap
+                INNER JOIN [{schema}].[Discount] d ON d.Id = dap.Discount_Id
+                INNER JOIN #tier t ON t.ProductId = dap.Product_Id
+                WHERE d.StoreId = @StoreId AND d.RequiresCouponCode = 0 AND d.DiscountApplyTypeId = 2
+                  AND @now BETWEEN ISNULL(d.StartDateUtc, '1900') AND ISNULL(d.EndDateUtc, '2999')) x
+            WHERE x.rn = 1;
+            SELECT CASE WHEN dx.DiscountedPrice IS NULL THEN t.Price WHEN t.Price IS NULL THEN dx.DiscountedPrice
+                        WHEN dx.DiscountedPrice < t.Price THEN dx.DiscountedPrice ELSE t.Price END
+            FROM #tier t LEFT JOIN #disc dx ON dx.ProductId = t.ProductId;
+            """, c);
+        cmd.Parameters.AddWithValue("@StoreId", store);
+        cmd.Parameters.AddWithValue("@P", productId);
+        cmd.Parameters.Add("@now", System.Data.SqlDbType.DateTime2).Value = _clock.Now.UtcDateTime;
+        var v = cmd.ExecuteScalar();
+        return v is null or DBNull ? null : Convert.ToDecimal(v);
+    }
+
+    private bool HasTierPrices(int productId, string schema = G50)
+    {
+        using var c = _fixture.Open();
+        return (bool)new SqlCommand($"SELECT HasTierPrices FROM [{schema}].[Product] WHERE Id = {productId}", c).ExecuteScalar()!;
+    }
+
+    /// <summary>A run's prices with what it saw (shelf, reference) and a generous ceiling, raises on.</summary>
+    private static PublishRequest Raises(int layer, params (string Sku, decimal Price, decimal RunCurrent, decimal RunOld)[] items) =>
+        new(layer, items.Select(i => new PublishItem(i.Sku, i.Price) { RunCurrentPrice = i.RunCurrent, RunOldPrice = i.RunOld, Ceiling = 1000m }).ToList())
+        { RaiseRegularPrices = true };
 
     /// <summary>A public amount deal the team made (not ours), mapped to the given products.</summary>
     private int TeamDeal(string name, decimal amount, int[] productIds, int store = 2, DateTime? end = null, string schema = G50)
@@ -538,5 +614,203 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         Assert.Equal(("RolledBack", 1), (outcome.Status, outcome.RoundTripMismatches));
         Assert.Contains(outcome.Exceptions, e => e.Kind == "round-trip" && e.Sku == "SKU-A" && e.Detail.Contains("late-push"));
         Assert.All(Discounts().Where(d => d.Name.StartsWith("ai-")), d => Assert.Equal(Now.AddSeconds(-1), d.End));   // ours expired again
+    }
+
+    // ---- regular prices: raises (prompt 07) ---------------------------------------------------------------
+
+    [LocalDbTheory]
+    [InlineData(4, G50)]    // GjirafaEcommerce: TierPrice.Price decimal(18,2)
+    [InlineData(1, Mall)]   // GjirafaMall: decimal(18,4)
+    public async Task A_raise_writes_the_regular_price_the_engine_reads_and_rollback_restores_the_row_exactly(int layer, string schema)
+    {
+        Product(201, "RAISE-A", schema: schema, hasTier: true);
+        Product(202, "RAISE-B", schema: schema, hasTier: true);
+        var a = TierRow(201, 40.00m, 50.00m, schema);   // a strike-through above the new price: kept
+        var b = TierRow(202, 40.00m, 44.00m, schema);   // the new price above it: lifted to the new price, no strike-through
+        var before = (RowJson(a, schema), RowJson(b, schema));
+
+        var outcome = await Writer().PublishAsync(Raises(layer, ("RAISE-A", 45.50m, 40m, 50m), ("RAISE-B", 47.99m, 40m, 44m)) with { EngineRunId = 1105 });
+
+        Assert.Equal(("Published", 2, 0, 0, 2, 0), (outcome.Status, outcome.TierRaised, outcome.Created, outcome.RoundTripMismatches, outcome.RoundTripChecked, outcome.Skipped));
+        Assert.Equal((45.50m, 50.00m), Tier(a, schema));
+        Assert.Equal((47.99m, 47.99m), Tier(b, schema));
+        Assert.Equal(45.50m, EngineShelf(201, schema));
+        Assert.Equal(47.99m, EngineShelf(202, schema));
+        Assert.Empty(Discounts(schema));
+        var audit = await _db.PublishAudits.SingleAsync(x => x.Sku == "RAISE-A");
+        Assert.Equal(("TierPriceUpdated", a, 40.00m, 50.00m, 45.50m, 50.00m, true),
+            (audit.Change, audit.TierPriceId!.Value, audit.OldTierPrice!.Value, audit.OldTierOldPrice!.Value, audit.NewTierPrice!.Value, audit.NewTierOldPrice!.Value, audit.Applied));
+
+        Assert.Equal(2, await Writer().RollbackAsync(outcome.BatchId));
+        Assert.Equal(before, (RowJson(a, schema), RowJson(b, schema)));
+        Assert.Equal(40.00m, EngineShelf(201, schema));
+    }
+
+    [LocalDbFact]
+    public async Task One_rule_routes_each_price_below_the_regular_price_a_discount_at_or_above_it_the_regular_price()
+    {
+        Product(201, "CUT", hasTier: true);
+        Product(202, "RAISE", hasTier: true);
+        TierRow(201, 40m, 0m);
+        var raised = TierRow(202, 40m, 0m);
+
+        var outcome = await Writer().PublishAsync(Raises(4, ("CUT", 35m, 40m, 40m), ("RAISE", 42.50m, 40m, 40m)));
+
+        Assert.Equal((1, 1, 0), (outcome.Created, outcome.TierRaised, outcome.Skipped));
+        Assert.Equal("ai-price-4-CUT", Assert.Single(Discounts()).Name);          // a SKU is written by one writer only
+        Assert.Equal((42.50m, 0m), Tier(raised));                                // OldPrice 0 stays 0: no invented reference price
+        Assert.Equal(35m, EngineShelf(201));
+        Assert.Equal(42.50m, EngineShelf(202));
+    }
+
+    [LocalDbFact]
+    public async Task A_raise_ends_our_own_discount_in_the_same_transaction_and_rollback_brings_it_back()
+    {
+        Product(201, "SKU-A", hasTier: true);
+        var tier = TierRow(201, 40m, 0m);
+        await Writer().PublishAsync(Raises(4, ("SKU-A", 35m, 40m, 40m)));         // yesterday's cut: our discount at 35
+        Assert.Equal(35m, EngineShelf(201));
+
+        var outcome = await Writer().PublishAsync(Raises(4, ("SKU-A", 44.50m, 35m, 40m)));
+
+        Assert.Equal((1, 1, 0), (outcome.TierRaised, outcome.DiscountsEnded, outcome.RoundTripMismatches));
+        Assert.Equal(Now.AddSeconds(-1), Assert.Single(Discounts()).End);          // ended, never deleted
+        Assert.Equal(44.50m, EngineShelf(201));
+
+        await Writer().RollbackAsync(outcome.BatchId);
+        Assert.Equal((40m, 0m), Tier(tier));
+        Assert.Equal(35m, EngineShelf(201));
+    }
+
+    [LocalDbFact]
+    public async Task A_cheaper_team_deal_is_left_alone_and_the_raise_counted_under_it()
+    {
+        Product(201, "SKU-A", hasTier: true);
+        var tier = TierRow(201, 40m, 0m);
+        var team = TeamDeal("team-oct-disc-SKU-A", 30m, new[] { 201 });
+
+        var outcome = await Writer().PublishAsync(Raises(4, ("SKU-A", 45m, 30m, 40m)));
+
+        Assert.Equal((1, 1, 0), (outcome.TierRaised, outcome.RaisedUnderTeamDeal, outcome.RoundTripMismatches));
+        Assert.Equal((45m, 0m), Tier(tier));
+        var deal = Assert.Single(Discounts());
+        Assert.Equal((team, 30m, Now.AddDays(20)), (deal.Id, deal.Amount, deal.End!.Value));   // untouched
+        Assert.Equal(30m, EngineShelf(201));                                                   // the shopper still pays the deal
+        var e = Assert.Single(outcome.Exceptions);
+        Assert.Equal("raised-under-team-deal", e.Kind);
+        Assert.Contains("team-oct-disc-SKU-A", e.Detail);
+    }
+
+    [LocalDbFact]
+    public async Task A_store_without_a_regular_price_gets_one_inserted_and_rollback_deletes_only_that_row()
+    {
+        Product(201, "SKU-A");
+        var otherStore = TierRow(201, 60m, 0m, store: 3);
+
+        var outcome = await Writer().PublishAsync(Raises(4, ("SKU-A", 49.50m, 49.50m, 49.50m)));
+
+        Assert.Equal((1, 0), (outcome.TierInserted, outcome.RoundTripMismatches));
+        Assert.True(HasTierPrices(201));
+        var audit = await _db.PublishAudits.SingleAsync(a => a.Change == "TierPriceInserted");
+        Assert.Equal((49.50m, 0m), Tier(audit.TierPriceId!.Value));
+        using (var c = _fixture.Open())
+        {
+            using var cmd = new SqlCommand($"SELECT CustomerRoleId, Quantity, StartDateTimeUtc, EndDateTimeUtc, ProfitMargin FROM [{G50}].[TierPrice] WHERE Id = {audit.TierPriceId}", c);
+            using var r = cmd.ExecuteReader();
+            r.Read();
+            Assert.Equal((true, 0, true, true, true), (r.IsDBNull(0), r.GetInt32(1), r.IsDBNull(2), r.IsDBNull(3), r.IsDBNull(4)));
+        }
+        Assert.Equal(49.50m, EngineShelf(201));
+
+        await Writer().RollbackAsync(outcome.BatchId);
+        Assert.Null(EngineShelf(201));
+        Assert.False(HasTierPrices(201));
+        Assert.Equal((60m, 0m), Tier(otherStore, G50));                           // another store's row is never touched
+    }
+
+    [LocalDbFact]
+    public async Task A_regular_price_changed_since_the_run_is_left_alone_but_our_own_last_write_is_not_a_change()
+    {
+        Product(201, "STALE", hasTier: true);
+        Product(202, "OURS", hasTier: true);
+        var stale = TierRow(201, 41m, 0m);                                       // the team moved it after the run saw 40
+        var ours = TierRow(202, 40m, 0m);
+        await Writer().PublishAsync(Raises(4, ("OURS", 44m, 40m, 40m)));
+
+        // The next run still saw 40 (the engine reads the shop, not this sandbox); the row holds our own 44.
+        var outcome = await Writer().PublishAsync(Raises(4, ("STALE", 45m, 40m, 40m), ("OURS", 46m, 40m, 40m)));
+
+        Assert.Equal((1, 1, 1), (outcome.TierRaised, outcome.ChangedSinceRun, outcome.Skipped));
+        Assert.Equal("changed-since-run", Assert.Single(outcome.Exceptions).Kind);
+        Assert.Equal((41m, 0m), Tier(stale));
+        Assert.Equal((46m, 0m), Tier(ours));
+    }
+
+    [LocalDbFact]
+    public async Task A_regular_price_changed_between_the_read_and_the_write_is_never_overwritten()
+    {
+        Product(201, "SKU-A", hasTier: true);
+        var tier = TierRow(201, 40m, 0m);
+        var writer = Writer();
+        writer.AfterChunkRead = _ =>
+        {
+            using var c = _fixture.Open();
+            Exec(c, $"UPDATE [{G50}].[TierPrice] SET Price = 39 WHERE Id = {tier}");
+            return Task.CompletedTask;
+        };
+
+        var outcome = await writer.PublishAsync(Raises(4, ("SKU-A", 45m, 40m, 40m)));
+
+        Assert.Equal((0, 1), (outcome.TierRaised, outcome.ChangedSinceRun));
+        Assert.Equal((39m, 0m), Tier(tier));
+        Assert.All(await _db.PublishAudits.ToListAsync(), a => Assert.False(a.Applied));
+    }
+
+    [LocalDbFact]
+    public async Task A_raise_above_the_ceiling_is_refused_even_if_the_engine_passed_it()
+    {
+        Product(201, "SKU-A", hasTier: true);
+        var tier = TierRow(201, 40m, 0m);
+        var request = new PublishRequest(4, new[]
+        {
+            new PublishItem("SKU-A", 45m) { RunCurrentPrice = 40m, RunOldPrice = 40m, Ceiling = 44.99m },
+        }) { RaiseRegularPrices = true };
+
+        var outcome = await Writer().PublishAsync(request);
+
+        Assert.Equal((0, 1), (outcome.TierRaised, outcome.Skipped));
+        var e = Assert.Single(outcome.Exceptions);
+        Assert.Equal("above-ceiling", e.Kind);
+        Assert.Contains("SKU-A", e.Sku);
+        Assert.Equal((40m, 0m), Tier(tier));
+    }
+
+    [LocalDbFact]
+    public async Task The_kill_switch_stops_raises_too_and_a_persons_rollback_still_runs()
+    {
+        Product(201, "SKU-A", hasTier: true);
+        var tier = TierRow(201, 40m, 0m);
+
+        var stopped = await Writer(killSwitch: new PulledSwitch()).PublishAsync(Raises(4, ("SKU-A", 45m, 40m, 40m)));
+        Assert.Equal(("Stopped", 0), (stopped.Status, stopped.TierRaised));
+        Assert.Equal((40m, 0m), Tier(tier));
+        Assert.Empty(await _db.PublishAudits.ToListAsync());
+
+        var published = await Writer().PublishAsync(Raises(4, ("SKU-A", 45m, 40m, 40m)));
+        Assert.Equal((45m, 0m), Tier(tier));
+        await Writer(killSwitch: new PulledSwitch()).RollbackAsync(published.BatchId);
+        Assert.Equal((40m, 0m), Tier(tier));
+    }
+
+    [LocalDbFact]
+    public async Task Without_raises_on_a_price_above_the_shelf_is_still_refused_as_before()
+    {
+        Product(201, "SKU-A", hasTier: true);
+        var tier = TierRow(201, 40m, 0m);
+
+        var outcome = await Writer().PublishAsync(new PublishRequest(4, new[] { new PublishItem("SKU-A", 45m, ShelfPrice: 40m) }));   // the cost watcher's shape
+
+        Assert.Equal("at-or-above-shelf", Assert.Single(outcome.Exceptions).Kind);
+        Assert.Equal((40m, 0m), Tier(tier));
     }
 }

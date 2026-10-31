@@ -11,6 +11,15 @@ public sealed class LocalDbFactAttribute : FactAttribute
     }
 }
 
+/// <summary>The theory form of <see cref="LocalDbFactAttribute"/>.</summary>
+public sealed class LocalDbTheoryAttribute : TheoryAttribute
+{
+    public LocalDbTheoryAttribute()
+    {
+        if (!LocalDb.Available) Skip = "SQL Server LocalDB is not available here.";
+    }
+}
+
 public static class LocalDb
 {
     public const string Server = "Server=(localdb)\\mssqllocaldb;Trusted_Connection=True;TrustServerCertificate=True;";

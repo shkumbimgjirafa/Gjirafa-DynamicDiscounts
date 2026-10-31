@@ -1528,6 +1528,14 @@ namespace PricingTool.Agent.Storage.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<decimal?>("NewTierOldPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("NewTierPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<decimal?>("OldDiscountAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -1538,6 +1546,9 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<bool?>("OldHasDiscountsApplied")
                         .HasColumnType("bit");
 
+                    b.Property<bool?>("OldHasTierPrices")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("OldStartDateUtc")
                         .HasColumnType("datetime2");
 
@@ -1545,8 +1556,19 @@ namespace PricingTool.Agent.Storage.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<decimal?>("OldTierOldPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("OldTierPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<int?>("ProductId")
                         .HasColumnType("int");
+
+                    b.Property<long?>("ProposalId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime?>("RolledBackUtc")
                         .HasColumnType("datetime2");
@@ -1556,9 +1578,15 @@ namespace PricingTool.Agent.Storage.Migrations
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");
 
+                    b.Property<int?>("TierPriceId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BatchId");
+
+                    b.HasIndex("TierPriceId")
+                        .HasFilter("[TierPriceId] IS NOT NULL");
 
                     b.ToTable("PublishAudit", "ai");
                 });
@@ -1575,6 +1603,9 @@ namespace PricingTool.Agent.Storage.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("ChangedSinceRun")
+                        .HasColumnType("int");
+
                     b.Property<int>("Created")
                         .HasColumnType("int");
 
@@ -1582,6 +1613,9 @@ namespace PricingTool.Agent.Storage.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("DiscountsEnded")
+                        .HasColumnType("int");
 
                     b.Property<long?>("EngineRunId")
                         .HasColumnType("bigint");
@@ -1600,6 +1634,9 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<string>("Note")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("RaisedUnderTeamDeal")
+                        .HasColumnType("int");
 
                     b.Property<int>("Requested")
                         .HasColumnType("int");
@@ -1636,6 +1673,12 @@ namespace PricingTool.Agent.Storage.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("TierInserted")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TierRaised")
+                        .HasColumnType("int");
 
                     b.Property<int>("Unchanged")
                         .HasColumnType("int");

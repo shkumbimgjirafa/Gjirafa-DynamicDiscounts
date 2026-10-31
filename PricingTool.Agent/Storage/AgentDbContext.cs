@@ -417,7 +417,12 @@ public class AgentDbContext : DbContext
             e.Property(x => x.NewDiscountAmount).HasPrecision(18, 4);
             e.Property(x => x.OldStoreIds).HasMaxLength(40);
             e.Property(x => x.NewStoreIds).HasMaxLength(40);
+            e.Property(x => x.OldTierPrice).HasPrecision(18, 4);
+            e.Property(x => x.OldTierOldPrice).HasPrecision(18, 4);
+            e.Property(x => x.NewTierPrice).HasPrecision(18, 4);
+            e.Property(x => x.NewTierOldPrice).HasPrecision(18, 4);
             e.HasIndex(x => x.BatchId);
+            e.HasIndex(x => x.TierPriceId).HasFilter("[TierPriceId] IS NOT NULL");
         });
 
         builder.Entity<PublishException>(e =>
