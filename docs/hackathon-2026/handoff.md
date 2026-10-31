@@ -19,3 +19,5 @@
 #done prompt 09 part A (the cost watcher's first real cost refresh) · 2026-10-31 08:24 · commits cf189b4..cf189b4 · not met: none (the watcher's rollback side stays unmeasured; nothing is live)
 
 #done prompt 09 part B (demo dry run 2, Gjirafa50) · 2026-10-31 08:37 · commits 6d5e93b..6d5e93b · not met: the declaration slide and the backup video are the user's (shot list in demo-backup-video.md); a live campaign brief wasn't re-run (74 s, 5 calls; unchanged since dry run 1)
+
+#done prompt 10 part A (what holds the shelf: own pushes, app-only deals, team deals) · 2026-10-31 08:56 · commits 677d007..677d007 · not met: the run checker's notes don't count own pushes and team deals apart (it runs before the publish and sees no deals; the inbox, the Run week summary and the weekly report do); the measurement used publish-checked from the CLI, not a Run week, as asked; the engine still takes an app-only deal as the current price (a GO-LIVE question for the team)
