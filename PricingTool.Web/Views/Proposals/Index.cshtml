@@ -44,7 +44,7 @@
 }
 
 <div class="d-flex justify-content-between align-items-center">
-    <h1 class="h3">Proposals Review</h1>
+    <h1 class="h3">Proposals</h1>
     @if (Model.Run is not null)
     {
         <div class="text-muted">
@@ -56,7 +56,7 @@
 
 @if (Model.Run is null)
 {
-    <div class="alert alert-info mt-3">No pricing runs yet. Go to <a asp-controller="Schedule" asp-action="Index">Schedule</a> and hit <em>Run now</em>.</div>
+    <div class="alert alert-info mt-3">No pricing runs yet. Run week on the <a asp-controller="Run" asp-action="Index">Run</a> tab prices the layer.</div>
     return;
 }
 
@@ -139,23 +139,13 @@
 
     @if (isManager)
     {
-        <div class="mb-2 d-flex gap-2">
-            <button type="submit" class="btn btn-sm btn-success" formaction="@Url.Action("Approve")">Approve selected</button>
-            <button type="submit" class="btn btn-sm btn-outline-success" formaction="@Url.Action("ApproveAll")"
-                    onclick="return confirm('Approve ALL @Model.TotalCount proposals matching the current filter?');">Approve all (filtered)</button>
-            <button type="submit" class="btn btn-sm btn-outline-danger" formaction="@Url.Action("Reject")">Reject selected</button>
-            <span class="ms-auto small text-muted align-self-center">The agents publish through Run week (Today tab); this is the manual path.</span>
-            <button type="submit" class="btn btn-sm btn-outline-secondary" formaction="@Url.Action("Push")"
-                    onclick="return confirm('Export the @Model.ApprovedCount approved proposals of run #@Model.Run.Id through the manual push path (a file a person pushes)?');">
-                Export @Model.ApprovedCount approved (manual)
-            </button>
-        </div>
+        <p class="small text-muted mb-2">Click a proposed price to set it yourself. The agents publish what you set with the next Run week
+            (the run checker's limits still apply); publishing it at once is the next step of the build.</p>
     }
 
     <table class="table table-sm table-hover align-middle proposals-grid">
         <thead class="table-light">
             <tr>
-                @if (isManager) { <th><input type="checkbox" id="checkAll" /></th> }
                 @{ SortHead("productid", "Product ID"); }
                 @{ SortHead("sku", "SKU"); }
                 @{ SortHead("name", "Product name"); }
@@ -180,7 +170,6 @@
             </tr>
             @* Excel-style per-column filter row. Inputs bind to #filterForm via the form= attribute. *@
             <tr class="col-filter">
-                @if (isManager) { <th></th> }
                 <th></th>
                 <th><input type="search" form="filterForm" name="Sku" value="@f.Sku" class="form-control form-control-sm cf" placeholder="SKU…" /></th>
                 <th><input type="search" form="filterForm" name="ProductName" value="@f.ProductName" class="form-control form-control-sm cf" placeholder="name…" /></th>
@@ -299,15 +288,6 @@
                 p.Pptcv, p.CurrentPrice, band?.MarginFloorPct, p.GuardrailFlags, p.ReasonCodes);
             var canEdit = isManager && (p.Status == ProposalStatus.Pending || p.Status == ProposalStatus.Approved);
             <tr class="@(large ? "table-warning" : "")">
-                @if (isManager)
-                {
-                    <td>
-                        @if (p.Status == ProposalStatus.Pending || p.Status == ProposalStatus.Approved)
-                        {
-                            <input type="checkbox" name="ids" value="@p.Id" class="rowCheck" data-large="@large.ToString().ToLower()" />
-                        }
-                    </td>
-                }
                 <td class="text-muted">@(p.ProductId?.ToString() ?? "–")</td>
                 <td>
                     <a asp-controller="Sku" asp-action="Details" asp-route-id="@p.Sku">@p.Sku</a>
@@ -389,7 +369,7 @@
         }
         @if (!Model.Proposals.Any())
         {
-            <tr><td colspan="@(isManager ? 22 : 21)" class="text-muted">Nothing matches the current filter.</td></tr>
+            <tr><td colspan="21" class="text-muted">Nothing matches the current filter.</td></tr>
         }
         </tbody>
     </table>

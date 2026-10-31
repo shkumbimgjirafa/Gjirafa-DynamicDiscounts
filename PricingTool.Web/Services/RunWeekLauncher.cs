@@ -3,7 +3,7 @@ using PricingTool.NopIntegration;
 namespace PricingTool.Web.Services;
 
 /// <summary>
-/// Starts "Run week" (<see cref="RunWeekLoop"/>) in the background for one layer and returns at once; the Agent tab shows
+/// Starts "Run week" (<see cref="RunWeekLoop"/>) in the background for one layer and returns at once; the Run tab shows
 /// its timeline as it goes. One at a time per process: the loop runs Alpha, the engine and the checker, so a second
 /// press waits for the first to finish.
 /// </summary>

@@ -22,6 +22,6 @@ public class LayerController : Controller
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             return Redirect(returnUrl);
-        return RedirectToAction("Index", "Agent");
+        return RedirectToAction("Index", "Run");
     }
 }

@@ -37,55 +37,8 @@ public class AgentController : Controller
         _publisher = publisher.Value;
     }
 
-    public async Task<IActionResult> Index(long? conversation = null)
-    {
-        var layers = await _db.Layers.AsNoTracking().Where(l => l.IsActive).OrderBy(l => l.SortOrder).ThenBy(l => l.Id).ToListAsync();
-        var autonomy = new List<LayerAutonomy>();
-        foreach (var l in layers) autonomy.Add(new LayerAutonomy(l.Id, l.DisplayName, await _modes.GetAsync(l.Id)));
-        var inbox = await _inbox.LoadAsync();
-        var passes = await _ai.AgentPasses.AsNoTracking().Where(p => !p.IsTest).OrderByDescending(p => p.Id).Take(8).ToListAsync();
-        var passIds = passes.Select(p => p.Id).ToList();
-        var changed = await _ai.AgentDecisions.AsNoTracking()
-            .Where(d => passIds.Contains(d.PassId) && d.Status == DecisionStatus.Applied && d.Action != "keep")
-            .GroupBy(d => d.PassId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count);
-        var since = DateTime.UtcNow.AddDays(-7);
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var chatId = conversation ?? await _ai.ChatMessages.MaxAsync(m => (long?)m.ConversationId);
-        return View(new AgentStatusViewModel
-        {
-            KillSwitch = await _killSwitch.GetAsync(),
-            Layers = autonomy,
-            Publisher = _publisher,
-            Waiting = inbox.WaitingCount,
-            Inbox = inbox,
-            RecentPasses = passes,
-            Changed = changed,
-            LayerNames = inbox.LayerNames,
-            Week = await WeekAsync(since),
-            Feed = await FeedAsync(since),
-            ComingUp = await ComingUpAsync(today),
-            Queries = await _ai.AgentQueryLog.AsNoTracking().OrderByDescending(q => q.Id).Take(25).ToListAsync(),
-            Lessons = await _ai.AgentLessons.AsNoTracking().Where(l => l.RetiredUtc == null).OrderByDescending(l => l.Id).ToListAsync(),
-            ConversationId = chatId,
-            Chat = chatId is { } cid ? await _ai.ChatMessages.AsNoTracking().Where(m => m.ConversationId == cid).OrderBy(m => m.Id).ToListAsync() : Array.Empty<ChatMessage>(),
-            Conversations = (await _ai.ChatMessages.AsNoTracking().GroupBy(m => m.ConversationId)
-                    .Select(g => new { g.Key, Started = g.Min(m => m.CreatedUtc), FirstId = g.Min(m => m.Id) }).OrderByDescending(x => x.Key).Take(8).ToListAsync())
-                .Select(x => (x.Key, x.Started, _ai.ChatMessages.AsNoTracking().Where(m => m.Id == x.FirstId).Select(m => m.Text).Single())).ToList(),
-            Rules = await _ai.ChatRules.AsNoTracking().Where(r => r.RemovedUtc == null).OrderBy(r => r.Id).ToListAsync(),
-            RunWeeks = await RunWeeksAsync(),
-            RunWeekRunning = HttpContext.RequestServices.GetRequiredService<Services.RunWeekLauncher>().IsRunning,
-            RunWeekLayers = RunWeekLayers,
-        });
-    }
-
-    private async Task<IReadOnlyList<(PricingTool.Agent.Storage.RunWeek, IReadOnlyList<RunWeekStep>)>> RunWeeksAsync()
-    {
-        var latest = (await _ai.RunWeeks.AsNoTracking().OrderByDescending(w => w.Id).Take(20).ToListAsync())
-            .GroupBy(w => w.LayerId).Select(g => g.First()).OrderByDescending(w => w.Id).ToList();
-        var ids = latest.Select(w => w.Id).ToList();
-        var steps = await _ai.RunWeekSteps.AsNoTracking().Where(s => ids.Contains(s.RunWeekId)).OrderBy(s => s.Id).ToListAsync();
-        return latest.Select(w => (w, (IReadOnlyList<RunWeekStep>)steps.Where(s => s.RunWeekId == w.Id).ToList())).ToList();
-    }
+    /// <summary>The old Agent page: its parts are on the Run tab (the run, Run week, the switches) and the Chat tab.</summary>
+    public IActionResult Index() => RedirectToAction(nameof(RunController.Index), "Run");
 
     /// <summary>"Run week" for one layer: Alpha's pass → engine run → run checker → sandbox publish → read-back, in the
     /// background (<see cref="PricingTool.NopIntegration.RunWeekLoop"/>). Audited; the kill switch stops it.</summary>
@@ -98,13 +51,13 @@ public class AgentController : Controller
         if (!RunWeekLayers.Contains(layerId))
         {
             TempData["Error"] = $"Run week runs only the daily cycle's layers ({string.Join(", ", RunWeekLayers)}): the others have no data loaded here.";
-            return RedirectToAction(nameof(Index), null, "run-week");
+            return RedirectToAction(nameof(RunController.Index), "Run", null, "run-week");
         }
         var id = await launcher.TryStartAsync(layerId, Who);
         if (id is null)
         {
             TempData["Error"] = "A Run week is already running: wait for it to finish.";
-            return RedirectToAction(nameof(Index), null, "run-week");
+            return RedirectToAction(nameof(RunController.Index), "Run", null, "run-week");
         }
         _db.AuditLog.Add(new PricingTool.Data.Entities.AuditLogEntry
         {
@@ -113,19 +66,22 @@ public class AgentController : Controller
         });
         await _db.SaveChangesAsync();
         TempData["Message"] = $"Run week #{id} started for layer {layerId}: Alpha, the engine, the run checker, then the sandbox publish. The timeline below updates as it goes.";
-        return RedirectToAction(nameof(Index), null, "run-week");
+        return RedirectToAction(nameof(RunController.Index), "Run", null, "run-week");
     }
 
-    /// <summary>A message to the agents: Nova answers, "@alpha" asks Alpha. Takes up to a minute or two (the agents read data).</summary>
+    /// <summary>A message to the agents: Nova answers, "@alpha" asks Alpha. The turn runs in the background (the agents read
+    /// data first, up to a minute or two); the Chat tab shows the message at once and the answer when it lands.</summary>
     [HttpPost]
     [Authorize(Roles = "Manager")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Chat(long? conversationId, string text, [FromServices] PricingTool.Agent.Chat.AgentChat chat)
+    public async Task<IActionResult> Chat(long? conversationId, string text, [FromServices] Services.ChatTurnLauncher launcher)
     {
-        if (string.IsNullOrWhiteSpace(text)) return RedirectToAction(nameof(Index), new { conversation = conversationId });
-        var turn = await chat.AskAsync(conversationId is > 0 ? conversationId : null, text, Who, HttpContext.RequestAborted);
-        if (turn.Error is not null) TempData["Error"] = turn.Error;
-        return Redirect(Url.Action(nameof(Index), new { conversation = turn.ConversationId }) + "#chat");
+        if (string.IsNullOrWhiteSpace(text)) return RedirectToAction(nameof(ChatController.Index), "Chat");
+        // One continuous thread: a message continues the newest conversation unless the page says otherwise.
+        var conversation = conversationId is > 0 ? conversationId : await _ai.ChatMessages.MaxAsync(m => (long?)m.ConversationId);
+        if (!launcher.TryStart(conversation, text, Who))
+            TempData["Error"] = "The agents are still answering the last message: send this one when that answer lands.";
+        return RedirectToAction(nameof(ChatController.Index), "Chat", null, "bottom");
     }
 
     [HttpPost]
@@ -147,125 +103,7 @@ public class AgentController : Controller
             await _db.SaveChangesAsync();
             TempData["Message"] = $"Rule #{rule.Id} removed: campaign planning no longer applies it.";
         }
-        return Redirect(Url.Action(nameof(Index)) + "#rules");
-    }
-
-    private async Task<WeekNumbers> WeekAsync(DateTime since)
-    {
-        var real = _ai.AgentPasses.Where(p => !p.IsTest).Select(p => p.Id);
-        var decisions = await _ai.AgentDecisions.AsNoTracking().Where(d => d.CreatedUtc >= since && real.Contains(d.PassId) && d.Action != "keep" && d.Source != "CostWatcher")
-            .GroupBy(d => d.Status).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count);
-        // The cost watcher holds a SKU again at each cost move: count its holds once per layer and SKU, like the inbox.
-        var costHeld = (await _ai.AgentDecisions.AsNoTracking()
-                .Where(d => d.CreatedUtc >= since && real.Contains(d.PassId) && d.Source == "CostWatcher" && d.Status == DecisionStatus.Held).ToListAsync())
-            .Select(d => (d.LayerId, PricingTool.Agent.Operations.CostHoldGroup.SkuOf(d))).Distinct().Count();
-        var batches = await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since && b.Status == "Published").ToListAsync();
-        var calls = await _ai.AiCallLog.AsNoTracking().Where(c => c.CalledAtUtc >= since).ToListAsync();
-        var ledger = await _ai.MoneyLedger.AsNoTracking().Where(m => m.Measured30Eur != null).ToListAsync();
-        return new WeekNumbers(decisions.GetValueOrDefault(DecisionStatus.Applied), decisions.GetValueOrDefault(DecisionStatus.Held), batches.Count,
-            batches.Sum(b => b.Created + b.Updated), calls.Count, calls.Sum(c => c.CostUsd ?? 0m),
-            ledger.Count > 0 ? ledger.Sum(m => m.Measured30Eur!.Value) : null, await _ai.MoneyLedger.CountAsync(), costHeld);
-    }
-
-    /// <summary>"What they did": both agents' decisions and passes, the cost watcher, the campaign threads and the publishes, newest first.</summary>
-    private async Task<IReadOnlyList<FeedItem>> FeedAsync(DateTime since)
-    {
-        var feed = new List<FeedItem>();
-        var real = await _ai.AgentPasses.AsNoTracking().Where(p => !p.IsTest && p.StartedUtc >= since).ToListAsync();
-        var realIds = real.Select(p => p.Id).ToList();
-        foreach (var p in real.Where(p => p.Source != "CostWatcher"))
-            feed.Add(new FeedItem(p.StartedUtc, p.Source, p.LayerId, $"{(p.Source == "Nova" ? "Weekly campaign pass" : "Weekly floor and target pass")} #{p.Id}: {p.Status}",
-                p.Summary ?? p.Error, null));
-        foreach (var d in await _ai.AgentDecisions.AsNoTracking().Where(d => realIds.Contains(d.PassId) && d.Action != "keep").OrderByDescending(d => d.Id).Take(400).ToListAsync())
-            feed.Add(d.Source == "CostWatcher"
-                ? new FeedItem(d.CreatedUtc, d.Source, d.LayerId, CostWatcherLine(d.Action, d.Status, d.Limit, 1),
-                    $"{PricingTool.Agent.Operations.CostHoldGroup.SkuOf(d)}: {d.Reason}", null, $"cw|{d.Action}|{d.Status}|{d.Limit}")
-                : new FeedItem(d.CreatedUtc, d.Source, d.LayerId,
-                    $"{d.Action} band {d.BandId} {d.Category}: floor {d.CurrentFloorPct:0.#} -> {d.ProposedFloorPct:0.#}%, target {d.CurrentTargetPct:0.#} -> {d.ProposedTargetPct:0.#}% ({d.Status})",
-                    d.Reason, null));
-        var messages = await (from m in _ai.CampaignMessages.AsNoTracking()
-                              join b in _ai.CampaignBriefs.AsNoTracking() on m.BriefId equals b.Id
-                              where !b.IsTest && m.CreatedUtc >= since
-                              orderby m.Id descending
-                              select new { m, b.Name, b.LayerId, b.CalendarId }).Take(40).ToListAsync();
-        foreach (var x in messages)
-            feed.Add(new FeedItem(x.m.CreatedUtc, x.m.From, x.LayerId, $"on {x.Name} (round {x.m.Round})", x.m.Text,
-                x.CalendarId is { } cid ? Url.Action("Detail", "Campaigns", new { id = cid }) : null));
-        foreach (var b in await _ai.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since).OrderByDescending(b => b.Id).Take(300).ToListAsync())
-        {
-            var allLeftOut = b.Status == "Failed" && b.Requested > 0 && b.Skipped >= b.Requested;
-            feed.Add(allLeftOut
-                ? new FeedItem(b.StartedUtc, "Publisher", b.LayerId, LeftOutLine(1), $"batch #{b.Id}: {b.Requested} SKU asked, {b.Skipped} left out", null, "pub|left-out")
-                : b.Kind == "Expire" && b.Created + b.Updated == 0
-                    ? new FeedItem(b.StartedUtc, "Publisher", b.LayerId, $"Expire batch #{b.Id} to {b.Target}: {b.Status}, {b.DiscountsEnded:N0} of our discounts ended", null, null)
-                    : new FeedItem(b.StartedUtc, "Publisher", b.LayerId,
-                        $"{b.Kind} batch #{b.Id} to {b.Target}: {b.Status}{(b.RolledBackUtc is null ? "" : ", rolled back")} ({b.Created:N0} created, {b.Updated:N0} updated)", null, null));
-        }
-        return Group(feed.OrderByDescending(f => f.Utc)).Take(80).ToList();
-    }
-
-    /// <summary>Folds lines of the same group (same agent, layer and kind, within 30 minutes of the group's newest line) into
-    /// one line with the count, at the newest line's place, keeping every reason under "why?". Other lines may fall between them.</summary>
-    private static IEnumerable<FeedItem> Group(IEnumerable<FeedItem> newestFirst)
-    {
-        var slots = new List<List<FeedItem>>();
-        var open = new Dictionary<(string, int?, string), List<FeedItem>>();
-        foreach (var f in newestFirst)
-        {
-            if (f.Group is null) { slots.Add(new List<FeedItem> { f }); continue; }
-            var key = (f.Who, f.LayerId, f.Group);
-            if (open.TryGetValue(key, out var members) && members[0].Utc - f.Utc <= TimeSpan.FromMinutes(30)) { members.Add(f); continue; }
-            open[key] = members = new List<FeedItem> { f };
-            slots.Add(members);
-        }
-        foreach (var members in slots)
-        {
-            var first = members[0];
-            if (members.Count == 1) { yield return first; continue; }
-            var parts = first.Group!.Split('|');
-            var what = parts[0] == "cw" ? CostWatcherLine(parts[1], parts[2], NullIfEmpty(parts[3]), members.Count) : LeftOutLine(members.Count);
-            var why = string.Join("\n", members.Take(60).Select(f => $"{f.Utc.ToLocalTime():HH:mm} {f.Why}")) + (members.Count > 60 ? $"\n… and {members.Count - 60} more" : "");
-            yield return first with { What = what, Why = why, Count = members.Count };
-        }
-    }
-
-    private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
-
-    /// <summary>The cost watcher's line in plain words: what it did to how many SKUs, and why.</summary>
-    private static string CostWatcherLine(string action, string status, string? limit, int n)
-    {
-        var skus = n == 1 ? "1 SKU" : $"{n:N0} SKUs";
-        var why = limit switch
-        {
-            "team-discount" => "a cheaper team deal sells under the new floor",
-            "cost-above-shelf" => "the new cost is above the shelf price",
-            "data-error" => "the cost jump looks like a data error",
-            null => null,
-            _ => limit,
-        };
-        return status == DecisionStatus.Held
-            ? $"Held {skus} for a person after a cost rise{(why is null ? "" : ": " + why)}"
-            : $"{char.ToUpperInvariant(action[0])}{action[1..]} on {skus} after a cost rise ({status}{(why is null ? "" : ", " + why)})";
-    }
-
-    private static string LeftOutLine(int n) => n == 1
-        ? "A one-SKU publish wrote nothing: the SKU was left out (its reason is on the Exceptions tab)"
-        : $"{n:N0} one-SKU publishes wrote nothing: each SKU was left out (the reasons are on the Exceptions tab)";
-
-    /// <summary>"Coming up": campaigns starting in the next three weeks with their plan, and the veto window for published ones.</summary>
-    private async Task<IReadOnlyList<CampaignRow>> ComingUpAsync(DateOnly today)
-    {
-        var entries = await _ai.CampaignCalendar.AsNoTracking().Where(c => c.StartDate >= today && c.StartDate <= today.AddDays(21)).OrderBy(c => c.StartDate).ToListAsync();
-        var rows = new List<CampaignRow>();
-        foreach (var e in entries)
-        {
-            var brief = await _ai.CampaignBriefs.AsNoTracking().Where(b => b.CalendarId == e.Id && !b.IsTest && b.Status != BriefStatus.Superseded && b.Status != BriefStatus.Rejected)
-                .OrderByDescending(b => b.Id).FirstOrDefaultAsync();
-            var plan = brief is null ? null : await _ai.CampaignPlans.AsNoTracking().Where(p => p.BriefId == brief.Id).OrderByDescending(p => p.Id).FirstOrDefaultAsync();
-            var batch = plan?.PublishBatchId is { } id ? await _ai.PublishBatches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == id) : null;
-            rows.Add(new CampaignRow(e, brief, plan, batch, null));
-        }
-        return rows;
+        return RedirectToAction(nameof(ChatController.Index), "Chat", null, "rules");
     }
 
     [HttpPost]
@@ -279,7 +117,7 @@ public class AgentController : Controller
             TempData["Message"] = $"Lesson #{l.Id} for {l.Agent}: kept in every pass until a person retires it.";
         }
         catch (ArgumentException ex) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(ChatController.Index), "Chat", null, "lessons");
     }
 
     [HttpPost]
@@ -289,7 +127,7 @@ public class AgentController : Controller
     {
         TempData["Message"] = await new PricingTool.Agent.Campaigns.LessonBook(_ai).RetireAsync(lessonId, Who)
             ? $"Lesson #{lessonId} retired." : $"Lesson #{lessonId} is not active.";
-        return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(ChatController.Index), "Chat", null, "lessons");
     }
 
     public async Task<IActionResult> Exceptions() => View(await _inbox.LoadAsync());
@@ -307,7 +145,7 @@ public class AgentController : Controller
             TempData["Error"] = $"Still stopped: {state.Reason}. Releasing here can't override that.";
         else
             TempData["Message"] = "Kill switch released: the agents and the publisher may act again.";
-        return RedirectToAction(nameof(Index));
+        return Back();
     }
 
     [HttpPost]
@@ -318,7 +156,7 @@ public class AgentController : Controller
         if (!await _db.Layers.AnyAsync(l => l.Id == layerId)) return NotFound();
         await _modes.SetAsync(layerId, mode, Who);
         TempData["Message"] = $"Layer {layerId}: autonomy set to {mode}.";
-        return RedirectToAction(nameof(Index));
+        return Back();
     }
 
     [HttpPost]
@@ -328,7 +166,7 @@ public class AgentController : Controller
     {
         var review = await alpha.ApproveAsync(decisionId, Who);
         TempData[review.Ok ? "Message" : "Error"] = review.Message;
-        return RedirectToAction(nameof(Exceptions));
+        return Back();
     }
 
     [HttpPost]
@@ -338,7 +176,7 @@ public class AgentController : Controller
     {
         var review = await alpha.RejectAsync(decisionId, Who);
         TempData[review.Ok ? "Message" : "Error"] = review.Message;
-        return RedirectToAction(nameof(Exceptions));
+        return Back();
     }
 
     [HttpPost]
@@ -350,7 +188,7 @@ public class AgentController : Controller
         if (pause is null || pause.ReleasedUtc is not null)
         {
             TempData["Error"] = $"Pause #{pauseId} is not active.";
-            return RedirectToAction(nameof(Exceptions));
+            return Back();
         }
         var now = DateTime.UtcNow;
         pause.ReleasedUtc = now;
@@ -363,7 +201,7 @@ public class AgentController : Controller
         });
         await _db.SaveChangesAsync();
         TempData["Message"] = $"Band {pause.BandId} × {pause.Category} released: the pricing agent's changes there follow the normal limits again.";
-        return RedirectToAction(nameof(Exceptions));
+        return Back();
     }
 
     [HttpPost]
@@ -375,7 +213,7 @@ public class AgentController : Controller
         if (d is null)
         {
             TempData["Error"] = $"Decision #{decisionId} is not a cost-watcher hold.";
-            return RedirectToAction(nameof(Exceptions));
+            return Back();
         }
         // The SKU waits once however many cost moves held it, so handling it clears all of its holds on the layer.
         var sku = PricingTool.Agent.Operations.CostHoldGroup.SkuOf(d);
@@ -387,7 +225,7 @@ public class AgentController : Controller
         TempData["Message"] = holds.Count == 1
             ? $"Cost-watcher hold #{d.Id} ({sku}) marked handled."
             : $"{sku}: its {holds.Count} cost-watcher holds marked handled (#{string.Join(", #", holds.Select(h => h.Id))}).";
-        return RedirectToAction(nameof(Exceptions));
+        return Back();
     }
 
     [HttpPost]
@@ -400,10 +238,19 @@ public class AgentController : Controller
         if (r.Error is not null) TempData["Error"] = r.Error;
         else TempData["Message"] = $"Campaign plan #{planId} approved ({r.Status})." +
                                    (r.Status == "accepted" ? $" Publish it from the engine host: PricingTool.AgentTools approve-plan {planId} --publish." : "");
-        return RedirectToAction(nameof(Exceptions));
+        return Back();
     }
 
     private string Who => User.Identity?.Name ?? "unknown";
+
+    /// <summary>Back to the page the action was pressed on (the Run tab, the Chat tab or the inbox's details), else the Chat tab.</summary>
+    private IActionResult Back()
+    {
+        var referer = Request.Headers.Referer.ToString();
+        if (Uri.TryCreate(referer, UriKind.Absolute, out var uri) && uri.Host == Request.Host.Host && Url.IsLocalUrl(uri.PathAndQuery))
+            return Redirect(uri.PathAndQuery);
+        return RedirectToAction(nameof(ChatController.Index), "Chat");
+    }
 
     private IReadOnlyList<int> RunWeekLayers =>
         HttpContext.RequestServices.GetRequiredService<IOptions<PricingTool.Agent.AgentOptions>>().Value.Cycle.Layers;

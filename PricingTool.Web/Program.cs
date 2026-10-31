@@ -34,10 +34,14 @@ builder.Services.AddScoped<PricingTool.NopIntegration.NopDiscountWriter>();
 builder.Services.AddScoped<PricingTool.Agent.Campaigns.ICampaignPublisher, PricingTool.NopIntegration.CampaignPublisher>();
 builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
 builder.Services.AddSingleton<RunLauncher>();
-// "Run week" on the Agent tab: the whole loop for one layer, publishing only to the shop sandbox.
+// "Run week" on the Run tab: the whole loop for one layer, publishing only to the shop sandbox.
 builder.Services.AddScoped<PricingTool.NopIntegration.IRunWeekSteps, PricingTool.NopIntegration.RunWeekSteps>();
 builder.Services.AddScoped<PricingTool.NopIntegration.RunWeekLoop>();
 builder.Services.AddSingleton<RunWeekLauncher>();
+// The Run and Chat tabs: the current run's report, the agents' activity, and chat turns run in the background.
+builder.Services.AddScoped<AgentActivity>();
+builder.Services.AddScoped<RunReportService>();
+builder.Services.AddSingleton<ChatTurnLauncher>();
 // The Evidence page: numbers.json, and its SQL figures recomputed live as a read-only database user.
 builder.Services.Configure<EvidenceOptions>(builder.Configuration.GetSection(EvidenceOptions.SectionName));
 builder.Services.AddScoped<EvidenceService>();
@@ -101,7 +105,7 @@ app.MapHealthChecks("/healthz");
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Agent}/{action=Index}/{id?}");
+    pattern: "{controller=Run}/{action=Index}/{id?}");
 
 // Migrate + seed on startup (bands, schedule defaults, demo history, and the initial Porta admin).
 using (var scope = app.Services.CreateScope())

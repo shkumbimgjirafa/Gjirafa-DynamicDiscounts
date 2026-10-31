@@ -23,47 +23,26 @@
     bool At(string c, string? a = null) => string.Equals(controller, c, StringComparison.OrdinalIgnoreCase)
                                           && (a is null || string.Equals(action, a, StringComparison.OrdinalIgnoreCase));
     string On(bool active) => active ? " active" : "";
-    var inPrices = At("Proposals") || At("Movers") || At("Bands") || At("Schedule") || At("Sku");
-    var inProof = At("Evidence") || At("Backtest") || At("Operations", "Ledger") || At("Home");
-    var inOps = At("Operations", "Cycle") || At("Operations", "TimeSheet") || At("Audit") || At("Users");
+    var inAdmin = At("Operations") || At("Audit") || At("Users") || At("Schedule") || At("Bands") || At("Movers");
 }
     <header>
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom box-shadow">
             <div class="container-fluid">
-                <a class="navbar-brand" asp-controller="Agent" asp-action="Index">⚡ Pricing Tool v2</a>
+                <a class="navbar-brand" asp-controller="Run" asp-action="Index">⚡ Pricing Tool v2</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="navbar-collapse collapse d-lg-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item"><a class="nav-link@(On(At("Agent", "Index")))" asp-controller="Agent" asp-action="Index">Today</a></li>
-                        <li class="nav-item"><a class="nav-link@(On(At("Campaigns")))" asp-controller="Campaigns" asp-action="Index">Campaigns</a></li>
-                        <li class="nav-item"><a class="nav-link@(On(At("Agent", "Exceptions")))" asp-controller="Agent" asp-action="Exceptions">Exceptions
+                        <li class="nav-item"><a class="nav-link@(On(At("Run")))" asp-controller="Run" asp-action="Index">Run</a></li>
+                        <li class="nav-item"><a class="nav-link@(On(At("Chat") || At("Agent") || At("Campaigns")))" asp-controller="Chat" asp-action="Index">Chat
                             @if (User.Identity?.IsAuthenticated == true) { @await Component.InvokeAsync("WaitingBadge") }</a></li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle@(On(inPrices))" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Prices</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" asp-controller="Proposals" asp-action="Index">Proposals <span class="small text-muted">every SKU of a run</span></a></li>
-                                <li><a class="dropdown-item" asp-controller="Movers" asp-action="Index">Movers <span class="small text-muted">the changes that matter most</span></a></li>
-                                <li><a class="dropdown-item" asp-controller="Bands" asp-action="Index">Price bands <span class="small text-muted">floors and targets</span></a></li>
-                                <li><a class="dropdown-item" asp-controller="Schedule" asp-action="Index">Schedule <span class="small text-muted">engine runs</span></a></li>
-                            </ul>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle@(On(inProof))" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Proof</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" asp-controller="Evidence" asp-action="Index">Evidence <span class="small text-muted">every figure, recomputed live</span></a></li>
-                                <li><a class="dropdown-item" asp-controller="Backtest" asp-action="Index">Backtest <span class="small text-muted">what v2 would have added</span></a></li>
-                                <li><a class="dropdown-item" asp-controller="Operations" asp-action="Ledger">Money ledger <span class="small text-muted">measured after 7 and 30 days</span></a></li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li><a class="dropdown-item" asp-controller="Home" asp-action="Index">Impact dashboard <span class="small text-muted">the calculator's (v1) view</span></a></li>
-                            </ul>
-                        </li>
+                        <li class="nav-item"><a class="nav-link@(On(At("Proposals") || At("Sku")))" asp-controller="Proposals" asp-action="Index">Proposals</a></li>
                     </ul>
                     <ul class="navbar-nav">
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle@(On(inOps))" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Operations</a>
+                            <a class="nav-link dropdown-toggle@(On(inAdmin))" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin</a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" asp-controller="Operations" asp-action="Cycle">Daily cycle</a></li>
                                 <li><a class="dropdown-item" asp-controller="Audit" asp-action="Index">Audit log</a></li>

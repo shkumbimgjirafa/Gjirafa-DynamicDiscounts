@@ -1,0 +1,280 @@
+@model RunPageModel
+@using PricingTool.Agent.Alpha
+@{
+    ViewData["Title"] = "Run";
+    var isManager = User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager);
+    var r = Model.Report;
+    var ks = Model.KillSwitch;
+    string Local(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("ddd d MMM HH:mm");
+    string Pct(decimal? v) => v is { } x ? x.ToString("0.#") + "%" : "–";
+    string Eur(decimal v) => (v < 0 ? "−€" : "€") + Math.Abs(v).ToString("N0");
+    string ModeBadge(AutonomyMode m) => m switch { AutonomyMode.Autonomous => "bg-success", AutonomyMode.ApproveFirst => "bg-primary", _ => "bg-secondary" };
+    string LeftOutWords(string kind) => kind switch
+    {
+        "cheaper-deal" => "a cheaper team deal wins",
+        "app-deal-cheaper" => "a cheaper app-only deal (ours is for the web)",
+        "own-push" => "an earlier push of ours holds it",
+        "raised-under-team-deal" => "raised, but a team deal still wins",
+        "raised-under-own-push" => "raised, but our earlier push still wins",
+        "changed-since-run" => "the price changed since the run",
+        "at-or-above-shelf" => "at or above the shelf price",
+        _ => kind,
+    };
+    var cells = r.Cells ?? Array.Empty<PricingTool.Web.Services.RunGridCell>();
+    var categories = cells.GroupBy(c => c.Category).OrderByDescending(g => g.Sum(c => c.Skus)).Select(g => g.Key).ToList();
+    var bandName = r.Bands.ToDictionary(b => b.BandId, b => b.Name);
+    (int Skus, int Changed, int Up, int Down, int Holdout) Totals(IReadOnlyList<PricingTool.Web.Services.RunGridCell>? cs) => cs is null ? default
+        : (cs.Sum(c => c.Skus), cs.Sum(c => c.Changed), cs.Sum(c => c.Up), cs.Sum(c => c.Down), cs.Where(c => r.IsHoldout(c.Category)).Sum(c => c.Changed));
+    var now = Totals(r.Cells);
+    var before = Totals(r.PreviousCells);
+    var changedThisWeek = r.AlphaChanges.Select(d => (d.BandId, d.Category.ToLowerInvariant())).ToHashSet();
+    decimal? mtdChange = r.LastMonthSameDaysGp == 0 ? null : (r.MonthToDateGp / r.LastMonthSameDaysGp - 1m) * 100m;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div>
+        <h1 class="h3 mb-1">Current run <span class="text-muted">· @r.Layer.DisplayName</span></h1>
+        @if (r.Batch is null || r.Run is null)
+        {
+            <p class="page-sub mb-0">Nothing has been published on this layer yet. Run week prices it, checks it and publishes it.</p>
+        }
+        else
+        {
+            <div>Run <strong>#@r.Run.Id</strong>, priced @Local(r.Run.StartedUtc); published @Local(r.Batch.FinishedUtc ?? r.Batch.StartedUtc)
+                in batch #@r.Batch.Id@(r.Week is { } w ? $" by Run week #{w.Id} ({w.StartedBy})" : "").</div>
+            <div class="small mt-1"><span class="badge bg-success">treated as live</span>
+                <span class="text-muted">during the hackathon it is published to the shop sandbox, so the shop's real prices didn't change.</span></div>
+        }
+    </div>
+    <div class="tile small" style="min-width: 24rem; max-width: 34rem">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <span class="text-muted">Alpha on this layer:</span> <span class="badge @ModeBadge(Model.Mode)">@Model.Mode</span>
+            @if (isManager)
+            {
+                <form method="post" asp-controller="Agent" asp-action="SetMode" class="d-inline-flex gap-1">
+                    <input type="hidden" name="layerId" value="@r.Layer.Id" />
+                    <select name="mode" class="form-select form-select-sm w-auto py-0">
+                        @foreach (var m in Enum.GetValues<AutonomyMode>()) { <option value="@m" selected="@(m == Model.Mode)">@m</option> }
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary py-0">Set</button>
+                </form>
+            }
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <span class="text-muted">Kill switch:</span>
+            @if (ks.Stopped) { <span class="badge bg-danger">Stopped</span> <span>@ks.Reason</span> }
+            else { <span class="badge bg-success">Running</span> }
+            @if (isManager && !ks.ByConfiguration)
+            {
+                <form method="post" asp-controller="Agent" asp-action="SetKillSwitch" class="d-inline">
+                    <input type="hidden" name="stop" value="@(ks.Stopped ? "false" : "true")" />
+                    <button class="btn btn-sm py-0 @(ks.Stopped ? "btn-outline-success" : "btn-outline-danger")">@(ks.Stopped ? "Release" : "Pull")</button>
+                </form>
+            }
+        </div>
+        @if (isManager && Model.CanRunWeek)
+        {
+            <form method="post" asp-controller="Agent" asp-action="RunWeek" class="d-inline" id="run-week">
+                <input type="hidden" name="layerId" value="@r.Layer.Id" />
+                <button class="btn btn-sm btn-primary" disabled="@(Model.RunWeekRunning || ks.Stopped)">
+                    @(Model.RunWeekRunning ? "Run week is running…" : "Run week now")</button>
+            </form>
+            <span class="text-muted">Alpha → engine → run checker → publish → read-back</span>
+        }
+        <div class="text-muted mt-1">AI this week: $@Model.Week.AiCostUsd.ToString("0.00"), @Model.Week.AiCalls calls (measured)</div>
+    </div>
+</div>
+@if (Model.RunWeekRunning)
+{
+    <script>setTimeout(function () { location.reload(); }, 5000);</script>
+}
+
+@if (r.Batch is not null && r.Run is not null)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h5 mb-2">Alpha's report
+                @if (r.AlphaPass is { } pass) { <span class="small text-muted">pass #@pass.Id, @Local(pass.StartedUtc)</span> }</h2>
+            @if (r.AlphaPass?.Summary is { Length: > 0 } summary)
+            {
+                <div style="white-space: pre-wrap">@summary</div>
+            }
+            else
+            {
+                <p class="text-muted mb-0">Alpha hasn't written about this layer yet: its first pass runs with the next Run week.</p>
+            }
+            @if (r.AlphaChanges.Count > 0)
+            {
+                <h3 class="h6 mt-3">What Alpha changed this week (@r.AlphaChanges.Count)</h3>
+                <table class="table table-sm align-middle small mb-0">
+                    <thead><tr><th>When</th><th>Band</th><th>Category</th><th>Floor</th><th>Target</th><th>Why</th></tr></thead>
+                    <tbody>
+                    @foreach (var d in r.AlphaChanges)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@Local(d.CreatedUtc)</td>
+                            <td>@(bandName.TryGetValue(d.BandId, out var bn) ? bn : $"band {d.BandId}")</td>
+                            <td>@d.Category</td>
+                            <td class="text-nowrap">@Pct(d.CurrentFloorPct) → <strong>@Pct(d.ProposedFloorPct)</strong></td>
+                            <td class="text-nowrap">@Pct(d.CurrentTargetPct) → <strong>@Pct(d.ProposedTargetPct)</strong></td>
+                            <td><details><summary class="text-muted">why?</summary><div style="white-space: pre-wrap">@d.Reason</div></details></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="small text-muted mt-2 mb-0">No floor or target changed this week: Alpha kept every cell.</p>
+            }
+        </div>
+    </div>
+
+    <h2 class="h5">Progress</h2>
+    <div class="row g-2 mb-4 small">
+        <div class="col-md-6 col-xl-3">
+            <div class="tile">
+                <div class="text-muted">On the shelf at our price <span class="badge bg-success">measured</span></div>
+                <div class="tile-value">@r.OnShelf.ToString("N0") of @r.Batch.Requested.ToString("N0")
+                    <span class="fs-6 text-muted">(@(r.Batch.Requested == 0 ? "–" : (100m * r.OnShelf / r.Batch.Requested).ToString("0") + "%"))</span></div>
+                <div class="text-muted">prices read back as written: @r.Batch.RoundTripChecked.ToString("N0") checked, @r.Batch.RoundTripMismatches mismatched</div>
+                @if (r.LeftOut.Count > 0)
+                {
+                    <div class="mt-1">Left out: @foreach (var l in r.LeftOut.Take(3)) { <div>@l.Skus.ToString("N0") · @LeftOutWords(l.Kind)</div> }</div>
+                }
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="tile">
+                <div class="text-muted">Expected gross profit a month <span class="badge bg-warning text-dark">estimated</span></div>
+                <div class="tile-value">@(r.ExpectedGp30 is { } e ? Eur(e) : "–")</div>
+                <div class="text-muted">the @r.ExpectedSkus.ToString("N0") prices written × each SKU's last 30 days' units, VAT excluded, with no change in volume</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="tile">
+                <div class="text-muted">Gross profit this month <span class="badge bg-success">measured</span></div>
+                <div class="tile-value">@Eur(r.MonthToDateGp)</div>
+                <div class="text-muted">@Eur(r.LastMonthSameDaysGp) on the same days last month@(mtdChange is { } mc ? $" ({(mc >= 0 ? "+" : "−")}{Math.Abs(mc):0}%)" : "").
+                    Booked sales lines through @(r.SalesThrough?.ToString("d MMM HH:mm") ?? "–"); the real shop's sales (sandbox prices don't reach customers); the last two weeks still lose lines to cancellations.
+                    No goal set yet.</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="tile">
+                <div class="text-muted">Against the holdout categories</div>
+                <div class="tile-value">not measured yet</div>
+                <div class="text-muted">Measured 7 and 30 days after a publish that reaches customers, against @(r.Holdouts.Count > 0 ? string.Join(", ", r.Holdouts) : "the holdout"); a sandbox publish never does.</div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="h5">What changed</h2>
+    @if (r.Cells is null)
+    {
+        <p class="text-muted">The run's proposals were cleaned up (the database keeps the last two runs per layer), so its counts are gone.</p>
+    }
+    else
+    {
+        <table class="table table-sm align-middle w-auto mb-4">
+            <thead><tr><th></th><th class="text-end">This run #@r.Run.Id</th>
+                <th class="text-end">@(r.PreviousBatch is { } pb ? $"Publish before: run #{pb.EngineRunId} (batch #{pb.Id})" : "Publish before")</th></tr></thead>
+            <tbody>
+            @foreach (var (label, a, b) in new (string, int, int?)[]
+            {
+                ("Priced SKUs", now.Skus, r.PreviousCells is null ? null : before.Skus),
+                ("Price changed", now.Changed, r.PreviousCells is null ? null : before.Changed),
+                ("raised", now.Up, r.PreviousCells is null ? null : before.Up),
+                ("lowered", now.Down, r.PreviousCells is null ? null : before.Down),
+                ("changed in holdout categories (not published)", now.Holdout, r.PreviousCells is null ? null : before.Holdout),
+            })
+            {
+                <tr><td>@label</td><td class="text-end">@a.ToString("N0")</td><td class="text-end text-muted">@(b?.ToString("N0") ?? "–")</td></tr>
+            }
+            <tr><td>held back by the run checker</td><td class="text-end">@(r.Check?.Warns.ToString("N0") ?? "–")</td><td class="text-end text-muted">–</td></tr>
+            <tr><td>on the shelf at our price</td><td class="text-end">@r.OnShelf.ToString("N0")</td>
+                <td class="text-end text-muted">@(r.PreviousBatch is { } p2 ? (p2.Created + p2.Updated + p2.Unchanged + p2.TierRaised + p2.TierInserted).ToString("N0") : "–")</td></tr>
+            </tbody>
+        </table>
+        @if (r.PreviousBatch is null)
+        {
+            <p class="small text-muted">No earlier run has been published on this layer: the comparison starts with the next one.</p>
+        }
+
+        <h2 class="h5">Floors and targets by category × band</h2>
+        <p class="small text-muted mb-2">Each band's floor / target margin in its header; a shaded cell is one Alpha set for that category, ★ marks a change this week.
+            In each cell: SKUs whose price changed, of the priced SKUs (▲ raised, ▼ lowered). Bands are by cost.</p>
+        <div class="table-responsive mb-4">
+        <table class="table table-sm table-bordered align-middle small text-center">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-start">Category</th>
+                    @foreach (var b in r.Bands)
+                    {
+                        <th>@b.Name<div class="fw-normal text-muted">@Pct(b.MarginFloorPct) / @Pct(b.TargetMarginPct)</div></th>
+                    }
+                    <th>All bands</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var cat in categories)
+            {
+                var row = cells.Where(c => c.Category == cat).ToList();
+                <tr>
+                    <td class="text-start">@cat @if (r.IsHoldout(cat)) { <span class="badge bg-secondary">holdout</span> }</td>
+                    @foreach (var b in r.Bands)
+                    {
+                        var c = row.FirstOrDefault(x => x.BandId == b.BandId);
+                        var ft = r.FloorTarget(cat, b.BandId);
+                        <td class="@(ft.ByAlpha ? "table-info" : "")">
+                            @if (ft.ByAlpha)
+                            {
+                                <div class="fw-semibold">@Pct(ft.Floor) / @Pct(ft.Target)@(changedThisWeek.Contains((b.BandId, cat.ToLowerInvariant())) ? " ★" : "")</div>
+                            }
+                            @if (c is not null)
+                            {
+                                <div>@c.Changed.ToString("N0") <span class="text-muted">of @c.Skus.ToString("N0")</span></div>
+                                <div><span class="text-success">▲@c.Up.ToString("N0")</span> <span class="text-danger">▼@c.Down.ToString("N0")</span></div>
+                            }
+                            else { <span class="text-muted">–</span> }
+                        </td>
+                    }
+                    <td class="fw-semibold">@row.Sum(c => c.Changed).ToString("N0") <span class="fw-normal text-muted">of @row.Sum(c => c.Skus).ToString("N0")</span></td>
+                </tr>
+            }
+            <tr class="table-light fw-semibold">
+                <td class="text-start">All categories</td>
+                @foreach (var b in r.Bands)
+                {
+                    var col = cells.Where(c => c.BandId == b.BandId).ToList();
+                    <td>@col.Sum(c => c.Changed).ToString("N0") <span class="fw-normal text-muted">of @col.Sum(c => c.Skus).ToString("N0")</span></td>
+                }
+                <td>@now.Changed.ToString("N0") <span class="fw-normal text-muted">of @now.Skus.ToString("N0")</span></td>
+            </tr>
+            </tbody>
+        </table>
+        </div>
+    }
+
+    @if (r.Week is { } week)
+    {
+        <details class="mb-4">
+            <summary class="h6">How this run got here: Run week #@week.Id, @week.Status@(week.FinishedUtc is { } f ? $" in {(f - week.StartedUtc).TotalSeconds:N0} s" : ""), AI $@week.AiCostUsd.ToString("0.00")</summary>
+            <table class="table table-sm align-middle small mt-2">
+                <thead><tr><th>Step</th><th>Status</th><th class="text-end">Seconds</th><th>Result</th><th>Why</th></tr></thead>
+                <tbody>
+                @foreach (var s in r.WeekSteps)
+                {
+                    <tr>
+                        <td><code>@s.Step</code></td>
+                        <td><span class="badge @(s.Status switch { "Succeeded" => "bg-success", "Failed" => "bg-danger", "Running" => "bg-primary", "Warning" => "bg-warning text-dark", _ => "bg-secondary" })">@s.Status</span></td>
+                        <td class="text-end">@(s.FinishedUtc is { } sf ? (sf - s.StartedUtc).TotalSeconds.ToString("N0") : "…")</td>
+                        <td>@s.Detail</td>
+                        <td>@if (!string.IsNullOrEmpty(s.Why)) { <details><summary>why?</summary>@s.Why</details> }</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </details>
+    }
+}

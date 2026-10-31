@@ -1,0 +1,248 @@
+@model ChatPageModel
+@{
+    ViewData["Title"] = "Chat";
+    var isManager = User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager);
+    var inbox = Model.Inbox;
+    var today = DateOnly.FromDateTime(DateTime.Now);
+    string WhoBadge(string who) => who switch
+    {
+        "Nova" => "bg-info text-dark", "Alpha" => "bg-primary", "CostWatcher" => "bg-dark", "code" => "bg-secondary", "Publisher" => "bg-success", _ => "bg-warning text-dark",
+    };
+    string WhoName(string who) => who switch { "CostWatcher" => "Cost watcher", "code" => "Code", _ => who };
+    DateTime Local(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime();
+    var publishWaiting = inbox.Publishes.Count(p => p.NeedsAPerson);
+}
+
+<div class="d-flex flex-wrap align-items-baseline gap-3">
+    <h1 class="h3 mb-1">Chat</h1>
+    <div class="form-check form-switch small">
+        <input class="form-check-input" type="checkbox" id="show-activity" checked />
+        <label class="form-check-label" for="show-activity">show what the agents did</label>
+    </div>
+</div>
+<p class="page-sub">Nova (campaign agent) and Alpha (pricing agent): their reasoning, what they did, and the chat with them. Beside it, only what they couldn't settle themselves.</p>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div id="thread" class="border rounded p-2 mb-2" style="height: 68vh; overflow-y: auto">
+            @{ DateOnly? day = null; }
+            @foreach (var t in Model.Thread)
+            {
+                var d = DateOnly.FromDateTime(Local(t.Utc));
+                if (day != d)
+                {
+                    day = d;
+                    <div class="text-center small text-muted my-2">@Local(t.Utc).ToString("dddd d MMMM")</div>
+                }
+                if (t.Message is { } m)
+                {
+                    var mine = m.From == "user";
+                    <div class="d-flex @(mine ? "justify-content-end" : "") mb-2">
+                        <div class="rounded p-2 @(mine ? "bg-primary-subtle" : "bg-light border")" style="max-width: 85%">
+                            <div class="small mb-1">
+                                <span class="badge @(mine ? "bg-light text-dark border" : WhoBadge(m.From))">@(mine ? m.Author ?? "you" : WhoName(m.From))</span>
+                                <span class="text-muted">@Local(m.CreatedUtc).ToString("HH:mm")</span>
+                            </div>
+                            <div style="white-space: pre-wrap">@m.Text</div>
+                        </div>
+                    </div>
+                }
+                else if (t.Activity is { } f)
+                {
+                    <div class="activity small text-muted mb-1 ps-1 border-start border-2">
+                        <span>@Local(f.Utc).ToString("HH:mm")</span>
+                        <span class="badge @WhoBadge(f.Who)">@WhoName(f.Who)</span>
+                        @if (f.LayerId is { } lid) { <span>@Model.LayerName(lid):</span> }
+                        @if (f.Link is not null) { <a href="@f.Link">@f.What</a> } else { <span class="text-body">@f.What</span> }
+                        @if (!string.IsNullOrWhiteSpace(f.Why))
+                        {
+                            <details class="d-inline"><summary class="d-inline">@(f.Count > 1 ? $"why? ({f.Count:N0})" : "why?")</summary>
+                                <div class="text-body" style="white-space: pre-wrap">@f.Why</div></details>
+                        }
+                    </div>
+                }
+            }
+            @if (Model.Thread.Count == 0) { <p class="text-muted small">Nothing yet.</p> }
+            @if (Model.TurnRunning)
+            {
+                <div class="small text-muted mb-1"><span class="spinner-border spinner-border-sm"></span> @(Model.Answering ?? "Nova") is reading the data…</div>
+            }
+            <div id="bottom"></div>
+        </div>
+        @if (isManager)
+        {
+            <form method="post" asp-controller="Agent" asp-action="Chat">
+                <input type="hidden" name="conversationId" value="@Model.ConversationId" />
+                <div class="input-group">
+                    <textarea name="text" class="form-control" rows="2" maxlength="2000" required
+                              placeholder="Ask Nova, or start with @@alpha to ask Alpha…"></textarea>
+                    <button type="submit" class="btn btn-primary" disabled="@Model.TurnRunning">Send</button>
+                </div>
+            </form>
+            <details class="how mt-1"><summary>What you can say</summary>
+                Ask why they did something, or what a change would do. Ask Nova for a campaign ("Plan a 3-day laptops campaign next week, €4k
+                profit"): code checks the brief against the limits, Alpha plans it, and it publishes to the sandbox, where you can stop it until
+                it starts. Give instructions ("keep Samsung out this week"): they become rules code enforces, listed on the right. The agents
+                read the data first, so an answer takes up to a minute or two; the page refreshes when it lands.
+            </details>
+        }
+    </div>
+
+    <div class="col-lg-4 small">
+        <div class="card mb-3 @(inbox.WaitingCount > 0 ? "border-warning" : "border-success")">
+            <div class="card-body">
+                <h2 class="h6 d-flex justify-content-between">Waiting for you
+                    <span class="badge @(inbox.WaitingCount > 0 ? "bg-warning text-dark" : "bg-success")">@inbox.WaitingCount</span></h2>
+                @if (inbox.WaitingCount == 0) { <p class="text-muted mb-0">Nothing: the agents settled everything themselves.</p> }
+                @foreach (var g in inbox.CostHoldSkus.GroupBy(h => h.Latest.Limit).OrderByDescending(g => g.Count()))
+                {
+                    <div class="mb-2">
+                        <span class="badge bg-light text-dark border">@g.Count()</span>
+                        SKU@(g.Count() == 1 ? "" : "s"): @PricingTool.Web.Services.AgentActivity.LimitWords(g.Key)
+                        <div class="text-muted">held by the cost watcher, @string.Join(", ", g.GroupBy(h => h.LayerId).Select(x => $"{x.Count()} on {Model.LayerName(x.Key)}")).
+                            <a asp-controller="Agent" asp-action="Exceptions" asp-fragment="cost-holds">the SKUs</a></div>
+                    </div>
+                }
+                @foreach (var p in inbox.CampaignPlans)
+                {
+                    <div class="mb-2">
+                        <span class="badge bg-light text-dark border">1</span>
+                        Campaign plan for <strong>@p.Campaign</strong> (@Model.LayerName(p.Plan.LayerId)): @p.Plan.Status@(string.IsNullOrEmpty(p.Plan.GoalVerdict) ? "" : ", " + p.Plan.GoalVerdict),
+                        goal @p.GoalType @p.GoalValue.ToString("N0").
+                        <details><summary class="text-muted">the numbers</summary>@p.Plan.Feasibility</details>
+                        @if (isManager)
+                        {
+                            <form asp-controller="Agent" asp-action="ApprovePlan" method="post" class="d-inline">
+                                <input type="hidden" name="planId" value="@p.Plan.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary py-0">@(p.Plan.Status == "held" ? "Approve as it is" : "Approve as a stretch")</button>
+                            </form>
+                        }
+                    </div>
+                }
+                @foreach (var (count, text) in new[]
+                {
+                    (inbox.Decisions.Count, "floor or target change(s) from Alpha outside the limits"),
+                    (inbox.HeldBriefs.Count, "campaign brief(s) over a cap"),
+                    (inbox.BlockedRuns.Count, "run(s) the checker blocked"),
+                    (publishWaiting, "publish(es) stopped, failed or rolled back"),
+                    (inbox.Pauses.Count, "band × category paused after a rollback"),
+                    (inbox.FailedSteps.Count, "daily-cycle step(s) failed"),
+                }.Where(x => x.Item1 > 0))
+                {
+                    <div class="mb-2"><span class="badge bg-light text-dark border">@count</span>
+                        <a asp-controller="Agent" asp-action="Exceptions">@text</a></div>
+                }
+                @if (inbox.WaitingCount > 0)
+                {
+                    <a class="small" asp-controller="Agent" asp-action="Exceptions">All the details</a>
+                }
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h2 class="h6">Goals</h2>
+                <p class="text-muted mb-0">Not built yet: the month's and week's goals per layer (gross profit, margin), agreed with Nova in this chat,
+                    and shown against the month on the Run tab.</p>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h2 class="h6">Coming up <span class="text-muted fw-normal">next 3 weeks</span></h2>
+                @foreach (var c in Model.ComingUp)
+                {
+                    <div class="mb-1">
+                        <span class="text-muted">@c.Entry.StartDate.ToString("ddd d MMM")</span>
+                        <a asp-controller="Campaigns" asp-action="Detail" asp-route-id="@c.Entry.Id">@c.Entry.Name</a>
+                        <span class="text-muted">@Model.LayerName(c.Entry.LayerId)</span>:
+                        @(c.Plan is { } pl ? $"{pl.Status}{(string.IsNullOrEmpty(pl.GoalVerdict) ? "" : ", " + pl.GoalVerdict)}" : c.Brief is { } b ? $"brief {b.Status}" : "no brief yet")
+                        @if (c.CanStop(today)) { <span class="text-warning-emphasis">(goes live unless you stop it)</span> }
+                    </div>
+                }
+                @if (Model.ComingUp.Count == 0) { <p class="text-muted mb-0">No campaign in the next three weeks.</p> }
+                <a asp-controller="Campaigns" asp-action="Index">All campaigns</a>
+            </div>
+        </div>
+
+        <div class="card mb-3" id="rules">
+            <div class="card-body">
+                <h2 class="h6">Rules you gave</h2>
+                @foreach (var r in Model.Rules)
+                {
+                    <div class="mb-1 d-flex justify-content-between gap-2">
+                        <div>@r.Kind <strong>@r.Value@(r.Kind == "min-campaign-margin" ? "%" : "")</strong>,
+                            @(r.LayerId is { } lid ? Model.LayerName(lid) : "both layers"), @r.FromDate.ToString("d MMM")–@r.ToDate.ToString("d MMM")
+                            <div class="text-muted">@r.CreatedBy: "@r.Instruction"</div></div>
+                        @if (isManager)
+                        {
+                            <form method="post" asp-controller="Agent" asp-action="RemoveRule"><input type="hidden" name="ruleId" value="@r.Id" />
+                                <button class="btn btn-sm btn-outline-secondary py-0">Remove</button></form>
+                        }
+                    </div>
+                }
+                @if (Model.Rules.Count == 0) { <p class="text-muted mb-0">None. Instructions you give in the chat appear here.</p> }
+            </div>
+        </div>
+
+        <details class="mb-3" id="lessons">
+            <summary class="h6">What the agents keep in mind (@Model.Lessons.Count)</summary>
+            @foreach (var l in Model.Lessons)
+            {
+                <div class="mb-1 d-flex justify-content-between gap-2">
+                    <div><strong>@l.Agent</strong>, @(l.LayerId is { } lid ? Model.LayerName(lid) : "all layers"): @l.Text
+                        <div class="text-muted">@l.CreatedBy, @l.CreatedUtc.ToLocalTime().ToString("d MMM") @(l.Source == "correction" ? "(a correction)" : "")</div></div>
+                    @if (isManager)
+                    {
+                        <form method="post" asp-controller="Agent" asp-action="RetireLesson"><input type="hidden" name="lessonId" value="@l.Id" />
+                            <button class="btn btn-sm btn-outline-secondary py-0">Retire</button></form>
+                    }
+                </div>
+            }
+            @if (isManager)
+            {
+                <form method="post" asp-controller="Agent" asp-action="AddLesson" class="mt-2">
+                    <div class="d-flex gap-1 mb-1">
+                        <select name="agent" class="form-select form-select-sm"><option>Nova</option><option>Alpha</option></select>
+                        <select name="layerId" class="form-select form-select-sm"><option value="">all layers</option>
+                            @foreach (var l in Model.Layers) { <option value="@l.LayerId">@l.Name</option> }</select>
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <input name="text" class="form-control" maxlength="2000" required placeholder="A lesson for every pass" />
+                        <button class="btn btn-outline-primary">Teach</button>
+                    </div>
+                </form>
+            }
+        </details>
+
+        <details class="mb-3">
+            <summary class="h6">What they looked at (@Model.Queries.Count)</summary>
+            @foreach (var q in Model.Queries)
+            {
+                <div class="mb-1 @(q.Accepted ? "" : "text-warning-emphasis")">
+                    <span class="text-muted">@q.CalledAtUtc.ToLocalTime().ToString("ddd HH:mm")</span> @q.Agent · @q.Tool · @q.RowCount rows, @q.DurationMs ms
+                    @if (!q.Accepted) { <span>refused: @q.Error</span> }
+                    <div><code class="text-break">@(q.Request.Length > 220 ? q.Request[..220] + "…" : q.Request)</code></div>
+                </div>
+            }
+        </details>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var thread = document.getElementById('thread');
+        var toggle = document.getElementById('show-activity');
+        function apply() {
+            document.querySelectorAll('#thread .activity').forEach(function (e) { e.style.display = toggle.checked ? '' : 'none'; });
+            thread.scrollTop = thread.scrollHeight;
+        }
+        try { toggle.checked = localStorage.getItem('chat-show-activity') !== '0'; } catch (e) { }
+        toggle.addEventListener('change', function () { try { localStorage.setItem('chat-show-activity', toggle.checked ? '1' : '0'); } catch (e) { } apply(); });
+        apply();
+    })();
+</script>
+@if (Model.TurnRunning)
+{
+    <script>setTimeout(function () { location.reload(); }, 4000);</script>
+}
