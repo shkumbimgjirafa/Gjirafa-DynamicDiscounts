@@ -189,7 +189,7 @@ cost_rows = [
      f"{v('E16', 'unattendedBlocks')} unattended blocks are AI cost (row {R['buildAi']}), not person-hours", False, "E16"),
     ("person", "The person's time inside unattended blocks", 1, "h", "assumed",
      "Answering the agents in chat during unattended blocks (the goal, context, reviews); not timed, so assumed", False, ""),
-    ("build", "Remaining build to production", 160, "h", "assumed",
+    ("build", "Remaining build to production (one person-week, the user's estimate)", 40, "h", "assumed",
      "Review of the AI-written code, the live shop write-back (a write-enabled login, canary on a few categories), "
      "start-up as a service, the weekly email, MK/AL data loads, Nova hardening, monitoring", True, ""),
     ("training", "Training and sign-off of the limits", 8, "h", "assumed",

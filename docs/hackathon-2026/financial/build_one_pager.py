@@ -181,8 +181,8 @@ value is the stream it makes permanent, plus the levers:
 The levers come mostly from automation, not from the model's own floor choices (lever 2, {eur(v('E2', 'central'))} a
 month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies; cancelled
 orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
-{pilot:g}-month pilot at {share:.0%} of the benefit, then full scope ({months:g} full-benefit months), so payback can't
-fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
+{pilot:g}-month pilot at {share:.0%} of the benefit, then full scope ({months:g} full-benefit months); payback comes from that ramp
+(the pilot's assumptions are not tuned to cross a line). Costs:
 {eur(one_time)} one-time (hackathon hours at €50, {build_hours:g} hours to production including code review, the build
 sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) and {eur(running)} running (AI
 {eur(ai_month)} a month from the measured cost per call, E19; maintenance and review hours), {eur(total_cost)} in all.

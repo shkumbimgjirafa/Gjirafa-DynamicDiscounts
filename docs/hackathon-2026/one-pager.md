@@ -43,8 +43,8 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 aren't calibrated yet (E10); the Monday email isn't built and the start-up task is disabled; setting a price on the
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit
-€106,620, ROI 644%, payback 3.4 months).
+**Money (12 months). The claim: €12,965 a month at full scope, 86 points** (Evidence and Works are our own ratings; year 1: net benefit
+€112,620, ROI 1068%, payback 2.6 months).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
@@ -75,19 +75,19 @@ value is the stream it makes permanent, plus the levers:
 The levers come mostly from automation, not from the model's own floor choices (lever 2, €2 a
 month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies; cancelled
 orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
-2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
-fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
-€9,616 one-time (hackathon hours at €50, 160 hours to production including code review, the build
+2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months); payback comes from that ramp
+(the pilot's assumptions are not tuned to cross a line). Costs:
+€3,616 one-time (hackathon hours at €50, 40 hours to production including code review, the build
 sessions' AI usage of $621.23 API-equivalent, E18) and €6,927 running (AI
-€69 a month from the measured cost per call, E19; maintenance and review hours), €16,543 in all.
+€69 a month from the measured cost per call, E19; maintenance and review hours), €10,543 in all.
 
 | Year 1 | The claim |
 |---|---|
 | Extra gross profit a month at full scope | €12,965 |
-| Net benefit (9.5 full-benefit months − all costs) | €106,620 |
-| ROI | 644% |
-| Payback (months) | 3.4 |
-| Track A score (/100; Evidence and Works are our own ratings) | 84 |
+| Net benefit (9.5 full-benefit months − all costs) | €112,620 |
+| ROI | 1068% |
+| Payback (months) | 2.6 |
+| Track A score (/100; Evidence and Works are our own ratings) | 86 |
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
 automated and extended to every layer (robustness checks: E20, E27). That the August–October test ends without the build (stated by the user, who ran it; the

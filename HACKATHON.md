@@ -17,7 +17,7 @@ themselves), **Campaigns** (the calendar, and a conversation with Nova about eac
 lives in files, not in the app: [`evidence.html`](docs/hackathon-2026/evidence/evidence.html), the financial sheet and the
 one-pager.
 
-**The money claim** (section 4): €12,965 a month at full scope, 84 points (Evidence and Works are our own ratings). It is the calculator's measured rate, B0 =
+**The money claim** (section 4): €12,965 a month at full scope, 86 points (Evidence and Works are our own ratings). It is the calculator's measured rate, B0 =
 €10,409 a month (measured before and after each approval; robustness checks: E20, E27), which the build makes permanent,
 plus the levers this build adds.
 
@@ -122,7 +122,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit €106,620, ROI 644 %, payback 3.4 months; the
+**The claim: €12,965 a month at full scope, 86 points** (Evidence and Works are our own ratings; year 1: net benefit €112,620, ROI 1,068 %, payback 2.6 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
@@ -200,14 +200,19 @@ Those discounts were mostly not team deals but the calculator's own earlier push
 model's own decisions are the per-category floors (lever 2: €2 a month in the backtest, because Alpha's rules move a
 floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which code computes; the
 model chooses among the strategies). What the agents add so far is running the whole loop every day, on every layer,
-without a person; how much their own judgment is worth is what the pilot's holdout measures.
+without a person; how much their own judgment is worth is what the pilot's holdout measures. Their value grows with
+the context they keep, which a two-month backtest can't show: each week Nova's prompt carries people's lessons and
+corrections, the lessons it drew from finished campaigns and how its recent plans did against their goals
+(`Campaigns/LessonBook.cs`), and Alpha reads the measured outcome of each of its earlier changes (`get_past_decisions`,
+written by `Operations/OutcomeTracker.cs`, which also rolls back a change that hurt and pauses that band × category).
+Not measured yet: no outcome window has closed.
 
 **The financial sheet** (live formulas; inputs typed from `numbers.json` with their IDs) gives the claim, its Track A
 score and where its benefit comes from (the "Benefit by source" sheet); B0's robustness checks are on its Inputs and
 Evidence sheets, labelled. Payback is what
 the sheet computes from the ramp: built in month 1, a two-month pilot at an assumed quarter of the benefit, then full
 scope (9.5 full-benefit months); the pilot's assumptions are not tuned to cross a line. Costs: the attended hackathon
-hours at €50 (E16) plus an assumed hour of the person's time inside unattended blocks, 160 assumed hours to production
+hours at €50 (E16) plus an assumed hour of the person's time inside unattended blocks, 40 hours to production (one person-week, the user's estimate)
 (including review of the AI-written code), 8 hours of training and sign-off of the limits, the build sessions' AI usage
 (E18), 8 maintenance hours a month, half an hour of exception review a week, and the agents' AI cost from the measured
 cost per call (E19) × an assumed monthly volume. The Evidence (3) and Works (4) ratings in it are our own judgment, with
