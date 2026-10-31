@@ -719,6 +719,72 @@ public sealed class NopDiscountWriter
         return audits.Count;
     }
 
+    /// <summary>
+    /// Restores regular prices this writer raised (the given TierPriceUpdated audits) to the Price and OldPrice they had
+    /// before the first of them on each row, where the row still holds our last write; a row someone changed since is left
+    /// alone and listed. A new batch (Kind "Restore") audits each write first, so a person can undo it like any publish;
+    /// the raises it undoes are marked rolled back. One transaction. Returns (restored, left alone, batch id).
+    /// </summary>
+    public async Task<(int Restored, int LeftAlone, long BatchId)> RestoreRegularPricesAsync(int layerId, IReadOnlyCollection<long> auditIds, string reason,
+        CancellationToken ct = default)
+    {
+        var now = Truncate(_clock.GetUtcNow().UtcDateTime);
+        var (shop, layer) = await ShopForLayerAsync(layerId, ct);
+        var raises = await _db.PublishAudits.Where(a => auditIds.Contains(a.Id) && a.Change == "TierPriceUpdated" && a.Applied && a.RolledBackUtc == null
+                                                        && _db.PublishBatches.Any(b => b.Id == a.BatchId && b.Db == layer.Db && b.ShopSchema == shop.Schema))
+            .ToListAsync(ct);
+        var rows = raises.GroupBy(a => a.TierPriceId!.Value)
+            .Select(g => (First: g.OrderBy(a => a.Id).First(), Last: g.OrderByDescending(a => a.Id).First(), All: g.ToList())).ToList();
+        var batch = new PublishBatch
+        {
+            LayerId = layerId, Db = layer.Db, StoreId = layer.StoreId, Target = _options.Target, ShopSchema = shop.Schema, Kind = "Restore",
+            Status = "Running", StartedUtc = now, Requested = rows.Count, Note = reason.Length > 2000 ? reason[..2000] : reason,
+        };
+        _db.PublishBatches.Add(batch);
+        await _db.SaveChangesAsync(ct);
+        var audits = rows.Select(r => Audit(batch, r.Last.Sku, r.Last.ProductId ?? 0, "TierPriceUpdated", now, a =>
+        {
+            a.TierPriceId = r.Last.TierPriceId; a.ProposalId = r.Last.ProposalId;
+            a.OldTierPrice = r.Last.NewTierPrice; a.OldTierOldPrice = r.Last.NewTierOldPrice;
+            a.NewTierPrice = r.First.OldTierPrice; a.NewTierOldPrice = r.First.OldTierOldPrice;
+        })).ToList();
+        _db.PublishAudits.AddRange(audits);
+        await _db.SaveChangesAsync(ct);
+
+        var exceptions = new List<PublishException>();
+        await using (var conn = new SqlConnection(shop.ConnectionString))
+        {
+            await conn.OpenAsync(ct);
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
+            foreach (var (r, a) in rows.Zip(audits))
+            {
+                await using var cmd = new SqlCommand(
+                    $"UPDATE [{shop.Schema}].[TierPrice] SET Price = @Price, OldPrice = @Old WHERE Id = @Id AND Price = @Ours AND OldPrice = @OursOld", conn, tx);
+                cmd.Parameters.AddWithValue("@Price", a.NewTierPrice!.Value);
+                cmd.Parameters.AddWithValue("@Old", a.NewTierOldPrice!.Value);
+                cmd.Parameters.AddWithValue("@Id", a.TierPriceId!.Value);
+                cmd.Parameters.AddWithValue("@Ours", a.OldTierPrice!.Value);
+                cmd.Parameters.AddWithValue("@OursOld", a.OldTierOldPrice!.Value);
+                if (await cmd.ExecuteNonQueryAsync(ct) == 1)
+                {
+                    a.Applied = true;
+                    foreach (var raise in r.All) raise.RolledBackUtc = now;
+                }
+                else
+                    exceptions.Add(Exception(batch, a.Sku, "changed-since-raise", $"The regular price isn't our raise to {a.OldTierPrice:0.00} any more: someone changed it; left as it is."));
+            }
+            await tx.CommitAsync(ct);
+        }
+        await _cache.InvalidateAsync(layer.Db, rows.Where((_, i) => audits[i].Applied).Select(r => r.Last.ProductId ?? 0).ToList(), ct);
+        _db.PublishExceptions.AddRange(exceptions);
+        batch.Updated = audits.Count(a => a.Applied);
+        batch.Skipped = exceptions.Count;
+        batch.Status = "Published";
+        batch.FinishedUtc = Truncate(_clock.GetUtcNow().UtcDateTime);
+        await _db.SaveChangesAsync(CancellationToken.None);
+        return (batch.Updated, batch.Skipped, batch.Id);
+    }
+
     private sealed record LayerRef(int LayerId, string Db, int StoreId, bool HasDisplayAvailabilityTime, bool IsMall);
 
     private async Task<(ShopConnection Shop, LayerRef Layer)> ShopForLayerAsync(int layerId, CancellationToken ct)

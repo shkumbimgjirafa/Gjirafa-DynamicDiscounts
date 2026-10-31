@@ -24,10 +24,18 @@ public static class StepStatus
     public static bool IsDone(string s) => s is Succeeded or Warning or Skipped or NotBuilt;
 }
 
+/// <summary>Publishes a run's checked prices to the shop sandbox, discounts and raises (the publisher implements it;
+/// a host without the publisher has none and the cycle's publish step says so).</summary>
+public interface ICheckedPricePublisher
+{
+    Task<(string Status, string Detail)> PublishCheckedAsync(int layerId, long runId, CancellationToken ct = default);
+}
+
 /// <summary>
 /// The laptop's daily cycle for the 30 days (plan section 5 "Live operation on the laptop", prompt 05), one job
 /// per day: size check → incremental hk refresh → engine runs (Gjirafa50 first) → Alpha's pass (weekly, on its
-/// day) → run checks → exports for the team's push → money ledger → time-sheet export → retention → backup.
+/// day) → run checks → exports for the team's push → the same checked prices to the shop sandbox (discounts and
+/// raises, prompt 07) → money ledger → time-sheet export → retention → backup.
 /// Each step writes its own <c>ai.DailyCycleStep</c> row, and a failing step doesn't stop the rest. Idempotent
 /// per day: a second start resumes the steps not done yet; a failed step is retried at most
 /// <see cref="MaxAttemptsPerDay"/> times a day (so a failing AI step can't turn into a stream of paid calls).
@@ -146,6 +154,15 @@ public sealed class DailyCycle
                 var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
                 var r = await With((CheckedExport x) => x.ExportAsync(run.Id, c.ExportDir(), ct));
                 return (r.Exported ? StepStatus.Succeeded : StepStatus.Warning, r.Reason + (r.FilePath is null ? "" : $" File: {r.FilePath}"));
+            });
+        foreach (var layer in c.Layers)
+            yield return new Step($"publish-L{layer}", async ct =>
+            {
+                var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
+                using var scope = _sp.CreateScope();
+                if (scope.ServiceProvider.GetService<ICheckedPricePublisher>() is not { } publisher)
+                    return (StepStatus.NotBuilt, "no publisher in this host: the push file is the only path");
+                return await publisher.PublishCheckedAsync(layer, run.Id, ct);
             });
         yield return new Step("ledger", async ct =>
         {

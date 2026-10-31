@@ -34,6 +34,13 @@ public sealed record OutcomeFigures(
 
 public sealed record OutcomeUpdate(int Decisions, int NotLive, int Waiting, int Measured, int RolledBack, int RollbacksWaiting);
 
+/// <summary>Restores the regular prices the publisher raised on a layer's SKUs of one band × category since a time, from
+/// the publish audit (the publisher implements it; prompt 07). Returns a line saying what it restored and left alone.</summary>
+public interface IRaiseRestorer
+{
+    Task<string> RestoreRaisesAsync(int layerId, int bandId, string category, DateTime sinceUtc, string reason, CancellationToken ct = default);
+}
+
 /// <summary>When a run's prices reached customers: a pushed export, or a successful publish to the live shop.</summary>
 internal sealed record LiveSource(int LayerId, long RunId, DateTime LiveUtc, long? ExportId, long? PublishId)
 {
@@ -53,8 +60,9 @@ internal sealed record LiveSource(int LayerId, long RunId, DateTime LiveUtc, lon
 /// called a drop in about one window in five. So the same comparison is run on <see cref="OutcomeOptions.PlaceboWindows"/>
 /// no-change windows of the same band × category before the change, and a drop must be at least
 /// <see cref="OutcomeOptions.DropPct"/> % under the expectation <i>and</i> worse than every one of them (a false alarm
-/// about once in 27 measurements). A drop rolls the change back, restoring the rule's previous floor and target, and
-/// pauses the band × category, so the pricing agent's next changes there wait for a person. Each outcome is written to
+/// about once in 27 measurements). A drop rolls the change back, restoring the rule's previous floor and target and the
+/// regular prices the publisher raised there since (<see cref="IRaiseRestorer"/>), and pauses the band × category, so the
+/// pricing agent's next changes there wait for a person and its raises are held back. Each outcome is written to
 /// <c>ai.AgentOutcome</c> and read back by <c>get_past_decisions</c>.</para>
 /// </summary>
 public sealed class OutcomeTracker
@@ -68,9 +76,10 @@ public sealed class OutcomeTracker
     private readonly AgentOptions _options;
     private readonly ILogger<OutcomeTracker> _logger;
     private readonly TimeProvider _clock;
+    private readonly IRaiseRestorer? _raises;
 
     public OutcomeTracker(AgentDbContext db, PricingToolDbContext tool, PricingDataReader reader, IKillSwitch killSwitch,
-        IOptions<AgentOptions> options, ILogger<OutcomeTracker> logger, TimeProvider? clock = null)
+        IOptions<AgentOptions> options, ILogger<OutcomeTracker> logger, TimeProvider? clock = null, IRaiseRestorer? raises = null)
     {
         _db = db;
         _tool = tool;
@@ -79,6 +88,7 @@ public sealed class OutcomeTracker
         _options = options.Value;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
+        _raises = raises;
     }
 
     /// <summary>Test seam: the row's and the holdout's daily sales in [from, to), and the campaign days.</summary>
@@ -329,6 +339,10 @@ public sealed class OutcomeTracker
         rule.UpdatedUtc = now;
         rule.UpdatedBy = Source;
         await _tool.SaveChangesAsync(ct);
+
+        // The prices it raised go back too: a lower price from the restored rule would only come as a discount under them.
+        var restored = _raises is null ? "" : " " + await _raises.RestoreRaisesAsync(d.LayerId, d.BandId, d.Category, d.AppliedUtc ?? now, reason, ct);
+        x.Evidence = Truncate(x.Evidence + restored);
 
         await _db.SaveChangesAsync(CancellationToken.None);      // the outcome's id, for the pause
         _db.CategoryPauses.Add(new CategoryPause

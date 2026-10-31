@@ -145,4 +145,27 @@ public class RunWeekTests
         Assert.Contains("Refused", rows[^1].Detail);
         Assert.Equal("Stopped", week.Status);
     }
+
+    private sealed class NoHoldouts : PricingTool.Agent.Checker.IHoldoutLookup
+    {
+        public Task<IReadOnlySet<long>> HoldoutProposalIdsAsync(long runId, int layerId, IReadOnlyCollection<string> categories, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlySet<long>>(new HashSet<long>());
+    }
+
+    [Fact]
+    public async Task The_daily_cycles_sandbox_publish_refuses_a_live_target_and_an_unchecked_run()
+    {
+        var tool = new PricingTool.Data.PricingToolDbContext(new DbContextOptionsBuilder<PricingTool.Data.PricingToolDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var exporter = new PricingTool.Agent.Checker.CheckedExport(tool, Db(), new NoHoldouts(), Options.Create(new PricingTool.Agent.AgentOptions()));
+
+        var live = await new CheckedPricePublisher(exporter, null!, Options.Create(new PublisherOptions { Target = PublisherOptions.LiveTarget }))
+            .PublishCheckedAsync(4, 1105);
+        var notChecked = await new CheckedPricePublisher(exporter, null!, Options.Create(new PublisherOptions())).PublishCheckedAsync(4, 1105);
+
+        Assert.Equal(StepStatus.Skipped, live.Status);
+        Assert.Contains("only to the shop sandbox", live.Detail);
+        Assert.Equal(StepStatus.Skipped, notChecked.Status);
+        Assert.Contains("has no check", notChecked.Detail);
+    }
 }

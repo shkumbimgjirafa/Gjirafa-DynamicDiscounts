@@ -241,6 +241,10 @@ public sealed class RunChecker
                 notes.Add("mall-gj50-disagree not checked: no Gjirafa50 run with proposals before this one.");
         }
 
+        // Every changed price is checked, raises included; a raise reaches the shelf as the regular (tier) price, a cut as a discount.
+        var up = proposals.Count(p => p.ProposedPriceValue > p.CurrentPrice);
+        notes.Add($"{proposals.Count} changed prices checked: {up} raises (they go out as the regular price), {proposals.Count - up} cuts (as discounts).");
+
         var inputs = proposals.Select(p =>
         {
             var band = p.PriceBandId is { } id && bands.TryGetValue(id, out var b) ? b : null;

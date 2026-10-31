@@ -813,4 +813,53 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         Assert.Equal("at-or-above-shelf", Assert.Single(outcome.Exceptions).Kind);
         Assert.Equal((40m, 0m), Tier(tier));
     }
+
+    private sealed class Categories : PricingTool.Agent.Checker.IHoldoutLookup
+    {
+        public HashSet<long> Ids { get; } = new();
+        public Task<IReadOnlySet<long>> HoldoutProposalIdsAsync(long runId, int layerId, IReadOnlyCollection<string> categories, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlySet<long>>(Ids);
+    }
+
+    private void Proposal(long id, string sku, int band)
+    {
+        _tool.ProposedPrices.Add(new ProposedPrice { Id = id, PricingRunId = 1105, LayerId = 4, Sku = sku, PriceBandId = band, HasChange = true, ProposedPriceValue = 45m });
+        _tool.SaveChanges();
+    }
+
+    private static PublishRequest RaisesFor(params (string Sku, decimal Price, long Proposal)[] items) =>
+        new(4, items.Select(i => new PublishItem(i.Sku, i.Price) { RunCurrentPrice = 40m, RunOldPrice = 40m, Ceiling = 1000m, ProposalId = i.Proposal }).ToList())
+        { RaiseRegularPrices = true, EngineRunId = 1105 };
+
+    [LocalDbFact]
+    public async Task A_drop_restores_the_raised_regular_prices_of_its_band_and_category_and_leaves_the_rest()
+    {
+        Product(201, "IN", hasTier: true);
+        Product(202, "OTHER-BAND", hasTier: true);
+        Product(203, "CHANGED", hasTier: true);
+        var inScope = TierRow(201, 40m, 0m);
+        var otherBand = TierRow(202, 40m, 0m);
+        var changed = TierRow(203, 40m, 0m);
+        Proposal(1, "IN", 26);
+        Proposal(2, "OTHER-BAND", 27);
+        Proposal(3, "CHANGED", 26);
+        await Writer().PublishAsync(RaisesFor(("IN", 45m, 1), ("OTHER-BAND", 45m, 2), ("CHANGED", 45m, 3)));
+        await Writer().PublishAsync(RaisesFor(("IN", 47m, 1)));                    // raised twice: restored to before the first
+        using (var c = _fixture.Open()) Exec(c, $"UPDATE [{G50}].[TierPrice] SET Price = 46 WHERE Id = {changed}");   // the team's own change
+        var categories = new Categories { Ids = { 1, 2, 3 } };
+
+        var line = await new NopRaiseRestorer(_db, _tool, categories, Writer()).RestoreRaisesAsync(4, 26, "Aksesorë", Now.AddHours(-1), "outcome drop (test)");
+
+        Assert.Equal((40m, 0m), Tier(inScope));
+        Assert.Equal((45m, 0m), Tier(otherBand));                                 // another band: not this decision's
+        Assert.Equal((46m, 0m), Tier(changed));                                   // someone else's change is never overwritten
+        Assert.Contains("1 restored from the publish audit, 1 left alone", line);
+        var restore = await _db.PublishBatches.SingleAsync(b => b.Kind == "Restore");
+        Assert.Equal((1, 1), (restore.Updated, restore.Skipped));
+        Assert.All(await _db.PublishAudits.Where(a => a.Sku == "IN" && a.Change == "TierPriceUpdated" && a.BatchId != restore.Id).ToListAsync(),
+            a => Assert.NotNull(a.RolledBackUtc));
+
+        await Writer().RollbackAsync(restore.Id);                                  // a person can undo the restore like any publish
+        Assert.Equal((47m, 0m), Tier(inScope));
+    }
 }

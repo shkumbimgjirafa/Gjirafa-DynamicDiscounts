@@ -87,13 +87,26 @@ public class OutcomeTrackerTests : IDisposable
         public Task<KillSwitchState> GetAsync(CancellationToken ct = default) => Task.FromResult(State);
     }
 
+    /// <summary>The publisher's restore of raised regular prices, recorded.</summary>
+    private sealed class Restorer : IRaiseRestorer
+    {
+        public List<(int Layer, int Band, string Category, DateTime Since)> Calls { get; } = new();
+        public Task<string> RestoreRaisesAsync(int layerId, int bandId, string category, DateTime sinceUtc, string reason, CancellationToken ct = default)
+        {
+            Calls.Add((layerId, bandId, category, sinceUtc));
+            return Task.FromResult("Regular prices raised in band 26 × Aksesorë since 2026-10-01: 3 restored from the publish audit (batch #12).");
+        }
+    }
+
+    private readonly Restorer _restorer = new();
+
     private (OutcomeTracker Tracker, Clock Clock, Switch Switch) Tracker(WindowSales before, WindowSales after)
     {
         var clock = new Clock { Now = Pushed.AddDays(16) };
         var sw = new Switch();
         var options = Options.Create(new AgentOptions { Limits = new SafetyLimitOptions { Holdouts = { ["4"] = new() { "Gaming" } } } });
         var tracker = new OutcomeTracker(_ai, _tool, new PricingDataReader(new AgentDataSource("unused")), sw, options,
-            NullLogger<OutcomeTracker>.Instance, clock)
+            NullLogger<OutcomeTracker>.Instance, clock, _restorer)
         {
             // A steady daily series (so every no-change window reads 0 %) that changes from the day after the push:
             // per day the row sells before/14 until the push and after/14 from the next day; the holdout is flat.
@@ -147,6 +160,8 @@ public class OutcomeTrackerTests : IDisposable
         Assert.Equal((26, "Aksesorë", x.Id), (pause.BandId, pause.Category, pause.OutcomeId));
         Assert.Contains(await _tool.AuditLog.ToListAsync(), a => a.UserName == OutcomeTracker.Source && a.EntityId == "26 Aksesorë");
         Assert.Equal(1, (await new ExceptionsInbox(_ai, _tool).LoadAsync()).WaitingCount);
+        Assert.Equal((4, 26, "Aksesorë", Applied), Assert.Single(_restorer.Calls));     // its raises go back too, from the audit
+        Assert.Contains("3 restored from the publish audit", x.Evidence);
 
         Assert.Equal(1, (await tracker.UpdateAsync()).Measured);                  // re-measured, never rolled back twice
         Assert.Single(await _ai.CategoryPauses.ToListAsync());
@@ -169,6 +184,7 @@ public class OutcomeTrackerTests : IDisposable
         Assert.Equal("rollback-waits", (await _ai.AgentOutcomes.SingleAsync()).Action);
         Assert.Equal(14m, (await _tool.BandCategoryRules.SingleAsync()).MarginFloorPct);
         Assert.Empty(await _ai.CategoryPauses.ToListAsync());
+        Assert.Empty(_restorer.Calls);                                            // no price written while the switch is pulled
 
         sw.State = KillSwitchState.Running;
         Assert.Equal(1, (await tracker.UpdateAsync()).RolledBack);               // released: the rollback goes ahead

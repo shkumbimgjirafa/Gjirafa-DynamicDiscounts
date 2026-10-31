@@ -12,12 +12,18 @@ using PricingTool.Data.Entities;
 
 namespace PricingTool.Agent.Checker;
 
-/// <summary>A changed price of a run that may go out (see <see cref="CheckedExport.CheckedSetAsync"/>).</summary>
-public sealed record CheckedPrice(long ProposalId, string Sku, decimal OldPrice, decimal CurrentPrice, decimal Price, bool Fixed);
+/// <summary>A changed price of a run that may go out (see <see cref="CheckedExport.CheckedSetAsync"/>), with the run's anchor
+/// (the ceiling is max(anchor, current)).</summary>
+public sealed record CheckedPrice(long ProposalId, string Sku, decimal OldPrice, decimal CurrentPrice, decimal Price, bool Fixed, decimal AnchorPrice = 0m)
+{
+    public decimal Ceiling => Math.Max(AnchorPrice, CurrentPrice);
+}
 
 /// <summary>A run's checked prices: <see cref="Check"/> is null when the run hasn't been checked, <see cref="Blocked"/>
-/// says why when the check blocked it (then there are no prices).</summary>
-public sealed record CheckedSet(AgentRunCheck? Check, string? Blocked, IReadOnlyList<CheckedPrice> Prices, int HeldByCheck, int HoldoutLeftOut);
+/// says why when the check blocked it (then there are no prices). <see cref="PausedRaisesLeftOut"/>: raises in a band ×
+/// category the outcome tracker paused.</summary>
+public sealed record CheckedSet(AgentRunCheck? Check, string? Blocked, IReadOnlyList<CheckedPrice> Prices, int HeldByCheck, int HoldoutLeftOut,
+    int PausedRaisesLeftOut = 0);
 
 public sealed record ExportResult(bool Exported, string Reason, string? FilePath, int Rows, int LeftOut, long? CheckId)
 {
@@ -25,7 +31,8 @@ public sealed record ExportResult(bool Exported, string Reason, string? FilePath
     public int LeftOutHoldout { get; init; }
 }
 
-/// <summary>Which proposals of a run belong to the holdout categories (the control group is never priced by v2).</summary>
+/// <summary>Which proposals of a run belong to the holdout categories (the control group is never priced by v2), or to any
+/// other categories (a paused band × category).</summary>
 public interface IHoldoutLookup
 {
     Task<IReadOnlySet<long>> HoldoutProposalIdsAsync(long runId, int layerId, IReadOnlyCollection<string> categories, CancellationToken ct = default);
@@ -88,8 +95,9 @@ public sealed class CheckedExport
 
     /// <summary>
     /// The prices of a run that may go out, by the run's latest real check (the same set for the push file and for
-    /// Run week's publish): warn and block rows held, a fixed row at the checker's price, the holdout categories left
-    /// out. Nothing when the run hasn't been checked or the check blocked it.
+    /// Run week's and the daily cycle's publish): warn and block rows held, a fixed row at the checker's price, the
+    /// holdout categories left out, and no raise in a band × category the outcome tracker paused (its cuts still go).
+    /// Nothing when the run hasn't been checked or the check blocked it.
     /// </summary>
     public async Task<CheckedSet> CheckedSetAsync(long runId, CancellationToken ct = default)
     {
@@ -113,11 +121,27 @@ public sealed class CheckedExport
         var holdoutCategories = _options.Limits.Holdouts.TryGetValue(run.LayerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
         var holdout = await _holdouts.HoldoutProposalIdsAsync(runId, run.LayerId, holdoutCategories, ct);
         var proposals = await _tool.ProposedPrices.AsNoTracking().Where(p => p.PricingRunId == runId && p.HasChange)
-            .Select(p => new { p.Id, p.Sku, p.OldPrice, p.CurrentPrice, p.ProposedPriceValue }).ToListAsync(ct);
+            .Select(p => new { p.Id, p.Sku, p.OldPrice, p.CurrentPrice, p.AnchorPrice, p.PriceBandId, p.ProposedPriceValue }).ToListAsync(ct);
         var prices = proposals.Where(p => !held.Contains(p.Id) && !holdout.Contains(p.Id))
-            .Select(p => new CheckedPrice(p.Id, p.Sku, p.OldPrice, p.CurrentPrice, fixes.TryGetValue(p.Id, out var f) ? f : p.ProposedPriceValue, fixes.ContainsKey(p.Id)))
+            .Select(p => new CheckedPrice(p.Id, p.Sku, p.OldPrice, p.CurrentPrice, fixes.TryGetValue(p.Id, out var f) ? f : p.ProposedPriceValue, fixes.ContainsKey(p.Id),
+                p.AnchorPrice))
             .ToList();
-        return new CheckedSet(check, null, prices, proposals.Count(p => held.Contains(p.Id)), proposals.Count(p => holdout.Contains(p.Id) && !held.Contains(p.Id)));
+
+        // A paused band × category gets no raises until a person releases it.
+        var pausedRaises = new HashSet<long>();
+        var pauses = await _db.CategoryPauses.AsNoTracking().Where(x => x.LayerId == run.LayerId && x.ReleasedUtc == null).ToListAsync(ct);
+        var bandOf = proposals.ToDictionary(p => p.Id, p => p.PriceBandId);
+        foreach (var byCategory in pauses.GroupBy(x => x.Category))
+        {
+            var inCategory = await _holdouts.HoldoutProposalIdsAsync(runId, run.LayerId, new[] { byCategory.Key }, ct);
+            var bands = byCategory.Select(x => x.BandId).ToHashSet();
+            foreach (var p in prices.Where(p => p.Price > p.CurrentPrice && inCategory.Contains(p.ProposalId)
+                                                && bandOf[p.ProposalId] is { } b && bands.Contains(b)))
+                pausedRaises.Add(p.ProposalId);
+        }
+        prices = prices.Where(p => !pausedRaises.Contains(p.ProposalId)).ToList();
+        return new CheckedSet(check, null, prices, proposals.Count(p => held.Contains(p.Id)), proposals.Count(p => holdout.Contains(p.Id) && !held.Contains(p.Id)),
+            pausedRaises.Count);
     }
 
     public async Task<ExportResult> ExportAsync(long runId, string directory, CancellationToken ct = default)
@@ -166,7 +190,7 @@ public sealed class CheckedExport
         {
             Date = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime), UserEmail = _options.TimeSheetOwnerEmail, TaskTypeId = type.Id,
             What = $"Engine run #{runId} (layer {run.LayerId}): push file of {exported.Count:N0} checked prices, {batch.LeftOutByCheck:N0} held by check #{check.Id}, " +
-                   $"{batch.LeftOutHoldout:N0} holdout left out",
+                   $"{batch.LeftOutHoldout:N0} holdout left out" + (set.PausedRaisesLeftOut > 0 ? $", {set.PausedRaisesLeftOut:N0} raises in paused categories left out" : ""),
             MinutesBefore = type.MinutesBefore, MinutesAfter = Math.Round((decimal)sw.Elapsed.TotalMinutes, 2),
             Proof = $"ai.ExportBatch #{batch.Id}",
             Comment = "Written by the export; minutes after = the export's wall clock. The team's push of the file is manual and not included.",
@@ -174,8 +198,9 @@ public sealed class CheckedExport
         await _db.SaveChangesAsync(ct);
 
         return new ExportResult(true,
-            $"Check #{check.Id} verdict {check.Verdict}: {exported.Count} prices exported, {batch.LeftOutByCheck} held by the check, {batch.LeftOutHoldout} holdout left out.",
-            path, exported.Count, set.HeldByCheck + set.HoldoutLeftOut, check.Id) { ExportBatchId = batch.Id, LeftOutHoldout = batch.LeftOutHoldout };
+            $"Check #{check.Id} verdict {check.Verdict}: {exported.Count} prices exported, {batch.LeftOutByCheck} held by the check, {batch.LeftOutHoldout} holdout left out" +
+            (set.PausedRaisesLeftOut > 0 ? $", {set.PausedRaisesLeftOut} raises in paused categories left out." : "."),
+            path, exported.Count, set.HeldByCheck + set.HoldoutLeftOut + set.PausedRaisesLeftOut, check.Id) { ExportBatchId = batch.Id, LeftOutHoldout = batch.LeftOutHoldout };
     }
 
     /// <summary>

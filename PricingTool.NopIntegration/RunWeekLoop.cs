@@ -31,7 +31,8 @@ public interface IRunWeekSteps
 /// "Run week" for one layer (<c>ai.RunWeek</c>; plan section 5, Web, "Agent page controls"): the whole pricing loop with no clicks in
 /// between. Alpha's pass in the layer's mode (applied within the limits; held items go to the inbox) → an engine run
 /// with the per-category rules → the run checker → on pass or warn, the checked prices published to the shop
-/// sandbox through <see cref="NopDiscountWriter"/> → the writer's round-trip check. Each step is a
+/// sandbox through <see cref="CheckedPricePublisher"/> (cuts as discounts, raises as the regular price) → the writer's
+/// round-trip check. Each step is a
 /// <see cref="RunWeekStep"/> row with its counts and reasons. A pulled kill switch stops it before Alpha (and before
 /// any later step); a failed step or a blocked check stops the steps after it; the publish refuses unless
 /// <c>Publisher:Target</c> is Sandbox. It writes no export file: the daily push file stays the cycle's.
@@ -138,11 +139,10 @@ public sealed class RunWeekLoop
         {
             outcome = await _steps.PublishAsync(week.LayerId, engine.Id.Value, items, ct);
             var skipped = outcome.Exceptions.GroupBy(e => e.Kind).Select(g => $"{g.Key} {g.Count():N0} (e.g. {g.First().Sku}: {g.First().Detail})");
-            var raises = outcome.Exceptions.Count(e => e.Kind == "at-or-above-shelf");
-            return new RunWeekStepResult(outcome.Status == "Published" ? (raises > 0 ? StepStatus.Warning : StepStatus.Succeeded) : StepStatus.Failed,
-                $"batch #{outcome.BatchId} {outcome.Status}: {chosen}; created {outcome.Created:N0}, updated {outcome.Updated:N0}, unchanged {outcome.Unchanged:N0}, " +
-                $"skipped {outcome.Skipped:N0}" + (raises > 0 ? $"; {raises:N0} raises can't be discounts: they go out with the regular-price push file" : ""),
-                outcome.Exceptions.Count == 0 ? null : "Left as they are: " + string.Join("; ", skipped), outcome.BatchId);
+            var unwritten = outcome.Exceptions.Count(e => e.Kind is "at-or-above-shelf" or "changed-since-run" or "above-ceiling" or "no-ceiling");
+            return new RunWeekStepResult(outcome.Status == "Published" ? (unwritten > 0 ? StepStatus.Warning : StepStatus.Succeeded) : StepStatus.Failed,
+                $"batch #{outcome.BatchId} {outcome.Status}: {chosen}; {CheckedPricePublisher.Describe(outcome)}",
+                outcome.Exceptions.Count == 0 ? null : "Listed in the exceptions inbox: " + string.Join("; ", skipped), outcome.BatchId);
         }, ct);
         week.PublishBatchId = publish.Id;
         if (outcome is null || publish.Status == StepStatus.Failed) return Stop($"The publish didn't go through: {publish.Detail}.");
@@ -196,11 +196,14 @@ public sealed class RunWeekSteps : IRunWeekSteps
 
     public RunWeekSteps(IServiceProvider sp) => _sp = sp;
 
+    /// <summary>The whole data file counts: the engine run's proposals and snapshots, and the publish's writes (the sandbox's
+    /// discount and regular-price tables, and an audit row per discount or regular price written).</summary>
     public async Task<RunWeekStepResult> SizeCheckAsync(CancellationToken ct)
     {
         using var scope = _sp.CreateScope();
         var (gb, warn) = await scope.ServiceProvider.GetRequiredService<DatabaseMaintenance>().SizeAsync(ct);
-        return new RunWeekStepResult(warn ? StepStatus.Failed : StepStatus.Succeeded, $"{gb:0.00} GB used of LocalDB's 10 GB" + (warn ? ", over the warning line" : ""));
+        return new RunWeekStepResult(warn ? StepStatus.Failed : StepStatus.Succeeded,
+            $"{gb:0.00} GB used of LocalDB's 10 GB (sandbox discounts, regular prices and publish audits included)" + (warn ? ", over the warning line" : ""));
     }
 
     public async Task<RunWeekStepResult> AlphaAsync(int layerId, CancellationToken ct)
@@ -245,13 +248,12 @@ public sealed class RunWeekSteps : IRunWeekSteps
         var set = await scope.ServiceProvider.GetRequiredService<CheckedExport>().CheckedSetAsync(runId, ct);
         if (set.Check is null) return (Array.Empty<PublishItem>(), $"run #{runId} has no check");
         if (set.Blocked is { } why) return (Array.Empty<PublishItem>(), $"check #{set.Check.Id} blocked it: {why}");
-        return (set.Prices.Select(p => new PublishItem(p.Sku, p.Price, p.OldPrice)).ToList(),
-            $"{set.Prices.Count:N0} checked prices ({set.HeldByCheck:N0} held by check #{set.Check.Id}, {set.HoldoutLeftOut:N0} holdout left out)");
+        return (CheckedPricePublisher.Items(set), CheckedPricePublisher.Chosen(set));
     }
 
     public async Task<PublishOutcome> PublishAsync(int layerId, long runId, IReadOnlyList<PublishItem> items, CancellationToken ct)
     {
         using var scope = _sp.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().PublishAsync(new PublishRequest(layerId, items) { EngineRunId = runId }, ct);
+        return await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().PublishAsync(CheckedPricePublisher.Request(layerId, runId, items), ct);
     }
 }

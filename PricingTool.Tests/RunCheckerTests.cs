@@ -101,8 +101,10 @@ public class RunCheckerTests : IDisposable
     private sealed class Holdouts : IHoldoutLookup
     {
         public HashSet<long> Ids { get; } = new();
+        /// <summary>Other categories' proposals (a paused band × category), asked for one category at a time.</summary>
+        public Dictionary<string, HashSet<long>> InCategory { get; } = new();
         public Task<IReadOnlySet<long>> HoldoutProposalIdsAsync(long runId, int layerId, IReadOnlyCollection<string> categories, CancellationToken ct = default) =>
-            Task.FromResult<IReadOnlySet<long>>(Ids);
+            Task.FromResult<IReadOnlySet<long>>(categories.Count == 1 && InCategory.TryGetValue(categories.First(), out var ids) ? ids : Ids);
     }
 
     private readonly Holdouts _holdouts = new();
@@ -261,6 +263,29 @@ public class RunCheckerTests : IDisposable
         var approval = await _tool.Approvals.Include(a => a.Items).SingleAsync();
         Assert.Equal((Run, 1, 0, 1), (approval.SourceRunId, approval.SkuCount, approval.IncreaseCount, approval.DecreaseCount));
         Assert.Equal(("INJ-OK", 52.50m, 49.50m), (approval.Items[0].Sku, approval.Items[0].OldPrice, approval.Items[0].NewPrice));
+    }
+
+    [Fact]
+    public async Task A_paused_band_and_category_gets_no_raises_but_keeps_its_cuts_and_each_price_carries_its_ceiling()
+    {
+        Injected(1, "INJ-CUT", 49.50m, 52.50m, 30m);                                     // a cut in the paused category: still goes
+        Injected(2, "INJ-RAISE", 49.50m, 47.50m, 30m);                                   // a raise in it: held back
+        Injected(3, "INJ-RAISE-BAND27", 54.50m, 52.50m, 30m, anchor: 56m);               // the same category, another band: goes
+        _tool.ProposedPrices.Find(3L)!.PriceBandId = 27;
+        _tool.SaveChanges();
+        _holdouts.InCategory["Aksesorë"] = new HashSet<long> { 1, 2, 3 };
+        _db.CategoryPauses.Add(new CategoryPause { LayerId = 4, BandId = 26, Category = "Aksesorë", PausedUtc = DateTime.UtcNow, Reason = "outcome drop (test)" });
+        _db.SaveChanges();
+        await Checker().CheckAsync(Run);                                                  // nothing flagged: no model call
+
+        var set = await Exporter().CheckedSetAsync(Run);
+
+        Assert.Equal(new[] { "INJ-CUT", "INJ-RAISE-BAND27" }, set.Prices.Select(p => p.Sku).OrderBy(s => s));
+        Assert.Equal(1, set.PausedRaisesLeftOut);
+        Assert.Equal((60m, 56m), (set.Prices.Single(p => p.Sku == "INJ-CUT").Ceiling, set.Prices.Single(p => p.Sku == "INJ-RAISE-BAND27").Ceiling));
+        Assert.Contains("1 raises in paused categories left out", (await Export()).Reason);
+        var check = await _db.AgentRunChecks.SingleAsync();
+        Assert.Contains("3 changed prices checked: 2 raises (they go out as the regular price), 1 cuts (as discounts)", check.Notes);
     }
 
     [Fact]
