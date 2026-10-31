@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 20:27",
+    "generated":  "2026-10-31 20:38",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -429,10 +429,10 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  608.0,
-                                      "sinceKickoffResponses":  3480,
-                                      "unattendedBlocksUsd":  370.26,
-                                      "unattendedBlocksResponses":  1805
+                                      "sinceKickoffUsd":  613.69,
+                                      "sinceKickoffResponses":  3493,
+                                      "unattendedBlocksUsd":  375.49,
+                                      "unattendedBlocksResponses":  1815
                                   },
                         "unit":  "USD (API-equivalent)",
                         "label":  "measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)",
@@ -445,11 +445,11 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  10.9,
-                                      "unattendedBlocks":  46,
-                                      "rows":  79
+                                      "unattendedBlocks":  47,
+                                      "rows":  80
                                   },
                         "unit":  "hours",
-                        "label":  "measured and stated (attended rows: Friday\u0027s timed by block, Saturday\u0027s the user\u0027s own estimate, about 7 h; the person\u0027s time inside unattended blocks is not timed)",
+                        "label":  "measured (Friday, attended rows timed by block) and estimated (Saturday: the user\u0027s own estimate, about 7 h); the person\u0027s time inside unattended blocks is not timed",
                         "method":  "Attended rows: their hours; unattended rows (\"0 (unattended, AI)\") count as AI cost only (E18)",
                         "source":  "docs/hackathon-2026/hours.md",
                         "script":  "this script"
@@ -463,7 +463,7 @@
                                   },
                         "unit":  "tests",
                         "label":  "measured",
-                        "method":  "dotnet test: 1017 passed, 1 skipped (the opt-in real headless call), 31 Oct 18:52",
+                        "method":  "dotnet test: 1017 passed, 1 skipped (the opt-in real headless call), 31 Oct 20:36",
                         "source":  "PricingTool.Tests",
                         "script":  "dotnet test PricingTool.sln"
                     },

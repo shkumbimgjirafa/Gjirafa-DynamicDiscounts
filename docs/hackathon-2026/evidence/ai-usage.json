@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-31 20:26",
+  "generated": "2026-10-31 20:37",
   "label": "measured tokens; API-equivalent cost at list prices (the actual spend is the flat Claude subscription)",
   "prices": "USD per million tokens from the claude-api skill (cached 2026-10-06): claude-opus-5-5 4.0/20.0, cache read 0.2; claude-sonnet-5-5 2.0/10.0, cache read 0.2; claude-opus-5 5.0/25.0, cache read 0.5; claude-opus-4-8 5.0/25.0, cache read 0.5; claude-fable-5-1 10.0/50.0, cache read 0.25; claude-haiku-5-5 0.1/0.5, cache read 0.01; cache writes 1.25x input (5 min), 2x (1 h)",
   "sources": [
@@ -16,7 +16,7 @@
     {
       "transcript": "ca16b95f-eea9-432e-905a-90b2780b8d8b.jsonl",
       "from": "start",
-      "responses": 861
+      "responses": 874
     },
     {
       "transcript": "agent-a1e96aa8152dcc7d1.jsonl",
@@ -58,14 +58,14 @@
     "<synthetic>"
   ],
   "sinceKickoff": {
-    "responses": 3480,
+    "responses": 3493,
     "tokens": {
-      "input": 7224,
-      "output": 4355640,
-      "cacheWrite": 8936574,
-      "cacheRead": 1681184077
+      "input": 7252,
+      "output": 4367145,
+      "cacheWrite": 8959344,
+      "cacheRead": 1689253026
     },
-    "usdApiEquivalent": 608.0,
+    "usdApiEquivalent": 613.69,
     "extras": [
       {
         "label": "data session a425eebb (transcript released; its share as counted at 31 Oct 10:23)",
@@ -110,18 +110,22 @@
       {
         "label": "ai-judge dry run 9",
         "usd": 4.9699
+      },
+      {
+        "label": "ai-judge dry run 10",
+        "usd": 3.6704
       }
     ]
   },
   "unattendedBlocks": {
-    "responses": 1805,
+    "responses": 1815,
     "tokens": {
-      "input": 3724,
-      "output": 2305525,
-      "cacheWrite": 4276543,
-      "cacheRead": 946504093
+      "input": 3746,
+      "output": 2313747,
+      "cacheWrite": 4295886,
+      "cacheRead": 952700307
     },
-    "usdApiEquivalent": 370.26,
+    "usdApiEquivalent": 375.49,
     "extras": [
       {
         "label": "data session a425eebb (transcript released; its share as counted at 31 Oct 10:23)",
@@ -150,6 +154,10 @@
       {
         "label": "ai-judge dry run 9",
         "usd": 4.9699
+      },
+      {
+        "label": "ai-judge dry run 10",
+        "usd": 3.6704
       }
     ]
   },
@@ -1323,6 +1331,26 @@
         {
           "label": "ai-judge dry run 9",
           "usd": 4.9699
+        }
+      ]
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "20:29",
+      "to": "20:37",
+      "unattended": true,
+      "responses": 10,
+      "tokens": {
+        "input": 22,
+        "output": 8222,
+        "cacheWrite": 19343,
+        "cacheRead": 6196214
+      },
+      "usdApiEquivalent": 5.23,
+      "extras": [
+        {
+          "label": "ai-judge dry run 10",
+          "usd": 3.6704
         }
       ]
     }

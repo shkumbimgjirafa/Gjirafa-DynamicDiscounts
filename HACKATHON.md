@@ -7,7 +7,9 @@ regular price (only to the `shop_sandbox_*` schemas during the hackathon), and a
 on 31 Oct it read the morning's 293 real cost moves within 0.7–9.1 minutes of the replica's refresh, raised none (no rise put a
 price we set under its floor) and held 54 for a person (52 under the floor at a cheaper deal: 28 the calculator's own
 earlier push, 21 only an app-only deal, which no longer holds a price, 3 a team deal; 2 with a floor above the shelf; E22). **The AI decides; code enforces:** no model
-output changes a price, a band or a discount without passing limits written in C#.
+output changes a price, a band or a discount without passing limits written in C#. Campaign terms a person gives in the chat
+(no depth cap, every SKU in stock, a margin target) are the model's reading of the message: code bounds them (90 % depth at
+most, a 3 % margin floor on every SKU, never above a regular price, the sandbox only) but doesn't check the message itself.
 
 The app has four tabs: **Run** (the current run, treated as live: what it changed, its expected effect on the shelf, Alpha's
 account of it, Run week), **Chat** (the agents' activity, the chat with them, and only what they couldn't settle
@@ -97,7 +99,7 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
 `ai.AgentQueryLog`. The agents' runtime Claude calls: 85 calls, $10.29 in the live database and 5 calls, $1.03 in the test
-database (E15). The Claude Code sessions that built this used $608.00 since kickoff (API-equivalent; the ten AI-judge dry runs and the released data session's share included), $370.26 of it in the unattended
+database (E15). The Claude Code sessions that built this used $613.69 since kickoff (API-equivalent; the eleven AI-judge dry runs and the released data session's share included), $375.49 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -120,7 +122,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit €106,634, ROI 645 %, payback 3.4 months; the
+**The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit €106,628, ROI 645 %, payback 3.4 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
@@ -309,11 +311,11 @@ the reason next to each.
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
 | The organisers' AI Pioneer meter (31 Oct, at Mergca's request) | The build sessions report through Claude Code hooks in this project's `.claude/settings.local.json` (git-ignored); the agents' own calls through `HacktrackMeter` (one event per attempt that reached the model, task name, requests and tokens; labelled injected tests are not counted) handing each event to the organisers' `hook.js`. The team token lives only in that ignored file and in the user's environment variables, never in a tracked file |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 10.9 attended hours (Friday's 3.9 timed by block, Saturday's 7 the user's own estimate), the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $370.26 API-equivalent; $608.00 since the kickoff (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 10.9 attended hours (Friday's 3.9 timed by block, Saturday's 7 the user's own estimate), the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $375.49 API-equivalent; $613.69 since the kickoff (E18) |
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 1017 passed, 1 skipped (31 Oct, 18:52). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 1017 passed, 1 skipped (31 Oct, 20:36). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).
