@@ -1,7 +1,7 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["reply", "askAlpha", "brief", "rule"],
+  "required": ["reply", "askAlpha", "brief", "rule", "goal"],
   "properties": {
     "reply": { "type": "string" },
     "askAlpha": { "type": ["string", "null"] },
@@ -21,6 +21,18 @@
         "minMarginPct": { "type": "number" },
         "maxDepthPct": { "type": "number" },
         "rationale": { "type": "string" }
+      }
+    },
+    "goal": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["layer", "period", "start", "kind", "value"],
+      "properties": {
+        "layer": { "type": "integer", "enum": [1, 4] },
+        "period": { "type": "string", "enum": ["month", "week"] },
+        "start": { "type": "string" },
+        "kind": { "type": "string", "enum": ["gross-profit", "margin"] },
+        "value": { "type": "number" }
       }
     },
     "rule": {

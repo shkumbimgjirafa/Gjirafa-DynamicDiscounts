@@ -176,8 +176,26 @@
                 <div class="text-muted">Gross profit this month <span class="badge bg-success">measured</span></div>
                 <div class="tile-value">@Eur(r.MonthToDateGp)</div>
                 <div class="text-muted">@Eur(r.LastMonthSameDaysGp) on the same days last month@(mtdChange is { } mc ? $" ({(mc >= 0 ? "+" : "−")}{Math.Abs(mc):0}%)" : "").
-                    Booked sales lines through @(r.SalesThrough?.ToString("d MMM HH:mm") ?? "–"); the real shop's sales (sandbox prices don't reach customers); the last two weeks still lose lines to cancellations.
-                    No goal set yet.</div>
+                    Booked sales lines through @(r.SalesThrough?.ToString("d MMM HH:mm") ?? "–"); the real shop's sales (sandbox prices don't reach customers); the last two weeks still lose lines to cancellations.</div>
+                @foreach (var g in r.Goals)
+                {
+                    <div class="mt-1 @(g.OnTrack == false ? "text-danger" : g.OnTrack == true ? "text-success" : "")">
+                        <strong>Goal, @(g.Goal.Period == "month" ? "this month" : $"week of {g.Goal.Start:d MMM}"):</strong>
+                        @if (g.Goal.Kind == "gross-profit")
+                        {
+                            <span>@Eur(g.GrossProfit) of @Eur(g.Goal.Value) (@(((g.ShareOfGoal ?? 0m) * 100m).ToString("0"))%) with @((g.ElapsedShare * 100m).ToString("0"))% of the @g.Goal.Period gone@(g.Projected is { } pj ? $"; at this pace {Eur(pj)}" : "").</span>
+                        }
+                        else
+                        {
+                            <span>margin @(g.MarginPct?.ToString("0.0") ?? "–")% against @g.Goal.Value.ToString("0.#")%.</span>
+                        }
+                        <span class="text-muted">Set by @g.Goal.SetBy in the chat.</span>
+                    </div>
+                }
+                @if (r.Goals.Count == 0)
+                {
+                    <div class="mt-1 text-muted">No goal for this month or week: tell Nova in the <a asp-controller="Chat" asp-action="Index">Chat</a> ("GjirafaMall: €180k gross profit this month").</div>
+                }
             </div>
         </div>
         <div class="col-md-6 col-xl-3">

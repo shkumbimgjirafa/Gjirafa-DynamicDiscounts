@@ -25,9 +25,10 @@ public class ChatController : Controller
     private readonly AgentModeStore _modes;
     private readonly ChatTurnLauncher _launcher;
     private readonly ProblemPassLauncher _problems;
+    private readonly PricingTool.Agent.Tools.AgentDataSource _source;
 
     public ChatController(PricingToolDbContext db, AgentDbContext ai, AgentActivity activity, ExceptionsInbox inbox, AgentModeStore modes, ChatTurnLauncher launcher,
-        ProblemPassLauncher problems)
+        ProblemPassLauncher problems, PricingTool.Agent.Tools.AgentDataSource source)
     {
         _db = db;
         _ai = ai;
@@ -36,6 +37,7 @@ public class ChatController : Controller
         _modes = modes;
         _launcher = launcher;
         _problems = problems;
+        _source = source;
     }
 
     public async Task<IActionResult> Index()
@@ -60,6 +62,7 @@ public class ChatController : Controller
             Inbox = inbox,
             ComingUp = await _activity.ComingUpAsync(DateOnly.FromDateTime(DateTime.Now)),
             Rules = await _ai.ChatRules.AsNoTracking().Where(r => r.RemovedUtc == null).OrderBy(r => r.Id).ToListAsync(),
+            Goals = await PricingTool.Agent.Operations.Goals.StatusAsync(_ai, _source, DateOnly.FromDateTime(DateTime.Now)),
             Lessons = await _ai.AgentLessons.AsNoTracking().Where(l => l.RetiredUtc == null).OrderByDescending(l => l.Id).ToListAsync(),
             Queries = await _ai.AgentQueryLog.AsNoTracking().OrderByDescending(q => q.Id).Take(25).ToListAsync(),
             Layers = autonomy,

@@ -45,6 +45,7 @@ public class AgentDbContext : DbContext
     public DbSet<BacktestSnapshotRecord> BacktestSnapshots => Set<BacktestSnapshotRecord>();
     public DbSet<RunReportRecord> RunReports => Set<RunReportRecord>();
     public DbSet<RunReportCellRecord> RunReportCells => Set<RunReportCellRecord>();
+    public DbSet<GoalRecord> Goals => Set<GoalRecord>();
 
     /// <summary>Seeded task type ids (the user sets their MinutesBefore once measured).</summary>
     public static class TaskTypes
@@ -319,6 +320,18 @@ public class AgentDbContext : DbContext
             e.Property(x => x.AlphaText).HasMaxLength(4000);
             e.Property(x => x.AlphaWatch).HasMaxLength(2000);
             e.Property(x => x.AlphaStatus).HasMaxLength(500);
+        });
+        builder.Entity<GoalRecord>(e =>
+        {
+            e.ToTable("Goal");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Period).HasMaxLength(10);
+            e.Property(x => x.Kind).HasMaxLength(20);
+            e.Property(x => x.Value).HasPrecision(14, 2);
+            e.Property(x => x.SetBy).HasMaxLength(256);
+            e.Property(x => x.Instruction).HasMaxLength(1000);
+            e.Property(x => x.RetiredBy).HasMaxLength(256);
+            e.HasIndex(x => new { x.LayerId, x.Start });
         });
         builder.Entity<RunReportCellRecord>(e =>
         {

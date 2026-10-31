@@ -72,7 +72,7 @@ public sealed class CampaignAgent
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId).OrderBy(c => c.StartDate).ToListAsync(ct);
         return BuildPrompt(layerId, today, calendar, new Dictionary<long, string>(), await (InputSource ?? DataBlockAsync)(layerId, today, ct),
-            await new LessonBook(_db, _clock).NovaBlockAsync(layerId, ct));
+            await new LessonBook(_db, _clock).NovaBlockAsync(layerId, ct) + Environment.NewLine + await Operations.Goals.BlockAsync(_db, today, layerId, ct));
     }
 
     /// <param name="isTest">Demo or injected test: stored and labelled; never puts anything on the calendar and writes no result.</param>
@@ -100,7 +100,7 @@ public sealed class CampaignAgent
             measured[c.Id] = JsonSerializer.Serialize(await _tools.GetCampaignResultsAsync(new AgentToolContext(AgentRole.Nova, $"code:nova-pass-{pass.Id}"), c.Id, ct), Json);
 
         var prompt = BuildPrompt(layerId, today, calendar, measured, await (InputSource ?? DataBlockAsync)(layerId, today, ct),
-            await new LessonBook(_db, _clock).NovaBlockAsync(layerId, ct));
+            await new LessonBook(_db, _clock).NovaBlockAsync(layerId, ct) + Environment.NewLine + await Operations.Goals.BlockAsync(_db, today, layerId, ct));
         var call = await _client.CallAsync(new AgentCallRequest(AgentRole.Nova,
             isTest ? $"[INJECTED-TEST] campaign-briefs L{layerId}" : $"campaign-briefs L{layerId}",
             prompt, Path.Combine(PromptsDirectory, "campaign-agent-rules.md"))

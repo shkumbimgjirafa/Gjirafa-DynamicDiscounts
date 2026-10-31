@@ -7,6 +7,7 @@ using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Campaigns;
 using PricingTool.Agent.Chat;
 using PricingTool.Agent.ClaudeCode;
+using PricingTool.Agent.Operations;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 using PricingTool.Data;
@@ -76,11 +77,11 @@ public class AgentChatTests : IDisposable
         };
     }
 
-    private void Says(string reply, string? askAlpha = null, JsonObject? brief = null, JsonObject? rule = null) => _answers.Enqueue(new JsonObject
+    private void Says(string reply, string? askAlpha = null, JsonObject? brief = null, JsonObject? rule = null, JsonObject? goal = null) => _answers.Enqueue(new JsonObject
     {
         ["type"] = "result", ["subtype"] = "success", ["is_error"] = false, ["num_turns"] = 2, ["result"] = "", ["total_cost_usd"] = 0.03m,
         ["usage"] = new JsonObject { ["input_tokens"] = 900, ["output_tokens"] = 120 },
-        ["structured_output"] = new JsonObject { ["reply"] = reply, ["askAlpha"] = askAlpha, ["brief"] = brief, ["rule"] = rule },
+        ["structured_output"] = new JsonObject { ["reply"] = reply, ["askAlpha"] = askAlpha, ["brief"] = brief, ["rule"] = rule, ["goal"] = goal },
     }.ToJsonString());
 
     private static JsonObject Brief(string start, string end) => new()
@@ -158,6 +159,33 @@ public class AgentChatTests : IDisposable
         var bad = await Chat().AskAsync(t.ConversationId, "Keep a good margin", "manager@test");
         Assert.StartsWith("No rule recorded", bad.Added[^1].Text);
         Assert.Single(await _db.ChatRules.ToListAsync());
+    }
+
+    [Fact]
+    public async Task A_goal_is_recorded_for_the_whole_period_replaces_the_one_before_and_a_bad_one_is_refused()
+    {
+        Says("Noted: €180k for GjirafaMall in November.", goal: new JsonObject { ["layer"] = 1, ["period"] = "month", ["start"] = "2026-11-15", ["kind"] = "gross-profit", ["value"] = 180000m });
+        var t = await Chat().AskAsync(null, "GjirafaMall should make 180k gross profit this month", "manager@test");
+        var first = await _db.Goals.SingleAsync();
+        Assert.Equal((1, "month", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30), "gross-profit", 180000m, "manager@test"),
+            (first.LayerId, first.Period, first.Start, first.End, first.Kind, first.Value, first.SetBy));
+        Assert.Contains($"Goal #{first.Id} set", t.Added[^1].Text);
+
+        Says("Raised to €190k.", goal: new JsonObject { ["layer"] = 1, ["period"] = "month", ["start"] = "2026-11-02", ["kind"] = "gross-profit", ["value"] = 190000m });
+        await Chat().AskAsync(t.ConversationId, "Make it 190k", "manager@test");
+        var active = await Goals.ActiveAsync(_db, new DateOnly(2026, 11, 2));
+        Assert.Equal(190000m, Assert.Single(active).Value);                                         // the newer replaces the older
+        Assert.NotNull((await _db.Goals.SingleAsync(g => g.Id == first.Id)).RetiredUtc);
+
+        Says("Gjirafa50 at 12% this week.", goal: new JsonObject { ["layer"] = 4, ["period"] = "week", ["start"] = "2026-11-04", ["kind"] = "margin", ["value"] = 12m });
+        await Chat().AskAsync(t.ConversationId, "Gjirafa50 12% margin this week", "manager@test");
+        var week = await _db.Goals.SingleAsync(g => g.Period == "week");
+        Assert.Equal((new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 8)), (week.Start, week.End));  // Monday to Sunday
+
+        Says("Noted.", goal: new JsonObject { ["layer"] = 1, ["period"] = "month", ["start"] = "2026-10-05", ["kind"] = "gross-profit", ["value"] = 150000m });
+        var past = await Chat().AskAsync(t.ConversationId, "October should have been 150k", "manager@test");
+        Assert.StartsWith("No goal recorded: That month ended", past.Added[^1].Text);
+        Assert.Equal(3, await _db.Goals.CountAsync());
     }
 
     [Fact]

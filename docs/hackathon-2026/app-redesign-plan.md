@@ -128,6 +128,11 @@ Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
   the thread; the mirror leaves deals the tool ended as ended. On today's 54 held SKUs: 51 fixed by code, 3 reported by
   Alpha (2 regular prices for the category manager, 1 team deal for the campaign owner) plus the Black Friday plan.
   Not done: regular publishes (Run week, the daily cycle) still leave team deals that sell under our price; owner names.
+- **Step 4 done** (this commit): goals set in the chat (`ai.Goal`; Nova returns `goal`, code checks it and records it for the
+  whole calendar month or Monday-to-Sunday week, replacing the one before); measured on the booked sales lines (gross profit
+  so far, the share of the period gone, the period at the same pace; margin = gross profit / net revenue) on the Run tab
+  and the Chat tab's Goals card (Remove there); Nova's and Alpha's weekly inputs and the chat context list the goals.
+  Not checked with a live chat turn: no goal is set yet (the values are the user's).
 
 ## Verification
 

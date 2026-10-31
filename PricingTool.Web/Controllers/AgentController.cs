@@ -122,6 +122,28 @@ public class AgentController : Controller
     [HttpPost]
     [Authorize(Roles = "Manager")]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RetireGoal(long goalId)
+    {
+        var goal = await _ai.Goals.SingleOrDefaultAsync(g => g.Id == goalId && g.RetiredUtc == null);
+        if (goal is null) TempData["Error"] = $"Goal #{goalId} is not in force.";
+        else
+        {
+            (goal.RetiredUtc, goal.RetiredBy) = (DateTime.UtcNow, Who);
+            await _ai.SaveChangesAsync();
+            _db.AuditLog.Add(new PricingTool.Data.Entities.AuditLogEntry
+            {
+                LayerId = goal.LayerId, TimestampUtc = DateTime.UtcNow, UserName = Who, Category = AgentModeStore.AuditCategory, Action = "Goal removed",
+                EntityType = "Goal", EntityId = goal.Id.ToString(), OldValue = PricingTool.Agent.Operations.Goals.Describe(goal), NewValue = "removed",
+            });
+            await _db.SaveChangesAsync();
+            TempData["Message"] = $"Goal #{goal.Id} removed.";
+        }
+        return RedirectToAction(nameof(ChatController.Index), "Chat", null, "goals");
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddLesson(string agent, int? layerId, string text)
     {
         try

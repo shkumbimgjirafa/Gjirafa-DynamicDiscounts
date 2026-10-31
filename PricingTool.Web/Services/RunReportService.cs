@@ -45,6 +45,8 @@ public class RunReport
     public decimal LastMonthSameDaysGp { get; init; }
     public DateTime? SalesThrough { get; init; }
     public IReadOnlyList<string> Holdouts { get; init; } = Array.Empty<string>();
+    /// <summary>The layer's goals in force (set in the chat with Nova), measured on the booked sales lines.</summary>
+    public IReadOnlyList<GoalStatus> Goals { get; init; } = Array.Empty<GoalStatus>();
 
     public bool IsHoldout(string category) => Holdouts.Any(h => string.Equals(h.Trim(), category.Trim(), StringComparison.OrdinalIgnoreCase));
 
@@ -68,13 +70,15 @@ public class RunReportService
     private readonly AgentDbContext _ai;
     private readonly IRunFacts _facts;
     private readonly IMemoryCache _cache;
+    private readonly PricingTool.Agent.Tools.AgentDataSource _source;
 
-    public RunReportService(PricingToolDbContext db, AgentDbContext ai, IRunFacts facts, IMemoryCache cache)
+    public RunReportService(PricingToolDbContext db, AgentDbContext ai, IRunFacts facts, IMemoryCache cache, PricingTool.Agent.Tools.AgentDataSource source)
     {
         _db = db;
         _ai = ai;
         _facts = facts;
         _cache = cache;
+        _source = source;
     }
 
     private IQueryable<PublishBatch> Published(int layerId) => RunReportWriter.Published(_ai.PublishBatches.AsNoTracking(), layerId);
@@ -82,8 +86,9 @@ public class RunReportService
     public async Task<RunReport> BuildAsync(int layerId, IReadOnlyList<string> holdouts, CancellationToken ct = default)
     {
         var layer = await _db.Layers.AsNoTracking().SingleAsync(l => l.Id == layerId, ct);
+        var goals = await PricingTool.Agent.Operations.Goals.StatusAsync(_ai, _source, DateOnly.FromDateTime(DateTime.Now), layerId, ct);
         var batch = await Published(layerId).FirstOrDefaultAsync(ct);
-        if (batch is null) return new RunReport { Layer = layer, Holdouts = holdouts };
+        if (batch is null) return new RunReport { Layer = layer, Holdouts = holdouts, Goals = goals };
         var runId = batch.EngineRunId!.Value;
         var previous = await Published(layerId).Where(b => b.Id < batch.Id && b.EngineRunId != runId).FirstOrDefaultAsync(ct);
         var week = await _ai.RunWeeks.AsNoTracking().Where(w => w.PublishBatchId == batch.Id).OrderByDescending(w => w.Id).FirstOrDefaultAsync(ct);
@@ -124,6 +129,7 @@ public class RunReportService
             LastMonthSameDaysGp = lastMonth,
             SalesThrough = through,
             Holdouts = holdouts,
+            Goals = goals,
         };
     }
 

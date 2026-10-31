@@ -159,11 +159,39 @@
             </div>
         </div>
 
-        <div class="card mb-3">
+        <div class="card mb-3" id="goals">
             <div class="card-body">
                 <h2 class="h6">Goals</h2>
-                <p class="text-muted mb-0">Not built yet: the month's and week's goals per layer (gross profit, margin), agreed with Nova in this chat,
-                    and shown against the month on the Run tab.</p>
+                @foreach (var g in Model.Goals)
+                {
+                    <div class="mb-2 d-flex justify-content-between gap-2">
+                        <div>
+                            <strong>@Model.LayerName(g.Goal.LayerId)</strong>, @(g.Goal.Period == "month" ? g.Goal.Start.ToString("MMMM") : $"week of {g.Goal.Start:d MMM}"):
+                            @(g.Goal.Kind == "gross-profit" ? $"€{g.Goal.Value:N0} gross profit" : $"{g.Goal.Value:0.#}% margin")
+                            <div class="@(g.OnTrack == false ? "text-danger" : g.OnTrack == true ? "text-success" : "text-muted")">
+                                @if (g.Goal.Kind == "gross-profit")
+                                {
+                                    <span>€@g.GrossProfit.ToString("N0") so far (@(((g.ShareOfGoal ?? 0m) * 100m).ToString("0"))%), @((g.ElapsedShare * 100m).ToString("0"))% of the @g.Goal.Period gone@(g.Projected is { } pj ? $"; at this pace €{pj:N0}" : "")</span>
+                                }
+                                else
+                                {
+                                    <span>@(g.MarginPct?.ToString("0.0") ?? "–")% so far</span>
+                                }
+                            </div>
+                            <div class="text-muted">@g.Goal.SetBy: "@g.Goal.Instruction"</div>
+                        </div>
+                        @if (isManager)
+                        {
+                            <form method="post" asp-controller="Agent" asp-action="RetireGoal"><input type="hidden" name="goalId" value="@g.Goal.Id" />
+                                <button class="btn btn-sm btn-outline-secondary py-0">Remove</button></form>
+                        }
+                    </div>
+                }
+                @if (Model.Goals.Count == 0)
+                {
+                    <p class="text-muted mb-0">None yet. Tell Nova the month's or week's goal per layer, e.g. "GjirafaMall: €180k gross profit this month" or
+                        "Gjirafa50 at 12% margin this week". Measured on the booked sales lines (VAT excluded).</p>
+                }
             </div>
         </div>
 

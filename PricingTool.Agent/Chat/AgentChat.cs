@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Campaigns;
 using PricingTool.Agent.ClaudeCode;
+using PricingTool.Agent.Operations;
 using PricingTool.Agent.Storage;
 
 namespace PricingTool.Agent.Chat;
@@ -73,6 +74,7 @@ public sealed class AgentChat
         var reply = await AddAsync(conversation, role == AgentRole.Alpha ? "Alpha" : "Nova", a.Reply, callId, added, ct);
         if (a.Rule is { } rule) await RuleAsync(conversation, rule, text, author, reply, added, ct);
         if (role == AgentRole.Nova && a.Brief is { } brief) await BriefAsync(conversation, brief, reply, added, author, ct);
+        if (role == AgentRole.Nova && a.Goal is { } goal) await GoalAsync(conversation, goal, text, author, reply, added, ct);
         return new ChatTurn(conversation, added, null);
     }
 
@@ -133,13 +135,14 @@ public sealed class AgentChat
         sb.AppendLine($"Campaign limits code enforces: starts on or after {today.AddDays(_options.Campaigns.LeadDays):yyyy-MM-dd}; a mini-campaign runs {_options.Campaigns.MinDays}-{_options.Campaigns.MaxMiniDays} days; " +
                       $"depth at most {_options.Campaigns.MaxDepthPct:0.#}%.");
         sb.AppendLine("Active rules: " + (rules.Count == 0 ? "none." : string.Join("; ", rules.Select(r => $"#{r.Id} {r.Kind} {r.Value} {r.FromDate:yyyy-MM-dd}..{r.ToDate:yyyy-MM-dd}{(r.LayerId is { } l ? $" layer {l}" : "")}"))));
+        sb.Append(await Goals.BlockAsync(_db, today, null, ct));
         sb.AppendLine();
         sb.AppendLine(await CampaignStateAsync(today, ct));
         sb.AppendLine("The conversation so far (oldest first):");
         foreach (var m in history) sb.AppendLine($"[{m.From}] {m.Text}");
         sb.AppendLine();
-        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha, brief and rule null.");
-        else if (role == AgentRole.Alpha) sb.AppendLine("Answer the person's last message in `reply`. You don't write briefs and don't ask Alpha: brief and askAlpha stay null.");
+        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha, brief, rule and goal null.");
+        else if (role == AgentRole.Alpha) sb.AppendLine("Answer the person's last message in `reply`. You don't write briefs or record goals and don't ask Alpha: brief, goal and askAlpha stay null.");
         else sb.AppendLine(noMoreAlpha ? "Alpha has answered above. Answer the person's last message now; askAlpha stays null." : "Answer the person's last message.");
 
         var call = await _client.CallAsync(new AgentCallRequest(role, $"chat {conversation}", sb.ToString(), Path.Combine(PromptsDirectory, "chat-rules.md"))
@@ -152,7 +155,7 @@ public sealed class AgentChat
         }, ct);
         var answer = call.Succeeded ? call.Deserialize<ChatAnswer>(Json) : null;
         if (answer is null || string.IsNullOrWhiteSpace(answer.Reply)) return null;
-        if (role == AgentRole.Alpha || handedQuestion is not null) answer = answer with { AskAlpha = null, Brief = null };
+        if (role == AgentRole.Alpha || handedQuestion is not null) answer = answer with { AskAlpha = null, Brief = null, Goal = null };
         if (noMoreAlpha) answer = answer with { AskAlpha = null };
         return (answer, call.CallLogIds.Count > 0 ? call.CallLogIds[^1] : null);
     }
@@ -182,6 +185,36 @@ public sealed class AgentChat
             sb.AppendLine();
         }
         return sb.ToString();
+    }
+
+    /// <summary>A goal the person stated: checked by code (a layer the agents work on, a month or week not over, a sensible value),
+    /// stored for the whole month or Monday-to-Sunday week around the date Nova read, replacing the one before for the same layer,
+    /// period and kind.</summary>
+    private async Task GoalAsync(long conversation, ChatGoalDto g, string instruction, string author, ChatMessage reply, List<ChatMessage> added, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        string? problem = null;
+        DateOnly day = default;
+        if (!DateOnly.TryParseExact(g.Start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day)) problem = $"'{g.Start}' isn't a yyyy-MM-dd date.";
+        problem ??= Goals.Problem(g.Layer, g.Period, g.Kind, g.Value, day, today);
+        if (problem is not null)
+        {
+            await AddAsync(conversation, "code", $"No goal recorded: {problem}", null, added, ct);
+            return;
+        }
+        var (start, end) = Goals.PeriodOf(g.Period, day);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        foreach (var old in await _db.Goals.Where(x => x.LayerId == g.Layer && x.Period == g.Period && x.Kind == g.Kind && x.Start == start && x.RetiredUtc == null).ToListAsync(ct))
+            (old.RetiredUtc, old.RetiredBy) = (now, author);
+        var goal = new GoalRecord
+        {
+            LayerId = g.Layer, Period = g.Period, Start = start, End = end, Kind = g.Kind, Value = g.Kind == GoalKinds.Margin ? Math.Round(g.Value, 1) : Math.Round(g.Value, 0),
+            SetBy = author, Instruction = instruction.Length > 1000 ? instruction[..1000] : instruction, MessageId = reply.Id, CreatedUtc = now,
+        };
+        _db.Goals.Add(goal);
+        await _db.SaveChangesAsync(ct);
+        await AddAsync(conversation, "code", $"Goal #{goal.Id} set: {Goals.Describe(goal)}. The Run tab measures it on the booked sales lines; Nova and Alpha read it with their weekly passes.",
+            null, added, ct);
     }
 
     private async Task RuleAsync(long conversation, ChatRuleDto r, string instruction, string author, ChatMessage reply, List<ChatMessage> added, CancellationToken ct)
@@ -308,7 +341,9 @@ public sealed class AgentChat
         return m;
     }
 
-    private sealed record ChatAnswer(string Reply, string? AskAlpha, ChatBriefDto? Brief, ChatRuleDto? Rule);
+    private sealed record ChatAnswer(string Reply, string? AskAlpha, ChatBriefDto? Brief, ChatRuleDto? Rule, ChatGoalDto? Goal = null);
+
+    private sealed record ChatGoalDto(int Layer, string Period, string Start, string Kind, decimal Value);
 
     private sealed record ChatBriefDto(int Layer, string Name, string ScopeKind, string? ScopeValue, string StartDate, string EndDate, string GoalType,
         decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct, string Rationale);

@@ -97,7 +97,8 @@ public sealed class FloorTargetAgent
         var paused = (await _db.CategoryPauses.AsNoTracking().Where(p => p.LayerId == layerId && p.ReleasedUtc == null).ToListAsync(ct))
             .Select(p => Key(p.BandId, p.Category)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var prompt = BuildPrompt(effective, rows, mode, recent);
+        var prompt = BuildPrompt(effective, rows, mode, recent) + Environment.NewLine +
+                     await Operations.Goals.BlockAsync(_db, DateOnly.FromDateTime(_clock.GetLocalNow().DateTime), layerId, ct);
         if (injectedTestNote is not null) prompt += $"\n[INJECTED-TEST] {injectedTestNote}\n";
         var call = await _client.CallAsync(new AgentCallRequest(AgentRole.Alpha,
             isTest ? $"[INJECTED-TEST] floor-target L{layerId}" : $"floor-target L{layerId}",

@@ -46,6 +46,8 @@ public class ChatPageModel
     public PricingTool.Agent.Operations.InboxSnapshot Inbox { get; init; } = new();
     public IReadOnlyList<CampaignRow> ComingUp { get; init; } = Array.Empty<CampaignRow>();
     public IReadOnlyList<ChatRule> Rules { get; init; } = Array.Empty<ChatRule>();
+    /// <summary>The goals in force on both layers, measured.</summary>
+    public IReadOnlyList<PricingTool.Agent.Operations.GoalStatus> Goals { get; init; } = Array.Empty<PricingTool.Agent.Operations.GoalStatus>();
     public IReadOnlyList<AgentLesson> Lessons { get; init; } = Array.Empty<AgentLesson>();
     public IReadOnlyList<AgentQueryLogEntry> Queries { get; init; } = Array.Empty<AgentQueryLogEntry>();
     public IReadOnlyList<LayerAutonomy> Layers { get; init; } = Array.Empty<LayerAutonomy>();
