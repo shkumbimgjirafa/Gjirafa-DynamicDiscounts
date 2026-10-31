@@ -150,6 +150,19 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public void No_single_sku_goes_under_the_code_margin_floor_whatever_the_blended_minimum()
+    {
+        var candidates = new[] { C("A", 100m, 100m, 80m), C("B", 100m, 100m, 96.5m), C("C", 100m, 100m, 40m) };   // B: 3.5 % today
+        foreach (var strategy in CampaignPlanner.Strategies)
+        {
+            var r = CampaignPlanner.Plan(strategy, Spec(minMargin: 0m) with { SkuMarginFloorPct = 3m }, candidates, Depth, NoRounding, 100, new Dictionary<string, int>());
+            foreach (var l in r.Lines.Where(l => l.CampaignPrice is { } p && p < l.CurrentPrice))
+                Assert.True((l.CampaignPrice!.Value - l.Cost) / l.CampaignPrice.Value >= 0.03m, $"{strategy} {l.Sku} {l.CampaignPrice}");
+            Assert.DoesNotContain(r.Lines, l => l.Sku == "B" && l.CampaignPrice is { } p && p < 100m);    // any discount takes B under 3 %
+        }
+    }
+
+    [Fact]
     public void Spend_to_margin_buys_volume_down_to_the_margin_floor_and_no_further()
     {
         var candidates = Enumerable.Range(0, 60).Select(i => C($"S{i}", 100m, 100m, 55m + i % 20, 1m + i % 3)).ToList();

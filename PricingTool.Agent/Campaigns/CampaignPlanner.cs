@@ -38,6 +38,10 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
     /// price, holdout categories), counted toward a gross-profit goal and named in the feasibility text.</summary>
     public decimal GrossProfitOutsidePlan { get; init; }
 
+    /// <summary>The lowest margin any single SKU may be priced at (code's floor, <see cref="CampaignLimitOptions.MinMarginFloorPct"/>);
+    /// <see cref="MinMarginPct"/> is the plan's blended minimum on top of it.</summary>
+    public decimal SkuMarginFloorPct { get; init; }
+
     /// <summary>The backtest's measure of how far this arithmetic lands from what past campaigns made; a gross-profit goal is
     /// judged on the calibrated estimate, with the range of past campaigns shown.</summary>
     public CampaignCalibration? Calibration { get; init; }
@@ -96,13 +100,15 @@ public static class CampaignPlanner
             foreach (var d in grid)
             {
                 var raw = c.RegularPrice * (1m - d / 100m);
-                // The engine's own charm rounding (GjmCharm, Gj50Charm, …), bounded by cost and a cent under today's price.
+                // The engine's own charm rounding (GjmCharm, Gj50Charm, …), bounded by the SKU's margin floor (cost when it is 0)
+                // and a cent under today's price. Margin is on the VAT-inclusive price, as everywhere in the tool.
+                var lower = spec.SkuMarginFloorPct > 0 ? c.Cost / (1m - spec.SkuMarginFloorPct / 100m) : c.Cost;
                 var upper = c.CurrentPrice - 0.01m;
-                if (upper < c.Cost) continue;
+                if (upper < lower) continue;
                 var price = rounding == RoundingConvention.None
                     ? Math.Floor(raw * 100m) / 100m
-                    : Rounding.Apply(Math.Clamp(raw, c.Cost, upper), rounding, new PriceBounds(c.Cost, upper)).Price;
-                if (price >= c.CurrentPrice || price < c.Cost || price <= 0) continue;
+                    : Rounding.Apply(Math.Clamp(raw, lower, upper), rounding, new PriceBounds(lower, upper)).Price;
+                if (price >= c.CurrentPrice || price < lower || price <= 0) continue;
                 var extraPp = 100m * ((1m - price / c.RegularPrice) - currentDepth);
                 var units = baseUnits * (depth.DepthMultiplier(extraPp) ?? 1m);
                 at.Add(new PlanLine(c.Sku, c.Category, c.RegularPrice, c.CurrentPrice, c.Cost, price, Math.Round(100m * (1m - price / c.RegularPrice), 1),
