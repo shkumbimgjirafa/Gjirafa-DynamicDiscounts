@@ -37,9 +37,8 @@ public class RunReport
     public IReadOnlyList<AgentDecision> AlphaChanges { get; init; } = Array.Empty<AgentDecision>();
     public AgentRunCheck? Check { get; init; }
     public IReadOnlyList<LeftOutReason> LeftOut { get; init; } = Array.Empty<LeftOutReason>();
-    /// <summary>Estimated: each written price change × the SKU's last 30 days' units, VAT excluded, no volume response.</summary>
-    public decimal? ExpectedGp30 { get; init; }
-    public int ExpectedSkus { get; init; }
+    /// <summary>Estimated: what the prices on the shelf earn a month against the shop's own prices (<see cref="ShelfEffect"/>).</summary>
+    public ShelfEffect? Effect { get; init; }
     /// <summary>Measured: booked gross profit (VAT excluded) this month so far, and the same days of last month.</summary>
     public decimal MonthToDateGp { get; init; }
     public decimal LastMonthSameDaysGp { get; init; }
@@ -96,7 +95,10 @@ public class RunReportService
         var (mtd, lastMonth, through) = await MonthToDateAsync(layerId, ct);
         var stored = await _ai.RunReports.AsNoTracking().SingleOrDefaultAsync(r => r.BatchId == batch.Id, ct);
         var previousStored = previous is null ? null : await _ai.RunReports.AsNoTracking().SingleOrDefaultAsync(r => r.BatchId == previous.Id, ct);
-        var (expected, expectedSkus) = stored is not null ? (stored.ExpectedGp30Eur, stored.ExpectedSkus) : await ExpectedGpAsync(batch, layer, ct);
+        var effect = stored is { ExpectedGp30Eur: { } gp }
+            ? new ShelfEffect(stored.ExpectedSkus, stored.ExpectedSoldSkus, 0, stored.ExpectedRaises, stored.ExpectedFromRaisesEur ?? 0, stored.ExpectedCuts,
+                stored.ExpectedFromCutsEur ?? 0, gp, stored.ExpectedE1Eur ?? gp, stored.ExpectedE2Eur ?? gp)
+            : await EffectAsync(batch, layer, holdouts, ct);
 
         return new RunReport
         {
@@ -123,8 +125,7 @@ public class RunReportService
             LeftOut = (await _ai.PublishExceptions.AsNoTracking().Where(e => e.BatchId == batch.Id)
                     .GroupBy(e => e.Kind).Select(g => new { g.Key, Skus = g.Select(e => e.Sku).Distinct().Count() }).ToListAsync(ct))
                 .Select(x => new LeftOutReason(x.Key, x.Skus)).OrderByDescending(x => x.Skus).ToList(),
-            ExpectedGp30 = expected,
-            ExpectedSkus = expectedSkus,
+            Effect = effect,
             MonthToDateGp = mtd,
             LastMonthSameDaysGp = lastMonth,
             SalesThrough = through,
@@ -148,11 +149,12 @@ public class RunReportService
         return cells;
     }
 
-    private async Task<(decimal? Gp, int Skus)> ExpectedGpAsync(PublishBatch batch, Layer layer, CancellationToken ct)
+    /// <summary>A publish without a stored report: what its prices on the shelf earn, counted now (cached; a batch never changes).</summary>
+    private async Task<ShelfEffect?> EffectAsync(PublishBatch batch, Layer layer, IReadOnlyList<string> holdouts, CancellationToken ct)
     {
-        if (_cache.TryGetValue($"run-expected:{batch.Id}", out (decimal?, int) cached)) return cached;
-        var result = await _facts.ExpectedGpAsync(batch.Id, batch.EngineRunId!.Value, layer.Id, layer.VatRatePct, ct);
-        _cache.Set($"run-expected:{batch.Id}", result, TimeSpan.FromHours(12));
+        if (_cache.TryGetValue($"run-effect:{batch.Id}", out ShelfEffect? cached)) return cached;
+        var result = await _facts.ShelfEffectAsync(batch.Id, batch.EngineRunId!.Value, layer.Id, layer.VatRatePct, holdouts, ct);
+        _cache.Set($"run-effect:{batch.Id}", result, TimeSpan.FromHours(12));
         return result;
     }
 

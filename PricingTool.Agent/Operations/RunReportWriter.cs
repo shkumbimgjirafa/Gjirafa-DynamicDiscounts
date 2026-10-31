@@ -21,12 +21,9 @@ public interface IRunFacts
     /// <summary>The run's priced SKUs by main category and band; null when its proposals no longer exist.</summary>
     Task<IReadOnlyList<RunGridCell>?> GridAsync(long runId, CancellationToken ct = default);
 
-    /// <summary>Estimated: the batch's written price changes × each SKU's last 30 days' units, VAT excluded, no volume
-    /// response (the export's formula); null when the run's proposals are gone.</summary>
-    Task<(decimal? Gp, int Skus)> ExpectedGpAsync(long batchId, long runId, int layerId, decimal vatRatePct, CancellationToken ct = default);
-
-    /// <summary>The same estimate split between the written raises and cuts: SKUs and euros of each.</summary>
-    Task<(int Raised, decimal FromRaises, int Cut, decimal FromCuts)> ExpectedSplitAsync(long batchId, long runId, int layerId, decimal vatRatePct, CancellationToken ct = default);
+    /// <summary>Estimated: what the run's prices on the shelf earn a month against the shop's own prices (see <see cref="ShelfEffect"/>);
+    /// null when the run's proposals are gone. <paramref name="holdouts"/> are the layer's holdout categories (never published).</summary>
+    Task<ShelfEffect?> ShelfEffectAsync(long batchId, long runId, int layerId, decimal vatRatePct, IReadOnlyCollection<string> holdouts, CancellationToken ct = default);
 }
 
 /// <summary>The counts from the tool database: categories through the product map (<c>hk.ProductForProposal</c>, GjirafaMall's
@@ -67,52 +64,63 @@ public sealed class SqlRunFacts : IRunFacts
         return cells;
     }
 
-    public async Task<(decimal? Gp, int Skus)> ExpectedGpAsync(long batchId, long runId, int layerId, decimal vatRatePct, CancellationToken ct = default)
+    public async Task<ShelfEffect?> ShelfEffectAsync(long batchId, long runId, int layerId, decimal vatRatePct, IReadOnlyCollection<string> holdouts, CancellationToken ct = default)
     {
         await using var conn = new SqlConnection(_source.ConnectionString);
         await conn.OpenAsync(ct);
         await using var cmd = new SqlCommand("""
             DECLARE @Date date = (SELECT CAST(StartedUtc AS date) FROM PricingTool.PricingRuns WHERE Id = @Run);
-            SELECT COUNT(*), SUM((pp.ProposedPriceValue - pp.CurrentPrice) / @Vat * ISNULL(s.Qty30, 0))
-            FROM PricingTool.ProposedPrices pp
-            JOIN (SELECT DISTINCT Sku FROM ai.PublishAudit WHERE BatchId = @Batch) a ON a.Sku = pp.Sku
-            OUTER APPLY (SELECT TOP 1 d.Qty30 FROM PricingTool.DailySnapshots d WHERE d.LayerId = @L AND d.SnapshotDate = @Date AND d.Sku = pp.Sku) s
-            WHERE pp.PricingRunId = @Run AND pp.HasChange = 1
-            """, conn) { CommandTimeout = 120 };
+            DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM PricingTool.Layers WHERE Id = @L);
+            DECLARE @Check bigint = (SELECT MAX(Id) FROM ai.AgentRunCheck WHERE RunId = @Run AND IsTest = 0 AND Status <> 'Running');
+            WITH ch AS (
+                SELECT pp.CurrentPrice AS Cur, pp.Pptcv AS Cost, ISNULL(s.Qty30, 0) AS U,
+                       COALESCE(CASE WHEN f.FinalSeverity = 'fixed' THEN f.FixPrice END, pp.ProposedPriceValue) AS NewP
+                FROM PricingTool.ProposedPrices pp
+                OUTER APPLY (SELECT TOP 1 p.MainGroup, p.CategoryL1 FROM hk.ProductForProposal(pp.LayerId, pp.ProductId, pp.Sku) p) c
+                OUTER APPLY (SELECT TOP 1 d.Qty30 FROM PricingTool.DailySnapshots d WHERE d.LayerId = @L AND d.SnapshotDate = @Date AND d.Sku = pp.Sku) s
+                OUTER APPLY (SELECT TOP 1 r.FinalSeverity, r.FixPrice FROM ai.AgentRunCheckRow r WHERE r.CheckId = @Check AND r.ProposalId = pp.Id) f
+                WHERE pp.PricingRunId = @Run AND pp.HasChange = 1 AND pp.CurrentPrice > 0
+                  AND ISNULL(f.FinalSeverity, '') NOT IN ('warn', 'block')
+                  AND (CASE WHEN @Mall = 1 THEN ISNULL(c.MainGroup, N'Others') ELSE ISNULL(c.CategoryL1, N'Unknown') END)
+                      NOT IN (SELECT value FROM STRING_SPLIT(@Holdouts, '|'))
+                  AND NOT EXISTS (SELECT 1 FROM ai.PublishException e WHERE e.BatchId = @Batch AND e.Sku = pp.Sku AND e.Kind <> 'app-deal-cheaper')),
+            g AS (
+                SELECT NewP, Cur, U,
+                       (NewP - Cur) / @Vat * U AS Gp0,
+                       CASE WHEN Cost IS NULL THEN (NewP - Cur) / @Vat * U
+                            ELSE U * POWER(CAST(NewP / Cur AS float), -1.0) * (NewP - Cost) / @Vat - U * (Cur - Cost) / @Vat END AS Gp1,
+                       CASE WHEN Cost IS NULL THEN (NewP - Cur) / @Vat * U
+                            ELSE U * POWER(CAST(NewP / Cur AS float), -2.0) * (NewP - Cost) / @Vat - U * (Cur - Cost) / @Vat END AS Gp2
+                FROM ch)
+            SELECT COUNT(*), SUM(CASE WHEN U > 0 THEN 1 ELSE 0 END), ISNULL(SUM(U), 0),
+                   SUM(CASE WHEN NewP > Cur THEN 1 ELSE 0 END), ISNULL(SUM(CASE WHEN NewP > Cur THEN Gp0 END), 0),
+                   SUM(CASE WHEN NewP < Cur THEN 1 ELSE 0 END), ISNULL(SUM(CASE WHEN NewP < Cur THEN Gp0 END), 0),
+                   ISNULL(SUM(Gp0), 0), ISNULL(SUM(Gp1), 0), ISNULL(SUM(Gp2), 0)
+            FROM g
+            """, conn) { CommandTimeout = 300 };
         cmd.Parameters.AddWithValue("@Run", runId);
         cmd.Parameters.AddWithValue("@Batch", batchId);
         cmd.Parameters.AddWithValue("@L", layerId);
         cmd.Parameters.AddWithValue("@Vat", 1m + vatRatePct / 100m);
+        cmd.Parameters.AddWithValue("@Holdouts", string.Join('|', holdouts));
         await using var r = await cmd.ExecuteReaderAsync(ct);
         await r.ReadAsync(ct);
         var n = r.GetInt32(0);
-        return (n == 0 || r.IsDBNull(1) ? null : Math.Round(r.GetDecimal(1), 0), n);
-    }
-
-    public async Task<(int Raised, decimal FromRaises, int Cut, decimal FromCuts)> ExpectedSplitAsync(long batchId, long runId, int layerId, decimal vatRatePct, CancellationToken ct = default)
-    {
-        await using var conn = new SqlConnection(_source.ConnectionString);
-        await conn.OpenAsync(ct);
-        await using var cmd = new SqlCommand("""
-            DECLARE @Date date = (SELECT CAST(StartedUtc AS date) FROM PricingTool.PricingRuns WHERE Id = @Run);
-            SELECT SUM(CASE WHEN x.Delta > 0 THEN 1 ELSE 0 END), ISNULL(SUM(CASE WHEN x.Delta > 0 THEN x.Gp END), 0),
-                   SUM(CASE WHEN x.Delta < 0 THEN 1 ELSE 0 END), ISNULL(SUM(CASE WHEN x.Delta < 0 THEN x.Gp END), 0)
-            FROM (SELECT pp.ProposedPriceValue - pp.CurrentPrice AS Delta,
-                         (pp.ProposedPriceValue - pp.CurrentPrice) / @Vat * ISNULL(s.Qty30, 0) AS Gp
-                  FROM PricingTool.ProposedPrices pp
-                  JOIN (SELECT DISTINCT Sku FROM ai.PublishAudit WHERE BatchId = @Batch) a ON a.Sku = pp.Sku
-                  OUTER APPLY (SELECT TOP 1 d.Qty30 FROM PricingTool.DailySnapshots d WHERE d.LayerId = @L AND d.SnapshotDate = @Date AND d.Sku = pp.Sku) s
-                  WHERE pp.PricingRunId = @Run AND pp.HasChange = 1) x
-            """, conn) { CommandTimeout = 120 };
-        cmd.Parameters.AddWithValue("@Run", runId);
-        cmd.Parameters.AddWithValue("@Batch", batchId);
-        cmd.Parameters.AddWithValue("@L", layerId);
-        cmd.Parameters.AddWithValue("@Vat", 1m + vatRatePct / 100m);
-        await using var r = await cmd.ExecuteReaderAsync(ct);
-        await r.ReadAsync(ct);
-        return (r.IsDBNull(0) ? 0 : r.GetInt32(0), Math.Round(r.GetDecimal(1), 0), r.IsDBNull(2) ? 0 : r.GetInt32(2), Math.Round(r.GetDecimal(3), 0));
+        if (n == 0) return null;
+        static decimal D(SqlDataReader r, int i) => Math.Round(Convert.ToDecimal(r.GetValue(i)), 0);
+        return new ShelfEffect(n, r.GetInt32(1), r.GetInt32(2), r.GetInt32(3), D(r, 4), r.GetInt32(5), D(r, 6), D(r, 7), D(r, 8), D(r, 9));
     }
 }
+
+/// <summary>
+/// What a run's prices on the shelf are expected to earn a month (estimated), against the price the shop charged when the run priced
+/// it: every price the publish was given (changed, not held back by the run checker, a fixed row at its fix price, not a holdout
+/// category) that it didn't leave out, each change × the SKU's last 30 days' units, VAT excluded. <see cref="GrossProfit"/> keeps the
+/// units as they were; <see cref="IfElasticityMinus1"/> and <see cref="IfElasticityMinus2"/> let them move with the price (a 1 % cut
+/// sells 1 % or 2 % more, a raise the reverse), on the SKU's current cost.
+/// </summary>
+public sealed record ShelfEffect(int Skus, int SoldSkus, int Units30, int Raises, decimal FromRaises, int Cuts, decimal FromCuts,
+    decimal GrossProfit, decimal IfElasticityMinus1, decimal IfElasticityMinus2);
 
 /// <summary>Alpha's account of a run, as the schema asks for it.</summary>
 public sealed record RunReportAnswer(string Headline, string Report, IReadOnlyList<string>? Watch);
@@ -203,7 +211,8 @@ public sealed class RunReportWriter
         var leftOut = (await _db.PublishExceptions.AsNoTracking().Where(e => e.BatchId == batch.Id)
                 .GroupBy(e => e.Kind).Select(g => new { g.Key, Skus = g.Select(e => e.Sku).Distinct().Count() }).ToListAsync(ct))
             .OrderByDescending(x => x.Skus).ToDictionary(x => x.Key, x => x.Skus);
-        var (expected, expectedSkus) = await _facts.ExpectedGpAsync(batch.Id, runId, batch.LayerId, layer.VatRatePct, ct);
+        var holdouts = _options.Limits.Holdouts.TryGetValue(batch.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture), out var hl) ? hl : new List<string>();
+        var effect = await _facts.ShelfEffectAsync(batch.Id, runId, batch.LayerId, layer.VatRatePct, holdouts, ct);
         var previous = await Published(_db.PublishBatches.AsNoTracking(), batch.LayerId).Where(b => b.Id < batch.Id && b.EngineRunId != runId)
             .Select(b => (long?)b.Id).FirstOrDefaultAsync(ct);
         var pass = await _db.AgentPasses.AsNoTracking()
@@ -223,7 +232,9 @@ public sealed class RunReportWriter
             OnShelf = batch.Created + batch.Updated + batch.Unchanged + batch.TierRaised + batch.TierInserted,
             LeftOut = batch.Skipped,
             LeftOutByKind = leftOut.Count == 0 ? null : Truncate(JsonSerializer.Serialize(leftOut, Json), 2000),
-            ExpectedGp30Eur = expected, ExpectedSkus = expectedSkus,
+            ExpectedGp30Eur = effect?.GrossProfit, ExpectedSkus = effect?.Skus ?? 0, ExpectedSoldSkus = effect?.SoldSkus ?? 0,
+            ExpectedRaises = effect?.Raises ?? 0, ExpectedFromRaisesEur = effect?.FromRaises, ExpectedCuts = effect?.Cuts ?? 0, ExpectedFromCutsEur = effect?.FromCuts,
+            ExpectedE1Eur = effect?.IfElasticityMinus1, ExpectedE2Eur = effect?.IfElasticityMinus2,
             AlphaPassId = pass, AlphaStatus = "not asked",
         };
         _db.RunReports.Add(report);
@@ -292,7 +303,6 @@ public sealed class RunReportWriter
             .OrderByDescending(d => d.Id).Take(20).ToListAsync(ct);
         var bandName = bands.ToDictionary(b => b.BandId, b => b.Name);
         string Band(int id) => bandName.TryGetValue(id, out var n) ? n : $"band {id}";
-        var split = await _facts.ExpectedSplitAsync(report.BatchId, report.RunId, report.LayerId, layer.VatRatePct, ct);
 
         var facts = new
         {
@@ -319,14 +329,22 @@ public sealed class RunReportWriter
                 ["raised-under-team-deal"] = "the regular price was raised, but a cheaper team deal still wins",
                 ["changed-since-run"] = "the price changed after the run priced it, so it was left for the next run",
             },
-            expectedGrossProfitPerMonthEur = report.ExpectedGp30Eur,
-            expectedBasis = $"estimated: the {report.ExpectedSkus} written price changes × each SKU's last 30 days' units, VAT excluded, no change in volume",
-            expectedFromWrittenRaises = new { skus = split.Raised, eurPerMonth = split.FromRaises },
-            expectedFromWrittenCuts = new { skus = split.Cut, eurPerMonth = split.FromCuts },
+            onTheShelfAgainstTheShopsPrices = new
+            {
+                pricesThatDifferFromTheShop = report.ExpectedSkus,
+                ofThemSoldInTheLast30Days = report.ExpectedSoldSkus,
+                raises = new { skus = report.ExpectedRaises, eurPerMonth = report.ExpectedFromRaisesEur },
+                cuts = new { skus = report.ExpectedCuts, eurPerMonth = report.ExpectedFromCutsEur },
+                expectedGrossProfitPerMonthEur = report.ExpectedGp30Eur,
+                ifEachOnePercentCutSellsOnePercentMore = report.ExpectedE1Eur,
+                ifEachOnePercentCutSellsTwoPercentMore = report.ExpectedE2Eur,
+                basis = "estimated: every price on the shelf at our price against what the shop charged when the run priced it, × the SKU's last 30 days' units, VAT excluded; the first figure keeps the units as they were",
+            },
             previousPublish = previous is null ? null : new
             {
                 run = previous.RunId, published = previous.PublishedUtc.ToString("yyyy-MM-dd HH:mm") + " UTC",
                 previous.Changed, previous.Raised, previous.Lowered, previous.OnShelf, previous.Requested, expectedGrossProfitPerMonthEur = previous.ExpectedGp30Eur,
+                raisesOnTheShelf = previous.ExpectedRaises, cutsOnTheShelf = previous.ExpectedCuts,
             },
             bands = bands.Select(b => new { band = b.Name, costFrom = b.MinPrice, costTo = b.MaxPrice, floorPct = b.MarginFloorPct, targetPct = b.TargetMarginPct }),
             categoriesAlphaSet = cells.Where(c => c.ByAlpha).Select(c => new { category = c.Category, band = Band(c.BandId), floorPct = c.FloorPct, targetPct = c.TargetPct, c.Skus, c.Changed }),

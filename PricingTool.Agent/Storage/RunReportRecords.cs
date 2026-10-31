@@ -35,9 +35,18 @@ public class RunReportRecord
     public int LeftOut { get; set; }
     public string? LeftOutByKind { get; set; }
 
-    /// <summary>Estimated: each written price change × the SKU's last 30 days' units, VAT excluded, no volume response.</summary>
+    /// <summary>Estimated, against the shop's own prices: every price on the shelf at ours (changed, not held back, not a holdout,
+    /// not left out) × the SKU's last 30 days' units, VAT excluded (<c>ShelfEffect</c>). <see cref="ExpectedGp30Eur"/> keeps the units
+    /// as they were; E1 / E2 let them move with the price (elasticity −1 / −2). Split into raises and cuts.</summary>
     public decimal? ExpectedGp30Eur { get; set; }
     public int ExpectedSkus { get; set; }
+    public int ExpectedSoldSkus { get; set; }
+    public int ExpectedRaises { get; set; }
+    public decimal? ExpectedFromRaisesEur { get; set; }
+    public int ExpectedCuts { get; set; }
+    public decimal? ExpectedFromCutsEur { get; set; }
+    public decimal? ExpectedE1Eur { get; set; }
+    public decimal? ExpectedE2Eur { get; set; }
 
     /// <summary>Alpha's account of the run: the pass it rests on, a headline, the report and what to watch (JSON list).
     /// <see cref="AlphaStatus"/>: written, failed (why), skipped (why), or not asked.</summary>

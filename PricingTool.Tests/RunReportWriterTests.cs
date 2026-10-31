@@ -62,11 +62,13 @@ public class RunReportWriterTests : IDisposable
                 new RunGridCell("Aksesorë", 25, 100, 0, 0, 0),
             });
 
-        public Task<(decimal? Gp, int Skus)> ExpectedGpAsync(long batchId, long runId, int layerId, decimal vatRatePct, CancellationToken ct = default) =>
-            Task.FromResult<(decimal?, int)>((-189m, 907));
+        public List<IReadOnlyCollection<string>> Holdouts { get; } = new();
 
-        public Task<(int Raised, decimal FromRaises, int Cut, decimal FromCuts)> ExpectedSplitAsync(long batchId, long runId, int layerId, decimal vatRatePct, CancellationToken ct = default) =>
-            Task.FromResult((11, 35m, 896, -224m));
+        public Task<ShelfEffect?> ShelfEffectAsync(long batchId, long runId, int layerId, decimal vatRatePct, IReadOnlyCollection<string> holdouts, CancellationToken ct = default)
+        {
+            Holdouts.Add(holdouts);
+            return Task.FromResult<ShelfEffect?>(new ShelfEffect(12845, 229, 554, 925, 1534m, 11920, -3582m, -2047m, -1756m, -1352m));
+        }
     }
 
     private static string Envelope(JsonNode structured) => new JsonObject
@@ -84,7 +86,9 @@ public class RunReportWriterTests : IDisposable
         ["watch"] = new JsonArray("Aksesorë 10–50: the raises a team deal blocks"),
     }));
 
-    private RunReportWriter Writer() => new(_db, _tool, new Facts(),
+    private readonly Facts _facts = new();
+
+    private RunReportWriter Writer() => new(_db, _tool, _facts,
         new ClaudeCodeClient(Microsoft.Extensions.Options.Options.Create(AgentSettings()), _runner, _db, NullLogger<ClaudeCodeClient>.Instance),
         Microsoft.Extensions.Options.Options.Create(AgentSettings()), NullLogger<RunReportWriter>.Instance);
 
@@ -128,7 +132,10 @@ public class RunReportWriterTests : IDisposable
         Assert.Equal((1109L, 10100L, 600, 170, 110, 60, 50), (report!.RunId, report.PreviousBatchId!.Value, report.PricedSkus, report.Changed, report.Raised, report.Lowered, report.HoldoutChanged));
         Assert.Equal((1200, 900, 300, 6770), (report.Requested, report.OnShelf, report.LeftOut, report.HeldByCheck));
         Assert.Equal("""{"cheaper-deal":2,"changed-since-run":1}""", report.LeftOutByKind);   // once per SKU
-        Assert.Equal((-189m, 907), (report.ExpectedGp30Eur!.Value, report.ExpectedSkus));
+        Assert.Equal((-2047m, 12845, 229), (report.ExpectedGp30Eur!.Value, report.ExpectedSkus, report.ExpectedSoldSkus));
+        Assert.Equal((925, 1534m, 11920, -3582m), (report.ExpectedRaises, report.ExpectedFromRaisesEur!.Value, report.ExpectedCuts, report.ExpectedFromCutsEur!.Value));
+        Assert.Equal((-1756m, -1352m), (report.ExpectedE1Eur!.Value, report.ExpectedE2Eur!.Value));
+        Assert.Equal(new[] { "Gaming" }, _facts.Holdouts[0]);                                                  // the layer's holdout categories, never published
         Assert.Equal(("written", "A run of raises that mostly didn't reach the shelf."), (report.AlphaStatus, report.Headline));
         Assert.Equal("""["Aksesorë 10–50: the raises a team deal blocks"]""", report.AlphaWatch);
         Assert.NotNull(report.AlphaPassId);

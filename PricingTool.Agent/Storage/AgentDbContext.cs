@@ -316,6 +316,10 @@ public class AgentDbContext : DbContext
             e.HasIndex(x => new { x.LayerId, x.PublishedUtc });
             e.Property(x => x.LeftOutByKind).HasMaxLength(2000);
             e.Property(x => x.ExpectedGp30Eur).HasPrecision(14, 2);
+            e.Property(x => x.ExpectedFromRaisesEur).HasPrecision(14, 2);
+            e.Property(x => x.ExpectedFromCutsEur).HasPrecision(14, 2);
+            e.Property(x => x.ExpectedE1Eur).HasPrecision(14, 2);
+            e.Property(x => x.ExpectedE2Eur).HasPrecision(14, 2);
             e.Property(x => x.Headline).HasMaxLength(300);
             e.Property(x => x.AlphaText).HasMaxLength(4000);
             e.Property(x => x.AlphaWatch).HasMaxLength(2000);

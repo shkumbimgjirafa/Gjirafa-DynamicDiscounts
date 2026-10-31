@@ -1889,11 +1889,36 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<DateTime>("CreatedUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("ExpectedCuts")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("ExpectedE1Eur")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal?>("ExpectedE2Eur")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal?>("ExpectedFromCutsEur")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<decimal?>("ExpectedFromRaisesEur")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
                     b.Property<decimal?>("ExpectedGp30Eur")
                         .HasPrecision(14, 2)
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<int>("ExpectedRaises")
+                        .HasColumnType("int");
+
                     b.Property<int>("ExpectedSkus")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExpectedSoldSkus")
                         .HasColumnType("int");
 
                     b.Property<string>("Headline")

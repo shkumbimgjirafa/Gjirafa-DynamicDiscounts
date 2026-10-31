@@ -905,6 +905,18 @@ switch (command)
         using var scope = host.Services.CreateScope();
         await scope.ServiceProvider.MigrateAgentDbAsync();
         var writer = scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Operations.RunReportWriter>();
+        if (args.Contains("--refresh"))
+        {
+            // Our own report rows only (the cells go with them): written again from the records, Alpha's account too.
+            var ai = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+            var since = DateTime.UtcNow.AddDays(-3);
+            var stale = positional.Count > 0
+                ? await ai.RunReports.Where(r => r.BatchId == long.Parse(positional[0])).ToListAsync()
+                : await ai.RunReports.Where(r => r.PublishedUtc >= since).ToListAsync();
+            ai.RunReports.RemoveRange(stale);
+            await ai.SaveChangesAsync();
+            Console.WriteLine($"{stale.Count} report(s) to write again.");
+        }
         var reports = positional.Count > 0
             ? new[] { await writer.WriteAsync(long.Parse(positional[0]), withAlpha: !args.Contains("--no-alpha")) }.Where(r => r is not null).Select(r => r!).ToList()
             : await writer.WriteMissingAsync();

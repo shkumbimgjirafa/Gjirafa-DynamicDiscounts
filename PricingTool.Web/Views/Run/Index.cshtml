@@ -167,8 +167,22 @@
         <div class="col-md-6 col-xl-3">
             <div class="tile">
                 <div class="text-muted">Expected gross profit a month <span class="badge bg-warning text-dark">estimated</span></div>
-                <div class="tile-value">@(r.ExpectedGp30 is { } e ? Eur(e) : "–")</div>
-                <div class="text-muted">the @r.ExpectedSkus.ToString("N0") prices written × each SKU's last 30 days' units, VAT excluded, with no change in volume</div>
+                @if (r.Effect is { } fx)
+                {
+                    <div class="tile-value">@Eur(fx.GrossProfit)</div>
+                    <div class="text-muted">if the units sold stay as they were; @Eur(fx.IfElasticityMinus1) to @Eur(fx.IfElasticityMinus2) if each 1% cut sells 1–2% more
+                        (and a raise the reverse)</div>
+                    <div class="mt-1">@fx.Skus.ToString("N0") prices on the shelf differ from the shop's:
+                        <span class="text-success">@fx.Raises.ToString("N0") raises @Eur(fx.FromRaises)</span>,
+                        <span class="text-danger">@fx.Cuts.ToString("N0") cuts @Eur(fx.FromCuts)</span>.
+                        @fx.SoldSkus.ToString("N0") of them sold in the last 30 days.</div>
+                    <div class="text-muted">Against what the shop charged when the run priced it, × each SKU's last 30 days' units, VAT excluded.</div>
+                }
+                else
+                {
+                    <div class="tile-value">–</div>
+                    <div class="text-muted">The run's proposals were cleaned up, so it can't be counted any more.</div>
+                }
             </div>
         </div>
         <div class="col-md-6 col-xl-3">
