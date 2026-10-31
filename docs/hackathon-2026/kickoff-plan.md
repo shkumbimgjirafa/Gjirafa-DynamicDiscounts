@@ -619,7 +619,7 @@ for 30 days on real data, on its own.
     evidence for B0.)*
   - **the same-weeks control (changed vs unchanged products, run 2026-10-27):**
     - It confirms the margin effect: products priced up went from 18.4% to 24.5% margin in the September run, losing about 6 points more volume than unchanged products, with gross profit up about 9 points relative to them.
-    - It does **not** cleanly confirm the €13k/month. The September run's controlled gain is ≈ €3.5–4.3k/month. The August run can't be separated from restocking (units rose 285% after price *rises*).
+    - It does **not** cleanly confirm the €13k/month. The September run's controlled gain is ≈ €3.5–4.3k/month. The August run gives no clean result: units of raised products rose 285% after the rise, and most of its after-window profit came from products that didn't sell before.
     - So present the test phase's profit effect as a **range** (≈ €4k to €13k/month), and pitch v2's randomized holdout as what turns it into a clean A/B. *(31 Oct: the headline is the before/after mid, €10.4k a month, by the user's decision; the controlled figure is a robustness check and €13k is not claimed.)*
   - Për ty Oct 2026, if measured: hand plan vs agents' plan vs actual
   - cross-dock below-cost loss, last 12 months (~€2.85k/month)

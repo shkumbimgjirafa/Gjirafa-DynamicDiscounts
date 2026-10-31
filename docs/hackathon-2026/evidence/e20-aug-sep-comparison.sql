@@ -7,8 +7,8 @@ SET NOCOUNT ON;
 --   BeforeAfter  = GP change of the SKUs it repriced (E20's method, on repriced SKUs only).
 --   VsUntouched  = per repriced SKU, its GP change minus the average GP change of the SKUs it did NOT reprice in the
 --                  same shop and category (CategoryL2), same weeks; summed. Every SKU that sold in either window.
---   VsUntouchedBoth = the same on SKUs that sold in BOTH windows: a product out of stock or newly listed in one
---                  window drops out of every group alike (restock-robust).
+--   VsUntouchedBoth = the same on SKUs that sold in BOTH windows: a product with no sale in one window, for whatever
+--                  reason, drops out of every group alike.
 -- Each approval's lift a day is spread over the days it was live in Aug and Sep, as in E20.
 -- Result sets: 1 per shop and month; 2 per approval; 3 the gain split into units, price and margin per unit (repriced
 -- vs untouched, the two full-catalogue Mall runs and Gjirafa50's July run).

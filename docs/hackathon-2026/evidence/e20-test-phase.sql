@@ -10,8 +10,8 @@
 --      Not controlled: the market moved too. The 2025-season adjustment (E20 high) is not recomputed here.
 --   2. Same-weeks control (E20 low): for each regular-price approval, products whose price went up or down vs products
 --      in the same approval whose price was kept, 30 days before vs 30 days after. Effect = after − before × the kept
---      group's own after/before ratio. Only the September run (#25) separates cleanly; August's (#12) is confounded by
---      restocking (units of raised products rose after the rise).
+--      group's own after/before ratio. Only the September run (#25) gives a clean result; in August's (#12) the units of
+--      raised products rose after the rise, and most of its after-window profit came from products with no sale before.
 --
 -- Measured first on 27 Oct 2026 in the main repo (Aug €11,184, Sep €10,079; #25 controlled ≈ €3.5–4.3k a month).
 -- Numbers move a little as late cancellations post (hk.SalesLines re-pulls the last 14 days daily).

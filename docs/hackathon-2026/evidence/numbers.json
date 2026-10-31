@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 19:16",
+    "generated":  "2026-10-31 19:37",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -1034,7 +1034,7 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  "robustness check: measured",
-                        "method":  "The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced 12527; against untouched SKUs of the same shop and category in the same weeks 11818 when every SKU that sold in either window counts, and 2749 when only SKUs that sold in both windows count (August\u0027s run coincided with restocking: #12 repriced 1244 SKUs that sold in either window, 45 in both). September alone gives GjirafaMall KS 3881 against untouched SKUs and 4303 on SKUs that sold in both windows. On run #25\u0027s SKUs that sold in both windows, gross profit per unit rose 34 % with units -8 %, against 16 % and -18 % on untouched SKUs. GjirafaMall lines are Gjirafa\u0027s own vendors only, at booked cost; returns after delivery are not netted out.",
+                        "method":  "The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced 12527; against untouched SKUs of the same shop and category in the same weeks 11818 when every SKU that sold in either window counts, and 2749 when only SKUs that sold in both windows count (#12 repriced 1244 SKUs that sold in either window, 45 in both). September alone gives GjirafaMall KS 3881 against untouched SKUs and 4303 on SKUs that sold in both windows. On run #25\u0027s SKUs that sold in both windows, gross profit per unit rose 34 % with units -8 %, against 16 % and -18 % on untouched SKUs. GjirafaMall lines are Gjirafa\u0027s own vendors only, at booked cost; returns after delivery are not netted out.",
                         "source":  "PricingTool.Approvals / ApprovalItems, hk.SalesLines, hk.Products, hk.CampaignWindows",
                         "script":  "docs/hackathon-2026/evidence/e20-aug-sep-comparison.sql (three result sets; this script runs it)",
                         "recompute":  {

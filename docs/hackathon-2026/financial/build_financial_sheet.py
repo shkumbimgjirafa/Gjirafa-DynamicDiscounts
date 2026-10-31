@@ -541,7 +541,7 @@ facts = [
      "Each approval's 'before' scaled by 2025 GP/day over the same calendar windows; Aug gain carried into Sep", "2026-10-27"),
     ("Same-weeks control: changed vs unchanged products, Sep run (GjirafaMall KS)", "+€115–141/day ≈ €3.5–4.3k/month", "measured",
      "Approval items up/down/kept × daily GP, 30 days before vs after; price-up margin 18.4% → 24.5%", "2026-10-27"),
-    ("Same-weeks control, Aug run", "not separable from restocking", "measured",
+    ("Same-weeks control, Aug run", "no clean result", "measured",
      "Units rose 285% after price rises; 86–97% of changed groups' after-GP from SKUs that didn't sell before", "2026-10-27"),
     ("Year-over-year margin, Kosovo (Mall + Gj50)", "+4–5 pp vs 2025 since the tool; +1–4 pp before", "measured",
      "Sales lines monthly, tool scope (Aug 15.8% vs 11.7%; Sep 15.2% vs 10.2%). Superseded 31 Oct by E25: Nov 2025–Feb 2026 "

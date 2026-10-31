@@ -127,7 +127,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 Gjirafa50 €2,403; E20), measured before and after each approval from the shop's booked sales lines with booked COGS;
 robustness checks: E20, E27 (both rerun whenever the evidence file is written): against untouched products in the same
 shop and category it holds (€11.8k) when every product counts, and it is €2.7k when only products that sold in both windows
-count (August's run coincided with restocking); September alone gives €3.9–4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run
+count; September alone gives €3.9–4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run
 carried forward, plus the three dead-stock runs (E20 lists each month by approval).
 [`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data; its
 sales lines reproduce the tool's own 30-day profit before each of eight approvals within 2 % (E26), which checks the

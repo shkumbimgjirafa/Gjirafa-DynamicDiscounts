@@ -47,7 +47,7 @@ Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
-E20, E27 (the evidence file reruns both): against untouched products in the same shop and category it holds (€11.8k) when every product counts, and it is €2.7k when only products that sold in both windows count (August's run coincided with restocking); September alone gives €3.9k–€4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
+E20, E27 (the evidence file reruns both): against untouched products in the same shop and category it holds (€11.8k) when every product counts, and it is €2.7k when only products that sold in both windows count; September alone gives €3.9k–€4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
 dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.

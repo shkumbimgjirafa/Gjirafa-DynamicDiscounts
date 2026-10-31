@@ -354,7 +354,7 @@ Add 'E26' "Sales Report tie-out: each approval's 30-day gross profit before it, 
 Recompute 'E26' 'e26-sales-report-tie-out.sql' $e26Sets @($e26Sets[0].Rows | ForEach-Object { C "#$($_.ApprovalId) from hk.SalesLines" 0 'FromSalesLines' @{ ApprovalId = "$($_.ApprovalId)" } })
 
 # E27: B0 against a comparison group, a robustness check (Prompt 15): the same approvals and spans as E20, campaign days
-# out, three ways per shop; September separates cleanly, August's run coincided with restocking.
+# out, three ways per shop.
 $e27Sets = RunFile 'e20-aug-sep-comparison.sql'
 function E27Row($month, $shop) { $e27Sets[0].Rows | Where-Object { $_.Month -eq $month -and $_.Shop -eq $shop } | Select-Object -First 1 }
 $e27Shops = [ordered]@{}
@@ -377,7 +377,7 @@ Add 'E27' "B0 against untouched products in the same category and weeks, Aug-Sep
         run25SoldInBothWindows = [ordered]@{ gpPerUnitBefore = [decimal]$p25.GpPerUnitBefore; gpPerUnitAfter = [decimal]$p25.GpPerUnitAfter
             gpPerUnitChangePct = Pct $p25.GpPerUnitBefore $p25.GpPerUnitAfter; unitsChangePct = Pct $p25.UnitsBefore $p25.UnitsAfter
             untouchedGpPerUnitChangePct = Pct $u25.GpPerUnitBefore $u25.GpPerUnitAfter; untouchedUnitsChangePct = Pct $u25.UnitsBefore $u25.UnitsAfter } }) 'EUR/month' 'robustness check: measured' `
-    ("The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced $($e27Total.beforeAfter); against untouched SKUs of the same shop and category in the same weeks $($e27Total.vsUntouched) when every SKU that sold in either window counts, and $($e27Total.vsUntouchedSoldInBothWindows) when only SKUs that sold in both windows count (August's run coincided with restocking: #12 repriced $($a12.RepricedSkus) SKUs that sold in either window, $($a12.RepricedSkusBoth) in both). " +
+    ("The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced $($e27Total.beforeAfter); against untouched SKUs of the same shop and category in the same weeks $($e27Total.vsUntouched) when every SKU that sold in either window counts, and $($e27Total.vsUntouchedSoldInBothWindows) when only SKUs that sold in both windows count (#12 repriced $($a12.RepricedSkus) SKUs that sold in either window, $($a12.RepricedSkusBoth) in both). " +
      "September alone gives GjirafaMall KS $(Round0 $sepMall.VsUntouched) against untouched SKUs and $(Round0 $sepMall.VsUntouchedBoth) on SKUs that sold in both windows. On run #25's SKUs that sold in both windows, gross profit per unit rose $(Pct $p25.GpPerUnitBefore $p25.GpPerUnitAfter) % with units $(Pct $p25.UnitsBefore $p25.UnitsAfter) %, against $(Pct $u25.GpPerUnitBefore $u25.GpPerUnitAfter) % and $(Pct $u25.UnitsBefore $u25.UnitsAfter) % on untouched SKUs. GjirafaMall lines are Gjirafa's own vendors only, at booked cost; returns after delivery are not netted out.") `
     'PricingTool.Approvals / ApprovalItems, hk.SalesLines, hk.Products, hk.CampaignWindows' 'docs/hackathon-2026/evidence/e20-aug-sep-comparison.sql (three result sets; this script runs it)'
 Recompute 'E27' 'e20-aug-sep-comparison.sql' $e27Sets @(
