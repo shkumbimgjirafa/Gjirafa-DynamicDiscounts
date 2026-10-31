@@ -1,7 +1,9 @@
-# Prompt 09: what really holds the shelf; keep the sandbox true to the live shop; E23 (raises that didn't reach the shelf)
+# Prompt 10 (data session; was filed as 09, which the reviewing session's message also used): what really holds the shelf; keep the sandbox true to the live shop; E23 (raises that didn't reach the shelf)
 
 Prompt 07 part A left this in `HACKATHON.md`, the one-pager and dry run 2's row: *"cheaper team deals still hold 43 % of
-the checked prices off the shelf until a person supersedes them"*. The data session looked at what those deals are. Mostly
+the checked prices off the shelf until a person supersedes them"*. E22 (the cost watcher's first refresh) says the same of its 52 holds "at a cheaper team deal": on the sandbox, **49 of
+the 52** are held by a discount carrying a price the calculator approved for that SKU, **30** by an app-only one, about
+3 by a real team deal (`techtober-2026`). Apply Part A's rule to the cost watcher's holds too. The data session looked at what those deals are. Mostly
 they aren't team deals: they are **the calculator's own earlier pushes**, which the team imports as discount sets, and
 over a third of GjirafaMall's are **app-only**. And they all end tonight, which breaks the sandbox from tomorrow unless it
 follows the live shop. Everything below reads `PricingToolHackathon` only (plus one new hk table, row #39 in
