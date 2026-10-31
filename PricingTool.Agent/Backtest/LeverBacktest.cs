@@ -4,14 +4,21 @@ namespace PricingTool.Agent.Backtest;
 public sealed record BacktestLine(DateOnly Day, string Sku, decimal Qty, decimal Net, decimal Gross, decimal Cogs, decimal Gp, decimal Discount,
     string StockClass, decimal? UnitCostInclVat, int? BandId, string Category, bool CampaignDay)
 {
+    /// <summary>The sales report's line id (hk.SalesLines.SrLineId): lever 8's raises are matched on it.</summary>
+    public long SrLineId { get; init; }
+    /// <summary>Sold under a team deal: a product discount on the line at a price no approval gave the SKU. v2 doesn't raise a
+    /// price a team deal holds, so a lever's gain on such a line needs a person to supersede the deal.</summary>
+    public bool TeamDeal { get; init; }
+
     public decimal UnitNet => Net / Qty;
     public decimal UnitCogs => Cogs / Qty;
     public decimal UnitGross => Gross / Qty;
     public decimal VatFactor => Net > 0 && Gross > 0 ? Gross / Net : 1m;
 }
 
-/// <summary>One lever's gain in one month at one elasticity, with the lines and units behind it.</summary>
-public sealed record LeverGain(int Lever, string Month, decimal Elasticity, decimal Gain, int Lines, decimal Units);
+/// <summary>One lever's gain in one month at one elasticity, with the lines and units behind it; <paramref name="TeamDealGain"/> is
+/// the part on lines sold under a team deal (in <paramref name="Gain"/> too).</summary>
+public sealed record LeverGain(int Lever, string Month, decimal Elasticity, decimal Gain, int Lines, decimal Units, decimal TeamDealGain = 0m);
 
 /// <summary>Measured figures the levers rest on, per month.</summary>
 public sealed record LeverContext(string Month, decimal CrossDockLoss, int CrossDockLossLines, decimal CaughtLoss, decimal CampaignDayCrossDockLoss);
@@ -26,6 +33,10 @@ public delegate (decimal Old, decimal New)? Pending(string sku, DateOnly day);
 
 /// <summary>Lever 6's input: for a SKU on a day, the raise to undo (old and new price), or null.</summary>
 public delegate (decimal Old, decimal New)? Rollback(string sku, string category, DateOnly day);
+
+/// <summary>Lever 8's input: for a sales line (by its id), the approved raise it sold under at the old price because the
+/// calculator's earlier push was still live or the regular price was never raised (old and new price), or null.</summary>
+public delegate (decimal Old, decimal New)? HeldRaise(long srLineId);
 
 /// <summary>
 /// Backtest levers 1–3 (plan section 5, "Backtester") on booked sales lines, walk-forward (each line is judged only on the lines
@@ -45,7 +56,12 @@ public delegate (decimal Old, decimal New)? Rollback(string sku, string category
 /// the engine would have proposed between pushes isn't known (proposals weren't kept).</item>
 /// <item>6, learning: a raise of an earlier approval, in a category where that approval's raises didn't pay (season-adjusted),
 /// rolled back on the lines of the scoring window (<see cref="Rollback"/>); the gain can be negative.</item>
+/// <item>8, raises reach the shelf: a line of an approved raise sold at the old price because today's process left the
+/// calculator's earlier push live or never raised the regular price (<see cref="HeldRaise"/>), priced at the new one. v2's
+/// publisher removes both (one discount per SKU, ended in the same transaction as a regular-price raise). Last, so a line
+/// another lever already scores is never counted again.</item>
 /// </list>
+/// Each gain also records the part on lines sold under a team deal (<see cref="BacktestLine.TeamDeal"/>).
 /// </summary>
 public static class LeverBacktest
 {
@@ -55,16 +71,16 @@ public static class LeverBacktest
 
     public static LeverBacktestResult Run(int layerId, IReadOnlyList<BacktestLine> lines, DateOnly from, DateOnly to,
         Func<int, DateOnly, decimal?> handFloorPct, Func<int, string, decimal?> agentFloorPct, ICollection<(int Lever, BacktestLine Line, decimal Gain)>? trace = null,
-        Pending? pending = null, Rollback? rollback = null)
+        Pending? pending = null, Rollback? rollback = null, HeldRaise? heldRaise = null)
     {
-        var gains = new Dictionary<(int, string, decimal), (decimal Gain, int Lines, decimal Units)>();
+        var gains = new Dictionary<(int, string, decimal), (decimal Gain, int Lines, decimal Units, decimal Team)>();
         var context = new Dictionary<string, (decimal Loss, int LossLines, decimal Caught, decimal CampaignLoss)>();
         void Add(int lever, BacktestLine l, decimal e, decimal gain)
         {
             if (e == -1.0m) trace?.Add((lever, l, gain));
             var key = (lever, Month(l.Day), e);
-            var (g, n, u) = gains.GetValueOrDefault(key);
-            gains[key] = (g + gain, n + 1, u + l.Qty);
+            var (g, n, u, t) = gains.GetValueOrDefault(key);
+            gains[key] = (g + gain, n + 1, u + l.Qty, t + (l.TeamDeal ? gain : 0m));
         }
 
         foreach (var sku in lines.Where(l => l.Qty > 0).GroupBy(l => l.Sku))
@@ -152,12 +168,20 @@ public static class LeverBacktest
 
                 // 6. Learning: an earlier raise undone where its category showed it didn't pay.
                 if (rollback?.Invoke(l.Sku, l.Category, l.Day) is { } raise)
+                {
                     foreach (var e in Elasticities) Add(6, l, e, Gp(l, l.UnitGross * raise.Old / raise.New, e) - l.Gp);
+                    continue;
+                }
+
+                // 8. Raises reach the shelf: an approved raise the process left at the old price.
+                if (heldRaise?.Invoke(l.SrLineId) is { } held && held.New > l.UnitGross)
+                    foreach (var e in Elasticities) Add(8, l, e, Gp(l, held.New, e) - l.Gp);
             }
         }
 
         return new LeverBacktestResult(layerId, from, to,
-            gains.Select(kv => new LeverGain(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, Math.Round(kv.Value.Gain, 0), kv.Value.Lines, kv.Value.Units))
+            gains.Select(kv => new LeverGain(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, Math.Round(kv.Value.Gain, 0), kv.Value.Lines, kv.Value.Units,
+                    Math.Round(kv.Value.Team, 0)))
                 .OrderBy(g => g.Lever).ThenBy(g => g.Month).ThenByDescending(g => g.Elasticity).ToList(),
             context.Select(kv => new LeverContext(kv.Key, Math.Round(kv.Value.Loss, 0), kv.Value.LossLines, Math.Round(kv.Value.Caught, 0), Math.Round(kv.Value.CampaignLoss, 0)))
                 .OrderBy(c => c.Month).ToList());

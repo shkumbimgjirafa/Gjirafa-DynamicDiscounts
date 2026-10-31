@@ -405,7 +405,7 @@ switch (command)
         var backtester = new PricingTool.Agent.Backtest.LeverBacktester(host.Services.GetRequiredService<PricingDataReader>());
         var from = DateOnly.Parse(Opt("--from") ?? "2026-08-01", System.Globalization.CultureInfo.InvariantCulture);
         var to = DateOnly.Parse(Opt("--to") ?? "2026-10-16", System.Globalization.CultureInfo.InvariantCulture);
-        string[] names = { "", "loss-sale block", "per-category floors", "cost reaction", "coverage MK/AL", "cadence", "learning" };
+        string[] names = { "", "loss-sale block", "per-category floors", "cost reaction", "coverage MK/AL", "cadence", "learning", "campaign planning", "raises reach the shelf" };
         // Lever 6's experiment (plan: August's run #12, approval 12 on GjirafaMall), rolled back in September where it didn't pay.
         var learning = new PricingTool.Agent.Backtest.LeverBacktester.LearningExperiment(12, new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 3), new DateOnly(2026, 10, 1),
             1m - host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.Outcomes.DropPct / 100m);
@@ -423,11 +423,11 @@ switch (command)
                                   string.Join("; ", naive.Gains.Where(g => g.Lever == 6).Select(g => $"{g.Month} e {g.Elasticity}: {g.Gain:N0} ({g.Lines} lines)")));
             }
             Console.WriteLine($"Layer {layer}, {from:yyyy-MM-dd}..{to.AddDays(-1):yyyy-MM-dd}, in {sw.Elapsed.TotalSeconds:0.0} s (booked COGS, EUR VAT excl.; estimated unless said)");
-            Console.WriteLine("lever | month | e -0.5 | e -1.0 | e -2.0 | lines | units");
+            Console.WriteLine("lever | month | e -0.5 | e -1.0 | e -2.0 | lines | units | of e -1.0 under a team deal");
             foreach (var g in r.Gains.GroupBy(g => (g.Lever, g.Month)))
                 Console.WriteLine($"{g.Key.Lever} {names[g.Key.Lever]} | {g.Key.Month} | " +
                                   string.Join(" | ", PricingTool.Agent.Backtest.LeverBacktest.Elasticities.Select(e => g.FirstOrDefault(x => x.Elasticity == e)?.Gain.ToString("N0") ?? "0")) +
-                                  $" | {g.First().Lines:N0} | {g.First().Units:N0}");
+                                  $" | {g.First().Lines:N0} | {g.First().Units:N0} | {g.FirstOrDefault(x => x.Elasticity == -1.0m)?.TeamDealGain.ToString("N0") ?? "0"}");
             if (args.Contains("--detail"))
                 foreach (var lv in trace.GroupBy(t => t.Lever))
                 {

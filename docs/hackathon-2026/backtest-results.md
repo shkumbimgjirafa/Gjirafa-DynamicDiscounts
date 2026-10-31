@@ -12,15 +12,22 @@ measured; elasticity cases −0.5 / −1.0 / −2.0 (assumed), the low case (−
 
 | # | Lever | GjirafaMall KS: central (low / high) | Gjirafa50 KS: central (low / high) | Basis |
 |---|---|---|---|---|
-| 1 | Loss-sale block | 77 | 120 | measured loss, estimated catch |
-| 2 | Per-category floors | 0 | 4 (2 / 4) | estimated; Alpha's 8 rules, Gj50 only; in-sample |
-| 3 | Cost reaction | 1,334 (134 / 1,504) | 212 (193 / 229) | measured lag, estimated recovery; the low case is September only |
+| 1 | Loss-sale block | 76 (76 / 78); 2 under a team deal | 0 (0 / 120); 120 under a team deal | measured loss, estimated catch |
+| 2 | Per-category floors | 0 | 2 (0 / 4); 2 under a team deal | estimated; Alpha's 8 rules, Gj50 only; in-sample |
+| 3 | Cost reaction | 1,317 (143 / 1,542); 52 under a team deal | 10 (5 / 229); 202 under a team deal | measured lag, estimated recovery; the low case is September only |
 | 4 | Coverage MK / AL | — | — | the four MK/AL layers: 1,325 (560 / 1,654), estimated: the calculator's Kosovo rate on months without a push |
 | 5 | Cadence | 396 (260 / 474) | 0 | measured run → push gaps only |
 | 6 | Learning | 0 | — | as built; the plan's plain rule: −614 |
 | 7 | Campaign planning | 578 | 205 | estimated, 12 months of campaigns; uplift curve leave-one-out (low: half its slope, high: twice) |
+| 8 | Raises reach the shelf | 249 (249 / see below) | 0 | estimated (e −1); the part of E23 v2's publisher removes, each line once; high: October's pace, €2,830 both layers |
 
-**With lever 4 (MK/AL): about €4.3k a month central, €2.0k low, €5.8k high (E8: €4,251 / €2,049 / €5,806; snapshot #3 of 31 Oct, E20 recomputed).** Against the €10k bar for band 5
+The raise levers' gain on lines sold under a team deal (a product discount on the line, `hk.SalesLineDiscountsKs`, at a
+unit price no KS approval gave the SKU, within 1.1 %) is in the high case only: v2 doesn't raise a price a team deal
+holds; a person may supersede it. That is €378 a month of the €2,179 central of levers 1, 2, 3 and 5 (17 %). On
+Gjirafa50 it is most of levers 1 and 3: in Aug–Sep 72 % of its lines sold under a discount the calculator never set
+(approval #1 listed only the prices it changed); on GjirafaMall 2 %.
+
+**With lever 4 (MK/AL): about €4.2k a month central, €2.0k low, €8.7k high (E8: €4,158 / €1,996 / €8,675; snapshot #5 of 31 Oct, E20 recomputed).** The high case is up from €5.8k mostly through lever 8's October pace. Against the €10k bar for band 5
 this is far short; the levers add to the rollout of the calculator's tested effect (framing B), they don't replace it.
 The financial sheet then leaves out the holdout categories' share (about 11 % of the changed prices), which the backtest
 doesn't. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
@@ -76,6 +83,20 @@ answers the one-event point instead.
   campaign scored. Median gain per campaign day × campaign days of the last 12 months: Mall €210 × 33,
   Gj50 €112 × 22. About 2–8 % of a campaign's GP. With the curve at half its slope €703 a month, at twice it
   €1,744 (E7's low and high).
+- **Lever 8 (raises reach the shelf, E24; added 31 Oct, Prompt 10).** In today's process 17–20 % of the units on SKUs an
+  approval raised still sold at the old price (Aug–Sep), 70–84 % in late October (E23,
+  `evidence/raises-not-on-shelf.sql`: #12 17 %, #25 20 %, #35 84 %, #37 70 %). What held the old price is read from the
+  live discount at the sold price (`hk.DiscountHistoryRaisedKs`): the calculator's earlier push still live (`pppbi-p<n>`,
+  `sept-disc-26`; in October #32's set under #37's), or the regular price never raised (a discount can't raise one), both
+  of which v2's publisher removes, or a team deal (`app-deals-august-2026`, `zipro-sep-2026`, `techtober-2026`), left to
+  a person and not counted. GP forgone at e −1, Aug–Sep: €300 a month v2 removes, €1,274 team deals. The backtest prices
+  the removable lines at the new price after levers 1–6, so a line another lever scores counts once: €249 a month
+  (GjirafaMall; Gjirafa50 had no approved raise in Aug–Sep). High: October's pace, €2,830 a month, the month two push
+  sets overlapped. Framing A only: what the publisher adds over the CSV import.
+- **Team deals (all raise levers).** v2 doesn't raise a price a team deal holds, so the part of levers 1, 2, 3 and 5 on
+  lines sold under one (above) is in the high case only. Snapshot #5 also reads each day's lines in sale-time order
+  (snapshot #3 took the database's order, which `before.LastOrDefault` and lever 3's episode state depend on): lever 3
+  on GjirafaMall moved from €1,334 to €1,369 central before the team-deal move, lever 1 by under €1; levers 2, 5 and 6 didn't move.
 
 ## The campaign planner's own estimate, checked
 

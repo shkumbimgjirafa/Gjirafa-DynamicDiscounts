@@ -1,5 +1,5 @@
 {
-    "snapshot":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
+    "snapshot":  "ai.BacktestSnapshot #5 (2026-10-31 08:10 UTC)",
     "note":  "Every lever per layer, month and elasticity case; the campaign replays; lever 4\u0027s months and effects. Estimated except the measured inputs each section names (backtest-results.md).",
     "data":  {
                  "from":  "2025-10-01",
@@ -14,25 +14,28 @@
                                                       "lever":  1,
                                                       "month":  "2025-10",
                                                       "elasticity":  -0.5,
-                                                      "gain":  475,
-                                                      "lines":  82,
-                                                      "units":  126.0000
+                                                      "gain":  483,
+                                                      "lines":  83,
+                                                      "units":  127.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2025-10",
                                                       "elasticity":  -1.0,
-                                                      "gain":  475,
-                                                      "lines":  82,
-                                                      "units":  126.0000
+                                                      "gain":  483,
+                                                      "lines":  83,
+                                                      "units":  127.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2025-10",
                                                       "elasticity":  -2.0,
-                                                      "gain":  475,
-                                                      "lines":  82,
-                                                      "units":  126.0000
+                                                      "gain":  483,
+                                                      "lines":  83,
+                                                      "units":  127.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -40,7 +43,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  14,
                                                       "lines":  4,
-                                                      "units":  4.0000
+                                                      "units":  4.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -48,7 +52,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  14,
                                                       "lines":  4,
-                                                      "units":  4.0000
+                                                      "units":  4.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -56,7 +61,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  14,
                                                       "lines":  4,
-                                                      "units":  4.0000
+                                                      "units":  4.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -64,7 +70,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  1099,
                                                       "lines":  192,
-                                                      "units":  227.0000
+                                                      "units":  227.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -72,7 +79,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  1099,
                                                       "lines":  192,
-                                                      "units":  227.0000
+                                                      "units":  227.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -80,7 +88,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  1099,
                                                       "lines":  192,
-                                                      "units":  227.0000
+                                                      "units":  227.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -88,7 +97,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  1392,
                                                       "lines":  156,
-                                                      "units":  165.0000
+                                                      "units":  165.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -96,7 +106,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  1392,
                                                       "lines":  156,
-                                                      "units":  165.0000
+                                                      "units":  165.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -104,7 +115,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  1392,
                                                       "lines":  156,
-                                                      "units":  165.0000
+                                                      "units":  165.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -112,7 +124,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  862,
                                                       "lines":  85,
-                                                      "units":  145.0000
+                                                      "units":  145.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -120,7 +133,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  862,
                                                       "lines":  85,
-                                                      "units":  145.0000
+                                                      "units":  145.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -128,31 +142,35 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  862,
                                                       "lines":  85,
-                                                      "units":  145.0000
+                                                      "units":  145.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-03",
                                                       "elasticity":  -0.5,
-                                                      "gain":  333,
-                                                      "lines":  73,
-                                                      "units":  78.0000
+                                                      "gain":  335,
+                                                      "lines":  74,
+                                                      "units":  79.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-03",
                                                       "elasticity":  -1.0,
-                                                      "gain":  333,
-                                                      "lines":  73,
-                                                      "units":  78.0000
+                                                      "gain":  335,
+                                                      "lines":  74,
+                                                      "units":  79.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-03",
                                                       "elasticity":  -2.0,
-                                                      "gain":  333,
-                                                      "lines":  73,
-                                                      "units":  78.0000
+                                                      "gain":  335,
+                                                      "lines":  74,
+                                                      "units":  79.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -160,7 +178,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  187,
                                                       "lines":  47,
-                                                      "units":  52.0000
+                                                      "units":  52.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -168,7 +187,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  187,
                                                       "lines":  47,
-                                                      "units":  52.0000
+                                                      "units":  52.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -176,7 +196,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  187,
                                                       "lines":  47,
-                                                      "units":  52.0000
+                                                      "units":  52.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -184,7 +205,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  471,
                                                       "lines":  44,
-                                                      "units":  51.0000
+                                                      "units":  51.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -192,7 +214,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  471,
                                                       "lines":  44,
-                                                      "units":  51.0000
+                                                      "units":  51.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -200,7 +223,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  471,
                                                       "lines":  44,
-                                                      "units":  51.0000
+                                                      "units":  51.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -208,7 +232,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  206,
                                                       "lines":  51,
-                                                      "units":  53.0000
+                                                      "units":  53.0000,
+                                                      "teamDealGain":  7
                                                   },
                                                   {
                                                       "lever":  1,
@@ -216,7 +241,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  206,
                                                       "lines":  51,
-                                                      "units":  53.0000
+                                                      "units":  53.0000,
+                                                      "teamDealGain":  7
                                                   },
                                                   {
                                                       "lever":  1,
@@ -224,55 +250,62 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  206,
                                                       "lines":  51,
-                                                      "units":  53.0000
+                                                      "units":  53.0000,
+                                                      "teamDealGain":  7
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-07",
                                                       "elasticity":  -0.5,
                                                       "gain":  313,
-                                                      "lines":  39,
-                                                      "units":  51.0000
+                                                      "lines":  40,
+                                                      "units":  52.0000,
+                                                      "teamDealGain":  88
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-07",
                                                       "elasticity":  -1.0,
                                                       "gain":  313,
-                                                      "lines":  39,
-                                                      "units":  51.0000
+                                                      "lines":  40,
+                                                      "units":  52.0000,
+                                                      "teamDealGain":  88
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-07",
                                                       "elasticity":  -2.0,
                                                       "gain":  313,
-                                                      "lines":  39,
-                                                      "units":  51.0000
+                                                      "lines":  40,
+                                                      "units":  52.0000,
+                                                      "teamDealGain":  88
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-08",
                                                       "elasticity":  -0.5,
-                                                      "gain":  52,
-                                                      "lines":  76,
-                                                      "units":  81.0000
+                                                      "gain":  53,
+                                                      "lines":  78,
+                                                      "units":  83.0000,
+                                                      "teamDealGain":  3
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-08",
                                                       "elasticity":  -1.0,
-                                                      "gain":  52,
-                                                      "lines":  76,
-                                                      "units":  81.0000
+                                                      "gain":  53,
+                                                      "lines":  78,
+                                                      "units":  83.0000,
+                                                      "teamDealGain":  3
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2026-08",
                                                       "elasticity":  -2.0,
-                                                      "gain":  52,
-                                                      "lines":  76,
-                                                      "units":  81.0000
+                                                      "gain":  53,
+                                                      "lines":  78,
+                                                      "units":  83.0000,
+                                                      "teamDealGain":  3
                                                   },
                                                   {
                                                       "lever":  1,
@@ -280,7 +313,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  102,
                                                       "lines":  24,
-                                                      "units":  26.0000
+                                                      "units":  26.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -288,7 +322,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  102,
                                                       "lines":  24,
-                                                      "units":  26.0000
+                                                      "units":  26.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -296,7 +331,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  102,
                                                       "lines":  24,
-                                                      "units":  26.0000
+                                                      "units":  26.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -304,7 +340,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  71,
                                                       "lines":  14,
-                                                      "units":  15.0000
+                                                      "units":  15.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -312,7 +349,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  71,
                                                       "lines":  14,
-                                                      "units":  15.0000
+                                                      "units":  15.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -320,31 +358,35 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  71,
                                                       "lines":  14,
-                                                      "units":  15.0000
+                                                      "units":  15.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2025-10",
                                                       "elasticity":  -0.5,
-                                                      "gain":  598,
-                                                      "lines":  159,
-                                                      "units":  181.0000
+                                                      "gain":  608,
+                                                      "lines":  162,
+                                                      "units":  185.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2025-10",
                                                       "elasticity":  -1.0,
-                                                      "gain":  496,
-                                                      "lines":  159,
-                                                      "units":  181.0000
+                                                      "gain":  503,
+                                                      "lines":  162,
+                                                      "units":  185.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2025-10",
                                                       "elasticity":  -2.0,
-                                                      "gain":  323,
-                                                      "lines":  159,
-                                                      "units":  181.0000
+                                                      "gain":  328,
+                                                      "lines":  162,
+                                                      "units":  185.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -352,7 +394,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  127,
                                                       "lines":  70,
-                                                      "units":  75.0000
+                                                      "units":  75.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -360,7 +403,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  93,
                                                       "lines":  70,
-                                                      "units":  75.0000
+                                                      "units":  75.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -368,7 +412,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  41,
                                                       "lines":  70,
-                                                      "units":  75.0000
+                                                      "units":  75.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -376,7 +421,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  228,
                                                       "lines":  57,
-                                                      "units":  59.0000
+                                                      "units":  59.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -384,7 +430,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  201,
                                                       "lines":  57,
-                                                      "units":  59.0000
+                                                      "units":  59.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -392,103 +439,116 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  154,
                                                       "lines":  57,
-                                                      "units":  59.0000
+                                                      "units":  59.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-01",
                                                       "elasticity":  -0.5,
-                                                      "gain":  313,
-                                                      "lines":  103,
-                                                      "units":  119.0000
+                                                      "gain":  343,
+                                                      "lines":  104,
+                                                      "units":  120.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-01",
                                                       "elasticity":  -1.0,
-                                                      "gain":  267,
-                                                      "lines":  103,
-                                                      "units":  119.0000
+                                                      "gain":  295,
+                                                      "lines":  104,
+                                                      "units":  120.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-01",
                                                       "elasticity":  -2.0,
-                                                      "gain":  188,
-                                                      "lines":  103,
-                                                      "units":  119.0000
+                                                      "gain":  213,
+                                                      "lines":  104,
+                                                      "units":  120.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-02",
                                                       "elasticity":  -0.5,
-                                                      "gain":  567,
-                                                      "lines":  120,
-                                                      "units":  127.0000
+                                                      "gain":  556,
+                                                      "lines":  118,
+                                                      "units":  125.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-02",
                                                       "elasticity":  -1.0,
-                                                      "gain":  501,
-                                                      "lines":  120,
-                                                      "units":  127.0000
+                                                      "gain":  491,
+                                                      "lines":  118,
+                                                      "units":  125.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-02",
                                                       "elasticity":  -2.0,
-                                                      "gain":  386,
-                                                      "lines":  120,
-                                                      "units":  127.0000
+                                                      "gain":  378,
+                                                      "lines":  118,
+                                                      "units":  125.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-03",
                                                       "elasticity":  -0.5,
-                                                      "gain":  826,
+                                                      "gain":  820,
                                                       "lines":  120,
-                                                      "units":  171.0000
+                                                      "units":  171.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-03",
                                                       "elasticity":  -1.0,
-                                                      "gain":  736,
+                                                      "gain":  731,
                                                       "lines":  120,
-                                                      "units":  171.0000
+                                                      "units":  171.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-03",
                                                       "elasticity":  -2.0,
-                                                      "gain":  584,
+                                                      "gain":  579,
                                                       "lines":  120,
-                                                      "units":  171.0000
+                                                      "units":  171.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-04",
                                                       "elasticity":  -0.5,
-                                                      "gain":  462,
-                                                      "lines":  162,
-                                                      "units":  166.0000
+                                                      "gain":  465,
+                                                      "lines":  163,
+                                                      "units":  167.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-04",
                                                       "elasticity":  -1.0,
-                                                      "gain":  418,
-                                                      "lines":  162,
-                                                      "units":  166.0000
+                                                      "gain":  421,
+                                                      "lines":  163,
+                                                      "units":  167.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-04",
                                                       "elasticity":  -2.0,
-                                                      "gain":  344,
-                                                      "lines":  162,
-                                                      "units":  166.0000
+                                                      "gain":  346,
+                                                      "lines":  163,
+                                                      "units":  167.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -496,7 +556,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  506,
                                                       "lines":  132,
-                                                      "units":  142.0000
+                                                      "units":  142.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -504,7 +565,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  450,
                                                       "lines":  132,
-                                                      "units":  142.0000
+                                                      "units":  142.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -512,127 +574,143 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  347,
                                                       "lines":  132,
-                                                      "units":  142.0000
+                                                      "units":  142.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-06",
                                                       "elasticity":  -0.5,
-                                                      "gain":  224,
-                                                      "lines":  82,
-                                                      "units":  91.0000
+                                                      "gain":  229,
+                                                      "lines":  85,
+                                                      "units":  94.0000,
+                                                      "teamDealGain":  32
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-06",
                                                       "elasticity":  -1.0,
-                                                      "gain":  199,
-                                                      "lines":  82,
-                                                      "units":  91.0000
+                                                      "gain":  203,
+                                                      "lines":  85,
+                                                      "units":  94.0000,
+                                                      "teamDealGain":  27
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-06",
                                                       "elasticity":  -2.0,
-                                                      "gain":  154,
-                                                      "lines":  82,
-                                                      "units":  91.0000
+                                                      "gain":  157,
+                                                      "lines":  85,
+                                                      "units":  94.0000,
+                                                      "teamDealGain":  19
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-07",
                                                       "elasticity":  -0.5,
                                                       "gain":  187,
-                                                      "lines":  168,
-                                                      "units":  203.0000
+                                                      "lines":  169,
+                                                      "units":  204.0000,
+                                                      "teamDealGain":  95
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-07",
                                                       "elasticity":  -1.0,
                                                       "gain":  160,
-                                                      "lines":  168,
-                                                      "units":  203.0000
+                                                      "lines":  169,
+                                                      "units":  204.0000,
+                                                      "teamDealGain":  81
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-07",
                                                       "elasticity":  -2.0,
                                                       "gain":  110,
-                                                      "lines":  168,
-                                                      "units":  203.0000
+                                                      "lines":  169,
+                                                      "units":  204.0000,
+                                                      "teamDealGain":  56
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-08",
                                                       "elasticity":  -0.5,
-                                                      "gain":  2813,
-                                                      "lines":  763,
-                                                      "units":  788.0000
+                                                      "gain":  2879,
+                                                      "lines":  789,
+                                                      "units":  814.0000,
+                                                      "teamDealGain":  119
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-08",
                                                       "elasticity":  -1.0,
-                                                      "gain":  2495,
-                                                      "lines":  763,
-                                                      "units":  788.0000
+                                                      "gain":  2554,
+                                                      "lines":  789,
+                                                      "units":  814.0000,
+                                                      "teamDealGain":  103
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-08",
                                                       "elasticity":  -2.0,
-                                                      "gain":  1945,
-                                                      "lines":  763,
-                                                      "units":  788.0000
+                                                      "gain":  1993,
+                                                      "lines":  789,
+                                                      "units":  814.0000,
+                                                      "teamDealGain":  76
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-09",
                                                       "elasticity":  -0.5,
-                                                      "gain":  196,
-                                                      "lines":  91,
-                                                      "units":  97.0000
+                                                      "gain":  206,
+                                                      "lines":  96,
+                                                      "units":  102.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-09",
                                                       "elasticity":  -1.0,
-                                                      "gain":  174,
-                                                      "lines":  91,
-                                                      "units":  97.0000
+                                                      "gain":  184,
+                                                      "lines":  96,
+                                                      "units":  102.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-09",
                                                       "elasticity":  -2.0,
-                                                      "gain":  134,
-                                                      "lines":  91,
-                                                      "units":  97.0000
+                                                      "gain":  143,
+                                                      "lines":  96,
+                                                      "units":  102.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-10",
                                                       "elasticity":  -0.5,
-                                                      "gain":  59,
-                                                      "lines":  16,
-                                                      "units":  21.0000
+                                                      "gain":  64,
+                                                      "lines":  17,
+                                                      "units":  25.0000,
+                                                      "teamDealGain":  40
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-10",
                                                       "elasticity":  -1.0,
-                                                      "gain":  51,
-                                                      "lines":  16,
-                                                      "units":  21.0000
+                                                      "gain":  56,
+                                                      "lines":  17,
+                                                      "units":  25.0000,
+                                                      "teamDealGain":  35
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-10",
                                                       "elasticity":  -2.0,
-                                                      "gain":  36,
-                                                      "lines":  16,
-                                                      "units":  21.0000
+                                                      "gain":  40,
+                                                      "lines":  17,
+                                                      "units":  25.0000,
+                                                      "teamDealGain":  25
                                                   },
                                                   {
                                                       "lever":  5,
@@ -640,7 +718,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  121,
                                                       "lines":  51,
-                                                      "units":  54.0000
+                                                      "units":  54.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  5,
@@ -648,7 +727,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  101,
                                                       "lines":  51,
-                                                      "units":  54.0000
+                                                      "units":  54.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  5,
@@ -656,7 +736,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  69,
                                                       "lines":  51,
-                                                      "units":  54.0000
+                                                      "units":  54.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  5,
@@ -664,7 +745,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  827,
                                                       "lines":  225,
-                                                      "units":  235.0000
+                                                      "units":  235.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  5,
@@ -672,7 +754,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  692,
                                                       "lines":  225,
-                                                      "units":  235.0000
+                                                      "units":  235.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  5,
@@ -680,7 +763,89 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  452,
                                                       "lines":  225,
-                                                      "units":  235.0000
+                                                      "units":  235.0000,
+                                                      "teamDealGain":  0
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-08",
+                                                      "elasticity":  -0.5,
+                                                      "gain":  325,
+                                                      "lines":  73,
+                                                      "units":  75.0000,
+                                                      "teamDealGain":  0
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-08",
+                                                      "elasticity":  -1.0,
+                                                      "gain":  277,
+                                                      "lines":  73,
+                                                      "units":  75.0000,
+                                                      "teamDealGain":  0
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-08",
+                                                      "elasticity":  -2.0,
+                                                      "gain":  193,
+                                                      "lines":  73,
+                                                      "units":  75.0000,
+                                                      "teamDealGain":  0
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-09",
+                                                      "elasticity":  -0.5,
+                                                      "gain":  268,
+                                                      "lines":  70,
+                                                      "units":  76.0000,
+                                                      "teamDealGain":  18
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-09",
+                                                      "elasticity":  -1.0,
+                                                      "gain":  221,
+                                                      "lines":  70,
+                                                      "units":  76.0000,
+                                                      "teamDealGain":  14
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-09",
+                                                      "elasticity":  -2.0,
+                                                      "gain":  138,
+                                                      "lines":  70,
+                                                      "units":  76.0000,
+                                                      "teamDealGain":  9
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-10",
+                                                      "elasticity":  -0.5,
+                                                      "gain":  71,
+                                                      "lines":  17,
+                                                      "units":  18.0000,
+                                                      "teamDealGain":  7
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-10",
+                                                      "elasticity":  -1.0,
+                                                      "gain":  58,
+                                                      "lines":  17,
+                                                      "units":  18.0000,
+                                                      "teamDealGain":  6
+                                                  },
+                                                  {
+                                                      "lever":  8,
+                                                      "month":  "2026-10",
+                                                      "elasticity":  -2.0,
+                                                      "gain":  35,
+                                                      "lines":  17,
+                                                      "units":  18.0000,
+                                                      "teamDealGain":  3
                                                   }
                                               ],
                                     "context":  [
@@ -688,7 +853,7 @@
                                                         "month":  "2025-10",
                                                         "crossDockLoss":  848,
                                                         "crossDockLossLines":  134,
-                                                        "caughtLoss":  475,
+                                                        "caughtLoss":  483,
                                                         "campaignDayCrossDockLoss":  6658
                                                     },
                                                     {
@@ -723,7 +888,7 @@
                                                         "month":  "2026-03",
                                                         "crossDockLoss":  771,
                                                         "crossDockLossLines":  151,
-                                                        "caughtLoss":  333,
+                                                        "caughtLoss":  335,
                                                         "campaignDayCrossDockLoss":  0
                                                     },
                                                     {
@@ -758,7 +923,7 @@
                                                         "month":  "2026-08",
                                                         "crossDockLoss":  394,
                                                         "crossDockLossLines":  106,
-                                                        "caughtLoss":  52,
+                                                        "caughtLoss":  53,
                                                         "campaignDayCrossDockLoss":  0
                                                     },
                                                     {
@@ -786,25 +951,28 @@
                                                       "lever":  1,
                                                       "month":  "2025-10",
                                                       "elasticity":  -0.5,
-                                                      "gain":  2188,
-                                                      "lines":  326,
-                                                      "units":  359.0000
+                                                      "gain":  2182,
+                                                      "lines":  325,
+                                                      "units":  358.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2025-10",
                                                       "elasticity":  -1.0,
-                                                      "gain":  2188,
-                                                      "lines":  326,
-                                                      "units":  359.0000
+                                                      "gain":  2182,
+                                                      "lines":  325,
+                                                      "units":  358.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
                                                       "month":  "2025-10",
                                                       "elasticity":  -2.0,
-                                                      "gain":  2188,
-                                                      "lines":  326,
-                                                      "units":  359.0000
+                                                      "gain":  2182,
+                                                      "lines":  325,
+                                                      "units":  358.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -812,7 +980,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  476,
                                                       "lines":  12,
-                                                      "units":  17.0000
+                                                      "units":  17.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -820,7 +989,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  476,
                                                       "lines":  12,
-                                                      "units":  17.0000
+                                                      "units":  17.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -828,7 +998,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  476,
                                                       "lines":  12,
-                                                      "units":  17.0000
+                                                      "units":  17.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -836,7 +1007,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  219,
                                                       "lines":  15,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -844,7 +1016,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  219,
                                                       "lines":  15,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -852,7 +1025,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  219,
                                                       "lines":  15,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -860,7 +1034,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  329,
                                                       "lines":  20,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -868,7 +1043,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  329,
                                                       "lines":  20,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -876,7 +1052,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  329,
                                                       "lines":  20,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -884,7 +1061,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  653,
                                                       "lines":  58,
-                                                      "units":  58.0000
+                                                      "units":  58.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -892,7 +1070,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  653,
                                                       "lines":  58,
-                                                      "units":  58.0000
+                                                      "units":  58.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -900,7 +1079,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  653,
                                                       "lines":  58,
-                                                      "units":  58.0000
+                                                      "units":  58.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -908,7 +1088,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  117,
                                                       "lines":  40,
-                                                      "units":  43.0000
+                                                      "units":  43.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -916,7 +1097,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  117,
                                                       "lines":  40,
-                                                      "units":  43.0000
+                                                      "units":  43.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -924,7 +1106,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  117,
                                                       "lines":  40,
-                                                      "units":  43.0000
+                                                      "units":  43.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -932,7 +1115,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  330,
                                                       "lines":  45,
-                                                      "units":  46.0000
+                                                      "units":  46.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -940,7 +1124,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  330,
                                                       "lines":  45,
-                                                      "units":  46.0000
+                                                      "units":  46.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -948,7 +1133,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  330,
                                                       "lines":  45,
-                                                      "units":  46.0000
+                                                      "units":  46.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -956,7 +1142,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  62,
                                                       "lines":  12,
-                                                      "units":  17.0000
+                                                      "units":  17.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -964,7 +1151,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  62,
                                                       "lines":  12,
-                                                      "units":  17.0000
+                                                      "units":  17.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -972,7 +1160,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  62,
                                                       "lines":  12,
-                                                      "units":  17.0000
+                                                      "units":  17.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  1,
@@ -980,7 +1169,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  249,
                                                       "lines":  33,
-                                                      "units":  34.0000
+                                                      "units":  34.0000,
+                                                      "teamDealGain":  247
                                                   },
                                                   {
                                                       "lever":  1,
@@ -988,7 +1178,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  249,
                                                       "lines":  33,
-                                                      "units":  34.0000
+                                                      "units":  34.0000,
+                                                      "teamDealGain":  247
                                                   },
                                                   {
                                                       "lever":  1,
@@ -996,7 +1187,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  249,
                                                       "lines":  33,
-                                                      "units":  34.0000
+                                                      "units":  34.0000,
+                                                      "teamDealGain":  247
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1004,7 +1196,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  197,
                                                       "lines":  23,
-                                                      "units":  29.0000
+                                                      "units":  29.0000,
+                                                      "teamDealGain":  197
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1012,7 +1205,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  197,
                                                       "lines":  23,
-                                                      "units":  29.0000
+                                                      "units":  29.0000,
+                                                      "teamDealGain":  197
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1020,7 +1214,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  197,
                                                       "lines":  23,
-                                                      "units":  29.0000
+                                                      "units":  29.0000,
+                                                      "teamDealGain":  197
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1028,7 +1223,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  40,
                                                       "lines":  5,
-                                                      "units":  5.0000
+                                                      "units":  5.0000,
+                                                      "teamDealGain":  40
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1036,7 +1232,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  40,
                                                       "lines":  5,
-                                                      "units":  5.0000
+                                                      "units":  5.0000,
+                                                      "teamDealGain":  40
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1044,7 +1241,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  40,
                                                       "lines":  5,
-                                                      "units":  5.0000
+                                                      "units":  5.0000,
+                                                      "teamDealGain":  40
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1052,7 +1250,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  200,
                                                       "lines":  12,
-                                                      "units":  12.0000
+                                                      "units":  12.0000,
+                                                      "teamDealGain":  200
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1060,7 +1259,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  200,
                                                       "lines":  12,
-                                                      "units":  12.0000
+                                                      "units":  12.0000,
+                                                      "teamDealGain":  200
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1068,7 +1268,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  200,
                                                       "lines":  12,
-                                                      "units":  12.0000
+                                                      "units":  12.0000,
+                                                      "teamDealGain":  200
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1076,7 +1277,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  24,
                                                       "lines":  5,
-                                                      "units":  5.0000
+                                                      "units":  5.0000,
+                                                      "teamDealGain":  24
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1084,7 +1286,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  24,
                                                       "lines":  5,
-                                                      "units":  5.0000
+                                                      "units":  5.0000,
+                                                      "teamDealGain":  24
                                                   },
                                                   {
                                                       "lever":  1,
@@ -1092,7 +1295,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  24,
                                                       "lines":  5,
-                                                      "units":  5.0000
+                                                      "units":  5.0000,
+                                                      "teamDealGain":  24
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1100,7 +1304,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  38,
                                                       "lines":  208,
-                                                      "units":  466.0000
+                                                      "units":  466.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1108,7 +1313,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  34,
                                                       "lines":  208,
-                                                      "units":  466.0000
+                                                      "units":  466.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1116,7 +1322,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  26,
                                                       "lines":  208,
-                                                      "units":  466.0000
+                                                      "units":  466.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1124,7 +1331,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  17,
                                                       "lines":  15,
-                                                      "units":  353.0000
+                                                      "units":  353.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1132,7 +1340,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  14,
                                                       "lines":  15,
-                                                      "units":  353.0000
+                                                      "units":  353.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1140,7 +1349,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  10,
                                                       "lines":  15,
-                                                      "units":  353.0000
+                                                      "units":  353.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1148,7 +1358,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  11,
                                                       "lines":  46,
-                                                      "units":  179.0000
+                                                      "units":  179.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1156,7 +1367,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  9,
                                                       "lines":  46,
-                                                      "units":  179.0000
+                                                      "units":  179.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1164,7 +1376,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  7,
                                                       "lines":  46,
-                                                      "units":  179.0000
+                                                      "units":  179.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1172,7 +1385,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  8,
                                                       "lines":  50,
-                                                      "units":  161.0000
+                                                      "units":  161.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1180,7 +1394,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  7,
                                                       "lines":  50,
-                                                      "units":  161.0000
+                                                      "units":  161.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1188,7 +1403,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  5,
                                                       "lines":  50,
-                                                      "units":  161.0000
+                                                      "units":  161.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1196,7 +1412,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  21,
                                                       "lines":  43,
-                                                      "units":  235.0000
+                                                      "units":  235.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1204,7 +1421,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  18,
                                                       "lines":  43,
-                                                      "units":  235.0000
+                                                      "units":  235.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1212,7 +1430,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  14,
                                                       "lines":  43,
-                                                      "units":  235.0000
+                                                      "units":  235.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1220,7 +1439,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  26,
                                                       "lines":  164,
-                                                      "units":  186.0000
+                                                      "units":  186.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1228,7 +1448,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  24,
                                                       "lines":  164,
-                                                      "units":  186.0000
+                                                      "units":  186.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1236,7 +1457,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  19,
                                                       "lines":  164,
-                                                      "units":  186.0000
+                                                      "units":  186.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1244,7 +1466,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  31,
                                                       "lines":  79,
-                                                      "units":  343.0000
+                                                      "units":  343.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1252,7 +1475,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  27,
                                                       "lines":  79,
-                                                      "units":  343.0000
+                                                      "units":  343.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1260,7 +1484,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  20,
                                                       "lines":  79,
-                                                      "units":  343.0000
+                                                      "units":  343.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1268,7 +1493,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  9,
                                                       "lines":  18,
-                                                      "units":  148.0000
+                                                      "units":  148.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1276,7 +1502,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  8,
                                                       "lines":  18,
-                                                      "units":  148.0000
+                                                      "units":  148.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1284,7 +1511,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  6,
                                                       "lines":  18,
-                                                      "units":  148.0000
+                                                      "units":  148.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1292,7 +1520,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  20,
                                                       "lines":  48,
-                                                      "units":  146.0000
+                                                      "units":  146.0000,
+                                                      "teamDealGain":  20
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1300,7 +1529,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  18,
                                                       "lines":  48,
-                                                      "units":  146.0000
+                                                      "units":  146.0000,
+                                                      "teamDealGain":  18
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1308,7 +1538,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  14,
                                                       "lines":  48,
-                                                      "units":  146.0000
+                                                      "units":  146.0000,
+                                                      "teamDealGain":  14
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1316,7 +1547,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  21,
                                                       "lines":  36,
-                                                      "units":  115.0000
+                                                      "units":  115.0000,
+                                                      "teamDealGain":  21
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1324,7 +1556,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  19,
                                                       "lines":  36,
-                                                      "units":  115.0000
+                                                      "units":  115.0000,
+                                                      "teamDealGain":  19
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1332,7 +1565,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  16,
                                                       "lines":  36,
-                                                      "units":  115.0000
+                                                      "units":  115.0000,
+                                                      "teamDealGain":  16
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1340,7 +1574,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  4,
                                                       "lines":  22,
-                                                      "units":  24.0000
+                                                      "units":  24.0000,
+                                                      "teamDealGain":  2
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1348,7 +1583,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  3,
                                                       "lines":  22,
-                                                      "units":  24.0000
+                                                      "units":  24.0000,
+                                                      "teamDealGain":  2
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1356,7 +1592,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  2,
                                                       "lines":  22,
-                                                      "units":  24.0000
+                                                      "units":  24.0000,
+                                                      "teamDealGain":  1
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1364,7 +1601,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  5,
                                                       "lines":  29,
-                                                      "units":  45.0000
+                                                      "units":  45.0000,
+                                                      "teamDealGain":  4
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1372,7 +1610,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  4,
                                                       "lines":  29,
-                                                      "units":  45.0000
+                                                      "units":  45.0000,
+                                                      "teamDealGain":  3
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1380,7 +1619,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  3,
                                                       "lines":  29,
-                                                      "units":  45.0000
+                                                      "units":  45.0000,
+                                                      "teamDealGain":  3
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1388,7 +1628,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  23,
                                                       "lines":  20,
-                                                      "units":  92.0000
+                                                      "units":  92.0000,
+                                                      "teamDealGain":  21
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1396,7 +1637,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  22,
                                                       "lines":  20,
-                                                      "units":  92.0000
+                                                      "units":  92.0000,
+                                                      "teamDealGain":  19
                                                   },
                                                   {
                                                       "lever":  2,
@@ -1404,7 +1646,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  19,
                                                       "lines":  20,
-                                                      "units":  92.0000
+                                                      "units":  92.0000,
+                                                      "teamDealGain":  17
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1412,7 +1655,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  481,
                                                       "lines":  27,
-                                                      "units":  54.0000
+                                                      "units":  54.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1420,7 +1664,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  450,
                                                       "lines":  27,
-                                                      "units":  54.0000
+                                                      "units":  54.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1428,7 +1673,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  395,
                                                       "lines":  27,
-                                                      "units":  54.0000
+                                                      "units":  54.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1436,7 +1682,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  39,
                                                       "lines":  4,
-                                                      "units":  14.0000
+                                                      "units":  14.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1444,7 +1691,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  29,
                                                       "lines":  4,
-                                                      "units":  14.0000
+                                                      "units":  14.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1452,31 +1700,35 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  12,
                                                       "lines":  4,
-                                                      "units":  14.0000
+                                                      "units":  14.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2025-12",
                                                       "elasticity":  -0.5,
-                                                      "gain":  453,
-                                                      "lines":  78,
-                                                      "units":  93.0000
+                                                      "gain":  549,
+                                                      "lines":  79,
+                                                      "units":  94.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2025-12",
                                                       "elasticity":  -1.0,
-                                                      "gain":  381,
-                                                      "lines":  78,
-                                                      "units":  93.0000
+                                                      "gain":  468,
+                                                      "lines":  79,
+                                                      "units":  94.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2025-12",
                                                       "elasticity":  -2.0,
-                                                      "gain":  253,
-                                                      "lines":  78,
-                                                      "units":  93.0000
+                                                      "gain":  327,
+                                                      "lines":  79,
+                                                      "units":  94.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1484,7 +1736,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  290,
                                                       "lines":  40,
-                                                      "units":  45.0000
+                                                      "units":  45.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1492,7 +1745,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  242,
                                                       "lines":  40,
-                                                      "units":  45.0000
+                                                      "units":  45.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1500,7 +1754,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  160,
                                                       "lines":  40,
-                                                      "units":  45.0000
+                                                      "units":  45.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1508,7 +1763,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  137,
                                                       "lines":  22,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1516,7 +1772,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  116,
                                                       "lines":  22,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1524,7 +1781,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  84,
                                                       "lines":  22,
-                                                      "units":  23.0000
+                                                      "units":  23.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1532,7 +1790,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  845,
                                                       "lines":  66,
-                                                      "units":  81.0000
+                                                      "units":  81.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1540,7 +1799,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  733,
                                                       "lines":  66,
-                                                      "units":  81.0000
+                                                      "units":  81.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1548,55 +1808,62 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  545,
                                                       "lines":  66,
-                                                      "units":  81.0000
+                                                      "units":  81.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-04",
                                                       "elasticity":  -0.5,
-                                                      "gain":  416,
-                                                      "lines":  37,
-                                                      "units":  37.0000
+                                                      "gain":  417,
+                                                      "lines":  38,
+                                                      "units":  38.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-04",
                                                       "elasticity":  -1.0,
-                                                      "gain":  384,
-                                                      "lines":  37,
-                                                      "units":  37.0000
+                                                      "gain":  385,
+                                                      "lines":  38,
+                                                      "units":  38.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-04",
                                                       "elasticity":  -2.0,
                                                       "gain":  326,
-                                                      "lines":  37,
-                                                      "units":  37.0000
+                                                      "lines":  38,
+                                                      "units":  38.0000,
+                                                      "teamDealGain":  0
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-06",
                                                       "elasticity":  -0.5,
-                                                      "gain":  256,
-                                                      "lines":  27,
-                                                      "units":  31.0000
+                                                      "gain":  280,
+                                                      "lines":  28,
+                                                      "units":  32.0000,
+                                                      "teamDealGain":  247
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-06",
                                                       "elasticity":  -1.0,
-                                                      "gain":  223,
-                                                      "lines":  27,
-                                                      "units":  31.0000
+                                                      "gain":  245,
+                                                      "lines":  28,
+                                                      "units":  32.0000,
+                                                      "teamDealGain":  216
                                                   },
                                                   {
                                                       "lever":  3,
                                                       "month":  "2026-06",
                                                       "elasticity":  -2.0,
-                                                      "gain":  166,
-                                                      "lines":  27,
-                                                      "units":  31.0000
+                                                      "gain":  185,
+                                                      "lines":  28,
+                                                      "units":  32.0000,
+                                                      "teamDealGain":  161
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1604,7 +1871,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  90,
                                                       "lines":  15,
-                                                      "units":  16.0000
+                                                      "units":  16.0000,
+                                                      "teamDealGain":  84
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1612,7 +1880,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  85,
                                                       "lines":  15,
-                                                      "units":  16.0000
+                                                      "units":  16.0000,
+                                                      "teamDealGain":  80
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1620,7 +1889,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  75,
                                                       "lines":  15,
-                                                      "units":  16.0000
+                                                      "units":  16.0000,
+                                                      "teamDealGain":  71
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1628,7 +1898,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  198,
                                                       "lines":  21,
-                                                      "units":  26.0000
+                                                      "units":  26.0000,
+                                                      "teamDealGain":  184
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1636,7 +1907,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  188,
                                                       "lines":  21,
-                                                      "units":  26.0000
+                                                      "units":  26.0000,
+                                                      "teamDealGain":  176
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1644,7 +1916,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  168,
                                                       "lines":  21,
-                                                      "units":  26.0000
+                                                      "units":  26.0000,
+                                                      "teamDealGain":  160
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1652,7 +1925,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  260,
                                                       "lines":  36,
-                                                      "units":  44.0000
+                                                      "units":  44.0000,
+                                                      "teamDealGain":  251
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1660,7 +1934,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  236,
                                                       "lines":  36,
-                                                      "units":  44.0000
+                                                      "units":  44.0000,
+                                                      "teamDealGain":  229
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1668,7 +1943,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  193,
                                                       "lines":  36,
-                                                      "units":  44.0000
+                                                      "units":  44.0000,
+                                                      "teamDealGain":  188
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1676,7 +1952,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  506,
                                                       "lines":  28,
-                                                      "units":  40.0000
+                                                      "units":  40.0000,
+                                                      "teamDealGain":  499
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1684,7 +1961,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  466,
                                                       "lines":  28,
-                                                      "units":  40.0000
+                                                      "units":  40.0000,
+                                                      "teamDealGain":  460
                                                   },
                                                   {
                                                       "lever":  3,
@@ -1692,7 +1970,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  393,
                                                       "lines":  28,
-                                                      "units":  40.0000
+                                                      "units":  40.0000,
+                                                      "teamDealGain":  389
                                                   },
                                                   {
                                                       "lever":  5,
@@ -1700,7 +1979,8 @@
                                                       "elasticity":  -0.5,
                                                       "gain":  -218,
                                                       "lines":  38,
-                                                      "units":  42.0000
+                                                      "units":  42.0000,
+                                                      "teamDealGain":  -132
                                                   },
                                                   {
                                                       "lever":  5,
@@ -1708,7 +1988,8 @@
                                                       "elasticity":  -1.0,
                                                       "gain":  -189,
                                                       "lines":  38,
-                                                      "units":  42.0000
+                                                      "units":  42.0000,
+                                                      "teamDealGain":  -115
                                                   },
                                                   {
                                                       "lever":  5,
@@ -1716,7 +1997,8 @@
                                                       "elasticity":  -2.0,
                                                       "gain":  -123,
                                                       "lines":  38,
-                                                      "units":  42.0000
+                                                      "units":  42.0000,
+                                                      "teamDealGain":  -78
                                                   }
                                               ],
                                     "context":  [
@@ -1724,7 +2006,7 @@
                                                         "month":  "2025-10",
                                                         "crossDockLoss":  2896,
                                                         "crossDockLossLines":  388,
-                                                        "caughtLoss":  2188,
+                                                        "caughtLoss":  2182,
                                                         "campaignDayCrossDockLoss":  0
                                                     },
                                                     {

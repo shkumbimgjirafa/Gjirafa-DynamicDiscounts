@@ -186,4 +186,45 @@ public class LeverBacktestTests
         Assert.All(whatIf, w => Assert.Equal((1, 1m), (w.Lines, w.Units)));
         Assert.All(LeverBacktest.FloorWhatIf(lines, From, To, 12m, 8m), w => Assert.Equal(0m, w.Gain));   // lower: no simulated gain
     }
+
+    [Fact]
+    public void Lever_8_prices_a_held_raise_at_the_new_price_only_on_lines_no_other_lever_scored()
+    {
+        // Cost 10 -> 11 on day 11 at an unchanged price: lever 3 scores day 12. Both later lines also sold under an approved raise
+        // to 15 that the process held at 12 (line ids 12 and 14); day 12's is lever 3's, so only day 14's is lever 8's.
+        var lines = Enumerable.Range(0, 11).Select(d => L("C", d, 1, 12m, 10m)).ToList();
+        lines.Add(L("C", -1, 1, 15m, 10m));                                                         // the ceiling: an earlier, higher price
+        lines.Add(L("C", 11, 1, 12m, 11m));
+        lines.Add(L("C", 12, 2, 12m, 11m) with { SrLineId = 12 });
+        lines.Add(L("D", 14, 3, 10m, 8m) with { SrLineId = 14 });
+        var held = new Dictionary<long, (decimal Old, decimal New)> { [12] = (14.4m, 18m), [14] = (12m, 15m) };
+
+        var trace = new List<(int Lever, BacktestLine Line, decimal Gain)>();
+        var r = LeverBacktest.Run(4, lines, From, To, (_, _) => null, (_, _) => null, trace, heldRaise: id => held.TryGetValue(id, out var h) ? h : null);
+
+        Assert.Equal(12, Assert.Single(trace, t => t.Lever == 3).Line.SrLineId);
+        var eight = Assert.Single(trace, t => t.Lever == 8);
+        Assert.Equal(14, eight.Line.SrLineId);
+        Assert.Equal(Math.Round(LeverBacktest.Gp(eight.Line, 15m, -1m) - eight.Line.Gp, 6), Math.Round(eight.Gain, 6));
+        Assert.Equal(3, r.Gains.Count(g => g.Lever == 8));                                         // one row per elasticity case
+    }
+
+    [Fact]
+    public void A_levers_gain_on_lines_sold_under_a_team_deal_is_recorded_apart()
+    {
+        // Two cost-jump lines lever 3 scores, one of them sold under a team deal.
+        var lines = Enumerable.Range(0, 11).Select(d => L("C", d, 1, 12m, 10m)).ToList();
+        lines.Add(L("C", -1, 1, 15m, 10m));                                                         // the ceiling: an earlier, higher price
+        lines.Add(L("C", 11, 1, 12m, 11m));
+        lines.Add(L("C", 12, 1, 12m, 11m));
+        lines.Add(L("C", 13, 2, 12m, 11m) with { TeamDeal = true });
+
+        var trace = new List<(int Lever, BacktestLine Line, decimal Gain)>();
+        var r = LeverBacktest.Run(4, lines, From, To, (_, _) => null, (_, _) => null, trace);
+
+        var three = r.Gains.Single(g => g.Lever == 3 && g.Elasticity == -1.0m);
+        Assert.Equal(2, three.Lines);
+        Assert.Equal(Math.Round(trace.Single(t => t.Line.TeamDeal).Gain, 0), three.TeamDealGain);
+        Assert.True(three.TeamDealGain > 0 && three.TeamDealGain < three.Gain);
+    }
 }

@@ -36,10 +36,10 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
 
 **Money (12 months, both framings kept apart).** Framing A counts only what this build adds, backtested walk-forward on
-booked sales lines: €2,049 / €4,251 / €5,806 a month at full scope (E8,
+booked sales lines: €1,996 / €4,158 / €8,675 a month at full scope (E8,
 estimated, every lever on the calculator's era, Aug–Sep 2026), short of the €12.2k a month that the top
 net-benefit band needs with these costs. Most of it comes from automation (the loss block, cost reaction, daily checked
-prices, MK/AL coverage), not from the model's own floor choices, which the backtest scores at €4
+prices, MK/AL coverage, raises that reach the shelf: €249, E24), not from the model's own floor choices, which the backtest scores at €2
 a month (E2); the holdout categories, about 11% of the changed prices, are left out of the benefit. Framing B adds the rollout of the calculator's test phase: €4,402 a month
 measured with a same-weeks control (one controlled run per layer), €10,409 before/after and €13,000
 season-adjusted, neither controlled (E20; the low and mid cases recomputed from this repo's data); it is the non-AI calculator's effect, which the registration did not claim as
@@ -52,15 +52,17 @@ Which framing counts is the organisers' call.
 
 | Year 1 | A · Low | A · Mid | A · High | B · Low | B · Mid | B · High |
 |---|---|---|---|---|---|---|
-| Extra gross profit a month at full scope | €1,824 | €3,783 | €5,167 | €5,741 | €13,047 | €16,737 |
-| Net benefit (9.5 full-benefit months − all costs) | €1,486 | €20,104 | €33,251 | €38,705 | €108,112 | €143,166 |
-| ROI | 9% | 127% | 210% | 244% | 683% | 904% |
-| Payback (months) | 10.8 | 5.7 | 4.8 | 4.5 | 3.3 | 3.1 |
-| Track A score (/100; Evidence and Works are our own ratings) | 40 | 66 | 68 | 68 | 84 | 84 |
+| Extra gross profit a month at full scope | €1,776 | €3,701 | €7,721 | €5,694 | €12,965 | €19,291 |
+| Net benefit (9.5 full-benefit months − all costs) | €1,038 | €19,318 | €57,509 | €38,257 | €107,326 | €167,424 |
+| ROI | 7% | 122% | 363% | 242% | 678% | 1057% |
+| Payback (months) | 11.1 | 5.8 | 4.0 | 4.5 | 3.3 | 3.1 |
+| Track A score (/100; Evidence and Works are our own ratings) | 40 | 66 | 76 | 68 | 84 | 84 |
 
 **Biggest unproven assumptions.** That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
 publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still
-wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes). That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
+wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes).
+In today's process 17–20 % of the units on SKUs an approval raised still sold at the old price in Aug–Sep, 70–84 % in late
+October (E23); the levers' gain on lines sold under a team deal (€378 a month) counts only in the high case. That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
 the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). Framing B also assumes the test
 phase's rate holds once automated and extended to every layer. The pilot's holdout categories turn these into
 measurements.

@@ -83,10 +83,10 @@ def header(ws, row, labels, start_col=1):
 # Rows of the Inputs sheet, by name: every formula elsewhere refers to them through this map.
 R = dict(rate=5, hours=6, person=7, build=8, training=9, setup=10, ai=11, servers=12, maint=13, review=14,
          first=15, pilot=16, share=17, months=18, buildAi=19, fx=20,
-         levHead=22, base=23, catch=24, lev1=25, lev7=31, levSum=32, levCheck=33, holdout=34,
-         b0Head=35, b0Low=36, b0Mid=37, b0High=38, b0UsedHead=40, b0Used=41,
-         judgeHead=43, evA=44, evB=45, works=46,
-         aiHead=48, aiFirst=49, aiLast=53, aiSum=54)
+         levHead=22, base=23, catch=24, lev1=25, lev8=32, levSum=33, levCheck=34, holdout=35,
+         b0Head=36, b0Low=37, b0Mid=38, b0High=39, b0UsedHead=41, b0Used=42,
+         judgeHead=44, evA=45, evB=46, works=47,
+         aiHead=49, aiFirst=50, aiLast=54, aiSum=55)
 I = {k: f"Inputs!$B${r}" for k, r in R.items()}
 
 built = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -104,7 +104,7 @@ put(ws, "A2", f"Built {built} by docs/hackathon-2026/financial/build_financial_s
               "judgment); every cell below is a formula.", NOTE, wrap=True)
 ws.merge_cells("A2:G2")
 ws.row_dimensions[2].height = 40
-put(ws, "A3", "Framing A = only what the hackathon build adds (levers 1–7, backtested). Framing B = the rollout of the "
+put(ws, "A3", "Framing A = only what the hackathon build adds (levers 1–8, backtested). Framing B = the rollout of the "
               "calculator's test phase (B0) plus the same levers. The registration said the calculator's measured Aug–Sep "
               "result is not claimed; B claims no past euro, only the next 12 months of the automated system, using that "
               "result as the rate, and B0 is the non-AI calculator's effect. Which framing counts is the organisers' call.",
@@ -244,7 +244,8 @@ put(wi, f"F{R['catch']}", "Lever 1 ÷ baseline: many losses come with a cost tha
                           "Lever 1 assumes a blocked loss sale costs nothing else (no lost basket)", NOTE)
 cases = {"B": "low", "C": "central", "D": "high"}
 lev = [("E1", "1. Loss-sale block"), ("E2", "2. Per-category floors"), ("E3", "3. Cost reaction"), ("E4", "4. MK/AL coverage"),
-       ("E5", "5. Daily cadence"), ("E6", "6. Learning from past changes (as built)"), ("E7", "7. Campaign planning (campaign + pricing agents)")]
+       ("E5", "5. Daily cadence"), ("E6", "6. Learning from past changes (as built)"), ("E7", "7. Campaign planning (campaign + pricing agents)"),
+       ("E24", "8. Raises reach the shelf (the publisher)")]
 for i, (fid, lab) in enumerate(lev):
     r = R["lev1"] + i
     put(wi, f"A{r}", lab)
@@ -258,15 +259,17 @@ for i, (fid, lab) in enumerate(lev):
                 "without a push. " + note)
     put(wi, f"F{r}", note, NOTE)
     put(wi, f"G{r}", fid, BOLD)
-put(wi, f"A{R['levSum']}", "New benefit, framing A (sum of levers 1–7)", BOLD)
+put(wi, f"A{R['levSum']}", "New benefit, framing A (sum of levers 1–8)", BOLD)
 for col in "BCD":
-    c = put(wi, f"{col}{R['levSum']}", f"=SUM({col}{R['lev1']}:{col}{R['lev7']})", BLACK, EUR)
+    c = put(wi, f"{col}{R['levSum']}", f"=SUM({col}{R['lev1']}:{col}{R['lev8']})", BLACK, EUR)
     c.border = BOX
     c.fill = TOTAL
     c.font = Font(name=ARIAL, size=10, bold=True)
 put(wi, f"E{R['levSum']}", "formula")
 put(wi, f"F{R['levSum']}", "Low = elasticity −2, Mid = −1, High = −0.5 (assumed); each sales line counted by one lever; every lever "
-                           "on the calculator's era, Aug–Sep 2026 (lever 3's low case September only: August was one cost event)", NOTE)
+                           "on the calculator's era, Aug–Sep 2026 (lever 3's low case September only: August was one cost event); "
+                           f"the raise levers' gain on lines sold under a team deal (€{v('E8', 'underTeamDealCentral'):,.0f} a month at Mid) "
+                           "counts in High only: v2 doesn't raise a price a team deal holds; lever 8's High is October's pace (E23)", NOTE)
 put(wi, f"A{R['levCheck']}", "Check: the same total in numbers.json")
 for col, case in cases.items():
     put(wi, f"{col}{R['levCheck']}", v("E8", case), BLUE, EUR).border = BOX
@@ -375,7 +378,7 @@ benefit = {"B": f"=Inputs!B{s}*(1-Inputs!B{ho})", "C": f"=Inputs!C{s}*(1-Inputs!
            "E": f"=(Inputs!B{s}+Inputs!B{b})*(1-Inputs!B{ho})", "F": f"=(Inputs!C{s}+Inputs!C{b})*(1-Inputs!C{ho})",
            "G": f"=(Inputs!D{s}+Inputs!D{b})*(1-Inputs!D{ho})"}
 lines = [
-    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "Framing A: levers 1–7 · Framing B: + B0 (the test phase's rate); the holdout share left out"),
+    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "Framing A: levers 1–8 · Framing B: + B0 (the test phase's rate); the holdout share left out"),
     (5, "Months of full benefit in year 1", f"={I['months']}", NUM1, GREEN, "After the build month: the pilot at its share, then full scope"),
     (6, "First-year benefit", "={c}4*{c}5", EUR, BLACK, "Extra margin in the first 12 months"),
     (7, "One-time cost", f"=({I['hours']}+{I['person']}+{I['build']}+{I['training']})*{I['rate']}+{I['setup']}+{I['buildAi']}*{I['fx']}", EUR, GREEN,

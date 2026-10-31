@@ -53,7 +53,8 @@ ai_month = inputs["B11"].value
 build_hours = inputs["B8"].value
 pilot, share = inputs["B16"].value, inputs["B17"].value
 band5 = summary["B30"].value
-holdout = inputs["B34"].value
+# By its label, not its row: the lever rows above it grow when a lever is added.
+holdout = next(r[1].value for r in inputs.iter_rows(min_col=1, max_col=2) if str(r[0].value or "").startswith("Holdout categories"))
 per_ty = v("E11")
 e20 = v("E20")
 e21 = v("E21")
@@ -108,7 +109,7 @@ aren't calibrated yet (E10); the Monday email and the start-up task aren't live;
 booked sales lines: {eur(v('E8', 'low'))} / {eur(v('E8', 'central'))} / {eur(v('E8', 'high'))} a month at full scope (E8,
 estimated, every lever on the calculator's era, Aug–Sep 2026), short of the {k(band5)} a month that the top
 net-benefit band needs with these costs. Most of it comes from automation (the loss block, cost reaction, daily checked
-prices, MK/AL coverage), not from the model's own floor choices, which the backtest scores at {eur(v('E2', 'central'))}
+prices, MK/AL coverage, raises that reach the shelf: {eur(v('E24', 'central'))}, E24), not from the model's own floor choices, which the backtest scores at {eur(v('E2', 'central'))}
 a month (E2); the holdout categories, about {holdout:.0%} of the changed prices, are left out of the benefit. Framing B adds the rollout of the calculator's test phase: {eur(e20['low'])} a month
 measured with a same-weeks control (one controlled run per layer), {eur(e20['mid'])} before/after and {eur(e20['high'])}
 season-adjusted, neither controlled (E20; the low and mid cases recomputed from this repo's data); it is the non-AI calculator's effect, which the registration did not claim as
@@ -123,7 +124,9 @@ Which framing counts is the organisers' call.
 
 **Biggest unproven assumptions.** That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
 publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still
-wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes). That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
+wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes).
+In today's process 17–20 % of the units on SKUs an approval raised still sold at the old price in Aug–Sep, 70–84 % in late
+October (E23); the levers' gain on lines sold under a team deal ({eur(v('E8', 'underTeamDealCentral'))} a month) counts only in the high case. That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
 the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). Framing B also assumes the test
 phase's rate holds once automated and extended to every layer. The pilot's holdout categories turn these into
 measurements.

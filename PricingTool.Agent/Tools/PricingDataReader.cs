@@ -352,16 +352,35 @@ public sealed class PricingDataReader
             r => new Campaigns.ReplaySkuRow(Id(r, 0), r.GetString(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6),
                 r.GetDecimal(7)), ct);
 
-    /// <summary>The layer's booked sales lines in [from, to) for the lever backtest, with the category decisions are made at
-    /// and whether a campaign of the layer ran that day.</summary>
+    /// <summary>The layer's booked sales lines in [from, to) for the lever backtest, with the category decisions are made at,
+    /// whether a campaign of the layer ran that day, the line's id and whether it sold under a team deal (a product discount
+    /// on the line, hk.SalesLineDiscountsKs, at a unit price no KS approval gave the SKU, within 1.1 %). The columns are
+    /// agent.SalesLines' (the same joins), read from hk.SalesLines for the line id, which the agents' view leaves out. In sale-time
+    /// order, so the walk-forward reads a day's lines the same way every run (lever 1's "last known cost", lever 3's episode).</summary>
     public Task<List<Backtest.BacktestLine>> GetBacktestLinesAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
         QueryAsync("""
             DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
-            SELECT s.SaleDate, s.Sku, s.Qty, s.NetRevenue, s.GrossRevenue, s.Cogs, s.GrossProfit, ISNULL(s.DiscountGiven, 0), ISNULL(s.StockClass, N''),
-                   s.UnitCostInclVat, s.BandId, ISNULL(CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END, N'Unknown'),
-                   CAST(CASE WHEN EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND s.SaleDate BETWEEN c.StartDate AND c.EndDate) THEN 1 ELSE 0 END AS bit)
-            FROM agent.SalesLines s
-            WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To AND s.Qty > 0
+            SELECT DISTINCT i.Sku, i.NewPrice INTO #approved
+            FROM PricingTool.ApprovalItems i JOIN PricingTool.Approvals a ON a.Id = i.ApprovalId JOIN PricingTool.Layers y ON y.Id = a.LayerId
+            WHERE y.CountryCode = 'KS';
+            CREATE INDEX ix ON #approved (Sku);
+            SELECT CAST(s.DateAdded AS date), s.Sku, s.Qty, s.NetoPrice, s.BrutoPrice, s.Cogs, s.Margin, ISNULL(s.ProductDiscount, 0), ISNULL(s.StockClass, N''),
+                   CAST(s.Cogs / NULLIF(s.Qty, 0) * ISNULL(s.Vat, 1.18) AS decimal(12,2)), b.Id,
+                   CASE WHEN @Mall = 1 THEN ISNULL(p.MainGroup, N'Others') ELSE ISNULL(p.CategoryL1, N'Unknown') END,
+                   CAST(CASE WHEN EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND CAST(s.DateAdded AS date) BETWEEN c.StartDate AND c.EndDate) THEN 1 ELSE 0 END AS bit),
+                   s.SrLineId,
+                   CAST(CASE WHEN d.ProductDiscount > 0 AND NOT EXISTS (SELECT 1 FROM #approved x WHERE x.Sku = s.Sku AND ABS(x.NewPrice - s.BrutoPrice / s.Qty) <= 0.011 * x.NewPrice)
+                             THEN 1 ELSE 0 END AS bit)
+            FROM hk.SalesLines s
+            LEFT JOIN hk.Products p ON p.LayerId = s.LayerId AND p.ProductId = s.ProductId
+            LEFT JOIN hk.SalesLineDiscountsKs d ON d.SrLineId = s.SrLineId
+            OUTER APPLY (SELECT TOP 1 pb.Id FROM PricingTool.PriceBands pb
+                         WHERE pb.LayerId = s.LayerId
+                           AND s.Cogs / NULLIF(s.Qty, 0) * ISNULL(s.Vat, 1.18) >= pb.MinPrice
+                           AND s.Cogs / NULLIF(s.Qty, 0) * ISNULL(s.Vat, 1.18) < pb.MaxPrice
+                         ORDER BY pb.SortOrder) b
+            WHERE s.LayerId = @L AND s.DateAdded >= @From AND s.DateAdded < @To AND s.Qty > 0
+            ORDER BY s.DateAdded, s.SrLineId
             """,
             p =>
             {
@@ -371,7 +390,47 @@ public sealed class PricingDataReader
             },
             r => new Backtest.BacktestLine(DateOnly.FromDateTime(r.GetDateTime(0)), r.GetString(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4),
                 r.GetDecimal(5), r.GetDecimal(6), r.GetDecimal(7), r.GetString(8), r.IsDBNull(9) ? null : r.GetDecimal(9), r.IsDBNull(10) ? null : Id(r, 10),
-                r.GetString(11), r.GetBoolean(12)), ct);
+                r.GetString(11), r.GetBoolean(12)) { SrLineId = Convert.ToInt64(r.GetValue(13)), TeamDeal = r.GetBoolean(14) }, ct);
+
+    /// <summary>
+    /// Lever 8's lines (the rule of evidence/raises-not-on-shelf.sql, E23): sales of an approval's raised SKUs (new price over
+    /// old × 1.02) on its layer, from the day after it went live to the end of its span, sold at the old price (within 1.1 %),
+    /// where what held the old price wasn't a team deal: the cheapest public fixed-amount discount live at the sale at that
+    /// price (hk.DiscountHistoryRaisedKs) carries a price an earlier approval gave the SKU (the calculator's earlier push), or
+    /// there is none (the regular price was never raised). By line id: the old and the new price.
+    /// </summary>
+    public async Task<Dictionary<long, (decimal Old, decimal New)>> GetHeldRaisesAsync(int layerId, IReadOnlyList<Backtest.LeverBacktester.RaiseSpan> spans,
+        CancellationToken ct = default)
+    {
+        var values = string.Join(", ", spans.Select(s => FormattableString.Invariant($"({s.ApprovalId}, '{s.LiveFrom:yyyy-MM-dd}', '{s.LiveTo:yyyy-MM-dd}')")));
+        var rows = await QueryAsync($"""
+            SELECT * INTO #spans FROM (VALUES {values}) v (ApprovalId, LiveFrom, LiveTo);
+            DECLARE @Db nvarchar(64) = (SELECT OperationalDatabase FROM PricingTool.Layers WHERE Id = @L);
+            SELECT sp.ApprovalId, sl.SrLineId, sl.Sku, sl.ProductId, sl.DateAdded, sl.BrutoPrice / sl.Qty AS UnitP, ai.OldPrice, ai.NewPrice
+            INTO #l
+            FROM #spans sp
+            JOIN PricingTool.ApprovalItems ai ON ai.ApprovalId = sp.ApprovalId AND ai.NewPrice > ai.OldPrice * 1.02
+            JOIN hk.SalesLines sl ON sl.Sku = ai.Sku AND sl.LayerId = @L
+             AND sl.DateAdded >= DATEADD(day, 1, CAST(sp.LiveFrom AS date)) AND sl.DateAdded < DATEADD(day, 1, CAST(sp.LiveTo AS date))
+            WHERE sl.Qty > 0 AND ABS(sl.BrutoPrice / sl.Qty - ai.OldPrice) <= 0.011 * ai.OldPrice;
+            SELECT l.SrLineId, l.OldPrice, l.NewPrice
+            FROM #l l
+            OUTER APPLY (SELECT TOP 1 d.DiscountId, d.DiscountAmount
+                         FROM hk.DiscountHistoryRaisedKs d
+                         WHERE d.Db = @Db AND d.ProductId = l.ProductId AND d.DiscountApplyTypeId = 2 AND d.UsePercentage = 0
+                           AND d.StartDateUtc <= l.DateAdded AND (d.EndDateUtc IS NULL OR d.EndDateUtc >= l.DateAdded)
+                           AND ABS(d.DiscountAmount - l.UnitP) <= 0.011 * l.UnitP
+                         ORDER BY d.DiscountAmount, d.StartDateUtc DESC) h
+            WHERE h.DiscountId IS NULL
+               OR EXISTS (SELECT 1 FROM PricingTool.ApprovalItems a2
+                          WHERE a2.Sku = l.Sku AND a2.ApprovalId < l.ApprovalId AND ABS(a2.NewPrice - h.DiscountAmount) < 0.011)
+            """,
+            p => p.AddWithValue("@L", layerId),
+            r => (Id: Convert.ToInt64(r.GetValue(0)), Old: r.GetDecimal(1), New: r.GetDecimal(2)), ct);
+        var held = new Dictionary<long, (decimal Old, decimal New)>();
+        foreach (var r in rows) held.TryAdd(r.Id, (r.Old, r.New));
+        return held;
+    }
 
     /// <summary>
     /// Backtest lever 5: for each SKU and day strictly between a run finishing and its prices being approved (local days, so

@@ -42,7 +42,7 @@ $snapRef = "ai.BacktestSnapshot #$($snapRow.Id) ($(([datetime]$snapRow.CreatedUt
 $snapOut = [ordered]@{ snapshot = $snapRef; note = 'Every lever per layer, month and elasticity case; the campaign replays; lever 4''s months and effects. Estimated except the measured inputs each section names (backtest-results.md).'; data = $snap }
 [System.IO.File]::WriteAllText((Join-Path $here 'backtest-snapshot.json'), ($snapOut | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding $false))
 $leverScript = 'PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV'
-$names = @{ 1 = 'Loss-sale block'; 2 = 'Per-category floors'; 3 = 'Cost reaction'; 5 = 'Cadence'; 6 = 'Learning (as built)' }
+$names = @{ 1 = 'Loss-sale block'; 2 = 'Per-category floors'; 3 = 'Cost reaction'; 5 = 'Cadence'; 6 = 'Learning (as built)'; 8 = 'Raises reach the shelf' }
 $test = @('2026-08', '2026-09')
 # Every lever on the calculator's era, Aug-Sep 2026: framing A's baseline is today's process, the calculator with its pushes
 # (a 12-month window tried on 31 Oct scored levers 1 and 3 against months before the calculator, a baseline that no longer
@@ -54,18 +54,65 @@ function LeverMonthly($layerResult, $lever, $e, $case) {
     if ($g.Count -eq 0) { return 0 }
     return Round0 (($g | Measure-Object -Property gain -Sum).Sum / $months.Count)
 }
+# The part of a lever's gain on lines sold under a team deal (a product discount at a price no approval gave the SKU).
+function LeverTeam($layerResult, $lever, $e, $case) {
+    $months = MonthsFor $lever $case
+    $g = @($layerResult.gains | Where-Object { $_.lever -eq $lever -and [decimal]$_.elasticity -eq $e -and $months -contains $_.month -and $null -ne $_.teamDealGain })
+    if ($g.Count -eq 0) { return 0 }
+    return Round0 (($g | Measure-Object -Property teamDealGain -Sum).Sum / $months.Count)
+}
 $ids = @{ 1 = 'E1'; 2 = 'E2'; 3 = 'E3'; 5 = 'E5'; 6 = 'E6' }
 $totals = @{ high = 0; central = 0; low = 0 }
+$teamMoved = @{ central = 0; before = 0 }
 foreach ($lever in 1, 2, 3, 5, 6) {
-    $high = 0; $central = 0; $low = 0; $parts = @()
+    $high = 0; $central = 0; $low = 0; $parts = @(); $teamC = 0; $teamL = 0
     foreach ($r in $snap.levers) {
         $h = LeverMonthly $r $lever -0.5 'high'; $c = LeverMonthly $r $lever -1.0 'central'; $l = LeverMonthly $r $lever -2.0 'low'
-        $high += $h; $central += $c; $low += $l; $parts += "layer $($r.layerId): $c ($l / $h)"
+        $tc = LeverTeam $r $lever -1.0 'central'; $tl = LeverTeam $r $lever -2.0 'low'
+        $high += $h; $central += $c; $low += $l; $teamC += $tc; $teamL += $tl; $parts += "layer $($r.layerId): $c ($l / $h), under a team deal $tc"
     }
-    $totals.high += $high; $totals.central += $central; $totals.low += $low
-    Add $ids[$lever] "Lever $lever, $($names[$lever]): extra GP a month, both KS layers" ([ordered]@{ central = $central; low = $low; high = $high }) 'EUR/month' 'estimated' `
-        "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator's era)$(if ($lever -eq 3) { '; the low case September only (August was one cost event)' }); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) $($parts -join '; ')" $snapRef $leverScript
+    # v2 doesn't raise a price a team deal holds (the publisher leaves it to a person), so a raise lever's gain on those lines
+    # moves from central and low to high ("if a person supersedes the deal"). Lever 6 undoes raises; it keeps its cases.
+    $moved = $lever -ne 6
+    $value = [ordered]@{ central = $(if ($moved) { $central - $teamC } else { $central }); low = $(if ($moved) { $low - $teamL } else { $low }); high = $high }
+    if ($moved) { $value.underTeamDealCentral = $teamC; $teamMoved.central += $teamC; $teamMoved.before += $central }
+    $totals.high += $value.high; $totals.central += $value.central; $totals.low += $value.low
+    $teamText = if ($moved -and $central -ne 0) { "; the part on lines sold under a team deal ($teamC of the central $central, $([math]::Round(100.0 * $teamC / $central, 0)) %) is in high only: v2 doesn't raise a price a team deal holds, a person may supersede it" } else { '' }
+    Add $ids[$lever] "Lever $lever, $($names[$lever]): extra GP a month, both KS layers" $value 'EUR/month' 'estimated' `
+        "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator's era)$(if ($lever -eq 3) { '; the low case September only (August was one cost event)' }); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed)$teamText; central (low / high) before that move $($parts -join '; ')" $snapRef $leverScript
 }
+
+# E23: approved raises that didn't reach the shelf in today's process (the CSV push the team imports as discounts).
+$e23Sets = QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 (Join-Path $here 'raises-not-on-shelf.sql'))
+$perApproval = @($e23Sets[0].Rows | ForEach-Object { [ordered]@{ approval = $_.ApprovalId; layer = $_.Layer; days = $_.Days; units = $_.Units; atNewPrice = $_.AtNewPrice
+    atOldPrice = $_.AtOldPrice; pctAtOld = $_.PctAtOld; gpForgoneEm1 = $_.GpForgoneEm1; gpForgoneConstantUnits = $_.GpForgoneConstUnits } })
+$augSep = [ordered]@{}
+foreach ($row in $e23Sets[2].Rows) { $augSep[$(if ($row.Part -like 'team deal*') { 'teamDeal' } else { 'v2Removes' })] = $row.EurPerMonthEm1 }
+# October's pace: the part v2 removes (the earlier push still live, the regular price never raised) per day of #35 and #37, a month.
+$octRemovable = 0
+foreach ($a in 35, 37) {
+    $days = ($e23Sets[0].Rows | Where-Object { $_.ApprovalId -eq $a }).Days
+    $gp = ($e23Sets[1].Rows | Where-Object { $_.ApprovalId -eq $a -and $_.Holder -ne 'team deal' } | Measure-Object -Property GpForgoneEm1 -Sum).Sum
+    $octRemovable += [decimal]$gp / $days * 30.4
+}
+$octRemovable = Round0 $octRemovable
+$pcts = ($perApproval | ForEach-Object { "#$($_.approval) $($_.pctAtOld) %" }) -join ', '
+Add 'E23' 'Approved raises that did not reach the shelf in today''s process (KS)' ([ordered]@{ perApproval = $perApproval; augSepPerMonthEm1 = $augSep; octoberV2RemovesPerMonthEm1 = $octRemovable }) 'units / EUR a month' 'measured (units); estimated (GP at e -1)' `
+    ("Sales of each approval's raised SKUs (new price over old x 1.02) on its layer, from the day after it went live to the day before the next one did, outside campaign days; at the old price within 1.1 %. Share of units at the old price: $pcts (17-20 % Aug-Sep, 70-84 % in late October, when two push sets overlapped). " +
+     "What held the old price, from the live discount at the sold price (hk.DiscountHistoryRaisedKs): the calculator's earlier push still live, or the regular price never raised (v2's publisher removes both), or a team deal (left to a person). " +
+     "Aug-Sep, GP forgone a month at e -1: $($augSep.v2Removes) that v2 removes, $($augSep.teamDeal) team deals; October's pace of the part v2 removes: $octRemovable a month.") `
+    'PricingTool.ApprovalItems, hk.SalesLines, hk.CampaignWindows, hk.DiscountHistoryRaisedKs' 'docs/hackathon-2026/evidence/raises-not-on-shelf.sql (three result sets; this script runs it)'
+
+# Lever 8, raises reach the shelf (the publisher): E23's part v2 removes, scored in the backtest so a line another lever
+# already scores is counted once; central = low (e -1, Aug-Sep), high = October's pace (two push sets overlapped).
+$l8 = 0; $l8parts = @()
+foreach ($r in $snap.levers) { $c = LeverMonthly $r 8 -1.0 'central'; $l8 += $c; $l8parts += "layer $($r.layerId): $c" }
+$l8value = [ordered]@{ central = $l8; low = $l8; high = $octRemovable }
+$totals.high += $l8value.high; $totals.central += $l8value.central; $totals.low += $l8value.low
+Add 'E24' 'Lever 8, raises reach the shelf (the publisher): extra GP a month, both KS layers' $l8value 'EUR/month' 'estimated' `
+    ("Lines of an approved raise sold at the old price because today's process left the calculator's earlier push live or never raised the regular price (E23's rule), priced at the new price; walk-forward in the backtest after levers 1-6, so a line another lever scores is counted once. " +
+     "Central = low: the Aug-Sep monthly average at e -1 ($($l8parts -join '; '); E23's whole spans give $($augSep.v2Removes)). High: October's pace ($octRemovable a month, E23), the month two push sets overlapped. Framing A only: what v2's publisher adds over the CSV import; team deals stay a person's call.") `
+    $snapRef $leverScript
 
 # Lever 7: the median gain per campaign day (reallocate) x the campaign days of the last 12 months; the uplift curve as fitted
 # (central), at half its slope (low) and at twice it (high), the sensitivity the replay stores.
@@ -100,8 +147,9 @@ Add 'E4' 'Lever 4, coverage MK/AL: extra GP a month on months without a push' $l
     "The calculator's measured Kosovo gain as a share of Kosovo GP ($effects) x MK/AL tool-scope GP (hk.SalesLinesMkAl, EUR at the load day's shop rate) on months with no push of their own (hk.PushDatesMkAl); Aug-Sep average" `
     $snapRef 'PricingTool.AgentTools backtest-coverage'
 $totals.high += $l4.high; $totals.central += $l4.mid; $totals.low += $l4.low
-Add 'E8' 'Framing A: all levers together, extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low; high = $totals.high }) 'EUR/month' 'estimated' `
-    'E1 + E2 + E3 + E4 (mid / low / high) + E5 + E6 + E7; each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5) and, for lever 4, by the calculator test-phase case' $snapRef 'this script'
+Add 'E8' 'Framing A: all levers together, extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low; high = $totals.high; underTeamDealCentral = $teamMoved.central }) 'EUR/month' 'estimated' `
+    ("E1 + E2 + E3 + E4 (mid / low / high) + E5 + E6 + E7 + E24 (lever 8); each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5), for lever 4 by the calculator test-phase case and for lever 8 by month (high = October's pace). " +
+     "The raise levers' gain on lines sold under a team deal, $($teamMoved.central) a month of their central $($teamMoved.before) ($([math]::Round(100.0 * $teamMoved.central / [math]::Max(1, $teamMoved.before), 0)) %), is in high only.") $snapRef 'this script'
 
 # --- The planner's calibration and the Për ty reproduction -----------------------------------------------------------
 $tails = @($snap.campaigns | Where-Object { $_.layerId -eq 1 } | ForEach-Object { $_.replays } | Where-Object { $_.usable } |

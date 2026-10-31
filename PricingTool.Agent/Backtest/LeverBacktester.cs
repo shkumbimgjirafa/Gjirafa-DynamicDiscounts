@@ -8,7 +8,8 @@ namespace PricingTool.Agent.Backtest;
 /// the band edits in the audit log (the floor before an edit is its old value, after it the new one; today's floor where
 /// a band was never edited), and the pricing agent's per-category floors as they stand now. Lever 5 uses the gaps between each
 /// run finishing and its approval; lever 6 judges one approval's raises per category, season-adjusted with the same windows a
-/// year earlier, and rolls them back over the following month where they didn't pay.
+/// year earlier, and rolls them back over the following month where they didn't pay; lever 8 takes the approved raises that
+/// sold at the old price under the calculator's earlier push or a regular price never raised (<see cref="RaiseSpans"/>).
 /// </summary>
 public sealed class LeverBacktester
 {
@@ -22,6 +23,18 @@ public sealed class LeverBacktester
     public sealed record LearningExperiment(int ApprovalId, DateOnly LiveOn, DateOnly ScoreFrom, DateOnly ScoreTo, decimal RollBackBelow = 0.80m);
 
     public const int LearningDays = 28;
+
+    /// <summary>An approval's live span on its layer (from the day it went live to the day before the next one did).</summary>
+    public sealed record RaiseSpan(int ApprovalId, int LayerId, DateOnly LiveFrom, DateOnly LiveTo);
+
+    /// <summary>Lever 8's approvals and their live spans: the same as raises-not-on-shelf.sql (E23) and e20-test-phase.sql.</summary>
+    public static readonly IReadOnlyList<RaiseSpan> RaiseSpans = new RaiseSpan[]
+    {
+        new(12, 1, new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 2)),
+        new(25, 1, new DateOnly(2026, 9, 3), new DateOnly(2026, 10, 5)),
+        new(35, 1, new DateOnly(2026, 10, 19), new DateOnly(2026, 10, 30)),
+        new(37, 4, new DateOnly(2026, 10, 21), new DateOnly(2026, 10, 30)),
+    };
 
     /// <summary>Per category: GP per day after vs before the approval, divided by the same ratio a year earlier (null where
     /// either year's before is empty); a category under 1 didn't gain.</summary>
@@ -61,9 +74,12 @@ public sealed class LeverBacktester
         var hand = await HandFloorsAsync(layerId, ct);
         var rules = (await _reader.GetCategoryRulesAsync(layerId, ct)).Where(r => r.MarginFloorPct is not null)
             .ToDictionary(r => (r.BandId, r.Category), r => r.MarginFloorPct!.Value);
+        var spans = RaiseSpans.Where(s => s.LayerId == layerId).ToList();
+        var held = spans.Count == 0 ? new Dictionary<long, (decimal Old, decimal New)>() : await _reader.GetHeldRaisesAsync(layerId, spans, ct);
 
         return LeverBacktest.Run(layerId, lines, from, to, hand, (band, category) => rules.TryGetValue((band, category), out var f) ? f : null, trace,
-            (sku, day) => pending.TryGetValue((sku, day), out var p) ? p : null, rollback);
+            (sku, day) => pending.TryGetValue((sku, day), out var p) ? p : null, rollback,
+            id => held.TryGetValue(id, out var h) ? h : null);
     }
 
     /// <summary>E21 on a layer: GP forgone below the hand-set floor of each day, per month (<see cref="LeverBacktest.BelowFloor"/>).</summary>

@@ -101,14 +101,25 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 | ID | Lever | € a month, central (low / high) |
 |---|---|---|
-| E1 | Loss-sale block | 197 (197 / 197) |
-| E2 | Per-category floors | 4 (2 / 4) |
-| E3 | Cost reaction | 1,546 (327 / 1,733); the low case leaves out August, one cost event |
+| E1 | Loss-sale block | 76 (76 / 198) |
+| E2 | Per-category floors | 2 (0 / 4) |
+| E3 | Cost reaction | 1,327 (148 / 1,771); the low case leaves out August, one cost event |
 | E4 | Coverage MK/AL | 1,325 (560 / 1,654), at the calculator's Kosovo rate (E20) |
 | E5 | Cadence | 396 (260 / 474) |
 | E6 | Learning, as built | 0 (the plan's plain rule would have cost €1.0–1.3k in September) |
 | E7 | Campaign planning (12 months of campaigns) | 783 (703 / 1,744: the uplift curve at half and twice its slope) |
-| **E8** | **Total** | **4,251 (2,049 / 5,806)** |
+| E24 | Raises reach the shelf (lever 8, the publisher) | 249 (249 / 2,830: October's pace, when two push sets overlapped) |
+| **E8** | **Total** | **4,158 (1,996 / 8,675)** |
+
+Levers 1, 2, 3 and 5 raise prices, and v2 doesn't raise a price a team deal holds (the publisher leaves it to a person).
+Their gain on lines sold under a team deal (a product discount at a price no approval gave the SKU) is in the high case
+only: €378 a month of their €2,179 central (17 %), most of it Gjirafa50's levers 1 and 3. Lever 8 is what v2's
+publisher adds over the CSV import: in today's process 17–20 % of the units on SKUs an approval raised still sold at the
+old price in Aug–Sep, 70–84 % in late October (E23), held by the calculator's own earlier push or a regular price never
+raised (v2 removes both: one discount per SKU, ended with a regular-price raise) or by a team deal (€1,274 a month in
+Aug–Sep, left to a person, not counted). It is scored in the backtest after the other levers, so a line another lever
+scores counts once (E23's whole spans give €300). The stored run (#5) also reads each day's lines in sale-time order;
+before, the database's order moved lever 3 by €35 a month.
 
 Walk-forward on booked sales lines, each line counted by one lever, elasticity −1 central, −2 low, −0.5 high (assumed),
 every lever on the calculator's era, Aug–Sep 2026: framing A's baseline is today's process. (A 12-month window, tried
@@ -126,12 +137,13 @@ the high case's 2025 season adjustment is quoted from the main repo.
 
 **Where the money comes from.** Most of framing A is automation, not the model's own choices: the loss block and the
 cost reaction (levers 1 and 3: rules in code and the cost watcher), daily checked prices (5: the cycle writes them every
-day, the team still pushes the file) and coverage of every layer (4). Most of levers 1, 3 and 5 are price raises; a
+day, the team still pushes the file), raises that reach the shelf (8: the publisher) and coverage of every layer (4).
+Most of levers 1, 3 and 5 are price raises; a
 discount can't make one, so since prompt 07 the publisher writes a raise as the store's regular price (`TierPrice`), built
 and tested on the sandbox, not live. On 31 Oct's Run weeks 99,197 of the two KS layers' 172,579 checked prices reached the
 sandbox shelf at our price (57 %), 909 of them raises (1,167 raises were written; 258 sit under a cheaper deal); what
 didn't was almost all a cheaper discount we didn't write (73,379), and 3 prices someone changed after the run. Those
-discounts were mostly not team deals but the calculator's own earlier pushes (section 5, the caveat on raises). The model's own decisions are the per-category floors (lever 2: €4 a month in the backtest, because
+discounts were mostly not team deals but the calculator's own earlier pushes (section 5, the caveat on raises). The model's own decisions are the per-category floors (lever 2: €2 a month in the backtest, €4 if a person supersedes the team deals, because
 Alpha's rules move a floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which
 code computes; the model chooses among the strategies). What the agents add so far is running the whole loop every day,
 on every layer, without a person; how much their own judgment is worth is what the pilot's holdout measures. Framing B claims no past euro: the declaration said the calculator's measured past result is not claimed, and
