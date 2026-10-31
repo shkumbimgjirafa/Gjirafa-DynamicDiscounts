@@ -104,11 +104,17 @@ put(ws, "A2", f"Built {built} by docs/hackathon-2026/financial/build_financial_s
               "judgment); every cell below is a formula.", NOTE, wrap=True)
 ws.merge_cells("A2:G2")
 ws.row_dimensions[2].height = 40
-put(ws, "A3", "Framing A = only what the hackathon build adds (levers 1–8, backtested). Framing B = the rollout of the "
-              "calculator's test phase (B0) plus the same levers. The registration said the calculator's measured Aug–Sep "
-              "result is not claimed; B claims no past euro, only the next 12 months of the automated system, using that "
-              "result as the rate, and B0 is the non-AI calculator's effect. Which framing counts is the organisers' call.",
+put(ws, "A3", "Our claim is framing B: the automated system's next 12 months at the calculator's measured rate (B0, its "
+              "test phase) plus the levers this build adds. Framing A, the levers alone (1–8, backtested), is the conservative "
+              "cross-check. B claims no past euro: the registration said the calculator's Aug–Sep result is not claimed, and B "
+              "uses it as the rate; v2 delivers it at scale because the manual push loses part of it (E23, E5, E4). Payback is "
+              "computed from the ramp on Inputs rows 15–18 (built in month 1, then the pilot), not tuned. Which framing counts "
+              "is the organisers' call.",
     NOTE, wrap=True)
+put(ws, "A4", '="Headline, framing B (mid): "&TEXT(F6,"€#,##0")&" a month at full scope; year 1: net benefit "&TEXT(F7,"€#,##0")'
+              '&", ROI "&TEXT(F10,"0%")&", payback "&TEXT(F13,"0.0")&" months, "&TEXT(F20,"0")&"/100 (B low "&TEXT(E20,"0")'
+              '&", B high "&TEXT(G20,"0")&"; A mid, the cross-check, "&TEXT(C20,"0")&")"', BOLD)
+ws.merge_cells("A4:G4")
 ws.merge_cells("A3:G3")
 ws.row_dimensions[3].height = 52
 
@@ -496,7 +502,8 @@ facts = [
     ("Same-weeks control, Aug run", "not separable from restocking", "measured",
      "Units rose 285% after price rises; 86–97% of changed groups' after-GP from SKUs that didn't sell before", "2026-10-27"),
     ("Year-over-year margin, Kosovo (Mall + Gj50)", "+4–5 pp vs 2025 since the tool; +1–4 pp before", "measured",
-     "Sales lines monthly, tool scope (Aug 15.8% vs 11.7%; Sep 15.2% vs 10.2%)", "2026-10-27"),
+     "Sales lines monthly, tool scope (Aug 15.8% vs 11.7%; Sep 15.2% vs 10.2%). Superseded 31 Oct by E25: Nov 2025–Feb 2026 "
+     "ran +8.6 pp with no calculator, so this is not evidence for B0", "2026-10-27"),
     ("Profit forgone below the margin floor", "Jun €24.4k · Jul €15.1k", "measured",
      "Sales lines vs per-band floors, booked COGS; reconciled with the Power BI model. Wider scope than E21 (Apple, "
      "Starlink in); E21 on tool scope gives Jun €12.8k · Jul €10.9k on normal days. Not one leak: in Aug–Sep €14.7k a "

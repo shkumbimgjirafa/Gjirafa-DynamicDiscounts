@@ -253,8 +253,8 @@ Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that 
     'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
 Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured (attended rows only; the person''s time inside unattended blocks is not timed)' `
     'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
-$testsLine = 'dotnet test PricingTool.sln: 966 passed, 1 skipped (the opt-in real headless call), 31 Oct 10:05, three runs in a row (13-14 s each)'
-Add 'E17' 'Automated tests' ([ordered]@{ passed = 966; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
+$testsLine = 'dotnet test PricingTool.sln: 967 passed, 1 skipped (the opt-in real headless call), 31 Oct 10:11 (three runs in a row at 10:05, 966 then, 13-14 s each)'
+Add 'E17' 'Automated tests' ([ordered]@{ passed = 967; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results ----------------------------------------------------------------------------------------
 # E20 low and mid recomputed from PricingToolHackathon (the deployed tool's approvals and the booked sales lines); the
@@ -355,7 +355,7 @@ foreach ($f in $figures) { if ($recomputes.ContainsKey($f.id)) { $f.recompute = 
 
 $out = [ordered]@{
     generated = (Get-Date).ToString('yyyy-MM-dd HH:mm'); generator = 'docs/hackathon-2026/evidence/build-numbers.ps1'
-    note = 'Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.'
+    note = 'Every figure carries its label. The claim is framing B: the rollout of the test phase (E20, B0) plus the levers. Framing A, the levers alone (E8), is the cross-check; the two are never blended.'
     figures = $figures
 }
 $json = $out | ConvertTo-Json -Depth 6

@@ -39,7 +39,8 @@ were still headings only.
 - Label every input as measured, estimated or assumed, with its source. Finance strikes out any line it can't trace.
 - **What counts as the baseline is an open question for the organisers** (section 3), and the financial sheet carries both framings (section 8):
   - **Framing A, strict:** baseline = today's manual process carries on; only what the weekend adds counts.
-  - **Framing B, full system (the user's position), told as test phase → rollout.** The calculator (v0.5, Jul–Oct 2026) **was the test phase**: prices it calculated went live by hand on a few dates in Kosovo, and the effect was measured (≈ €13k/month season-adjusted, margin +4–5 points vs last year). v2 is the **rollout** of the tested approach, automated, weekly and on every layer. Name the design honestly: "a test phase measured before/after against the same weeks of 2025 [and changed vs unchanged SKUs in the same weeks, if that comparison is run]". Never call it a randomized A/B test; there was no random control group, and a reviewer will check.
+  - **Framing B, full system (the user's position), told as test phase → rollout.** The calculator (v0.5, Jul–Oct 2026) **was the test phase**: prices it calculated went live by hand on a few dates in Kosovo, and the effect was measured (≈ €13k/month season-adjusted, margin +4–5 points vs last year; *the margin part superseded
+by E25 on 31 Oct: not evidence for B0*). v2 is the **rollout** of the tested approach, automated, weekly and on every layer. Name the design honestly: "a test phase measured before/after against the same weeks of 2025 [and changed vs unchanged SKUs in the same weeks, if that comparison is run]". Never call it a randomized A/B test; there was no random control group, and a reviewer will check.
   - Background to framing B: the calculator is an unsupported prototype that only earns when one person pushes prices by hand, irregularly and only in KS. Without v2 nothing secures that profit. v2 turns it into a system that runs and improves on its own every week, on every layer. So the benefit is everything the automated system earns in the next 12 months, forecast from the measured rate.
 
 ## 2. What is declared (submitted in the registration form)
@@ -610,6 +611,8 @@ for 30 days on real data, on its own.
 - **Evidence page (targets Evidence 5, "measured live in the demo, every input sourced").** Every money figure is computed live from the hackathon DB. Each row shows its query, source table, export time and label (measured / estimated / assumed):
   - the calculator's Aug–Sep lift. Recommended figure: seasonally adjusted with 2025's same windows, August's gain carried into September: Aug €11.9k, Sep €13.8k, ≈ €13k/month. Floor ≈ €4.5k/month; unadjusted ≈ €10k/month, which is the figure in the registration form. Show all three, and explain why the number moved since registration, so the reviewer sees consistency rather than a changed claim.
   - the YoY margin fingerprint: Kosovo margin 4–5 points above last year since the tool, 1–4 points before
+    *(Superseded 31 Oct by E25: Aug–Sep 2026 +4.7 points, but Nov 2025–Feb 2026 +8.6 with no calculator, so it is not
+    evidence for B0.)*
   - **the same-weeks control (changed vs unchanged products, run 2026-10-27):**
     - It confirms the margin effect: products priced up went from 18.4% to 24.5% margin in the September run, losing about 6 points more volume than unchanged products, with gross profit up about 9 points relative to them.
     - It does **not** cleanly confirm the €13k/month. The September run's controlled gain is ≈ €3.5–4.3k/month. The August run can't be separated from restocking (units rose 285% after price *rises*).
@@ -695,7 +698,13 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
    (2 s); the plan's list is at the top; press **Recompute live** on E20 and let it run while you talk (9 s; "3 of 3
    match, run as evidence_reader"):
    - Backtest result, with its elasticity sensitivity.
-   - "We already ran the test": the test phase (v0.5, Jul–Oct, Kosovo) measured ≈ €13k/month season-adjusted and margin +4–5 points vs last year. v2 is the rollout: automatic, weekly, every layer.
+   - *(Updated 31 Oct: framing B is the claim, the user's decision.)* "We already ran the test": the calculator's
+     measured rate, E20: €4,402 a month with a same-weeks control, €10,409 before/after, €13,000 season-adjusted
+     (quoted). v2 is the rollout: automatic, weekly, every layer; framing B claims the next 12 months, not the past.
+   - Why B0 counts going forward: the manual push loses part of it (E23: 17–20 % of raised units sold at the old price
+     in Aug–Sep, 70–84 % in late October; lever 5's push lag, E5; lever 4's MK/AL months without a push, E4).
+   - Framing A, the levers alone (E8), as the cross-check. Don't cite the year-over-year margin (E25): it doesn't
+     separate the calculator.
    - The financial sheet totals.
    - Say what's estimated and what's measured.
 6. **(25s) Ask.** A 6–8 week pilot on KS:

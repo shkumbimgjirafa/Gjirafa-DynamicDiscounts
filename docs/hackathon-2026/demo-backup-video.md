@@ -13,6 +13,6 @@ Timings measured in [demo dry run 2](demo-dry-run-2.md).
 | 5 | 20 | Terminal: `cost-watch --inject 4 <sku> <cost> --test`, then the decision in the exceptions inbox | A cost rise under the floor is raised to the floor within one watch, with the reason; on 31 Oct the real refresh's 293 moves were read within 1–9 minutes |
 | 6 | 15 | Agent tab: kill switch, autonomy, publishing; the exceptions inbox; the AI call log with its cost | Code enforces the limits; a person can stop everything and roll any publish back |
 | 7 | 15 | Evidence tab: the plan's list, then **Recompute live** on E20 (9 s, "3 of 3 match") | Every figure carries its label and source, and the measured ones recompute from the database, read-only |
-| 8 | 10 | The financial sheet's score table | Estimated vs measured, and the pilot ask |
+| 8 | 10 | The financial sheet's headline (framing B, mid) and the score table | Our claim is framing B: the calculator's measured rate, delivered by the automated system, plus the levers; framing A, the levers alone, is the cross-check; then the pilot ask |
 
 Keep the screenshots of steps 2, 3 and 5 as stills too.

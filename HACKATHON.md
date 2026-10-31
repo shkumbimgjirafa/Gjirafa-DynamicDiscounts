@@ -9,6 +9,10 @@ price we set under its floor) and held 54 for a person (52 under the floor at a 
 earlier push, 21 only an app-only deal, which no longer holds a price, 3 a team deal; 2 with a floor above the shelf; E22). **The AI decides; code enforces:** no model
 output changes a price, a band or a discount without passing limits written in C#.
 
+**The money claim is framing B** (section 4): the automated system's next 12 months at the calculator's measured rate
+plus the levers this build adds, €5,694 / €12,965 / €19,291 a month at full scope (low / mid / high). Framing A, the
+levers alone, is the conservative cross-check. The organisers rule which framing counts.
+
 Everything below can be checked from this repository, except what needs the hackathon database (`PricingToolHackathon` on
 LocalDB): it holds the company's sales data, so it is not in git. Those figures' aggregates are in
 `docs/hackathon-2026/evidence/numbers.json` and `docs/hackathon-2026/backtest-results.md`, each with the script that
@@ -51,7 +55,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (966 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (967 passed, 1 skipped: the opt-in real headless call; E17).
    The **Evidence** tab lists every figure of `numbers.json` with its label, method, sources (and when each was loaded) and
    where it is used (the one-pager, the financial sheet's cells, this file). Nine figures whose script is a SQL file
    (E12–E14, E20–E23, E25, E26) recompute live on the page: it runs that exact file as `evidence_reader`, a database user
@@ -101,7 +105,23 @@ The prompts are the fixed rules in `PricingTool.Agent/Prompts/*.md` plus a data 
 `CampaignAgent.BuildPrompt`, `AgentChat.CallAsync`); the agents never see the user's or this repo's instructions (an
 isolated runtime folder, `--setting-sources ""`, no built-in tools, only our read-only MCP tools).
 
-## 4. The numbers (framing A: what this build adds; estimated)
+## 4. The numbers: framing B is the claim, framing A the cross-check
+
+**Framing B** is what the automated system earns in the next 12 months: the calculator's measured rate, B0 (E20: €4,402
+a month measured with a same-weeks control, changed vs unchanged products in the same weeks, one controlled run per KS
+layer; €10,409 measured before/after and €13,000 season-adjusted, neither controlled; the low and mid cases recomputed
+from this repo's data, the high quoted from the main repo), plus the levers below. At full scope that is €5,694 /
+€12,965 / €19,291 a month (low / mid / high; the financial sheet, with the holdout categories' share left out of both
+parts). The organisers rule which framing counts.
+
+*"B0 is the non-AI calculator's money."* The calculator is declared existing code and part of the submitted system.
+Framing B claims no past euro: it is the next 12 months of the automated system, with Aug–Sep 2026 as the measured
+evidence for the rate. v2 is what delivers that rate at scale, because today's manual push loses part of it: in Aug–Sep
+17–20 % of the units on SKUs an approval raised still sold at the old price, 70–84 % in late October (E23, measured);
+the days between a run and its push cost €396 a month (E5, estimated); the MK/AL months without a push miss €1,325 a
+month (E4, estimated).
+
+**Framing A**, the conservative cross-check: only the levers this build adds, backtested (estimated).
 
 | ID | Lever | € a month, central (low / high) |
 |---|---|---|
@@ -130,12 +150,9 @@ every lever on the calculator's era, Aug–Sep 2026: framing A's baseline is tod
 after dry run 1, scored levers 1 and 3 against months before the calculator; dry run 2 caught it.) The sheet then leaves
 out the holdout categories' share (about 11 % of the changed prices): the agents never change them.
 Method per lever: [`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md); the Backtest tab
-shows the stored run and its CSV. **This is far short of the €10k bar on its own.** Framing B (the rollout of the
-calculator's test phase, E20: €4.4k a month measured with a same-weeks control (changed vs unchanged products in the
-same weeks, one controlled run per KS layer); €10.4k measured before/after and €13.0k season-adjusted, neither
-controlled) is a separate case, not added into these figures, with one dependency: lever 4 takes E20's rate (as a share
-of Kosovo's gross profit) for the MK/AL months without a push, so framing A's mid and high cases rest partly on E20's
-uncontrolled cases; with the controlled rate only, E4 is €560. E20's low and mid cases are recomputed from this repo's
+shows the stored run and its CSV. **Framing A alone is far short of the €10k bar.** It has one dependency on B0:
+lever 4 takes E20's rate (as a share of Kosovo's gross profit) for the MK/AL months without a push, so framing A's mid
+and high cases rest partly on E20's uncontrolled cases; with the controlled rate only, E4 is €560. E20's low and mid cases are recomputed from this repo's
 data ([`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql), run by `build-numbers.ps1`);
 the high case's 2025 season adjustment is quoted from the main repo.
 
@@ -150,11 +167,13 @@ didn't was almost all a cheaper discount we didn't write (73,379), and 3 prices 
 discounts were mostly not team deals but the calculator's own earlier pushes (section 5, the caveat on raises). The model's own decisions are the per-category floors (lever 2: €2 a month in the backtest, €4 if a person supersedes the team deals, because
 Alpha's rules move a floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which
 code computes; the model chooses among the strategies). What the agents add so far is running the whole loop every day,
-on every layer, without a person; how much their own judgment is worth is what the pilot's holdout measures. Framing B claims no past euro: the declaration said the calculator's measured past result is not claimed, and
-framing B claims only the next 12 months of an automated system, using the past as evidence for the rate.
+on every layer, without a person; how much their own judgment is worth is what the pilot's holdout measures.
 
-The [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx) carries both framings in three cases each (live
-formulas; inputs typed from `numbers.json` with their IDs): year-1 net benefit, ROI, payback and the Track A score. The
+The [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx) carries framing B (the claim; its headline is B mid)
+and framing A (the cross-check) in three cases each (live formulas; inputs typed from `numbers.json` with their IDs):
+year-1 net benefit, ROI, payback and the Track A score. Framing B, year 1: net benefit €38,257 / €107,326 / €167,424,
+payback 4.5 / 3.3 / 3.1 months. Payback is what the sheet computes from the ramp below; the pilot's assumptions are not
+tuned to cross a line. The
 year ramps up as the pilot ask does: built in month 1, a two-month pilot at an assumed quarter of the benefit, then full
 scope (9.5 full-benefit months); the holdout categories' share (11 %, estimated from the exports) is left out. Costs: the attended hackathon hours at €50 (E16) plus an assumed hour of the person's
 time inside unattended blocks, 160 assumed hours to production (including review of the AI-written code), 8 hours of
@@ -197,8 +216,10 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
     of the €14.7k a month sold under the hand-set floor in Aug–Sep, €3.0k is allowed or not a price (dead stock,
     vouchers), €4.2k is GjirafaMall SKUs priced by Gjirafa50, and the rest sits in the lanes of levers 1 (€1.4k),
     3 (€1.1k) and 5 (€4.6k, which the backtest can't score) and team deals (€0.4k). E20's controlled
-    low case is one run per KS layer, not a randomized test. Framing B's B0 is the non-AI calculator's effect: the declaration did not claim its past result, and whether its forward rate counts is
-    the organisers' call.
+    low case is one run per KS layer, not a randomized test. B0 is the declared calculator's effect (section 4 says why
+    framing B counts it going forward); the declaration did not claim its past result, and which framing counts is the
+    organisers' call. The year-over-year margin (E25) is not evidence for B0: Kosovo's margin ran +8.6 points over the
+    year before in Nov 2025–Feb 2026, with no calculator.
   - E18 rests on the Claude Code session transcripts, which are not in the repo (they hold the whole build conversation).
   - Lever 1 assumes a blocked loss sale costs nothing else (no lost basket); levers 2, 5 and 6 rest on two months.
   - The kickoff rulings (reading the replica and the tool database, no API key) are recorded by us in
@@ -237,7 +258,7 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 966 passed, 1 skipped (31 Oct, 10:05; three runs in a row, 13–14 s each). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 967 passed, 1 skipped (31 Oct, 10:11; three runs in a row at 10:05, 13–14 s each). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

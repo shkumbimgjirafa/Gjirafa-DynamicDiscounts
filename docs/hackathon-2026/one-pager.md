@@ -35,37 +35,49 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 69 % of normal margin kept against 70-80 %; E11); the campaign estimates
 aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
 
-**Money (12 months, both framings kept apart).** Framing A counts only what this build adds, backtested walk-forward on
-booked sales lines: €1,996 / €4,158 / €8,675 a month at full scope (E8,
-estimated, every lever on the calculator's era, Aug–Sep 2026), short of the €12.2k a month that the top
-net-benefit band needs with these costs. Most of it comes from automation (the loss block, cost reaction, daily checked
-prices, MK/AL coverage, raises that reach the shelf: €249, E24), not from the model's own floor choices, which the backtest scores at €2
-a month (E2); the holdout categories, about 11% of the changed prices, are left out of the benefit. Framing B adds the rollout of the calculator's test phase: €4,402 a month
-measured with a same-weeks control (one controlled run per layer), €10,409 before/after and €13,000
-season-adjusted, neither controlled (E20; the low and mid cases recomputed from this repo's data); it is the non-AI calculator's effect, which the registration did not claim as
-past benefit, and B counts only the next 12 months of the automated system. The year ramps up: built in month 1, a
-2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months). Costs:
+**Money (12 months). Our claim is framing B; framing A is the conservative cross-check.** Framing B is what the
+automated system earns in the next 12 months: the calculator's measured rate (B0, E20: €4,402 a month measured
+with a same-weeks control, one controlled run per layer; €10,409 measured before/after and €13,000
+season-adjusted, neither controlled; the low and mid cases recomputed from this repo's data, the high quoted) plus the
+levers this build adds: €5,694 / €12,965 / €19,291 a month at full scope
+(low / mid / high), the holdout categories, about 11% of the changed prices, left out.
+
+*"B0 is the non-AI calculator's money."* The calculator is declared existing code and part of the submitted system.
+Framing B claims no past euro: it is the next 12 months of the automated system, with Aug–Sep 2026 as the measured
+evidence for the rate. v2 is what delivers that rate at scale, because today's manual push loses part of it: in Aug–Sep
+17–20 % of the units on SKUs an approval raised still sold at the old price, 70–84 % in late October (E23, measured);
+the days between a run and its push cost €396 a month (E5, estimated); the MK/AL months without a
+push miss €1,325 a month (E4, estimated).
+
+Framing A, the cross-check, counts only the levers, backtested walk-forward on booked sales lines:
+€1,996 / €4,158 / €8,675 a month at full scope before the holdout share
+(E8, estimated, every lever on the calculator's era, Aug–Sep 2026), short of the €12.2k a month that the top net-benefit band needs with
+these costs. Most of it comes from automation (the loss block, cost reaction, daily checked prices, MK/AL coverage,
+raises that reach the shelf: €249, E24), not from the model's own floor choices, which the backtest
+scores at €2 a month (E2). The year ramps up: built in month 1, a
+2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
+fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
 €8,918 one-time (hackathon hours at €50, 160 hours to production including code review, the build
 sessions' AI usage of $272.70 API-equivalent, E18) and €6,921 running (AI
 €68 a month from the measured cost per call, E19; maintenance and review hours), €15,838 in all.
 Which framing counts is the organisers' call.
 
-| Year 1 | A · Low | A · Mid | A · High | B · Low | B · Mid | B · High |
+| Year 1 | B · Low | B · Mid | B · High | A · Low | A · Mid | A · High |
 |---|---|---|---|---|---|---|
-| Extra gross profit a month at full scope | €1,776 | €3,701 | €7,721 | €5,694 | €12,965 | €19,291 |
-| Net benefit (9.5 full-benefit months − all costs) | €1,038 | €19,318 | €57,509 | €38,257 | €107,326 | €167,424 |
-| ROI | 7% | 122% | 363% | 242% | 678% | 1057% |
-| Payback (months) | 11.1 | 5.8 | 4.0 | 4.5 | 3.3 | 3.1 |
-| Track A score (/100; Evidence and Works are our own ratings) | 40 | 66 | 76 | 68 | 84 | 84 |
+| Extra gross profit a month at full scope | €5,694 | €12,965 | €19,291 | €1,776 | €3,701 | €7,721 |
+| Net benefit (9.5 full-benefit months − all costs) | €38,257 | €107,326 | €167,424 | €1,038 | €19,318 | €57,509 |
+| ROI | 242% | 678% | 1057% | 7% | 122% | 363% |
+| Payback (months) | 4.5 | 3.3 | 3.1 | 11.1 | 5.8 | 4.0 |
+| Track A score (/100; Evidence and Works are our own ratings) | 68 | 84 | 84 | 40 | 66 | 76 |
 
-**Biggest unproven assumptions.** That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
+**Biggest unproven assumptions.** That the calculator's measured rate holds once automated and extended to every layer
+(framing B rests on it; only its low case had a control, one run per layer). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
 publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still
 wins until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes).
 In today's process 17–20 % of the units on SKUs an approval raised still sold at the old price in Aug–Sep, 70–84 % in late
 October (E23); the levers' gain on lines sold under a team deal (€378 a month) counts only in the high case. That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
-the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). Framing B also assumes the test
-phase's rate holds once automated and extended to every layer. The pilot's holdout categories turn these into
-measurements.
+the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). The pilot's holdout categories turn
+these into measurements.
 
 **The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,

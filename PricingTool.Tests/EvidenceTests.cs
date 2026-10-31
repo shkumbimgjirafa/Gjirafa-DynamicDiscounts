@@ -35,6 +35,49 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
         Assert.Contains(page.Uses["E20"], u => u.StartsWith("sheet ", StringComparison.Ordinal));                 // the financial sheet names it
     }
 
+    /// <summary>A sheet's cells (cached values; shared strings resolved), read from the xlsx itself.</summary>
+    private static Dictionary<string, string> SheetValues(string xlsx, string sheetName)
+    {
+        using var zip = System.IO.Compression.ZipFile.OpenRead(xlsx);
+        System.Xml.Linq.XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        System.Xml.Linq.XNamespace rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        System.Xml.Linq.XDocument Load(string name) { using var s = zip.GetEntry(name)!.Open(); return System.Xml.Linq.XDocument.Load(s); }
+        var shared = Load("xl/sharedStrings.xml").Root!.Elements(ns + "si").Select(si => string.Concat(si.Descendants(ns + "t").Select(t => t.Value))).ToList();
+        var rid = (string)Load("xl/workbook.xml").Root!.Descendants(ns + "sheet").Single(x => (string)x.Attribute("name")! == sheetName).Attribute(rel + "id")!;
+        var target = (string)Load("xl/_rels/workbook.xml.rels").Root!.Elements().Single(e => (string)e.Attribute("Id")! == rid).Attribute("Target")!;
+        return Load(target.StartsWith("xl/", StringComparison.Ordinal) ? target : "xl/" + target.TrimStart('/')).Descendants(ns + "c")
+            .Where(c => c.Element(ns + "v") is not null)
+            .ToDictionary(c => (string)c.Attribute("r")!, c => (string?)c.Attribute("t") == "s" ? shared[int.Parse(c.Element(ns + "v")!.Value)] : c.Element(ns + "v")!.Value);
+    }
+
+    [Fact]
+    public void Framing_Bs_figures_are_the_same_in_numbers_json_the_sheet_the_one_pager_HACKATHON_and_the_page()
+    {
+        var evidence = RepoEvidence();
+        var dir = evidence.Directory();
+        var e20 = evidence.ReadNumbers().Figures.Single(f => f.Id == "E20");
+        var b0 = new[] { "low", "mid", "high" }.Select(k => e20.Value.GetProperty(k).GetDecimal()).ToArray();
+        string Eur(decimal x) => "€" + Math.Round(x).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+
+        var sheet = Path.Combine(dir, "..", "Financial sheet.xlsx");
+        var inputs = SheetValues(sheet, "Inputs");
+        var b0Rows = new[] { "Same-weeks control", "Before/after on the approvals", "Same, season-adjusted" }
+            .Select(label => decimal.Parse(inputs["B" + inputs.Single(c => c.Key.StartsWith('A') && c.Value.StartsWith(label, StringComparison.Ordinal)).Key[1..]],
+                System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        Assert.Equal(b0, b0Rows);                                                                   // the sheet types E20 in
+        var caseSheet = SheetValues(sheet, "Financial case");
+        var bTotals = new[] { "E4", "F4", "G4" }.Select(c => decimal.Parse(caseSheet[c], System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+
+        var onePager = File.ReadAllText(Path.Combine(dir, "..", "one-pager.md"));
+        var hackathon = File.ReadAllText(Path.Combine(dir, "..", "..", "..", "HACKATHON.md"));
+        foreach (var x in b0.Concat(bTotals))
+        {
+            Assert.Contains(Eur(x), onePager);
+            Assert.Contains(Eur(x), hackathon);
+        }
+        Assert.Contains($"{Eur(b0[1])[1..]} ({Eur(b0[0])[1..]} / {Eur(b0[2])[1..]})", EvidenceService.Show(e20.Value));   // the Evidence page
+    }
+
     [Theory]
     [InlineData("not-listed.sql")]
     [InlineData("../one-pager.md")]

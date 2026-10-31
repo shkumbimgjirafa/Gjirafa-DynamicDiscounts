@@ -1,7 +1,7 @@
 {
-    "generated":  "2026-10-31 10:06",
+    "generated":  "2026-10-31 10:12",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
-    "note":  "Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.",
+    "note":  "Every figure carries its label. The claim is framing B: the rollout of the test phase (E20, B0) plus the levers. Framing A, the levers alone (E8), is the cross-check; the two are never blended.",
     "figures":  [
                     {
                         "id":  "E1",
@@ -445,8 +445,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  35,
-                                      "rows":  45
+                                      "unattendedBlocks":  36,
+                                      "rows":  46
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -458,12 +458,12 @@
                         "id":  "E17",
                         "name":  "Automated tests",
                         "value":  {
-                                      "passed":  966,
+                                      "passed":  967,
                                       "skipped":  1
                                   },
                         "unit":  "tests",
                         "label":  "measured",
-                        "method":  "dotnet test PricingTool.sln: 966 passed, 1 skipped (the opt-in real headless call), 31 Oct 10:05, three runs in a row (13-14 s each)",
+                        "method":  "dotnet test PricingTool.sln: 967 passed, 1 skipped (the opt-in real headless call), 31 Oct 10:11 (three runs in a row at 10:05, 966 then, 13-14 s each)",
                         "source":  "PricingTool.Tests",
                         "script":  "dotnet test PricingTool.sln"
                     },
