@@ -15,3 +15,5 @@
 #done prompt 08 (E21 split by cause) · 2026-10-31 08:04 · commits 2533a09..2533a09 · not met: none (cause 5's proxy uses today's engine run, so it stays context only, not in the sheet)
 
 #done hardening after prompt 07 (five items) · 2026-10-31 08:18 · commits e2e9e75..2a2807d · not met: the 511k-SKU engine run still sits whole in memory (1,605 MB peak in the web app): it is the imported engine's, left unchanged; capping LocalDB's memory and closing the web app when idle are written up for the user, not done
+
+#done prompt 09 part A (the cost watcher's first real cost refresh) · 2026-10-31 08:24 · commits cf189b4..cf189b4 · not met: none (the watcher's rollback side stays unmeasured; nothing is live)
