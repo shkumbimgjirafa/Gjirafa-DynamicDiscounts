@@ -11,3 +11,5 @@
 #done prompt 07 part B (E20 and E21 from this repo's data) · 2026-10-31 06:46 · commits 5f18c9c..5f18c9c · not met: E20's high case (2025 season adjustment) is still quoted from the main repo; E21 doesn't show the calculator's floors shrinking the below-floor leak (tool scope €10.9k–16.9k a month Jun–Oct), so it supports the levers' target but not a calculator trend
 
 #done prompt 07 part A (raises reach the shelf as regular prices, sandbox) · 2026-10-31 08:01 · commits 7d59f24..8c32957 · not met: Run week #3 (GjirafaMall) stopped at its publish when LocalDB's process ended at 07:27:30 (cause not established); the batch was reconciled, rolled back exactly and the same run's publish finished from the CLI (publish-checked), so the Mall Run week record itself says Stopped; raises are not live, and cheaper team deals still hold 43 % of the checked prices off the shelf until a person supersedes them
+
+#done prompt 08 (E21 split by cause) · 2026-10-31 08:04 · commits 2533a09..2533a09 · not met: none (cause 5's proxy uses today's engine run, so it stays context only, not in the sheet)
