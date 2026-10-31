@@ -71,7 +71,42 @@ public class AgentController : Controller
                     .Select(g => new { g.Key, Started = g.Min(m => m.CreatedUtc), FirstId = g.Min(m => m.Id) }).OrderByDescending(x => x.Key).Take(8).ToListAsync())
                 .Select(x => (x.Key, x.Started, _ai.ChatMessages.AsNoTracking().Where(m => m.Id == x.FirstId).Select(m => m.Text).Single())).ToList(),
             Rules = await _ai.ChatRules.AsNoTracking().Where(r => r.RemovedUtc == null).OrderBy(r => r.Id).ToListAsync(),
+            RunWeeks = await RunWeeksAsync(),
+            RunWeekRunning = HttpContext.RequestServices.GetRequiredService<Services.RunWeekLauncher>().IsRunning,
         });
+    }
+
+    private async Task<IReadOnlyList<(PricingTool.Agent.Storage.RunWeek, IReadOnlyList<RunWeekStep>)>> RunWeeksAsync()
+    {
+        var latest = (await _ai.RunWeeks.AsNoTracking().OrderByDescending(w => w.Id).Take(20).ToListAsync())
+            .GroupBy(w => w.LayerId).Select(g => g.First()).OrderByDescending(w => w.Id).ToList();
+        var ids = latest.Select(w => w.Id).ToList();
+        var steps = await _ai.RunWeekSteps.AsNoTracking().Where(s => ids.Contains(s.RunWeekId)).OrderBy(s => s.Id).ToListAsync();
+        return latest.Select(w => (w, (IReadOnlyList<RunWeekStep>)steps.Where(s => s.RunWeekId == w.Id).ToList())).ToList();
+    }
+
+    /// <summary>"Run week" for one layer: Alpha's pass → engine run → run checker → sandbox publish → read-back, in the
+    /// background (<see cref="PricingTool.NopIntegration.RunWeekLoop"/>). Audited; the kill switch stops it.</summary>
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RunWeek(int layerId, [FromServices] Services.RunWeekLauncher launcher)
+    {
+        if (!await _db.Layers.AnyAsync(l => l.Id == layerId)) return NotFound();
+        var id = await launcher.TryStartAsync(layerId, Who);
+        if (id is null)
+        {
+            TempData["Error"] = "A Run week is already running: wait for it to finish.";
+            return RedirectToAction(nameof(Index), null, "run-week");
+        }
+        _db.AuditLog.Add(new PricingTool.Data.Entities.AuditLogEntry
+        {
+            LayerId = layerId, TimestampUtc = DateTime.UtcNow, UserName = Who, Category = AgentModeStore.AuditCategory, Action = "Run week started",
+            EntityType = "RunWeek", EntityId = id.Value.ToString(), OldValue = null, NewValue = "Running",
+        });
+        await _db.SaveChangesAsync();
+        TempData["Message"] = $"Run week #{id} started for layer {layerId}: Alpha, the engine, the run checker, then the sandbox publish. The timeline below updates as it goes.";
+        return RedirectToAction(nameof(Index), null, "run-week");
     }
 
     /// <summary>A message to the agents: Nova answers, "@alpha" asks Alpha. Takes up to a minute or two (the agents read data).</summary>

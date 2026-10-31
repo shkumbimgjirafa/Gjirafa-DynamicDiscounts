@@ -90,6 +90,56 @@
 @if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
 @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
 
+<h2 class="h5" id="run-week">Run week</h2>
+<p class="small text-muted">The whole loop for one layer with no clicks in between: Alpha's pass in the layer's mode → an engine run with the
+    per-category rules → the run checker → the checked prices published to the shop sandbox (@pub.Target) → the round-trip
+    read-back. A block at any step stops what comes after it; the kill switch stops it before Alpha. No export file is
+    written: the daily push file stays the cycle's.</p>
+@if (isManager)
+{
+    <div class="mb-2">
+        @foreach (var l in Model.Layers)
+        {
+            <form method="post" asp-action="RunWeek" class="d-inline">
+                <input type="hidden" name="layerId" value="@l.LayerId" />
+                <button class="btn btn-sm btn-outline-primary me-1" disabled="@(Model.RunWeekRunning || ks.Stopped)">Run week: @l.Name</button>
+            </form>
+        }
+        @if (ks.Stopped) { <span class="small text-danger">The kill switch is pulled.</span> }
+    </div>
+}
+@foreach (var (week, steps) in Model.RunWeeks)
+{
+    <div class="card mb-3 small">
+        <div class="card-body py-2">
+            <div class="mb-1"><strong>Run week #@week.Id</strong>, @Model.LayerName(week.LayerId), by @week.StartedBy, @week.StartedUtc.ToLocalTime().ToString("dd MMM HH:mm:ss")
+                <span class="badge @PassBadge(week.Status == "Stopped" ? "Skipped" : week.Status)">@week.Status</span>
+                @if (week.FinishedUtc is { } done) { <span>in @((done - week.StartedUtc).TotalSeconds.ToString("N0")) s;</span> }
+                <span>AI: @week.AiCalls calls, $@week.AiCostUsd.ToString("0.00") (measured, API-equivalent)</span></div>
+            @if (week.Outcome is { } outcome) { <div class="mb-1">@outcome</div> }
+            <table class="table table-sm mb-0 align-middle">
+                <thead><tr><th>Step</th><th>Status</th><th class="text-end">Seconds</th><th>Result</th><th>Why</th></tr></thead>
+                <tbody>
+                @foreach (var s in steps)
+                {
+                    <tr>
+                        <td><code>@s.Step</code></td>
+                        <td><span class="badge @(s.Status switch { "Succeeded" => "bg-success", "Failed" => "bg-danger", "Running" => "bg-primary", "Warning" => "bg-warning text-dark", _ => "bg-secondary" })">@s.Status</span></td>
+                        <td class="text-end">@(s.FinishedUtc is { } f ? (f - s.StartedUtc).TotalSeconds.ToString("N0") : "…")</td>
+                        <td>@s.Detail</td>
+                        <td>@if (!string.IsNullOrEmpty(s.Why)) { <details><summary>why?</summary>@s.Why</details> }</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+@if (Model.RunWeekRunning)
+{
+    <script>setTimeout(function () { location.reload(); }, 5000);</script>
+}
+
 <h2 class="h5">This week</h2>
 <div class="row g-2 mb-4 small">
     @foreach (var (label, value, note) in new[]

@@ -26,6 +26,8 @@ public class AgentDbContext : DbContext
     public DbSet<AgentRunCheck> AgentRunChecks => Set<AgentRunCheck>();
     public DbSet<AgentRunCheckRow> AgentRunCheckRows => Set<AgentRunCheckRow>();
     public DbSet<DailyCycleStep> DailyCycleSteps => Set<DailyCycleStep>();
+    public DbSet<RunWeek> RunWeeks => Set<RunWeek>();
+    public DbSet<RunWeekStep> RunWeekSteps => Set<RunWeekStep>();
     public DbSet<ExportBatch> ExportBatches => Set<ExportBatch>();
     public DbSet<MoneyLedgerEntry> MoneyLedger => Set<MoneyLedgerEntry>();
     public DbSet<AgentOutcome> AgentOutcomes => Set<AgentOutcome>();
@@ -137,6 +139,27 @@ public class AgentDbContext : DbContext
             e.Property(x => x.Detail).HasMaxLength(2000);
             e.Property(x => x.Error).HasMaxLength(2000);
             e.HasIndex(x => new { x.CycleDate, x.Step });
+        });
+
+        builder.Entity<RunWeek>(e =>
+        {
+            e.ToTable("RunWeek");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.StartedBy).HasMaxLength(200);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Outcome).HasMaxLength(2000);
+            e.Property(x => x.AiCostUsd).HasPrecision(12, 6);
+            e.HasIndex(x => new { x.LayerId, x.StartedUtc });
+        });
+        builder.Entity<RunWeekStep>(e =>
+        {
+            e.ToTable("RunWeekStep");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Step).HasMaxLength(40);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Detail).HasMaxLength(2000);
+            e.Property(x => x.Why).HasMaxLength(4000);
+            e.HasIndex(x => x.RunWeekId);
         });
 
         builder.Entity<ExportBatch>(e =>

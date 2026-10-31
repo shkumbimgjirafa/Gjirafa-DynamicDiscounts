@@ -1,0 +1,232 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using PricingTool.Agent.Alpha;
+using PricingTool.Agent.Checker;
+using PricingTool.Agent.Operations;
+using PricingTool.Agent.Storage;
+using PricingTool.Data.Entities;
+using PricingTool.Data.Services;
+
+namespace PricingTool.NopIntegration;
+
+/// <summary>What one step of Run week did: a <see cref="StepStatus"/>, a line of counts, and the reasons behind it.</summary>
+public sealed record RunWeekStepResult(string Status, string Detail, string? Why = null, long? Id = null);
+
+/// <summary>The services Run week drives, one call per step (a seam for tests).</summary>
+public interface IRunWeekSteps
+{
+    Task<RunWeekStepResult> AlphaAsync(int layerId, CancellationToken ct);
+    Task<RunWeekStepResult> EngineAsync(int layerId, string triggeredBy, CancellationToken ct);
+    /// <summary>The check's <see cref="RunWeekStepResult.Status"/> is <see cref="StepStatus.Failed"/> when it blocked the run.</summary>
+    Task<RunWeekStepResult> CheckAsync(long runId, CancellationToken ct);
+    Task<(IReadOnlyList<PublishItem> Items, string Detail)> CheckedPricesAsync(long runId, CancellationToken ct);
+    Task<PublishOutcome> PublishAsync(int layerId, long runId, IReadOnlyList<PublishItem> items, CancellationToken ct);
+}
+
+/// <summary>
+/// "Run week" for one layer (<c>ai.RunWeek</c>; plan section 5, Web, "Agent page controls"): the whole pricing loop with no clicks in
+/// between. Alpha's pass in the layer's mode (applied within the limits; held items go to the inbox) → an engine run
+/// with the per-category rules → the run checker → on pass or warn, the checked prices published to the shop
+/// sandbox through <see cref="NopDiscountWriter"/> → the writer's round-trip check. Each step is a
+/// <see cref="RunWeekStep"/> row with its counts and reasons. A pulled kill switch stops it before Alpha (and before
+/// any later step); a failed step or a blocked check stops the steps after it; the publish refuses unless
+/// <c>Publisher:Target</c> is Sandbox. It writes no export file: the daily push file stays the cycle's.
+/// </summary>
+public sealed class RunWeekLoop
+{
+    /// <summary><c>PricingRun.TriggeredBy</c> prefix of its engine runs (the daily cycle never takes them for its own).</summary>
+    public const string TriggeredBy = "run week";
+
+    private readonly AgentDbContext _db;
+    private readonly IRunWeekSteps _steps;
+    private readonly IKillSwitch _killSwitch;
+    private readonly PublisherOptions _publisher;
+    private readonly ILogger<RunWeekLoop> _logger;
+    private readonly TimeProvider _clock;
+
+    public RunWeekLoop(AgentDbContext db, IRunWeekSteps steps, IKillSwitch killSwitch, IOptions<PublisherOptions> publisher, ILogger<RunWeekLoop> logger,
+        TimeProvider? clock = null)
+    {
+        _db = db;
+        _steps = steps;
+        _killSwitch = killSwitch;
+        _publisher = publisher.Value;
+        _logger = logger;
+        _clock = clock ?? TimeProvider.System;
+    }
+
+    public async Task<long> StartAsync(int layerId, string by, CancellationToken ct = default)
+    {
+        var week = new RunWeek { LayerId = layerId, StartedBy = by, StartedUtc = _clock.GetUtcNow().UtcDateTime, Status = "Running" };
+        _db.RunWeeks.Add(week);
+        await _db.SaveChangesAsync(ct);
+        return week.Id;
+    }
+
+    public async Task<RunWeek> RunAsync(long runWeekId, CancellationToken ct = default)
+    {
+        var week = await _db.RunWeeks.SingleAsync(w => w.Id == runWeekId, ct);
+        try
+        {
+            week.Outcome = await StepsAsync(week, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "Run week #{Id} failed.", week.Id);
+            (week.Status, week.Outcome) = ("Failed", Truncate(ex.GetBaseException().Message, 2000));
+        }
+        week.FinishedUtc = _clock.GetUtcNow().UtcDateTime;
+        var calls = await _db.AiCallLog.AsNoTracking().Where(c => c.CalledAtUtc >= week.StartedUtc && c.CalledAtUtc <= week.FinishedUtc).ToListAsync(CancellationToken.None);
+        (week.AiCalls, week.AiCostUsd) = (calls.Count, calls.Sum(c => c.CostUsd ?? 0m));
+        await _db.SaveChangesAsync(CancellationToken.None);
+        return week;
+    }
+
+    private async Task<string> StepsAsync(RunWeek week, CancellationToken ct)
+    {
+        string Stop(string why) { week.Status = "Stopped"; return why; }
+
+        if (await KillSwitchAsync(week, "alpha", ct) is { } stopped) return Stop(stopped);
+        var alpha = await StepAsync(week, "alpha", () => _steps.AlphaAsync(week.LayerId, ct), ct);
+        week.PassId = alpha.Id;
+        if (alpha.Status == StepStatus.Failed) return Stop($"Alpha's pass failed: {alpha.Detail}. Nothing after it ran.");
+
+        if (await KillSwitchAsync(week, "engine", ct) is { } s2) return Stop(s2);
+        var engine = await StepAsync(week, "engine", () => _steps.EngineAsync(week.LayerId, $"{TriggeredBy} ({week.StartedBy})", ct), ct);
+        week.EngineRunId = engine.Id;
+        if (engine.Status == StepStatus.Failed || engine.Id is null) return Stop($"The engine run failed: {engine.Detail}. Nothing after it ran.");
+
+        if (await KillSwitchAsync(week, "check", ct) is { } s3) return Stop(s3);
+        var check = await StepAsync(week, "check", () => _steps.CheckAsync(engine.Id.Value, ct), ct);
+        week.CheckId = check.Id;
+        if (check.Status == StepStatus.Failed) return Stop($"The run checker stopped the run: {check.Detail}. Nothing was published.");
+
+        if (await KillSwitchAsync(week, "publish", ct) is { } s4) return Stop(s4);
+        if (!_publisher.IsSandbox)
+        {
+            await RecordAsync(week, "publish", new RunWeekStepResult(StepStatus.Failed,
+                $"Refused: Publisher:Target is '{_publisher.Target}'. Run week publishes only to the shop sandbox; going live is the canary in GO-LIVE.md."), ct);
+            return Stop("The publish refused: the target isn't the sandbox. Nothing was published.");
+        }
+        var (items, chosen) = await _steps.CheckedPricesAsync(engine.Id.Value, ct);
+        if (items.Count == 0)
+        {
+            await RecordAsync(week, "publish", new RunWeekStepResult(StepStatus.Skipped, $"Nothing to publish: {chosen}"), ct);
+            week.Status = "Succeeded";
+            return "Done: the run had no checked price to publish.";
+        }
+        PublishOutcome? outcome = null;
+        var publish = await StepAsync(week, "publish", async () =>
+        {
+            outcome = await _steps.PublishAsync(week.LayerId, engine.Id.Value, items, ct);
+            var skipped = outcome.Exceptions.GroupBy(e => e.Kind).Select(g => $"{g.Key} {g.Count():N0} (e.g. {g.First().Sku}: {g.First().Detail})");
+            return new RunWeekStepResult(outcome.Status == "Published" ? StepStatus.Succeeded : StepStatus.Failed,
+                $"batch #{outcome.BatchId} {outcome.Status}: {chosen}; created {outcome.Created:N0}, updated {outcome.Updated:N0}, unchanged {outcome.Unchanged:N0}, " +
+                $"skipped {outcome.Skipped:N0}", outcome.Exceptions.Count == 0 ? null : "Left as they are: " + string.Join("; ", skipped), outcome.BatchId);
+        }, ct);
+        week.PublishBatchId = publish.Id;
+        if (outcome is null || publish.Status == StepStatus.Failed) return Stop($"The publish didn't go through: {publish.Detail}.");
+
+        var o = outcome;
+        var ok = o.RoundTripMismatches == 0 && !o.RolledBack;
+        await RecordAsync(week, "verify", new RunWeekStepResult(ok ? StepStatus.Succeeded : StepStatus.Warning,
+            $"round-trip: {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0} read back as written" + (o.RolledBack ? "; the batch was rolled back" : ""),
+            ok ? null : "The writer reads the winning deal back after each publish; too many mismatches roll the batch back (the exceptions inbox lists it).", o.BatchId), ct);
+        week.Status = "Succeeded";
+        return $"Done: published to the sandbox in batch #{o.BatchId}" + (ok ? "." : ", with read-back mismatches.");
+    }
+
+    private async Task<string?> KillSwitchAsync(RunWeek week, string before, CancellationToken ct)
+    {
+        var state = await _killSwitch.GetAsync(ct);
+        if (!state.Stopped) return null;
+        await RecordAsync(week, "kill-switch", new RunWeekStepResult(StepStatus.Failed, $"The kill switch is pulled ({state.Reason}): stopped before {before}."), ct);
+        return $"The kill switch is pulled: stopped before {before}.";
+    }
+
+    private async Task<RunWeekStepResult> StepAsync(RunWeek week, string name, Func<Task<RunWeekStepResult>> run, CancellationToken ct)
+    {
+        var row = new RunWeekStep { RunWeekId = week.Id, Step = name, StartedUtc = _clock.GetUtcNow().UtcDateTime, Status = StepStatus.Running };
+        _db.RunWeekSteps.Add(row);
+        await _db.SaveChangesAsync(ct);
+        RunWeekStepResult r;
+        try
+        {
+            r = await run();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "Run week #{Id}: {Step} failed.", week.Id, name);
+            r = new RunWeekStepResult(StepStatus.Failed, ex.GetBaseException().Message);
+        }
+        (row.Status, row.Detail, row.Why, row.FinishedUtc) = (r.Status, Truncate(r.Detail, 2000), Truncate(r.Why, 4000), _clock.GetUtcNow().UtcDateTime);
+        await _db.SaveChangesAsync(CancellationToken.None);
+        return r;
+    }
+
+    private Task RecordAsync(RunWeek week, string name, RunWeekStepResult r, CancellationToken ct) => StepAsync(week, name, () => Task.FromResult(r), ct);
+
+    private static string? Truncate(string? s, int max) => s is null || s.Length <= max ? s : s[..max];
+}
+
+/// <summary>The real steps: each resolves its service in its own scope, as the daily cycle does.</summary>
+public sealed class RunWeekSteps : IRunWeekSteps
+{
+    private readonly IServiceProvider _sp;
+
+    public RunWeekSteps(IServiceProvider sp) => _sp = sp;
+
+    public async Task<RunWeekStepResult> AlphaAsync(int layerId, CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        var r = await scope.ServiceProvider.GetRequiredService<FloorTargetAgent>().RunPassAsync(layerId, ct: ct);
+        var changed = r.Decisions.Where(d => d.Status == DecisionStatus.Applied && d.Action != "keep").ToList();
+        var why = r.Decisions.Where(d => d.Action != "keep" || d.Status != DecisionStatus.Applied).Take(6)
+            .Select(d => $"band {d.BandId} {d.Category}: {d.Action} {d.CurrentFloorPct:0.#}→{d.ProposedFloorPct:0.#} % floor, {d.Status}{(d.Limit is null ? "" : $" ({d.Limit})")}: {d.Reason}");
+        return new RunWeekStepResult(r.Status is "Succeeded" or "Skipped" ? StepStatus.Succeeded : StepStatus.Failed,
+            $"pass #{r.PassId} {r.Status}: {changed.Count} changed, {r.Count(DecisionStatus.Held)} held for a person, {r.Count(DecisionStatus.Rejected)} rejected by code, " +
+            $"{r.Count(DecisionStatus.Pending)} pending (approve-first) {r.Error}".Trim(), string.Join(" | ", why), r.PassId);
+    }
+
+    public async Task<RunWeekStepResult> EngineAsync(int layerId, string triggeredBy, CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        var run = await scope.ServiceProvider.GetRequiredService<PricingRunOrchestrator>().ExecuteRunAsync(triggeredBy, isOnDemand: true, layerId, ct);
+        var ok = run.Status is RunStatus.Succeeded or RunStatus.SucceededWithErrors;
+        return new RunWeekStepResult(ok ? StepStatus.Succeeded : StepStatus.Failed,
+            $"run #{run.Id} {run.Status}: {run.SkuCount:N0} SKUs, {run.ProposalCount:N0} proposals, {run.ErrorCount} errors {run.ErrorMessage}".Trim(), null, run.Id);
+    }
+
+    public async Task<RunWeekStepResult> CheckAsync(long runId, CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        var r = await scope.ServiceProvider.GetRequiredService<RunChecker>().CheckAsync(runId, ct: ct);
+        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        var flags = r.CheckId is { } id
+            ? (await db.AgentRunCheckRows.AsNoTracking().Where(x => x.CheckId == id).Select(x => x.Flags).ToListAsync(ct))
+                .SelectMany(f => f.Split(',', StringSplitOptions.RemoveEmptyEntries)).GroupBy(f => f).OrderByDescending(g => g.Count()).Select(g => $"{g.Key} {g.Count():N0}")
+            : Enumerable.Empty<string>();
+        var blocked = r.Status != "Succeeded" || r.Verdict == Severity.Block;
+        return new RunWeekStepResult(blocked ? StepStatus.Failed : StepStatus.Succeeded,
+            $"check #{r.CheckId}: verdict {r.Verdict}, {r.Flagged:N0} flagged, {r.Sent} judged by the model; {r.Blocks} block, {r.Warns:N0} warn (held), {r.Fixed} fixed {r.Error}".Trim(),
+            "Flags: " + string.Join(", ", flags), r.CheckId);
+    }
+
+    public async Task<(IReadOnlyList<PublishItem> Items, string Detail)> CheckedPricesAsync(long runId, CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        var set = await scope.ServiceProvider.GetRequiredService<CheckedExport>().CheckedSetAsync(runId, ct);
+        if (set.Check is null) return (Array.Empty<PublishItem>(), $"run #{runId} has no check");
+        if (set.Blocked is { } why) return (Array.Empty<PublishItem>(), $"check #{set.Check.Id} blocked it: {why}");
+        return (set.Prices.Select(p => new PublishItem(p.Sku, p.Price, p.OldPrice)).ToList(),
+            $"{set.Prices.Count:N0} checked prices ({set.HeldByCheck:N0} held by check #{set.Check.Id}, {set.HoldoutLeftOut:N0} holdout left out)");
+    }
+
+    public async Task<PublishOutcome> PublishAsync(int layerId, long runId, IReadOnlyList<PublishItem> items, CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().PublishAsync(new PublishRequest(layerId, items) { EngineRunId = runId }, ct);
+    }
+}

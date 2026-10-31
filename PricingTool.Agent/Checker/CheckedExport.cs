@@ -12,6 +12,13 @@ using PricingTool.Data.Entities;
 
 namespace PricingTool.Agent.Checker;
 
+/// <summary>A changed price of a run that may go out (see <see cref="CheckedExport.CheckedSetAsync"/>).</summary>
+public sealed record CheckedPrice(long ProposalId, string Sku, decimal OldPrice, decimal CurrentPrice, decimal Price, bool Fixed);
+
+/// <summary>A run's checked prices: <see cref="Check"/> is null when the run hasn't been checked, <see cref="Blocked"/>
+/// says why when the check blocked it (then there are no prices).</summary>
+public sealed record CheckedSet(AgentRunCheck? Check, string? Blocked, IReadOnlyList<CheckedPrice> Prices, int HeldByCheck, int HoldoutLeftOut);
+
 public sealed record ExportResult(bool Exported, string Reason, string? FilePath, int Rows, int LeftOut, long? CheckId)
 {
     public long? ExportBatchId { get; init; }
@@ -79,34 +86,52 @@ public sealed class CheckedExport
         _clock = clock ?? TimeProvider.System;
     }
 
-    public async Task<ExportResult> ExportAsync(long runId, string directory, CancellationToken ct = default)
+    /// <summary>
+    /// The prices of a run that may go out, by the run's latest real check (the same set for the push file and for
+    /// Run week's publish): warn and block rows held, a fixed row at the checker's price, the holdout categories left
+    /// out. Nothing when the run hasn't been checked or the check blocked it.
+    /// </summary>
+    public async Task<CheckedSet> CheckedSetAsync(long runId, CancellationToken ct = default)
     {
-        var sw = Stopwatch.StartNew();
         // A test check (an injected-test drill) never gates or shapes a real export.
         var check = await _db.AgentRunChecks.AsNoTracking().Where(c => c.RunId == runId && c.Status != "Running" && !c.IsTest)
             .OrderByDescending(c => c.Id).FirstOrDefaultAsync(ct);
         if (check is null)
-            return new ExportResult(false, $"Run {runId} has not been checked: nothing exported.", null, 0, 0, null);
+            return new CheckedSet(null, null, Array.Empty<CheckedPrice>(), 0, 0);
 
         var rows = await _db.AgentRunCheckRows.AsNoTracking().Where(r => r.CheckId == check.Id).ToListAsync(ct);
         if (check.Verdict == Severity.Block)
         {
             var examples = rows.Where(r => r.FinalSeverity == Severity.Block).Take(3).Select(r => $"{r.Sku} ({r.Flags})");
             var why = check.Status != "Succeeded" ? check.Error : $"{check.Blocks} blocking row(s), e.g. {string.Join(", ", examples)}";
-            return new ExportResult(false, $"Run {runId} is blocked by check #{check.Id}: {why}. Nothing exported.", null, 0, 0, check.Id);
+            return new CheckedSet(check, why ?? "blocked", Array.Empty<CheckedPrice>(), 0, 0);
         }
 
         var run = await _tool.PricingRuns.AsNoTracking().SingleAsync(r => r.Id == runId, ct);
-        var layer = await _tool.Layers.AsNoTracking().SingleAsync(l => l.Id == run.LayerId, ct);
         var held = rows.Where(r => r.FinalSeverity is Severity.Warn or Severity.Block).Select(r => r.ProposalId).ToHashSet();
         var fixes = rows.Where(r => r.FinalSeverity == Severity.Fixed && r.FixPrice is not null).ToDictionary(r => r.ProposalId, r => r.FixPrice!.Value);
         var holdoutCategories = _options.Limits.Holdouts.TryGetValue(run.LayerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
         var holdout = await _holdouts.HoldoutProposalIdsAsync(runId, run.LayerId, holdoutCategories, ct);
         var proposals = await _tool.ProposedPrices.AsNoTracking().Where(p => p.PricingRunId == runId && p.HasChange)
             .Select(p => new { p.Id, p.Sku, p.OldPrice, p.CurrentPrice, p.ProposedPriceValue }).ToListAsync(ct);
-        var exported = proposals.Where(p => !held.Contains(p.Id) && !holdout.Contains(p.Id))
-            .Select(p => (p.Id, p.Sku, p.OldPrice, p.CurrentPrice, Price: fixes.TryGetValue(p.Id, out var f) ? f : p.ProposedPriceValue, Fixed: fixes.ContainsKey(p.Id)))
+        var prices = proposals.Where(p => !held.Contains(p.Id) && !holdout.Contains(p.Id))
+            .Select(p => new CheckedPrice(p.Id, p.Sku, p.OldPrice, p.CurrentPrice, fixes.TryGetValue(p.Id, out var f) ? f : p.ProposedPriceValue, fixes.ContainsKey(p.Id)))
             .ToList();
+        return new CheckedSet(check, null, prices, proposals.Count(p => held.Contains(p.Id)), proposals.Count(p => holdout.Contains(p.Id) && !held.Contains(p.Id)));
+    }
+
+    public async Task<ExportResult> ExportAsync(long runId, string directory, CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var set = await CheckedSetAsync(runId, ct);
+        if (set.Check is not { } check)
+            return new ExportResult(false, $"Run {runId} has not been checked: nothing exported.", null, 0, 0, null);
+        if (set.Blocked is { } why)
+            return new ExportResult(false, $"Run {runId} is blocked by check #{check.Id}: {why}. Nothing exported.", null, 0, 0, check.Id);
+
+        var run = await _tool.PricingRuns.AsNoTracking().SingleAsync(r => r.Id == runId, ct);
+        var layer = await _tool.Layers.AsNoTracking().SingleAsync(l => l.Id == run.LayerId, ct);
+        var exported = set.Prices;
 
         // Expected gross profit, estimated: each price change on the SKU's last 30 days of units, VAT excluded, no
         // elasticity. Shown next to what is measured; never counted in a total.
@@ -123,14 +148,14 @@ public sealed class CheckedExport
         var sb = new StringBuilder("Sku,OldPrice,CurrentPrice,NewPrice,RunId,ProposalId,CheckId,Note\n");
         foreach (var e in exported)
             sb.Append(string.Join(",", Csv(e.Sku), N(e.OldPrice), N(e.CurrentPrice), N(e.Price),
-                runId.ToString(CultureInfo.InvariantCulture), e.Id.ToString(CultureInfo.InvariantCulture), check.Id.ToString(CultureInfo.InvariantCulture),
+                runId.ToString(CultureInfo.InvariantCulture), e.ProposalId.ToString(CultureInfo.InvariantCulture), check.Id.ToString(CultureInfo.InvariantCulture),
                 e.Fixed ? "fixed by the run checker" : "")).Append('\n');
         await File.WriteAllTextAsync(path, sb.ToString(), Encoding.UTF8, ct);
 
         var batch = new ExportBatch
         {
             LayerId = run.LayerId, RunId = runId, CheckId = check.Id, FilePath = path, Rows = exported.Count,
-            LeftOutByCheck = proposals.Count(p => held.Contains(p.Id)), LeftOutHoldout = proposals.Count(p => holdout.Contains(p.Id) && !held.Contains(p.Id)),
+            LeftOutByCheck = set.HeldByCheck, LeftOutHoldout = set.HoldoutLeftOut,
             CreatedUtc = _clock.GetUtcNow().UtcDateTime, ExpectedGp30Eur = Math.Round(expected, 2),
         };
         _db.ExportBatches.Add(batch);
@@ -150,7 +175,7 @@ public sealed class CheckedExport
 
         return new ExportResult(true,
             $"Check #{check.Id} verdict {check.Verdict}: {exported.Count} prices exported, {batch.LeftOutByCheck} held by the check, {batch.LeftOutHoldout} holdout left out.",
-            path, exported.Count, proposals.Count - exported.Count, check.Id) { ExportBatchId = batch.Id, LeftOutHoldout = batch.LeftOutHoldout };
+            path, exported.Count, set.HeldByCheck + set.HoldoutLeftOut, check.Id) { ExportBatchId = batch.Id, LeftOutHoldout = batch.LeftOutHoldout };
     }
 
     /// <summary>

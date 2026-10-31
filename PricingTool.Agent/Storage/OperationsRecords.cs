@@ -65,3 +65,45 @@ public class MoneyLedgerEntry
     public string? Evidence { get; set; }
     public DateTime? MeasuredUtc { get; set; }
 }
+
+/// <summary>One press of "Run week" on the Agent tab (<c>ai.RunWeek</c>): the whole loop for one layer, with no clicks
+/// in between: Alpha's pass in the layer's mode → an engine run → the run checker → a publish of the checked prices to
+/// the shop sandbox → the round-trip check. It writes no export file; the daily push file stays the cycle's.</summary>
+public class RunWeek
+{
+    public long Id { get; set; }
+    public int LayerId { get; set; }
+    public string StartedBy { get; set; } = "";
+    public DateTime StartedUtc { get; set; }
+    public DateTime? FinishedUtc { get; set; }
+
+    /// <summary>Running / Succeeded / Stopped (a step said stop: kill switch, a block, a refusal) / Failed.</summary>
+    public string Status { get; set; } = "";
+    public string? Outcome { get; set; }
+    public long? PassId { get; set; }
+    public long? EngineRunId { get; set; }
+    public long? CheckId { get; set; }
+    public long? PublishBatchId { get; set; }
+
+    /// <summary>The agents' Claude calls logged while it ran (measured, API-equivalent).</summary>
+    public decimal AiCostUsd { get; set; }
+    public int AiCalls { get; set; }
+}
+
+/// <summary>One step of a <see cref="RunWeek"/> (<c>ai.RunWeekStep</c>), with what it did and why.</summary>
+public class RunWeekStep
+{
+    public long Id { get; set; }
+    public long RunWeekId { get; set; }
+    public string Step { get; set; } = "";
+    public DateTime StartedUtc { get; set; }
+    public DateTime? FinishedUtc { get; set; }
+
+    /// <summary>A <see cref="Operations.StepStatus"/> value.</summary>
+    public string Status { get; set; } = "";
+    public string? Detail { get; set; }
+
+    /// <summary>The reasons behind the step's result: Alpha's changes with their reasons, the checker's flags, the
+    /// publisher's exceptions.</summary>
+    public string? Why { get; set; }
+}

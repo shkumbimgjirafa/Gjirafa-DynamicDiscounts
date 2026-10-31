@@ -34,6 +34,9 @@ public class AgentStatusViewModel
     public IReadOnlyList<ChatMessage> Chat { get; init; } = Array.Empty<ChatMessage>();
     public IReadOnlyList<(long Id, DateTime StartedUtc, string First)> Conversations { get; init; } = Array.Empty<(long, DateTime, string)>();
     public IReadOnlyList<ChatRule> Rules { get; init; } = Array.Empty<ChatRule>();
+    /// <summary>The latest Run week per layer, with its steps; whether one is running in this process.</summary>
+    public IReadOnlyList<(RunWeek Week, IReadOnlyList<RunWeekStep> Steps)> RunWeeks { get; init; } = Array.Empty<(RunWeek, IReadOnlyList<RunWeekStep>)>();
+    public bool RunWeekRunning { get; init; }
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";
 }

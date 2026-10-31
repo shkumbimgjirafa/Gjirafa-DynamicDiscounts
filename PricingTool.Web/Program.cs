@@ -34,6 +34,10 @@ builder.Services.AddScoped<PricingTool.NopIntegration.NopDiscountWriter>();
 builder.Services.AddScoped<PricingTool.Agent.Campaigns.ICampaignPublisher, PricingTool.NopIntegration.CampaignPublisher>();
 builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>());
 builder.Services.AddSingleton<RunLauncher>();
+// "Run week" on the Agent tab: the whole loop for one layer, publishing only to the shop sandbox.
+builder.Services.AddScoped<PricingTool.NopIntegration.IRunWeekSteps, PricingTool.NopIntegration.RunWeekSteps>();
+builder.Services.AddScoped<PricingTool.NopIntegration.RunWeekLoop>();
+builder.Services.AddSingleton<RunWeekLauncher>();
 
 // Liveness/readiness endpoint for the container orchestrator (see k8s probes). Kept
 // dependency-free so it answers as soon as Kestrel is up, independent of DB health.

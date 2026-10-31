@@ -1686,6 +1686,105 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.ToTable("PublishException", "ai");
                 });
 
+            modelBuilder.Entity("PricingTool.Agent.Storage.RunWeek", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AiCalls")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("AiCostUsd")
+                        .HasPrecision(12, 6)
+                        .HasColumnType("decimal(12,6)");
+
+                    b.Property<long?>("CheckId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("EngineRunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("FinishedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LayerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<long?>("PassId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("PublishBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StartedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("StartedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LayerId", "StartedUtc");
+
+                    b.ToTable("RunWeek", "ai");
+                });
+
+            modelBuilder.Entity("PricingTool.Agent.Storage.RunWeekStep", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("FinishedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("RunWeekId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("StartedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Step")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Why")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RunWeekId");
+
+                    b.ToTable("RunWeekStep", "ai");
+                });
+
             modelBuilder.Entity("PricingTool.Agent.Storage.TimeSheetEntry", b =>
                 {
                     b.Property<long>("Id")
