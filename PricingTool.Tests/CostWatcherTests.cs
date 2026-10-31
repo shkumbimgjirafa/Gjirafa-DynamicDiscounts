@@ -91,7 +91,7 @@ public class CostWatcherTests : IDisposable
                 new Dictionary<string, IReadOnlyList<PricingTool.Core.Domain.SkuListing>> { ["HOLD"] = new[] { new PricingTool.Core.Domain.SkuListing(7, "Gaming") } });
     }
 
-    private CostWatcher Watcher() => new(_ai, _tool, new BandConfigProvider(_tool), _publisher, _switch, Options.Create(new CostWatcherOptions()),
+    private CostWatcher Watcher(ICostPublisher? publisher = null) => new(_ai, _tool, new BandConfigProvider(_tool), publisher ?? _publisher, _switch, Options.Create(new CostWatcherOptions()),
         Options.Create(new AgentOptions { Limits = new SafetyLimitOptions { Holdouts = { [_layer.ToString()] = new() { "Gaming" } } } }),
         Options.Create(new PricingTool.Core.Options.PricingEngineOptions()), NullLogger<CostWatcher>.Instance, categoryMap: new Map());
 
@@ -136,6 +136,30 @@ public class CostWatcherTests : IDisposable
         await _ai.SaveChangesAsync();
         Assert.Equal(1, (await Watcher().WatchAsync()).NoAction);
         Assert.Single(_publisher.Raised, x => x.Sku == "RISE");
+    }
+
+    [Fact]
+    public async Task A_test_run_decides_as_a_real_watch_would_but_publishes_nothing()
+    {
+        // --test: the records go to the test database while the sandbox is the tool database's, so nothing may be written.
+        Observe("RISE", 70m);      // would raise to 77.78
+        Observe("SHELF", 70m);     // would end our discount: the floor price is above the shelf price
+        Observe("FINE", 63m);      // above the floor: nothing to do
+        await _ai.SaveChangesAsync();
+
+        var r = await Watcher(new TestRunCostPublisher()).WatchAsync();
+
+        Assert.Equal((3, 0, 2, 0, 1), (r.Observed, r.Raised, r.Held, r.Ended, r.NoAction));
+        var outcomes = await _ai.CostObservations.ToDictionaryAsync(o => o.Sku, o => o.Outcome);
+        Assert.Equal(("test-run-not-published", "test-run-not-published", "above-floor"), (outcomes["RISE"], outcomes["SHELF"], outcomes["FINE"]));
+        Assert.All(await _ai.CostObservations.ToListAsync(), o => Assert.Null(o.PublishBatchId));
+        var decisions = await _ai.AgentDecisions.ToListAsync();
+        Assert.Equal(new[] { "end-our-discount", "raise-to-floor" }, decisions.Select(d => d.Action).OrderBy(a => a));
+        Assert.All(decisions, d => Assert.Equal((DecisionStatus.Held, "test-run"), (d.Status, d.Limit)));
+        Assert.Contains("would raise it to", decisions.Single(d => d.Action == "raise-to-floor").Reason);
+        Assert.All(decisions, d => Assert.EndsWith("A test run (--test) publishes nothing.", d.Reason));
+        Assert.True((await _ai.AgentPasses.SingleAsync()).IsTest);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new TestRunCostPublisher().RaiseAsync(_layer, "RISE", 77.78m, 100m, 75m, 100m, default));
     }
 
     [Fact]

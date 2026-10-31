@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-31 17:37",
+  "generated": "2026-10-31 18:05",
   "label": "measured tokens; API-equivalent cost at list prices (the actual spend is the flat Claude subscription)",
   "prices": "USD per million tokens from the claude-api skill (cached 2026-10-06): claude-opus-5-5 4.0/20.0, cache read 0.2; claude-sonnet-5-5 2.0/10.0, cache read 0.2; claude-opus-5 5.0/25.0, cache read 0.5; claude-opus-4-8 5.0/25.0, cache read 0.5; claude-fable-5-1 10.0/50.0, cache read 0.25; claude-haiku-5-5 0.1/0.5, cache read 0.01; cache writes 1.25x input (5 min), 2x (1 h)",
   "sources": [
@@ -16,7 +16,7 @@
     {
       "transcript": "ca16b95f-eea9-432e-905a-90b2780b8d8b.jsonl",
       "from": "start",
-      "responses": 623
+      "responses": 697
     },
     {
       "transcript": "agent-a754ddfa71544fa35.jsonl",
@@ -58,14 +58,14 @@
     "<synthetic>"
   ],
   "sinceKickoff": {
-    "responses": 3242,
+    "responses": 3316,
     "tokens": {
-      "input": 6704,
-      "output": 4094305,
-      "cacheWrite": 8377241,
-      "cacheRead": 1588972197
+      "input": 6856,
+      "output": 4163813,
+      "cacheWrite": 8588832,
+      "cacheRead": 1608762512
     },
-    "usdApiEquivalent": 559.09,
+    "usdApiEquivalent": 570.89,
     "extras": [
       {
         "label": "data session a425eebb (transcript released; its share as counted at 31 Oct 10:23)",
@@ -90,18 +90,22 @@
       {
         "label": "ai-judge dry run 4",
         "usd": 4.8404
+      },
+      {
+        "label": "ai-judge dry run 5",
+        "usd": 4.7601
       }
     ]
   },
   "unattendedBlocks": {
-    "responses": 1751,
+    "responses": 1765,
     "tokens": {
-      "input": 3610,
-      "output": 2242432,
-      "cacheWrite": 4104390,
-      "cacheRead": 915789385
+      "input": 3638,
+      "output": 2254017,
+      "cacheWrite": 4180114,
+      "cacheRead": 923302507
     },
-    "usdApiEquivalent": 356.51,
+    "usdApiEquivalent": 358.85,
     "extras": [
       {
         "label": "data session a425eebb (transcript released; its share as counted at 31 Oct 10:23)",
@@ -1129,20 +1133,40 @@
     {
       "day": "Sat 31 Oct",
       "from": "17:26",
-      "to": "17:55",
+      "to": "17:45",
       "unattended": true,
-      "responses": 22,
+      "responses": 36,
       "tokens": {
-        "input": 46,
-        "output": 22226,
-        "cacheWrite": 45812,
-        "cacheRead": 20607665
+        "input": 74,
+        "output": 33811,
+        "cacheWrite": 121536,
+        "cacheRead": 28120787
       },
-      "usdApiEquivalent": 9.77,
+      "usdApiEquivalent": 12.11,
       "extras": [
         {
           "label": "ai-judge dry run 4",
           "usd": 4.8404
+        }
+      ]
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "17:45",
+      "to": "18:15",
+      "unattended": false,
+      "responses": 60,
+      "tokens": {
+        "input": 124,
+        "output": 57923,
+        "cacheWrite": 135867,
+        "cacheRead": 12277193
+      },
+      "usdApiEquivalent": 9.46,
+      "extras": [
+        {
+          "label": "ai-judge dry run 5",
+          "usd": 4.7601
         }
       ]
     }

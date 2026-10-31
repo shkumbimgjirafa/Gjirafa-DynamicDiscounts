@@ -4,7 +4,7 @@ Two AI agents on top of the existing pricing calculator (v0.5). **Alpha**, the p
 floor and target per main category. **Nova**, the campaign agent, writes campaign briefs, and Alpha turns each one into a
 plan that code computes. A publisher writes the shop's prices itself, cuts as NOP discounts and raises as the store's
 regular price (only to the `shop_sandbox_*` schemas during the hackathon), and a cost watcher checks costs every 15 minutes:
-on 31 Oct it read the morning's 293 real cost moves within 1–9 minutes of the replica's refresh, raised none (no rise put a
+on 31 Oct it read the morning's 293 real cost moves within 0.7–9.1 minutes of the replica's refresh, raised none (no rise put a
 price we set under its floor) and held 54 for a person (52 under the floor at a cheaper deal: 28 the calculator's own
 earlier push, 21 only an app-only deal, which no longer holds a price, 3 a team deal; 2 with a floor above the shelf; E22). **The AI decides; code enforces:** no model
 output changes a price, a band or a discount without passing limits written in C#.
@@ -65,7 +65,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1012 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1016 passed, 1 skipped: the opt-in real headless call; E17).
    The evidence is a file:
    `dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
@@ -97,7 +97,7 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
 `ai.AgentQueryLog`. The agents' runtime Claude calls: 85 calls, $10.29 in the live database and 5 calls, $1.03 in the test
-database (E15). The Claude Code sessions that built this used $559.09 since kickoff (API-equivalent; the five AI-judge dry runs and the released data session's share included), $356.51 of it in the unattended
+database (E15). The Claude Code sessions that built this used $570.89 since kickoff (API-equivalent; the six AI-judge dry runs and the released data session's share included), $358.85 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -120,7 +120,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit €107,033, ROI 664 %, payback 3.4 months; the
+**The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit €107,021, ROI 663 %, payback 3.4 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
@@ -131,7 +131,7 @@ count (August's run coincided with restocking); September alone gives €3.9–4
 carried forward, plus the three dead-stock runs (E20 lists each month by approval).
 [`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data; its
 sales lines reproduce the tool's own 30-day profit before each of eight approvals within 2 % (E26), which checks the
-data, not the cause. *It runs by itself:* this build. Run week on Gjirafa50 KS, shown live on Monday on fresh data: the
+data, not the cause. *It runs by itself:* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 
@@ -153,7 +153,9 @@ the build's value is the stream it makes permanent, plus the levers:
 | **The claim, at full scope** | **€12,965** | |
 | Hours saved | not counted | hours, never euros |
 
-GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies. Cancelled orders are
+GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies. "Own vendors" is the
+declared calculator's vendor filter (the `Gjiraf…` vendors and the own brands Dino Toys, Mysu, Apple, YZATT;
+`PricingTool.Data/Services/SourceQueries.cs:181`, imported), which every export here reuses. Cancelled orders are
 excluded; returns after delivery are not netted out.
 
 **The levers** (estimated; walk-forward on booked sales lines, each line counted by one lever, elasticity −1, assumed;
@@ -220,7 +222,12 @@ the reason next to each.
   answers on its price cache and the `OldPrice` convention, and the commercial owner's call on the supersede switch
   (`GO-LIVE.md`); the live path is built and tested against the sandbox, never run against the shop.
 - **Injected test cases** run against a separate database, `PricingToolHackathonTest`, and are tagged `[INJECTED-TEST]`
-  in data, logs and UI. The live database holds no mock data; `PricingEngine:UseDemoData` is false.
+  in data, logs and UI. A test run publishes nothing (a `--test` cost watch records what it would do; a command that
+  publishes refuses `--test`): the sandbox is the tool database's, so a test publish would have changed the shelf the app
+  reports, with its audit in the test database. AI-judge dry run 5 found that it did, during a rehearsal of the demo step
+  (31 Oct, 07:31–07:34 UTC): of six test publish batches, the first re-opened one sandbox discount,
+  `ai-price-4-1772258mo`, until 8 Nov and the last ended it again, moving its end date from 06:19 to 07:34 UTC (expired
+  before and after); the other four changed nothing. The live database holds no mock data; `PricingEngine:UseDemoData` is false.
 - **Not finished:**
   - **The Për ty reproduction test fails by one point** (E11): the agents' plan expects 14.9 % margin (hand plan 15.1 %,
     within bounds) but keeps 69 % of normal margin (67 % on the hand plan's own base) against the 70–80 % required. What
@@ -302,11 +309,11 @@ the reason next to each.
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
 | The organisers' AI Pioneer meter (31 Oct, at Mergca's request) | The build sessions report through Claude Code hooks in this project's `.claude/settings.local.json` (git-ignored); the agents' own calls through `HacktrackMeter` (one event per attempt that reached the model, task name, requests and tokens; labelled injected tests are not counted) handing each event to the organisers' `hook.js`. The team token lives only in that ignored file and in the user's environment variables, never in a tracked file |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $356.51 API-equivalent; $559.09 since the kickoff (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $358.85 API-equivalent; $570.89 since the kickoff (E18) |
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 1012 passed, 1 skipped (31 Oct, 16:03). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 1016 passed, 1 skipped (31 Oct, 18:01). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

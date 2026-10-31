@@ -57,6 +57,28 @@ public interface ICostPublisher
 
     /// <summary>Ends our live ai-campaign discount on the SKU before the campaign ends: the batch, or null when nothing was live.</summary>
     Task<long?> EndCampaignDiscountAsync(int layerId, long campaignKey, string sku, CancellationToken ct);
+
+    /// <summary>False for a test run's publisher: the watcher then records what it would do and calls nothing above.</summary>
+    bool Publishes => true;
+}
+
+/// <summary>
+/// A test run's (<c>--test</c>) publisher: it writes nothing. A test run's records go to the test database, but the writer's
+/// sandbox is the tool database's: a raise published from a test run would change the shelf the app reports, with its audit
+/// where the app's rollback can't find it. Every call throws, so nothing can slip through.
+/// </summary>
+public sealed class TestRunCostPublisher : ICostPublisher
+{
+    public bool Publishes => false;
+
+    public Task<(long BatchId, string Status, string? LeftOut)> RaiseAsync(int layerId, string sku, decimal price, decimal ceiling, decimal runCurrentPrice,
+        decimal runOldPrice, CancellationToken ct) => throw NotInATestRun();
+
+    public Task<long?> EndOurDiscountAsync(int layerId, string sku, CancellationToken ct) => throw NotInATestRun();
+
+    public Task<long?> EndCampaignDiscountAsync(int layerId, long campaignKey, string sku, CancellationToken ct) => throw NotInATestRun();
+
+    private static InvalidOperationException NotInATestRun() => new("A test run (--test) publishes nothing.");
 }
 
 public sealed class WriterCostPublisher : ICostPublisher
@@ -190,6 +212,7 @@ public sealed class CostWatcher
         var now = _clock.GetUtcNow().UtcDateTime;
         var passes = new Dictionary<int, AgentPass>();
         int raised = 0, held = 0, ended = 0, none = 0;
+        var testRun = !_publisher.Publishes;
         foreach (var layerGroup in pending.GroupBy(o => o.LayerId))
         {
             var layer = await _tool.Layers.AsNoTracking().SingleOrDefaultAsync(l => l.Id == layerGroup.Key, ct);
@@ -298,6 +321,10 @@ public sealed class CostWatcher
                         Done(o, "campaign");
                         none++;
                     }
+                    else if (testRun)
+                        TestRun(o, band.BandId, category, campaign.MinMarginPct, "end-campaign-discount",
+                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00}: the campaign price {campaign.CampaignPrice:0.00} is under the campaign's {campaign.MinMarginPct:0.#}% " +
+                            $"minimum margin ({campaignFloor:0.00}): would end our campaign discount on it early.", facts);
                     else
                     {
                         var batch = await _publisher.EndCampaignDiscountAsync(o.LayerId, campaign.Key, o.Sku, ct);
@@ -317,6 +344,13 @@ public sealed class CostWatcher
                 else if (target > ceiling + 0.005m)
                 {
                     // Even our discount removed, the price stays under the floor: the regular price must change.
+                    if (testRun)
+                    {
+                        TestRun(o, band.BandId, category, floorPct, "end-our-discount",
+                            $"Cost rose to {o.Pptcv:0.00}: the floor price {target:0.00} is above the shelf price {ceiling:0.00}: would end our discount, " +
+                            "if it has one, and alert that the regular price needs changing.", facts);
+                        continue;
+                    }
                     var batch = await _publisher.EndOurDiscountAsync(o.LayerId, o.Sku, ct);
                     facts["publishBatch"] = batch;
                     var d = Decision(o, band.BandId, category, floorPct, batch is null ? "hold" : "end-our-discount", DecisionStatus.Held, "cost-above-shelf",
@@ -329,7 +363,15 @@ public sealed class CostWatcher
                 {
                     var price = Math.Min(target, ceiling);
                     var shelf = s.OldPrice ?? 0m;
-                    if (shelf > 0 && 100m * (shelf - price) / shelf < _minDisplayedDiscountPct)
+                    var underMinDiscount = shelf > 0 && 100m * (shelf - price) / shelf < _minDisplayedDiscountPct;
+                    if (testRun)
+                    {
+                        TestRun(o, band.BandId, category, floorPct, underMinDiscount ? "end-our-discount" : "raise-to-floor",
+                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} (+{risePct:0.#}%) put the live price {live:0.00} under the {floorPct:0.##}% floor ({floorPrice:0.00}): " +
+                            (underMinDiscount ? $"would end the discount, so the regular price {shelf:0.00} applies." : $"would raise it to {price:0.00}."), facts);
+                        continue;
+                    }
+                    if (underMinDiscount)
                     {
                         // The engine never shows a discount under the minimum (it holds such a price at the full shelf price):
                         // end ours instead, so the regular price, above the floor, applies.
@@ -430,6 +472,15 @@ public sealed class CostWatcher
             o.Outcome = outcome;
             o.PublishBatchId = batch;
             if (d is not null) o.DecisionId = d.Id;
+        }
+
+        // A test run decides as a real watch would, then holds: nothing is published.
+        void TestRun(CostObservation o, int bandId, string category, decimal floorPct, string action, string reason, Dictionary<string, object?> facts)
+        {
+            facts["testRun"] = true;
+            var d = Decision(o, bandId, category, floorPct, action, DecisionStatus.Held, "test-run", reason + " A test run (--test) publishes nothing.", facts);
+            Done(o, "test-run-not-published", d);
+            held++;
         }
 
         AgentDecision Decision(CostObservation o, int bandId, string category, decimal floorPct, string action, string status, string? limit, string reason,

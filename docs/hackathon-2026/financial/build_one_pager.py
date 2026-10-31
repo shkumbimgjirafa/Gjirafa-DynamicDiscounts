@@ -149,7 +149,7 @@ Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = {eur(e20['mid'])} a month (GjirafaMall
 {eur(shop['mallKs'])}, Gjirafa50 {eur(shop['gj50Ks'])}; E20), measured before and after each approval; robustness checks:
 E20, E27 (the evidence file reruns both): {rate_checks}. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
-dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS, shown live on Monday on fresh data: the
+dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 

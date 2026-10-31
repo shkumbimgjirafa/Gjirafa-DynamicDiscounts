@@ -134,7 +134,8 @@ aspirational and the engine is rules plus statistics.
   solution on Monday"; Mergca checks every row daily against the solution's own usage, and inflated or
   invented numbers remove the entry. Time BEFORE is the one number we set, once per task type,
   measured honestly. See "Time-sheet log" in section 5.
-- Baseline framing (A or B): pending.
+- Baseline framing (A or B): no organisers' answer recorded by 31 Oct. The headline is framing B, by the user's decision
+  (31 Oct, Prompts 13 and 15: one framing, one number); framing A is the cross-check.
 
 **The 10% bar (announced Fri 30 Oct; separate from the prizes, decided Wed 2 Dec).** A permanent
 10% raise and the "AI Pioneer" title for everyone who clears it; solo = 10%; no cap on how many.
@@ -707,8 +708,10 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - Close with the replay of October's Për ty (E11, E12 in the evidence file): the agents' plan vs the hand plan vs what
      happened.
 4. **(30s) Safety without approvals.**
-   - In the terminal: `cost-watch --inject 4 <sku> <cost> --test`; the command prints the watch's decision on the injected
-     cost (raised to the floor, or held, with the reason). It runs against the test database, so it never shows in the app. (Real ones: on 31 Oct the watcher read the morning's 293 cost moves within 1–9 minutes, E22.)
+   - In the terminal: `cost-watch --inject 4 <sku> <cost> --test`; the command prints what the watch would do with the
+     injected cost (raise to the floor, or hold, with the reason). A test run publishes nothing and its records go to the
+     test database, so it never shows in the app. (Real ones: on 31 Oct the watcher read the morning's 293 cost moves
+     within 0.7–9.1 minutes, E22.)
    - An out-of-range decision is rejected by code; the kill switch and autonomy on the Run tab; the holdout categories
      marked in the grid; the audit log under Admin; the AI calls with their cost (E15: 85 live calls, $10.29, measured).
 5. **(45s) Money: the evidence file and the sheet.**
@@ -748,6 +751,9 @@ Have the backup video and screenshots ready in case the network or Claude fails 
     - **Two tabs, one per framing; the headline follows the organisers' answer.**
       - **Framing A:** levers 1–7 only.
       - **Framing B:** adds B0, the rollout of what the test phase (v0.5) measured, as the automated system's forecast run-rate, plus levers 1–7 on top. It's labelled "forecast from measured history". B0 per scenario, each one a real measurement: Low = same-weeks control ≈ €4k/month (one run on one layer, so a floor), Mid = measured before/after ≈ €10.6k/month, High = season-adjusted ≈ €13k/month. **Evidence rates 5 under framing B**: the rate was measured live on the real shop and the evidence file recomputes it in the demo. The measured €10.6k alone clears the net-benefit band-5 line (≈ €10.3k/month) before any new lever.
+      *(31 Oct: superseded. No organisers' answer came; the user made B the one claim (Prompts 13 and 15). The sheet rates
+      Evidence 3, not 5; at the build's costs the band-5 line is about €12.2k a month at full scope, and B0 after the holdout
+      share is €9,264, so B0 alone doesn't clear it.)*
     - **Consistent with the registration:** the declaration said the calculator's *measured past result* (Aug–Sep) is not claimed. Framing B claims no past euro. It claims the **next 12 months** of an automated system and uses the past as evidence for the rate. Say this in one line in `HACKATHON.md` and the one-pager.
     - Hours saved are never counted (capacity only).
     - All benefit is on own-retail SKUs, so margin counts in full. No marketplace seller sales are included.

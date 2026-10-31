@@ -43,7 +43,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   lessons [<Nova|Alpha>] | lesson-retire <id> [--by <who>]        list the active lessons, or retire one
 //   campaign-goal <calendar id> <gross-profit|margin|units> <value> [--by <who>] [--note "<why>"]  a person's binding goal
 //   cost-watch [--poll] [--inject <layer> <sku> <cost>]              one cost watch: optionally poll the replica, or inject a labelled
-//                                                                   [INJECTED-TEST] cost (with --test its records go to the test DB)
+//                                                                   [INJECTED-TEST] cost (with --test its records go to the test DB
+//                                                                   and nothing is published: it prints what it would do)
 //   sandbox [check|create [--recreate]|add-prices|script]           the shop sandbox: contract check, build + seed, add the
 //                                                                   regular-price tables to an existing one (discounts kept), DDL
 //   publish-canary <layer> --run <id> --category <c> [--max n] [--rollback]   publish a run's sample, show the rows
@@ -104,6 +105,17 @@ if (command is "cost-watch" or "sandbox-mirror")
 builder.Services.AddPricingTool(builder.Configuration);
 builder.Services.AddPricingAgent(builder.Configuration);
 builder.Services.AddNopPublisher(builder.Configuration);
+// A test run's records go to the test database, but the publisher's sandbox is the tool database's: a test run that
+// published would change the shelf the app reports, with its audit where the app's rollback can't find it. It never publishes.
+if (testRun)
+{
+    if (command is "publish-canary" or "publish-checked" or "publish-rollback" or "publish-reconcile" or "resolve-holds" or "problems" || args.Contains("--publish"))
+    {
+        Console.Error.WriteLine("A test run (--test) never publishes: its records go to the test database, the sandbox is the tool database's.");
+        return 2;
+    }
+    builder.Services.AddScoped<PricingTool.NopIntegration.CostWatch.ICostPublisher, PricingTool.NopIntegration.CostWatch.TestRunCostPublisher>();
+}
 builder.Services.AddSingleton(new AgentToolContext(role, Opt("--call-tag") ?? (command == "mcp" ? null : "cli")));
 
 switch (command)
