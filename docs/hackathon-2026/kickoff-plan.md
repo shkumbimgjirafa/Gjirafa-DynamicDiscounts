@@ -41,6 +41,7 @@ were still headings only.
   - **Framing A, strict:** baseline = today's manual process carries on; only what the weekend adds counts.
   - **Framing B, full system (the user's position), told as test phase → rollout.** The calculator (v0.5, Jul–Oct 2026) **was the test phase**: prices it calculated went live by hand on a few dates in Kosovo, and the effect was measured (≈ €13k/month season-adjusted, margin +4–5 points vs last year; *the margin part superseded
 by E25 on 31 Oct: not evidence for B0*). v2 is the **rollout** of the tested approach, automated, weekly and on every layer. Name the design honestly: "a test phase measured before/after against the same weeks of 2025 [and changed vs unchanged SKUs in the same weeks, if that comparison is run]". Never call it a randomized A/B test; there was no random control group, and a reviewer will check.
+  - *(31 Oct, AI-judge dry run 3b: the record shows four October approvals and pushes on MK/AL in some months, so "only in KS" no longer holds.)*
   - Background to framing B: the calculator is an unsupported prototype that only earns when one person pushes prices by hand, irregularly and only in KS. Without v2 nothing secures that profit. v2 turns it into a system that runs and improves on its own every week, on every layer. So the benefit is everything the automated system earns in the next 12 months, forecast from the measured rate.
 
 ## 2. What is declared (submitted in the registration form)

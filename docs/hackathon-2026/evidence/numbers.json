@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 10:29",
+    "generated":  "2026-10-31 10:42",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. The claim is framing B: the rollout of the test phase (E20, B0) plus the levers. Framing A, the levers alone (E8), is the cross-check; the two are never blended.",
     "figures":  [
@@ -445,8 +445,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  39,
-                                      "rows":  49
+                                      "unattendedBlocks":  40,
+                                      "rows":  50
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -478,12 +478,14 @@
                                                       "2026-08":  {
                                                                       "mallKs":  8551,
                                                                       "gj50Ks":  2517,
-                                                                      "total":  11068
+                                                                      "total":  11068,
+                                                                      "byApproval":  "#2 5d x 203/d; #4 5d x 21/d; #5 5d x 0/d; #7 3d x 44/d; #12 26d x 281/d; #1 31d x 53/d; #6 16d x 37/d; #13 13d x 22/d"
                                                                   },
                                                       "2026-09":  {
                                                                       "mallKs":  7461,
                                                                       "gj50Ks":  2288,
-                                                                      "total":  9749
+                                                                      "total":  9749,
+                                                                      "byApproval":  "#12 2d x 281/d; #19 28d x 40/d; #25 28d x 206/d; #1 30d x 53/d; #13 2d x 22/d; #22 28d x 24/d"
                                                                   }
                                                   },
                                       "controls":  {

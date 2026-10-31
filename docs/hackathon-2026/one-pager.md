@@ -40,12 +40,14 @@ aren't calibrated yet (E10); the Monday email and the start-up task aren't live;
 **Money (12 months). The claim is framing B: €12,965 a month at full scope, 84 points.**
 It is the calculator's rate, B0 = €10,409 a month (E20 mid), carried by the automated system, plus the central
 case of the levers this build adds, with the holdout categories (about 11% of the changed prices) left out. B0 is
-measured on the real shop, not modelled: booked sales lines with booked COGS on both Kosovo layers, Aug
+measured from the shop's booked sales lines with booked COGS, before and after each approval, on both Kosovo layers: Aug
 €11,068 (GjirafaMall €8,551, Gjirafa50 €2,517) and Sep €9,749
-(€7,461, €2,288). `evidence/e20-test-phase.sql` recomputes it from this repo's data, the Evidence
-page reruns it live as a read-only user (about 9 s), and the same sales lines reproduce the tool's own 30-day profit
-before each approval, most to the euro (E26). It is measured before and after each approval, not controlled; the
-controlled measurement is €4,402 a month (E20 low; with it and the levers' low case, framing B is
+(€7,461, €2,288), each approval's 30-day lift spread over the days it was live. So Gjirafa50's
+part carries approval #1's lift from around 21 Jul, and August is mostly approval #12, whose own same-weeks comparison
+isn't separable from restocking (E20 lists each month by approval). `evidence/e20-test-phase.sql` recomputes it from this
+repo's data and the Evidence page reruns it live as a read-only user (about 9 s); its sales lines reproduce the tool's own
+30-day profit before each of eight approvals within 2 % (E26), which checks the data, not the
+cause. It is not controlled; the controlled measurement is €4,402 a month (E20 low; with it and the levers' low case, framing B is
 €5,694 a month, 68 points). That likely understates the effect: its comparison group is products the calculator
 kept at their price, and shoppers moving from changed to kept products lift that group (GjirafaMall's run of 3 Sep
 measures €3,263 against the products it kept and €4,088 against products

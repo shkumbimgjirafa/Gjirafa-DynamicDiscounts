@@ -32,9 +32,11 @@ are generated from the same file (`docs/hackathon-2026/financial/build_financial
 - **Everything after `9c977ca` is hackathon work**, made after the 16:30 kickoff:
   `git log --format='%h %ad %s' --date=iso 9c977ca..HEAD` (170 commits at `d980294`, 31 Oct 10:12, the state dry run 3
   reviewed).
-- Commit 1 also carries what was prepared before the kickoff: the plan, the registration text, `hours.md`, the draft
-  financial sheet and its generator (`financial/build_financial_sheet.py`, rewritten since) and `excel_recalc.ps1`. They
-  are the plan and the financial case's tooling, not solution code; the organisers can rule on that.
+- Commit 1 also carries what was prepared before the kickoff: the plan, the registration text (`DECLARATION.md`),
+  `hours.md`, the draft financial sheet and its generator (`financial/build_financial_sheet.py`, rewritten since),
+  `excel_recalc.ps1`, the instructions for Claude (`CLAUDE.md`), `.gitignore`, and a Word document on the shop
+  platform's discount integration (`docs/Dynamic Discounts Platform integration.docx`). They are the plan and the
+  financial case's tooling, not solution code; the organisers can rule on that.
 - `git diff --shortstat 9c977ca..HEAD`: 310 files changed, 74,237 insertions, 223 deletions at `d980294` (migrations
   and their designer files included). The counts below are new files at that commit (`git diff --name-only
   --diff-filter=A 9c977ca..d980294 -- <project>`).
@@ -113,11 +115,14 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 **Framing B, the claim:** €12,965 a month at full scope, 84 points (the financial sheet's B · Mid, with the holdout
 categories' share left out). It is the calculator's rate, B0 = €10,409 a month (E20 mid), carried by the automated system,
-plus the central case of the levers below. B0 is measured on the real shop, not modelled: booked sales lines with booked
-COGS on both Kosovo layers, Aug €11,068 (GjirafaMall €8,551, Gjirafa50 €2,517) and Sep €9,749 (€7,461, €2,288).
-[`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data, the
-Evidence page reruns it live as a read-only user (about 9 s), and the same sales lines reproduce the tool's own 30-day
-profit before each approval, most to the euro (E26). It is measured before and after each approval, not controlled.
+plus the central case of the levers below. B0 is measured from the shop's booked sales lines with booked COGS, before and
+after each approval, on both Kosovo layers: Aug €11,068 (GjirafaMall €8,551, Gjirafa50 €2,517) and Sep €9,749 (€7,461,
+€2,288), each approval's 30-day lift spread over the days it was live. So Gjirafa50's part carries approval #1's lift
+from around 21 Jul, and August is mostly approval #12, whose own same-weeks comparison isn't separable from restocking
+(E20 lists each month by approval).
+[`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data and
+the Evidence page reruns it live as a read-only user (about 9 s); its sales lines reproduce the tool's own 30-day profit
+before each of eight approvals within 2 % (E26), which checks the data, not the cause. It is not controlled.
 
 **Under it, the controlled measurement:** B0 = €4,402 a month (E20 low: changed vs unchanged products in the same weeks,
 one run per KS layer; with the levers' low case, framing B is €5,694 a month, 68 points). It likely understates the
@@ -271,7 +276,7 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 | No live system written | The replica and a one-time read-only copy of the tool database are read, both allowed at the kickoff. On 31 Oct a web start with the wrong launch profile (Development) migrated and seeded the main repo's *local* development database `PricingTool` on this laptop. Five minutes later, after a backup, its schema changes were reverted (every object created at 00:20:58–59 dropped). The demo data it seeded is still there (one demo run #40010 with its 360 proposals, one day of snapshots and KPIs, and 360 updated dead-stock states): the backup was taken after the start, so the updated rows' earlier values can't be restored, and removing only the inserted rows would leave that database inconsistent; the user decides (`docs/hackathon-2026/ai-judge/dry-run-1.md`). The web app and the engine now refuse to start in any environment but Hackathon |
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours and 38 unattended blocks (E16); unattended blocks count as AI cost only, $298.03 API-equivalent (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $298.03 API-equivalent (E18) |
 
 ## 7. Tests
 

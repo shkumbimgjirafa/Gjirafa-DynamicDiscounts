@@ -114,12 +114,14 @@ aren't calibrated yet (E10); the Monday email and the start-up task aren't live;
 **Money (12 months). The claim is framing B: {eur(case['F4'].value)} a month at full scope, {summary['F20'].value:.0f} points.**
 It is the calculator's rate, B0 = {eur(e20['mid'])} a month (E20 mid), carried by the automated system, plus the central
 case of the levers this build adds, with the holdout categories (about {holdout:.0%} of the changed prices) left out. B0 is
-measured on the real shop, not modelled: booked sales lines with booked COGS on both Kosovo layers, Aug
+measured from the shop's booked sales lines with booked COGS, before and after each approval, on both Kosovo layers: Aug
 {eur(m8['total'])} (GjirafaMall {eur(m8['mallKs'])}, Gjirafa50 {eur(m8['gj50Ks'])}) and Sep {eur(m9['total'])}
-({eur(m9['mallKs'])}, {eur(m9['gj50Ks'])}). `evidence/e20-test-phase.sql` recomputes it from this repo's data, the Evidence
-page reruns it live as a read-only user (about 9 s), and the same sales lines reproduce the tool's own 30-day profit
-before each approval, most to the euro (E26). It is measured before and after each approval, not controlled; the
-controlled measurement is {eur(e20['low'])} a month (E20 low; with it and the levers' low case, framing B is
+({eur(m9['mallKs'])}, {eur(m9['gj50Ks'])}), each approval's 30-day lift spread over the days it was live. So Gjirafa50's
+part carries approval #1's lift from around 21 Jul, and August is mostly approval #12, whose own same-weeks comparison
+isn't separable from restocking (E20 lists each month by approval). `evidence/e20-test-phase.sql` recomputes it from this
+repo's data and the Evidence page reruns it live as a read-only user (about 9 s); its sales lines reproduce the tool's own
+30-day profit before each of eight approvals within {v('E26', 'maxAbsDiffPct')} % (E26), which checks the data, not the
+cause. It is not controlled; the controlled measurement is {eur(e20['low'])} a month (E20 low; with it and the levers' low case, framing B is
 {eur(case['E4'].value)} a month, {summary['E20'].value:.0f} points). That likely understates the effect: its comparison group is products the calculator
 kept at their price, and shoppers moving from changed to kept products lift that group (GjirafaMall's run of 3 Sep
 measures {eur(ctl['mall25VsKept'])} against the products it kept and {eur(ctl['mall25VsNotInApproval'])} against products
