@@ -1,28 +1,34 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["reply", "askAlpha", "brief", "rule", "goal"],
+  "required": ["reply", "askAlpha", "briefs", "cancel", "rule", "goal"],
   "properties": {
     "reply": { "type": "string" },
     "askAlpha": { "type": ["string", "null"] },
-    "brief": {
-      "type": ["object", "null"],
-      "additionalProperties": false,
-      "required": ["layer", "name", "scopeKind", "scopeValue", "startDate", "endDate", "goalType", "goalValue", "minMarginPct", "maxDepthPct", "rationale"],
-      "properties": {
-        "layer": { "type": "integer", "enum": [1, 4] },
-        "name": { "type": "string" },
-        "scopeKind": { "type": "string", "enum": ["all", "category", "brand"] },
-        "scopeValue": { "type": ["string", "null"] },
-        "startDate": { "type": "string" },
-        "endDate": { "type": "string" },
-        "goalType": { "type": "string", "enum": ["gross-profit", "margin", "units"] },
-        "goalValue": { "type": "number" },
-        "minMarginPct": { "type": "number" },
-        "maxDepthPct": { "type": "number" },
-        "rationale": { "type": "string" }
+    "briefs": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "layer", "name", "scopeKind", "scopeValue", "startDate", "endDate", "goalType", "goalValue", "minMarginPct", "maxDepthPct", "rationale"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["mini", "main"] },
+          "layer": { "type": "integer", "enum": [1, 4] },
+          "name": { "type": "string" },
+          "scopeKind": { "type": "string", "enum": ["all", "category", "brand"] },
+          "scopeValue": { "type": ["string", "null"] },
+          "startDate": { "type": "string" },
+          "endDate": { "type": "string" },
+          "goalType": { "type": "string", "enum": ["gross-profit", "margin", "units"] },
+          "goalValue": { "type": "number" },
+          "minMarginPct": { "type": "number" },
+          "maxDepthPct": { "type": "number" },
+          "rationale": { "type": "string" }
+        }
       }
     },
+    "cancel": { "type": "array", "maxItems": 10, "items": { "type": "integer" } },
     "goal": {
       "type": ["object", "null"],
       "additionalProperties": false,

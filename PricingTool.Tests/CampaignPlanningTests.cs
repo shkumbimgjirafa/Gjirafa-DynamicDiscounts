@@ -337,6 +337,32 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public async Task Cancelling_a_campaign_rolls_back_its_publish_and_closes_its_briefs_and_plans()
+    {
+        var (planning, publisher, brief) = Setup();
+        var onShelf = new PublishBatch { LayerId = brief.LayerId, Kind = "Campaign", Status = "Published", Target = "Sandbox", StartedUtc = DateTime.UtcNow };
+        _db.PublishBatches.Add(onShelf);
+        await _db.SaveChangesAsync();
+        var published = new CampaignPlan { BriefId = brief.Id, LayerId = brief.LayerId, Strategy = "visible", Status = PlanStatus.Published, PublishBatchId = onShelf.Id, CreatedUtc = DateTime.UtcNow };
+        var held = new CampaignPlan { BriefId = brief.Id, LayerId = brief.LayerId, Strategy = "visible", Status = PlanStatus.Held, WaitsForPerson = true, CreatedUtc = DateTime.UtcNow };
+        _db.CampaignPlans.AddRange(published, held);
+        await _db.SaveChangesAsync();
+
+        var (done, message) = await planning.CancelAsync(brief.CalendarId!.Value, "user");
+
+        Assert.True(done);
+        Assert.Equal(new[] { onShelf.Id }, publisher.RolledBack);
+        Assert.Contains($"batch #{onShelf.Id} rolled back (3 rows restored)", message);
+        Assert.Equal(CampaignStatus.Cancelled, (await _db.CampaignCalendar.SingleAsync()).Status);
+        Assert.Equal((BriefStatus.Rejected, "cancelled"), ((await _db.CampaignBriefs.SingleAsync()).Status, (await _db.CampaignBriefs.SingleAsync()).Limit));
+        Assert.All(await _db.CampaignPlans.ToListAsync(), p => Assert.Equal((PlanStatus.Stopped, false), (p.Status, p.WaitsForPerson)));
+        Assert.Contains(await _db.CampaignMessages.Select(m => m.Text).ToListAsync(), t => t.StartsWith("Black Friday 2026") && t.Contains("cancelled by user"));
+        Assert.Equal((false, "Black Friday 2026 (#1) is already cancelled."), await planning.CancelAsync(brief.CalendarId.Value, "user"));
+        Assert.Equal("cancelled", CampaignLimits.Evaluate(new BriefInput("calendar", brief.CalendarId, "all", null, brief.StartDate, brief.EndDate, "gross-profit", 500m, 5m, 20m),
+            brief.LayerId, new DateOnly(2026, 11, 2), await _db.CampaignCalendar.ToListAsync(), _ => false, new CampaignLimitOptions()).Limit);   // never planned again
+    }
+
+    [Fact]
     public async Task Without_acceptance_after_two_rounds_the_plan_waits_for_a_person_and_nothing_is_published()
     {
         var (planning, publisher, brief) = Setup();

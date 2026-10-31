@@ -7,6 +7,8 @@ public static class CampaignStatus
     public const string Planned = "planned";
     public const string Live = "live";
     public const string Done = "done";
+    /// <summary>Taken off the calendar by a person before it started (kept, never deleted): nothing of it is planned or published.</summary>
+    public const string Cancelled = "cancelled";
 }
 
 /// <summary>

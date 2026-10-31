@@ -62,7 +62,7 @@ public class AgentChatTests : IDisposable
         var client = new ClaudeCodeClient(options, new Runner(this), _db, NullLogger<ClaudeCodeClient>.Instance);
         var reader = new PricingDataReader(new AgentDataSource("unused"));
         var planning = new CampaignPlanning(_db, _tool, new SqlCampaignCandidateSource(new AgentDataSource("unused")), new AgentDataTools(reader, options, new AgentToolLog(_db), _db),
-            new BandConfigProvider(_tool), client, new ConfigKillSwitch(options.Value), options, NullLogger<CampaignPlanning>.Instance);
+            new BandConfigProvider(_tool), client, new ConfigKillSwitch(options.Value), options, NullLogger<CampaignPlanning>.Instance, new Clock());
         return new AgentChat(_db, client, planning, options, NullLogger<AgentChat>.Instance, new Clock())
         {
             PlanSource = (id, _) =>
@@ -77,16 +77,21 @@ public class AgentChatTests : IDisposable
         };
     }
 
-    private void Says(string reply, string? askAlpha = null, JsonObject? brief = null, JsonObject? rule = null, JsonObject? goal = null) => _answers.Enqueue(new JsonObject
+    private void Says(string reply, string? askAlpha = null, JsonObject? brief = null, JsonObject? rule = null, JsonObject? goal = null,
+        JsonObject[]? briefs = null, long[]? cancel = null) => _answers.Enqueue(new JsonObject
     {
         ["type"] = "result", ["subtype"] = "success", ["is_error"] = false, ["num_turns"] = 2, ["result"] = "", ["total_cost_usd"] = 0.03m,
         ["usage"] = new JsonObject { ["input_tokens"] = 900, ["output_tokens"] = 120 },
-        ["structured_output"] = new JsonObject { ["reply"] = reply, ["askAlpha"] = askAlpha, ["brief"] = brief, ["rule"] = rule, ["goal"] = goal },
+        ["structured_output"] = new JsonObject
+        {
+            ["reply"] = reply, ["askAlpha"] = askAlpha, ["briefs"] = new JsonArray((briefs ?? (brief is null ? Array.Empty<JsonObject>() : new[] { brief })).Select(b => (JsonNode)b).ToArray()),
+            ["cancel"] = new JsonArray((cancel ?? Array.Empty<long>()).Select(id => (JsonNode)JsonValue.Create(id)).ToArray()), ["rule"] = rule, ["goal"] = goal,
+        },
     }.ToJsonString());
 
     private static JsonObject Brief(string start, string end) => new()
     {
-        ["layer"] = 1, ["name"] = "Laptops 3 days", ["scopeKind"] = "category", ["scopeValue"] = "Teknologji", ["startDate"] = start, ["endDate"] = end,
+        ["kind"] = "mini", ["layer"] = 1, ["name"] = "Laptops 3 days", ["scopeKind"] = "category", ["scopeValue"] = "Teknologji", ["startDate"] = start, ["endDate"] = end,
         ["goalType"] = "gross-profit", ["goalValue"] = 4000m, ["minMarginPct"] = 10m, ["maxDepthPct"] = 20m, ["rationale"] = "Asked for in the chat.",
     };
 
@@ -286,6 +291,68 @@ public class AgentChatTests : IDisposable
         Assert.Equal(entry.Id, ChatTopics.CalendarIdOf(t.Added[^1].Topic));
         var posted = await Chat().PostAsync("Alpha", "Run report written.");
         Assert.Equal((chatTab.ConversationId, (string?)null), (posted.ConversationId, posted.Topic)); // agents' own messages stay on the Chat tab
+    }
+
+    private async Task<CampaignCalendarEntry> MiniAsync(int layer, string name, DateOnly start, DateOnly end)
+    {
+        var entry = new CampaignCalendarEntry { LayerId = layer, Name = name, Type = "mini", ScopeKind = "category", ScopeValue = "X", StartDate = start, EndDate = end,
+            Status = CampaignStatus.Proposed, CreatedBy = "Nova", CreatedUtc = Now };
+        _db.CampaignCalendar.Add(entry);
+        await _db.SaveChangesAsync();
+        _db.CampaignBriefs.Add(new CampaignBrief { PassId = 1, LayerId = layer, CalendarId = entry.Id, Name = name, Kind = "mini", ScopeKind = "category", ScopeValue = "X",
+            GoalType = "units", GoalValue = 100m, StartDate = start, EndDate = end, Status = BriefStatus.Proposed, Exclusions = "[]", Rationale = "r", CreatedUtc = Now });
+        await _db.SaveChangesAsync();
+        return entry;
+    }
+
+    private static JsonObject Main(int layer, string start, string end) => new()
+    {
+        ["kind"] = "main", ["layer"] = layer, ["name"] = "Java e Portokalltë 2026", ["scopeKind"] = "all", ["scopeValue"] = null, ["startDate"] = start, ["endDate"] = end,
+        ["goalType"] = "gross-profit", ["goalValue"] = 15000m, ["minMarginPct"] = 8m, ["maxDepthPct"] = 20m, ["rationale"] = "The shops' birthday, asked for in the chat.",
+    };
+
+    [Fact]
+    public async Task Nova_cancels_the_campaigns_the_person_names_and_a_whole_shop_campaign_on_both_shops_takes_their_days()
+    {
+        var laptops = await MiniAsync(4, "Laptopë: mini-campaign Nov 2026", new DateOnly(2026, 11, 10), new DateOnly(2026, 11, 12));
+        var toys = await MiniAsync(1, "Fëmijë: pre-holiday toys push", new DateOnly(2026, 11, 11), new DateOnly(2026, 11, 15));
+        var blackFriday = await BlackFridayAsync(new DateOnly(2026, 11, 27));
+        Says("I've cleared November for Java e Portokalltë and Black Friday, and briefed Java e Portokalltë on both shops.",
+            briefs: new[] { Main(4, "2026-11-09", "2026-11-14"), Main(1, "2026-11-09", "2026-11-14") }, cancel: new[] { laptops.Id, toys.Id });
+
+        var t = await Chat().AskAsync(null, "Remove this month's campaigns, keep Black Friday; 9-14 Nov is Java e Portokalltë on both shops, 15k each",
+            "manager@test", topic: ChatTopics.NewCampaign);
+
+        var entries = await _db.CampaignCalendar.ToListAsync();
+        Assert.Equal((CampaignStatus.Cancelled, CampaignStatus.Cancelled), (entries.Single(e => e.Id == laptops.Id).Status, entries.Single(e => e.Id == toys.Id).Status));
+        Assert.Equal(CampaignStatus.Planned, entries.Single(e => e.Id == blackFriday.Id).Status);              // not named: kept
+        Assert.All(await _db.CampaignBriefs.Where(b => b.CalendarId == laptops.Id || b.CalendarId == toys.Id).ToListAsync(),
+            b => Assert.Equal((BriefStatus.Rejected, "cancelled"), (b.Status, b.Limit)));
+        var mains = entries.Where(e => e.Name == "Java e Portokalltë 2026").OrderBy(e => e.LayerId).ToList();
+        Assert.Equal(new[] { 1, 4 }, mains.Select(e => e.LayerId));
+        Assert.All(mains, e => Assert.Equal(("main", "all", "manager@test in the chat (conversation 1)"), (e.Type, e.ScopeKind, e.GoalSetBy)));
+        Assert.Equal(2, _planned.Count);
+        Assert.All(await _db.CampaignBriefs.Where(b => _planned.Contains(b.Id)).ToListAsync(), b => Assert.Equal("calendar", b.Kind));
+        Assert.Equal(new[] { "user", "Nova", "code", "code" }, t.Added.Take(4).Select(m => m.From));       // the cancellations before the briefs
+        Assert.StartsWith("Laptopë: mini-campaign Nov 2026", t.Added[2].Text);
+        Assert.All(await _db.ChatMessages.ToListAsync(), m => Assert.Equal(ChatTopics.NewCampaign, m.Topic));  // two campaigns: the conversation stays
+    }
+
+    [Fact]
+    public async Task A_whole_shop_campaign_over_another_is_rejected_and_a_started_one_is_not_cancelled()
+    {
+        var laptops = await MiniAsync(4, "Laptopë: mini-campaign Nov 2026", new DateOnly(2026, 11, 10), new DateOnly(2026, 11, 12));
+        var running = await MiniAsync(4, "Already running", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 4));
+        Says("Briefed.", briefs: new[] { Main(4, "2026-11-09", "2026-11-14") }, cancel: new[] { running.Id });
+
+        var t = await Chat().AskAsync(null, "Java e Portokalltë 9-14 Nov on Gjirafa50, and stop the running one", "manager@test");
+
+        Assert.StartsWith("Not cancelled: Already running", t.Added[2].Text);
+        Assert.Contains("rejected (overlaps-campaign)", t.Added[3].Text);
+        Assert.Contains($"Overlaps 'Laptopë: mini-campaign Nov 2026' (#{laptops.Id}", t.Added[3].Text);
+        Assert.Empty(_planned);
+        Assert.Equal(2, await _db.CampaignCalendar.CountAsync());
+        Assert.Equal(CampaignStatus.Proposed, (await _db.CampaignCalendar.SingleAsync(c => c.Id == running.Id)).Status);
     }
 
     [Fact]

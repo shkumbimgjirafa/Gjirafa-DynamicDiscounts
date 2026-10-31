@@ -137,7 +137,8 @@ public class AgentActivity
     /// <summary>"Coming up": campaigns starting in the next three weeks with their plan, and the veto window for published ones.</summary>
     public async Task<IReadOnlyList<CampaignRow>> ComingUpAsync(DateOnly today)
     {
-        var entries = await _ai.CampaignCalendar.AsNoTracking().Where(c => c.StartDate >= today && c.StartDate <= today.AddDays(21)).OrderBy(c => c.StartDate).ToListAsync();
+        var entries = await _ai.CampaignCalendar.AsNoTracking().Where(c => c.StartDate >= today && c.StartDate <= today.AddDays(21) && c.Status != CampaignStatus.Cancelled)
+            .OrderBy(c => c.StartDate).ToListAsync();
         var rows = new List<CampaignRow>();
         foreach (var e in entries)
         {

@@ -79,10 +79,31 @@ public sealed class AgentChat
         var (a, callId) = answer.Value;
         var reply = await AddAsync(conversation, role == AgentRole.Alpha ? "Alpha" : "Nova", a.Reply, callId, added, ct);
         if (a.Rule is { } rule) await RuleAsync(conversation, rule, text, author, reply, added, ct);
-        if (role == AgentRole.Nova && a.Brief is { } brief)
+        // Cancellations first: a new campaign may take the days a cancelled one leaves.
+        if (role == AgentRole.Nova && a.Cancel is { Count: > 0 } cancel)
+            foreach (var id in cancel.Distinct().Take(10))
+            {
+                var (done, message) = await _planning.CancelAsync(id, author, ct);
+                await AddAsync(conversation, "code", done ? message : $"Not cancelled: {message}", null, added, ct);
+            }
+        if (role == AgentRole.Nova && a.Briefs is { Count: > 0 } briefs)
         {
-            if (ChatTopics.CalendarIdOf(_topic) is { } calendarId) await ReplanAsync(conversation, calendarId, brief, reply, added, author, ct);
-            else await BriefAsync(conversation, brief, reply, added, author, ct);
+            // About one campaign, a brief re-plans it; otherwise each brief (one per layer) is a new campaign.
+            if (ChatTopics.CalendarIdOf(_topic) is { } calendarId) await ReplanAsync(conversation, calendarId, briefs[0], reply, added, author, ct);
+            else
+            {
+                var created = new List<long>();
+                foreach (var b in briefs.Take(2))
+                    if (await BriefAsync(conversation, b, reply, added, author, ct) is { } id) created.Add(id);
+                if (_topic == ChatTopics.NewCampaign && created.Count == 1)
+                {
+                    // The Campaigns tab's "new campaign" conversation becomes that campaign's conversation (with two, one per
+                    // layer, it stays where it is: both are on the calendar).
+                    _topic = ChatTopics.Campaign(created[0]);
+                    foreach (var m in await _db.ChatMessages.Where(m => m.ConversationId == conversation && m.Topic == ChatTopics.NewCampaign).ToListAsync(ct)) m.Topic = _topic;
+                    await _db.SaveChangesAsync(ct);
+                }
+            }
         }
         if (role == AgentRole.Nova && a.Goal is { } goal) await GoalAsync(conversation, goal, text, author, reply, added, ct);
         return new ChatTurn(conversation, added, null);
@@ -98,7 +119,8 @@ public sealed class AgentChat
         var decisions = await _db.AgentDecisions.AsNoTracking().Where(d => d.CreatedUtc >= since && real.Contains(d.PassId) && d.Action != "keep").ToListAsync(ct);
         var batches = await _db.PublishBatches.AsNoTracking().Where(b => b.StartedUtc >= since).ToListAsync(ct);
         var calls = await _db.AiCallLog.AsNoTracking().Where(c => c.CalledAtUtc >= since).ToListAsync(ct);
-        var coming = await _db.CampaignCalendar.AsNoTracking().Where(c => c.StartDate >= today && c.StartDate <= today.AddDays(21)).OrderBy(c => c.StartDate).ToListAsync(ct);
+        var coming = await _db.CampaignCalendar.AsNoTracking().Where(c => c.StartDate >= today && c.StartDate <= today.AddDays(21) && c.Status != CampaignStatus.Cancelled)
+            .OrderBy(c => c.StartDate).ToListAsync(ct);
         var ledger = await _db.MoneyLedger.AsNoTracking().Where(m => m.Measured30Eur != null).ToListAsync(ct);
         var results = await _db.CampaignResults.AsNoTracking().Where(r => r.CreatedUtc >= since).ToListAsync(ct);
         var sb = new StringBuilder($"Weekly report, {today:ddd dd MMM yyyy} (written by code from the stored records; the last 7 days).\n");
@@ -142,7 +164,8 @@ public sealed class AgentChat
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var sb = new StringBuilder();
         sb.AppendLine($"You are {(role == AgentRole.Alpha ? "Alpha, the pricing agent" : "Nova, the campaign agent")}. Today is {today:yyyy-MM-dd} ({today.DayOfWeek}).");
-        sb.AppendLine($"Campaign limits code enforces: starts on or after {today.AddDays(_options.Campaigns.LeadDays):yyyy-MM-dd}; a mini-campaign runs {_options.Campaigns.MinDays}-{_options.Campaigns.MaxMiniDays} days; " +
+        sb.AppendLine($"Campaign limits code enforces: starts on or after {today.AddDays(_options.Campaigns.LeadDays):yyyy-MM-dd}; a mini-campaign runs {_options.Campaigns.MinDays}-{_options.Campaigns.MaxMiniDays} days " +
+                      $"on a category or a brand; a main campaign {_options.Campaigns.MinDays}-{_options.Campaigns.MaxMainDays} days, sharing no day with another campaign on its layer; " +
                       $"depth at most {_options.Campaigns.MaxDepthPct:0.#}%.");
         sb.AppendLine("Active rules: " + (rules.Count == 0 ? "none." : string.Join("; ", rules.Select(r => $"#{r.Id} {r.Kind} {r.Value} {r.FromDate:yyyy-MM-dd}..{r.ToDate:yyyy-MM-dd}{(r.LayerId is { } l ? $" layer {l}" : "")}"))));
         sb.Append(await Goals.BlockAsync(_db, today, null, ct));
@@ -154,8 +177,8 @@ public sealed class AgentChat
         sb.AppendLine("The conversation so far (oldest first):");
         foreach (var m in history) sb.AppendLine($"[{m.From}] {m.Text}");
         sb.AppendLine();
-        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha, brief, rule and goal null.");
-        else if (role == AgentRole.Alpha) sb.AppendLine("Answer the person's last message in `reply`. You don't write briefs or record goals and don't ask Alpha: brief, goal and askAlpha stay null.");
+        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha, rule and goal null and briefs and cancel empty.");
+        else if (role == AgentRole.Alpha) sb.AppendLine("Answer the person's last message in `reply`. You don't write briefs, cancel campaigns or record goals and don't ask Alpha: goal and askAlpha stay null, briefs and cancel empty.");
         else sb.AppendLine(noMoreAlpha ? "Alpha has answered above. Answer the person's last message now; askAlpha stays null." : "Answer the person's last message.");
 
         var call = await _client.CallAsync(new AgentCallRequest(role, $"chat {conversation}", sb.ToString(), Path.Combine(PromptsDirectory, "chat-rules.md"))
@@ -168,7 +191,7 @@ public sealed class AgentChat
         }, ct);
         var answer = call.Succeeded ? call.Deserialize<ChatAnswer>(Json) : null;
         if (answer is null || string.IsNullOrWhiteSpace(answer.Reply)) return null;
-        if (role == AgentRole.Alpha || handedQuestion is not null) answer = answer with { AskAlpha = null, Brief = null, Goal = null };
+        if (role == AgentRole.Alpha || handedQuestion is not null) answer = answer with { AskAlpha = null, Briefs = null, Goal = null, Cancel = null };
         if (noMoreAlpha) answer = answer with { AskAlpha = null };
         return (answer, call.CallLogIds.Count > 0 ? call.CallLogIds[^1] : null);
     }
@@ -253,10 +276,14 @@ public sealed class AgentChat
         if (past.Count > 0)
             sb.AppendLine("- The same campaign before: " + string.Join("; ", past.Select(c => $"#{c.Id} {c.Name} {c.StartDate:yyyy-MM-dd}..{c.EndDate:yyyy-MM-dd}" +
                                                                                          (c.Representative ? "" : " (not representative)") + (c.Context is null ? "" : $": {c.Context}"))));
-        sb.AppendLine(e.StartDate >= today.AddDays(_options.Campaigns.LeadDays)
+        sb.AppendLine(e.Status == CampaignStatus.Cancelled
+            ? "It is cancelled: code doesn't plan it again. To run it after all, the person asks for a new campaign (with no campaign picked)."
+            : e.StartDate >= today.AddDays(_options.Campaigns.LeadDays)
             ? $"A `brief` in this conversation re-plans THIS campaign: code keeps its layer, name and calendar window ({e.StartDate:yyyy-MM-dd}..{e.EndDate:yyyy-MM-dd}); " +
               "the planning loop runs again, and an accepted plan replaces the one published before."
             : $"It starts within {_options.Campaigns.LeadDays} days, is live or is over: code no longer re-plans it, so don't return a `brief` for it.");
+        if (e.Status != CampaignStatus.Cancelled && e.StartDate > today)
+            sb.AppendLine($"If the person asks to drop it, return its id ({e.Id}) in `cancel`: code takes it off the calendar and rolls back anything published.");
         return sb.ToString();
     }
 
@@ -397,8 +424,11 @@ public sealed class AgentChat
         await AddAsync(conversation, "code", $"No rule recorded: {problem}", null, added, ct);
     }
 
-    private async Task BriefAsync(long conversation, ChatBriefDto b, ChatMessage reply, List<ChatMessage> added, string author, CancellationToken ct)
+    /// <summary>A new campaign the person asked for: a mini-campaign (a category or a brand, a few days) or a main one (the whole
+    /// shop, asked for by a person), judged by the limits, put on the calendar and planned. Returns its calendar id.</summary>
+    private async Task<long?> BriefAsync(long conversation, ChatBriefDto b, ChatMessage reply, List<ChatMessage> added, string author, CancellationToken ct)
     {
+        var main = b.Kind == "main";
         var now = _clock.GetUtcNow().UtcDateTime;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var pass = new AgentPass { LayerId = b.Layer, Source = CampaignAgent.Source, Mode = "Chat", StartedUtc = now, FinishedUtc = now, Status = "Succeeded",
@@ -407,7 +437,7 @@ public sealed class AgentChat
         await _db.SaveChangesAsync(ct);
         var brief = new CampaignBrief
         {
-            PassId = pass.Id, LayerId = b.Layer, Name = b.Name.Length > 200 ? b.Name[..200] : b.Name, Kind = "mini", ScopeKind = b.ScopeKind,
+            PassId = pass.Id, LayerId = b.Layer, Name = b.Name.Length > 200 ? b.Name[..200] : b.Name, Kind = main ? "calendar" : "mini", ScopeKind = b.ScopeKind,
             ScopeValue = b.ScopeKind == "all" ? null : b.ScopeValue?.Trim(), GoalType = b.GoalType, GoalValue = b.GoalValue, MinMarginPct = b.MinMarginPct,
             MaxDepthPct = b.MaxDepthPct, Rationale = b.Rationale.Length > 2000 ? b.Rationale[..2000] : b.Rationale, Exclusions = "[]", CreatedUtc = now,
         };
@@ -418,12 +448,12 @@ public sealed class AgentChat
             (brief.Status, brief.Limit, brief.LimitDetail) = (BriefStatus.Rejected, "malformed", $"Dates '{b.StartDate}'..'{b.EndDate}' aren't yyyy-MM-dd.");
             await _db.SaveChangesAsync(ct);
             await AddAsync(conversation, "code", $"Brief #{brief.Id} rejected: {brief.LimitDetail}", null, added, ct);
-            return;
+            return null;
         }
         (brief.StartDate, brief.EndDate) = (start, end);
         var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == b.Layer).ToListAsync(ct);
         var holdouts = _options.Limits.Holdouts.TryGetValue(b.Layer.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
-        var verdict = CampaignLimits.Evaluate(new BriefInput("mini", null, brief.ScopeKind, brief.ScopeValue, start, end, b.GoalType, b.GoalValue, b.MinMarginPct, b.MaxDepthPct),
+        var verdict = CampaignLimits.Evaluate(new BriefInput(main ? "main" : "mini", null, brief.ScopeKind, brief.ScopeValue, start, end, b.GoalType, b.GoalValue, b.MinMarginPct, b.MaxDepthPct),
             b.Layer, today, calendar, c => holdouts.Contains(c, StringComparer.OrdinalIgnoreCase), _options.Campaigns);
         (brief.Status, brief.MaxDepthPct, brief.Limit, brief.LimitDetail) = (verdict.Status, verdict.MaxDepthPct, verdict.Limit, verdict.Detail);
         await _db.SaveChangesAsync(ct);
@@ -431,12 +461,13 @@ public sealed class AgentChat
         if (brief.Status != BriefStatus.Proposed)
         {
             await _db.SaveChangesAsync(ct);
-            await AddAsync(conversation, "code", $"Brief #{brief.Id} {brief.Status}{(brief.Limit is null ? "" : $" ({brief.Limit})")}: {brief.LimitDetail}", null, added, ct);
-            return;
+            await AddAsync(conversation, "code", $"Brief #{brief.Id} ({brief.Name}, layer {b.Layer}) {brief.Status}{(brief.Limit is null ? "" : $" ({brief.Limit})")}: {brief.LimitDetail}",
+                null, added, ct);
+            return null;
         }
         var entry = new CampaignCalendarEntry
         {
-            LayerId = b.Layer, Name = brief.Name, StartDate = start, EndDate = end, Type = "mini", ScopeKind = brief.ScopeKind, ScopeValue = brief.ScopeValue,
+            LayerId = b.Layer, Name = brief.Name, StartDate = start, EndDate = end, Type = main ? "main" : "mini", ScopeKind = brief.ScopeKind, ScopeValue = brief.ScopeValue,
             GoalType = brief.GoalType, GoalValue = brief.GoalValue, Status = CampaignStatus.Proposed, CreatedBy = CampaignAgent.Source, CreatedUtc = now,
             Notes = $"From the chat, conversation {conversation}.",
             // A person asked for this campaign in the chat, so its goal is theirs: binding, like a goal set on the calendar
@@ -446,14 +477,9 @@ public sealed class AgentChat
         _db.CampaignCalendar.Add(entry);
         await _db.SaveChangesAsync(ct);
         brief.CalendarId = entry.Id;
-        if (_topic == ChatTopics.NewCampaign)
-        {
-            // The Campaigns tab's "new campaign" conversation becomes this campaign's conversation.
-            _topic = ChatTopics.Campaign(entry.Id);
-            foreach (var m in await _db.ChatMessages.Where(m => m.ConversationId == conversation && m.Topic == ChatTopics.NewCampaign).ToListAsync(ct)) m.Topic = _topic;
-        }
         await _db.SaveChangesAsync(ct);
-        await AddAsync(conversation, "code", $"Brief #{brief.Id} passes the campaign limits{(brief.LimitDetail is null ? "" : $" ({brief.LimitDetail})")}; the pricing agent is planning it.", null, added, ct);
+        await AddAsync(conversation, "code", $"Brief #{brief.Id} passes the campaign limits{(brief.LimitDetail is null ? "" : $" ({brief.LimitDetail})")}: {entry.Name} " +
+                                             $"(#{entry.Id}, layer {entry.LayerId}, {entry.Type}) is on the calendar; the pricing agent is planning it.", null, added, ct);
 
         var plan = await (PlanSource ?? ((id, c) => _planning.PlanAsync(id, publish: true, c)))(brief.Id, ct);
         var final = plan.Final;
@@ -463,6 +489,7 @@ public sealed class AgentChat
               $"margin {final.ExpectedMarginPct:0.0}% (estimated). {final.Feasibility} Status: {final.Status}" +
               (final.Status == PlanStatus.Published ? $"; publishes {start:ddd dd MMM}, and a person can stop it on the Campaigns tab until then." : "."),
             null, added, ct);
+        return entry.Id;
     }
 
     private async Task<string> FailAsync(long conversation, AgentRole role, List<ChatMessage> added, CancellationToken ct)
@@ -494,12 +521,13 @@ public sealed class AgentChat
         return m;
     }
 
-    private sealed record ChatAnswer(string Reply, string? AskAlpha, ChatBriefDto? Brief, ChatRuleDto? Rule, ChatGoalDto? Goal = null);
+    private sealed record ChatAnswer(string Reply, string? AskAlpha, IReadOnlyList<ChatBriefDto>? Briefs, ChatRuleDto? Rule, ChatGoalDto? Goal = null,
+        IReadOnlyList<long>? Cancel = null);
 
     private sealed record ChatGoalDto(int Layer, string Period, string Start, string Kind, decimal Value);
 
     private sealed record ChatBriefDto(int Layer, string Name, string ScopeKind, string? ScopeValue, string StartDate, string EndDate, string GoalType,
-        decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct, string Rationale);
+        decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct, string Rationale, string? Kind = null);
 
     private sealed record ChatRuleDto(int? Layer, string Kind, string Value, string FromDate, string ToDate);
 }

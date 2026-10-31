@@ -159,6 +159,16 @@ Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
   planning). The Chat tab no longer shows these conversations. Checked on :5058 with one real turn on GjirafaMall's Black
   Friday ($0.12, 15 s, `ai.AiCallLog` #10069): Nova explained the €8,271 gap to the €57,456 goal from the record and did
   not re-plan. Not checked live: a re-plan from the tab (it plans and publishes to the sandbox; tests cover it).
+- **Cancel campaigns, and whole-shop campaigns from the chat (31 Oct, from the user's first conversation on the tab).** Nova
+  had told the user to remove two November mini-campaigns "on the Campaigns tab", which had no way to, and the chat could
+  only brief one mini-campaign (a category or a brand) per answer. Now: calendar status `cancelled` (kept, never deleted;
+  the history sync and the weekly pass leave it alone; limits ignore it); `CampaignPlanning.CancelAsync` (before the start
+  only: briefs closed, plans stopped, a publish still on the shelf rolled back); a "Cancel this campaign" link on the card
+  (Manager, audited) and Nova's `cancel` (ids, handled before any brief, so a new campaign can take the days). Nova's
+  `briefs` holds one brief per layer (a campaign on both shops in one answer), kind `mini` or `main`: a main campaign a
+  person asks for covers the whole shop for 2–14 days and shares no day with another campaign on its layer. Not done:
+  nothing was cancelled or created live; the user's next message to Nova decides (the goals for Java e Portokalltë are
+  theirs).
 
 ## Verification
 

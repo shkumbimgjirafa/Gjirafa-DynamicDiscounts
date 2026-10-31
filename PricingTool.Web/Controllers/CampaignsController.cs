@@ -68,7 +68,9 @@ public class CampaignsController : Controller
             var batch = plan?.PublishBatchId is { } id ? batches.GetValueOrDefault(id) : null;
             return new CampaignRow(e, brief, plan, batch, results.GetValueOrDefault(e.Id));
         }
-        var rows = entries.Select(Row).ToList();
+        var all = entries.Select(Row).ToList();
+        // A cancelled campaign is off the calendar: listed under "Cancelled", never drawn.
+        var rows = all.Where(r => r.Entry.Status != CampaignStatus.Cancelled).ToList();
 
         // Each week of the calendar: the campaigns on it as bars, each on the first lane free from its first day in the week.
         var weeks = new List<CalendarWeek>();
@@ -89,7 +91,7 @@ public class CampaignsController : Controller
             weeks.Add(new CalendarWeek(monday, bars));
         }
 
-        var selected = id is { } sid ? rows.FirstOrDefault(r => r.Entry.Id == sid) : null;
+        var selected = id is { } sid ? all.FirstOrDefault(r => r.Entry.Id == sid) : null;
         if (id is not null && selected is null) TempData["Error"] = $"Campaign #{id} isn't on the calendar.";
         var topic = selected is null ? ChatTopics.NewCampaign : ChatTopics.Campaign(selected.Entry.Id);
         var conversation = await _ai.ChatMessages.Where(m => m.Topic == topic).MaxAsync(m => (long?)m.ConversationId);
@@ -108,6 +110,7 @@ public class CampaignsController : Controller
             Live = rows.Where(r => r.Entry.StartDate <= today && r.Entry.EndDate >= today).ToList(),
             ComingUp = rows.Where(r => r.Entry.StartDate > today).ToList(),
             Done = rows.Where(r => r.Entry.EndDate < today && r.Entry.EndDate >= today.AddDays(-DoneDays)).OrderByDescending(r => r.Entry.StartDate).ToList(),
+            Cancelled = all.Where(r => r.Entry.Status == CampaignStatus.Cancelled && r.Entry.EndDate >= today.AddDays(-DoneDays)).OrderByDescending(r => r.Entry.StartDate).ToList(),
             LayerNames = await _db.Layers.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.DisplayName),
             Selected = selected,
             PlanningThread = planningThread,
@@ -165,6 +168,30 @@ public class CampaignsController : Controller
             Result = await _ai.CampaignResults.AsNoTracking().Where(r => r.CalendarId == id).OrderByDescending(r => r.Id).FirstOrDefaultAsync(),
             PastWindows = past,
         });
+    }
+
+    /// <summary>A person takes a campaign off the calendar before it starts: kept as cancelled, its briefs closed, its plans
+    /// stopped, and a publish still on the shelf rolled back. Audited.</summary>
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Cancel(long id, [FromServices] CampaignPlanning planning)
+    {
+        var (done, message) = await planning.CancelAsync(id, Who);
+        if (!done)
+        {
+            TempData["Error"] = message;
+            return RedirectToAction(nameof(Index), new { id });
+        }
+        var entry = await _ai.CampaignCalendar.AsNoTracking().SingleAsync(c => c.Id == id);
+        _db.AuditLog.Add(new PricingTool.Data.Entities.AuditLogEntry
+        {
+            LayerId = entry.LayerId, TimestampUtc = DateTime.UtcNow, UserName = Who, Category = AgentModeStore.AuditCategory, Action = "Campaign cancelled",
+            EntityType = nameof(CampaignCalendarEntry), EntityId = id.ToString(), OldValue = entry.Name, NewValue = CampaignStatus.Cancelled,
+        });
+        await _db.SaveChangesAsync();
+        TempData["Message"] = message;
+        return RedirectToAction(nameof(Index));
     }
 
     /// <summary>The veto: a campaign published ahead of its start is stopped before it goes live (its publish rolled back).</summary>

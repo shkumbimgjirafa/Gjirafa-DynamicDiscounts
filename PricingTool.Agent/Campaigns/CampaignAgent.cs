@@ -70,7 +70,7 @@ public sealed class CampaignAgent
     public async Task<string> PreviewPromptAsync(int layerId, CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
-        var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId).OrderBy(c => c.StartDate).ToListAsync(ct);
+        var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId && c.Status != CampaignStatus.Cancelled).OrderBy(c => c.StartDate).ToListAsync(ct);
         return BuildPrompt(layerId, today, calendar, new Dictionary<long, string>(), await (InputSource ?? DataBlockAsync)(layerId, today, ct),
             await new LessonBook(_db, _clock).NovaBlockAsync(layerId, ct) + Environment.NewLine + await Operations.Goals.BlockAsync(_db, today, layerId, ct));
     }
@@ -92,7 +92,8 @@ public sealed class CampaignAgent
         _db.AgentPasses.Add(pass);
         await _db.SaveChangesAsync(ct);
 
-        var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId).OrderBy(c => c.StartDate).ToListAsync(ct);
+        // A campaign a person cancelled is off the calendar: never briefed again.
+        var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == layerId && c.Status != CampaignStatus.Cancelled).OrderBy(c => c.StartDate).ToListAsync(ct);
         var toReview = calendar.Where(c => c.Status == CampaignStatus.Done && c.EndDate >= today.AddDays(-ReviewDays)
                                            && !_db.CampaignResults.Any(r => r.CalendarId == c.Id)).ToList();
         var measured = new Dictionary<long, string>();

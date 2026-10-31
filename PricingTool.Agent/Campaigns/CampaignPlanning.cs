@@ -226,6 +226,49 @@ public sealed class CampaignPlanning
     }
 
     /// <summary>
+    /// A person cancels a campaign before it starts (on the Campaigns tab, or by asking Nova): it stays on record as cancelled,
+    /// its open briefs are closed, its plans stopped, and a publish still on the shelf is rolled back, so nothing of it goes
+    /// live. A campaign that has started isn't cancelled here: its discounts end on their date. Returns what happened, in words.
+    /// </summary>
+    public async Task<(bool Cancelled, string Message)> CancelAsync(long calendarId, string by, CancellationToken ct = default)
+    {
+        var entry = await _db.CampaignCalendar.SingleOrDefaultAsync(c => c.Id == calendarId, ct);
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        if (entry is null) return (false, $"Campaign #{calendarId} isn't on the calendar.");
+        if (entry.Status == CampaignStatus.Cancelled) return (false, $"{entry.Name} (#{entry.Id}) is already cancelled.");
+        if (entry.StartDate <= today)
+            return (false, $"{entry.Name} (#{entry.Id}) started on {entry.StartDate:ddd dd MMM}: a campaign that has started isn't cancelled; its discounts end on its last day.");
+        var briefs = await _db.CampaignBriefs.Where(b => b.CalendarId == calendarId && !b.IsTest).ToListAsync(ct);
+        var briefIds = briefs.Select(b => b.Id).ToList();
+        var plans = await _db.CampaignPlans.Where(p => briefIds.Contains(p.BriefId) && !p.IsTest).ToListAsync(ct);
+        var rolledBack = new List<string>();
+        foreach (var p in plans.Where(p => p.Status == PlanStatus.Published && p.PublishBatchId != null))
+        {
+            var batch = await _db.PublishBatches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == p.PublishBatchId, ct);
+            if (batch is null || batch.RolledBackUtc is not null) continue;
+            if (_publisher is null) return (false, $"{entry.Name}: publish batch #{batch.Id} is on the shelf and no publisher is configured here to roll it back; nothing changed.");
+            var restored = await _publisher.RollbackAsync(batch.Id, ct);
+            rolledBack.Add($"batch #{batch.Id} rolled back ({restored:N0} rows restored)");
+        }
+        var now = _clock.GetUtcNow().UtcDateTime;
+        foreach (var p in plans.Where(p => p.Status is PlanStatus.Proposed or PlanStatus.Accepted or PlanStatus.Held or PlanStatus.Published))
+            (p.Status, p.WaitsForPerson) = (PlanStatus.Stopped, false);
+        foreach (var b in briefs.Where(b => b.Status is BriefStatus.Proposed or BriefStatus.Held))
+            (b.Status, b.Limit, b.LimitDetail) = (BriefStatus.Rejected, "cancelled", $"The campaign was cancelled by {by}.");
+        entry.Status = CampaignStatus.Cancelled;
+        var note = $"Cancelled by {by} on {_clock.GetLocalNow():yyyy-MM-dd}.";
+        entry.Notes = string.IsNullOrWhiteSpace(entry.Notes) ? note : $"{entry.Notes} {note}";
+        if (entry.Notes.Length > 2000) entry.Notes = entry.Notes[^2000..];
+        var message = $"{entry.Name} (#{entry.Id}, {entry.StartDate:dd MMM}–{entry.EndDate:dd MMM}) cancelled by {by}: " +
+                      (rolledBack.Count > 0 ? string.Join("; ", rolledBack) + "." : "nothing of it was published.");
+        if (briefs.OrderByDescending(b => b.Id).FirstOrDefault() is { } latest)
+            _db.CampaignMessages.Add(new CampaignMessage { BriefId = latest.Id, Round = 0, From = by.Length > 40 ? by[..40] : by, Text = message, CreatedUtc = now });
+        await _db.SaveChangesAsync(CancellationToken.None);
+        _logger.LogInformation("Campaign {Calendar} cancelled by {By}", calendarId, by);
+        return (true, message);
+    }
+
+    /// <summary>
     /// A person approves a plan waiting for them: a held one (e.g. short of the goal they set) is accepted and, when asked,
     /// published; one that went ahead as a stretch is marked approved.
     /// </summary>

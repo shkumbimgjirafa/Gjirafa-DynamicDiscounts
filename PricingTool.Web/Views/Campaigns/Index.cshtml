@@ -16,16 +16,17 @@
     string StateWord(string state) => state switch
     {
         "done" => "over", "live" => "live", "published" => "published", "waits" => "waits for you", "stopped" => "stopped",
-        "accepted" => "accepted", "briefed" => "briefed", _ => "no brief",
+        "accepted" => "accepted", "briefed" => "briefed", "cancelled" => "cancelled", _ => "no brief",
     };
     string StateBadge(string state) => state switch
     {
-        "live" or "published" => "bg-success", "waits" => "bg-warning text-dark", "done" or "stopped" => "bg-secondary", _ => "bg-light text-dark border",
+        "live" or "published" => "bg-success", "waits" => "bg-warning text-dark", "done" or "stopped" or "cancelled" => "bg-secondary", _ => "bg-light text-dark border",
     };
     string[] prompts = sel is null
         ? new[] { "Plan a 3-day laptops campaign next week on Gjirafa50, €4k profit", "Which mini-campaign would you suggest for the next two weeks?" }
         : sel.State(today) switch
         {
+            "cancelled" => new[] { "Why might we run it after all?" },
             "done" => new[] { "What did we learn from it?", "Did it beat the holdout?" },
             "published" or "live" => new[] { "What does it do to margin?", "Which categories carry it?", "How does it compare with last year?" },
             _ when sel.Plan is { Feasible: false } || sel.Waits => new[] { "Why is it short of the goal?", "What would it take to reach the goal?", "What if we go 5 points deeper?" },
@@ -81,8 +82,9 @@
             }
         </div>
 
-        @foreach (var (title, rows) in new[] { ("Live", Model.Live), ("Coming up", Model.ComingUp), ("Done (last 120 days)", Model.Done) })
+        @foreach (var (title, rows) in new[] { ("Live", Model.Live), ("Coming up", Model.ComingUp), ("Done (last 120 days)", Model.Done), ("Cancelled", Model.Cancelled) })
         {
+            if (title == "Cancelled" && rows.Count == 0) { continue; }
             <h2 class="h6 mt-3 mb-1">@title (@rows.Count)</h2>
             <table class="table table-sm table-hover align-middle small mb-1">
                 <tbody>
@@ -162,6 +164,14 @@
                                 </form>
                             }
                         </div>
+                    }
+                    @if (isManager && sel.CanCancel(today))
+                    {
+                        <form method="post" asp-action="Cancel" class="mb-2"
+                              onsubmit="return confirm('Take @e.Name (@e.StartDate.ToString("dd MMM")–@e.EndDate.ToString("dd MMM"), @CampaignsViewModel.LayerShort(e.LayerId)) off the calendar? @(sel.CanStop(today) ? "Its publish is rolled back. " : "")It stays on record as cancelled.');">
+                            <input type="hidden" name="id" value="@e.Id" />
+                            <button type="submit" class="btn btn-sm btn-link text-danger p-0">Cancel this campaign</button>
+                        </form>
                     }
                     @if (sel.Result is { } result)
                     {

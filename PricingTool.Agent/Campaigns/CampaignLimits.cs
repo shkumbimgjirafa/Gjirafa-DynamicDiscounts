@@ -19,6 +19,9 @@ public class CampaignLimitOptions
     public int MinDays { get; set; } = 2;
     public int MaxMiniDays { get; set; } = 10;
 
+    /// <summary>The longest main (whole-shop) campaign a person can put on the calendar from the chat.</summary>
+    public int MaxMainDays { get; set; } = 14;
+
     /// <summary>A campaign starts at least this many days after the brief (time to plan, publish and veto).</summary>
     public int LeadDays { get; set; } = 3;
 
@@ -36,8 +39,9 @@ public sealed record BriefVerdict(string Status, decimal MaxDepthPct, string? Li
 
 /// <summary>
 /// Code, not prompt: what a campaign brief may ask for. Hard rules reject (dates outside the calendar entry, a mini
-/// over a main campaign, a holdout category, malformed goals); a cap a person may lift holds (too many mini-campaigns at
-/// once); the depth cap is applied by clamping, never by trusting the brief.
+/// over a main campaign, a new main campaign over another campaign, a holdout category, malformed goals); a cap a person
+/// may lift holds (too many mini-campaigns at once); the depth cap is applied by clamping, never by trusting the brief.
+/// Cancelled campaigns don't count.
 /// </summary>
 public static class CampaignLimits
 {
@@ -74,6 +78,8 @@ public static class CampaignLimits
                 return Reject("unknown-campaign", $"Calendar entry {b.CalendarId} isn't a campaign on layer {layerId}.");
             if (entry.Status is CampaignStatus.Done)
                 return Reject("campaign-over", $"'{entry.Name}' is over.");
+            if (entry.Status is CampaignStatus.Cancelled)
+                return Reject("cancelled", $"'{entry.Name}' was cancelled.");
             if (b.Start < entry.StartDate || b.End > entry.EndDate)
                 return Reject("outside-calendar", $"{b.Start:yyyy-MM-dd}..{b.End:yyyy-MM-dd} is outside '{entry.Name}' ({entry.StartDate:yyyy-MM-dd}..{entry.EndDate:yyyy-MM-dd}).");
         }
@@ -84,7 +90,7 @@ public static class CampaignLimits
                 return Reject("duration", $"{days} days; a mini-campaign runs {o.MinDays}-{o.MaxMiniDays} days.");
             if (b.ScopeKind == "all")
                 return Reject("scope", "A mini-campaign is for a category or a brand, not the whole shop.");
-            var main = calendar.FirstOrDefault(c => c.LayerId == layerId && c.Type == "main" && c.Status != CampaignStatus.Done
+            var main = calendar.FirstOrDefault(c => c.LayerId == layerId && c.Type == "main" && c.Status is not (CampaignStatus.Done or CampaignStatus.Cancelled)
                                                     && c.StartDate <= b.End && c.EndDate >= b.Start);
             if (main is not null)
                 return Reject("overlaps-main", $"Overlaps '{main.Name}' ({main.StartDate:yyyy-MM-dd}..{main.EndDate:yyyy-MM-dd}): a main campaign has the shop's attention.");
@@ -94,8 +100,20 @@ public static class CampaignLimits
                 return new BriefVerdict(BriefStatus.Held, depth, "max-concurrent",
                     $"{minis} mini-campaigns already run in those days (cap {o.MaxConcurrentMiniPerLayer} per layer): a person may allow one more.");
         }
+        else if (b.Kind == "main")
+        {
+            // A new main campaign, asked for by a person in the chat: the whole shop's attention for its days.
+            var days = b.End.DayNumber - b.Start.DayNumber + 1;
+            if (days < o.MinDays || days > o.MaxMainDays)
+                return Reject("duration", $"{days} days; a main campaign put on the calendar from the chat runs {o.MinDays}-{o.MaxMainDays} days.");
+            var other = calendar.FirstOrDefault(c => c.LayerId == layerId && c.Status is not (CampaignStatus.Done or CampaignStatus.Cancelled)
+                                                     && c.StartDate <= b.End && c.EndDate >= b.Start);
+            if (other is not null)
+                return Reject("overlaps-campaign", $"Overlaps '{other.Name}' (#{other.Id}, {other.StartDate:yyyy-MM-dd}..{other.EndDate:yyyy-MM-dd}, {other.Type}): " +
+                                                   "cancel it or move the dates first.");
+        }
         else
-            return Reject("malformed", $"Kind '{b.Kind}' must be calendar or mini.");
+            return Reject("malformed", $"Kind '{b.Kind}' must be calendar, mini or main.");
 
         return depth < b.MaxDepthPct
             ? new BriefVerdict(BriefStatus.Proposed, depth, "max-depth", $"Max depth {b.MaxDepthPct}% capped at {o.MaxDepthPct}%.")

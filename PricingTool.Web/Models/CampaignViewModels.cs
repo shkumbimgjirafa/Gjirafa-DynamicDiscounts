@@ -8,15 +8,19 @@ public sealed record CampaignRow(CampaignCalendarEntry Entry, CampaignBrief? Bri
     /// <summary>Published to the shop (sandbox in the hackathon), not rolled back, and not live yet: the veto window.</summary>
     public bool CanStop(DateOnly today) => Plan?.Status == PlanStatus.Published && Batch is { RolledBackUtc: null } && Entry.StartDate > today;
 
+    /// <summary>Not started and not cancelled: a person can take it off the calendar (anything published is rolled back).</summary>
+    public bool CanCancel(DateOnly today) => Entry.Status != CampaignStatus.Cancelled && Entry.StartDate > today;
+
     /// <summary>A plan that waits for a person: held (short of a goal a person set, or not accepted after two rounds), or a stretch.</summary>
     public bool Waits => Plan is { } p && (p.Status == PlanStatus.Held || p.WaitsForPerson);
 
     /// <summary>A plan a person approved where nothing published it (the web app before 31 Oct): publishing it is one click.</summary>
     public bool CanPublish => Plan is { Status: PlanStatus.Accepted, PublishBatchId: null, WaitsForPerson: false, ReviewedBy: not null };
 
-    /// <summary>Where the campaign stands, one word for the calendar's colours: done, live, published, waits, stopped, accepted, briefed or new.</summary>
+    /// <summary>Where the campaign stands, one word for the calendar's colours: cancelled, done, live, published, waits, stopped, accepted, briefed or new.</summary>
     public string State(DateOnly today) =>
-        Entry.EndDate < today ? "done"
+        Entry.Status == CampaignStatus.Cancelled ? "cancelled"
+        : Entry.EndDate < today ? "done"
         : Plan?.Status == PlanStatus.Published && Batch is { RolledBackUtc: null } ? (Entry.StartDate <= today ? "live" : "published")
         : Waits ? "waits"
         : Plan?.Status == PlanStatus.Stopped || Plan?.Status == PlanStatus.Published && Batch?.RolledBackUtc is not null ? "stopped"
@@ -26,6 +30,7 @@ public sealed record CampaignRow(CampaignCalendarEntry Entry, CampaignBrief? Bri
     /// <summary>The same, in a sentence for the campaign's card.</summary>
     public string StateText(DateOnly today) => State(today) switch
     {
+        "cancelled" => $"Cancelled: off the calendar, nothing of it is planned or published. {Entry.Notes}",
         "done" => Result is null ? "Over; no result measured yet." : $"Over; measured{(Result.Provisional ? " (provisional: late cancellations still post)" : "")}.",
         "live" => "Live now: its discounts are on the shelf (the sandbox).",
         "published" => $"Published to the sandbox: goes live {Entry.StartDate:ddd dd MMM}. You can stop it until then.",
@@ -62,6 +67,8 @@ public class CampaignsViewModel
     public IReadOnlyList<CampaignRow> Live { get; init; } = Array.Empty<CampaignRow>();
     public IReadOnlyList<CampaignRow> ComingUp { get; init; } = Array.Empty<CampaignRow>();
     public IReadOnlyList<CampaignRow> Done { get; init; } = Array.Empty<CampaignRow>();
+    /// <summary>Taken off the calendar by a person, the newest first: listed, not drawn.</summary>
+    public IReadOnlyList<CampaignRow> Cancelled { get; init; } = Array.Empty<CampaignRow>();
     public IReadOnlyDictionary<int, string> LayerNames { get; init; } = new Dictionary<int, string>();
 
     /// <summary>The campaign picked on the calendar, if any.</summary>
