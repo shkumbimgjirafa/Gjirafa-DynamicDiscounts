@@ -11,7 +11,8 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["kind", "layer", "name", "scopeKind", "scopeValue", "startDate", "endDate", "goalType", "goalValue", "minMarginPct", "maxDepthPct", "rationale"],
+        "required": ["kind", "layer", "name", "scopeKind", "scopeValue", "startDate", "endDate", "goalType", "goalValue", "minMarginPct", "maxDepthPct", "rationale",
+                     "noDepthCap", "everySkuInStock", "discountOptimizationOff"],
         "properties": {
           "kind": { "type": "string", "enum": ["mini", "main"] },
           "layer": { "type": "integer", "enum": [1, 4] },
@@ -24,7 +25,10 @@
           "goalValue": { "type": "number" },
           "minMarginPct": { "type": "number" },
           "maxDepthPct": { "type": "number" },
-          "rationale": { "type": "string" }
+          "rationale": { "type": "string" },
+          "noDepthCap": { "type": "boolean" },
+          "everySkuInStock": { "type": "boolean" },
+          "discountOptimizationOff": { "type": "boolean" }
         }
       }
     },

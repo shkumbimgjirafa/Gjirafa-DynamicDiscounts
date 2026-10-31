@@ -109,7 +109,11 @@ public sealed class CampaignPlanning
             .Where(r => r.ActiveOn(brief.StartDate, brief.EndDate)).ToList();
         var ruleMinMargin = rules.Where(r => r.Kind == ChatRuleKinds.MinCampaignMargin)
             .Select(r => decimal.TryParse(r.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : 0m).DefaultIfEmpty(0m).Max();
-        var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct, rules);
+        // A person's terms for this campaign (asked for in the chat): no depth cap, every SKU in stock, and a margin goal that is
+        // the campaign's effective margin, spent down to, not a floor to clear.
+        var depthCap = calendar?.DepthCapLiftedBy is null ? _options.Campaigns.MaxDepthPct : CampaignLimitOptions.LiftedMaxDepthPct;
+        var everyInStock = calendar?.EverySkuInStock == true;
+        var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct, rules, everyInStock);
         // The model sets the brief's minimum margin; code never lets it under the floor. Stored on the brief, so the cost watcher
         // judges the live campaign on the same value.
         var marginFloor = _options.Campaigns.MinMarginFloorPct;
@@ -124,6 +128,9 @@ public sealed class CampaignPlanning
         // A goal a person set for the campaign (on the calendar, or by asking for it in the chat) is binding: Nova can't change
         // it, and a plan short of it waits for a person.
         var personGoal = calendar?.GoalSetBy is { } setBy && calendar.GoalType == brief.GoalType ? setBy : null;
+        var toTarget = personGoal is not null && brief.GoalType == "margin";
+        var strategies = toTarget ? new[] { "spend-to-margin" } : CampaignPlanner.Strategies;
+        var maxSkus = everyInStock ? int.MaxValue : _options.Campaigns.MaxSkusPerCampaign;
         var days = brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1;
         // SKUs the plan doesn't price still sell during the campaign: GjirafaMall SKUs that take Gjirafa50's price, and on an
         // all-shop campaign the holdout categories. Their expected gross profit at today's price with the event lift counts
@@ -134,10 +141,10 @@ public sealed class CampaignPlanning
         for (var round = 1; round <= MaxRounds; round++)
         {
             var spec = new PlanSpec(brief.CalendarId ?? brief.Id, brief.EndDate.DayNumber - brief.StartDate.DayNumber + 1, brief.GoalType, brief.GoalValue,
-                Math.Max(brief.MinMarginPct, ruleMinMargin), Math.Min(brief.MaxDepthPct, _options.Campaigns.MaxDepthPct), layer.VatRatePct, eventLift ?? 1m,
+                Math.Max(toTarget ? brief.GoalValue : brief.MinMarginPct, ruleMinMargin), Math.Min(brief.MaxDepthPct, depthCap), layer.VatRatePct, eventLift ?? 1m,
                 ExcludedBrands(brief.Exclusions)) { GrossProfitOutsidePlan = followersGp, Calibration = calibration, InSampleCalibration = backtest?.InSampleCalibration,
-                SkuMarginFloorPct = marginFloor };
-            var results = CampaignPlanner.Strategies.Select(s => CampaignPlanner.Plan(s, spec, candidates, depth, bands, _options.Campaigns.MaxSkusPerCampaign, leftOutBefore)).ToList();
+                SkuMarginFloorPct = marginFloor, SpendToTarget = toTarget };
+            var results = strategies.Select(s => CampaignPlanner.Plan(s, spec, candidates, depth, bands, maxSkus, leftOutBefore)).ToList();
             var basis = $"{candidates.Count:N0} SKUs in scope with stock and normal-day sales ({today.AddDays(-42):yyyy-MM-dd}..{today.AddDays(-15):yyyy-MM-dd}, campaign days left out); " +
                         $"{liftNote}; extra depth: {(depth.B is { } b ? $"b = {b} within-campaign fit" : "no fit, no extra units from depth")}; estimated." +
                         (followers.Count > 0 ? $" Not priced by the plan: {followers.Count:N0} SKUs that take Gjirafa50's price or sit in a holdout category, expected gross profit " +
@@ -146,8 +153,13 @@ public sealed class CampaignPlanning
                             : $" No leave-one-out calibration for this case (fewer than {CampaignReplay.MinCampaigns} past campaigns of a type " +
                               $"{(eventLift is not null ? "with an event lift from another window" : "without one")})." +
                               (backtest?.InSampleCalibration is { } ins ? $" In-sample only: x{ins.Factor:0.00} (not leave-one-out; for comparison)." : "")) +
-                        liftCaveat;
-            await SayAsync(brief, null, round, "code", $"Round {round}: {CampaignPlanner.Strategies.Length} plans computed. {basis}\n{Describe(results, brief)}", null, ct);
+                        liftCaveat +
+                        (toTarget ? $" The goal is the campaign's effective margin, set by a person ({personGoal}): spent down to {spec.MinMarginPct:0.#}% (gross profit over net " +
+                                    "revenue), the most units per euro first; one plan." : "") +
+                        (calendar?.DepthCapLiftedBy is { } lifted ? $" Depth cap lifted by {lifted}: up to {depthCap:0}% where the margins allow; deeper than past campaigns " +
+                                                                     $"went ({depth.MaxDepthPct:0} points over normal), the estimate counts no extra units (conservative)." : "") +
+                        (everyInStock ? " Every SKU in stock, with no cap on how many; one with no sales in the six weeks is priced at the campaign's margin." : "");
+            await SayAsync(brief, null, round, "code", $"Round {round}: {results.Count} plan{(results.Count == 1 ? "" : "s")} computed. {basis}\n{Describe(results, brief)}", null, ct);
 
             var choice = await AskAlphaAsync(brief, results, basis, round, ct);
             if (choice is null)
@@ -203,7 +215,6 @@ public sealed class CampaignPlanning
                 await SayAsync(brief, plan.Id, round, "code", $"Minimum margin {adjusted.MinMargin:0.#}% raised to {marginFloor:0.#}%: no campaign SKU goes under the code floor.", null, ct);
                 adjusted = (adjusted.Goal, adjusted.MaxDepth, marginFloor);
             }
-            var depthCap = _options.Campaigns.MaxDepthPct;
             if (adjusted.MaxDepth > depthCap)
                 await SayAsync(brief, plan.Id, round, "code", $"Max depth {adjusted.MaxDepth:0.#}% capped at {depthCap:0.#}%.", null, ct);
             if (personGoal is not null && adjusted.Goal != brief.GoalValue)
@@ -354,9 +365,9 @@ public sealed class CampaignPlanning
     }
 
     private async Task<(List<CampaignCandidate>, Dictionary<string, int>, List<CampaignCandidate> Followers)> CandidatesAsync(CampaignBrief brief, int layerId,
-        bool isMall, DateOnly today, CancellationToken ct, IReadOnlyList<ChatRule>? rules = null)
+        bool isMall, DateOnly today, CancellationToken ct, IReadOnlyList<ChatRule>? rules = null, bool everyInStock = false)
     {
-        var all = await _candidates.LoadAsync(layerId, today.AddDays(-42), today.AddDays(-14), ct);
+        var all = await _candidates.LoadAsync(layerId, today.AddDays(-42), today.AddDays(-14), ct, everyInStock);
         var holdouts = _options.Limits.Holdouts.TryGetValue(layerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
         var leftOut = new Dictionary<string, int>();
         void Out(string why) => leftOut[why] = leftOut.GetValueOrDefault(why) + 1;
@@ -386,7 +397,7 @@ public sealed class CampaignPlanning
                 continue;
             }
             if (c.LocalStock <= 0 && c.SupplierStock <= 0) { Out("no stock"); continue; }
-            if (c.UnitsPerDay <= 0) { Out("no normal-day sales to plan on"); continue; }
+            if (c.UnitsPerDay <= 0 && !everyInStock) { Out("no normal-day sales to plan on"); continue; }
             keep.Add(c);
         }
         return (keep, leftOut, followers);
@@ -423,7 +434,7 @@ public sealed class CampaignPlanning
             scope {brief.ScopeKind} {brief.ScopeValue}, goal {brief.GoalType} {GoalText(brief)}, minimum margin {brief.MinMarginPct:0.#}%, maximum depth {brief.MaxDepthPct:0.#}%.
             Its rationale: {brief.Rationale}
 
-            Code computed {CampaignPlanner.Strategies.Length} plans ({basis}):
+            Code computed {results.Count} plan{(results.Count == 1 ? "" : "s")} ({basis}):
             {Describe(results, brief)}
             Choose one strategy and explain the choice to the campaign agent in three or four sentences: which goal it serves, whether the
             goal is reachable and if not what is, and what the plan gives up. Quote the figures above; don't compute new ones.

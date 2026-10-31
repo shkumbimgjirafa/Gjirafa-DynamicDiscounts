@@ -73,6 +73,10 @@ public static class CampaignMath
     public const int MinUnits = 10;
     public static readonly decimal[] DepthGrid = { 5, 10, 15, 20, 25 };
 
+    /// <summary>The grid for a campaign whose depth cap a person lifted: 5–90 % in steps of 5, still bounded per SKU by the
+    /// code margin floor and the campaign's own margin target.</summary>
+    public static readonly decimal[] WideDepthGrid = Enumerable.Range(1, 18).Select(i => 5m * i).ToArray();
+
     /// <summary>
     /// Units per day in the campaign against the 28 days before (raw uplift), divided by the same ratio a year earlier
     /// (the season factor) when both of last year's windows sold at least <see cref="MinUnits"/> units; otherwise the

@@ -126,6 +126,12 @@ public sealed class DailyCycle
             return (StepStatus.Succeeded, string.Join("; ", results.Select(r =>
                 r.Mode == "kept" ? $"{r.Table} kept ({r.Note})" : $"{r.Table} {r.Mode} {r.Rows:N0} rows, replica {r.ReplicaMs / 1000.0:0.0} s")));
         });
+        // Engine settings a person asked to change for a campaign's days (discount optimization off), before the engine runs.
+        yield return new Step("campaign-switches", async ct =>
+        {
+            var changed = await With((Campaigns.CampaignSwitches s) => s.ApplyAsync(day, ct));
+            return (StepStatus.Succeeded, changed.Length == 0 ? "nothing to change" : changed);
+        });
         foreach (var layer in c.Layers)
             yield return new Step($"engine-L{layer}", async ct =>
             {

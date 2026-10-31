@@ -177,6 +177,73 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public void A_persons_margin_target_is_spent_down_to_with_no_depth_cap_and_unsold_skus_priced_at_it()
+    {
+        var candidates = Enumerable.Range(0, 60).Select(i => C($"S{i}", 100m, 100m, 40m + i % 20, 1m + i % 3)).ToList();
+        candidates.Add(C("UNSOLD", 100m, 100m, 50m, perDay: 0m));
+        candidates.Add(C("THIN-UNSOLD", 100m, 100m, 90m, perDay: 0m));                               // 10 % today: under the target already
+        var spec = Spec(minMargin: 30m, maxDepth: CampaignLimitOptions.LiftedMaxDepthPct, goal: "margin", goalValue: 30m) with { SpendToTarget = true, SkuMarginFloorPct = 3m };
+
+        var r = CampaignPlanner.Plan("spend-to-margin", spec, candidates, Depth, NoRounding, int.MaxValue, new Dictionary<string, int>());
+
+        Assert.InRange(r.Totals.MarginPct, 30m, 31.5m);                                            // spent down to the target, not past it
+        Assert.Contains(r.Lines, l => l.DepthPct > 25m);                                            // no 25 % cap
+        Assert.Equal((71.42m, 0m), (r.Lines.Single(l => l.Sku == "UNSOLD").CampaignPrice!.Value, r.Lines.Single(l => l.Sku == "UNSOLD").ExpectedUnits));  // 50 / 0.70
+        Assert.Null(r.Lines.Single(l => l.Sku == "THIN-UNSOLD").CampaignPrice);
+        Assert.Contains("A 30.0% margin is reachable", r.Feasibility);
+    }
+
+    [Fact]
+    public void Under_its_target_today_a_campaign_only_takes_steps_that_raise_the_blend()
+    {
+        var candidates = Enumerable.Range(0, 20).Select(i => C($"THIN{i}", 100m, 100m, 95m, perDay: 5m))      // 5 % margin, most of the units
+            .Concat(Enumerable.Range(0, 20).Select(i => C($"RICH{i}", 100m, 100m, 50m, perDay: 1m))).ToList();     // 50 % margin
+        var spec = Spec(minMargin: 30m, maxDepth: 25m, goal: "margin", goalValue: 30m) with { SpendToTarget = true, SkuMarginFloorPct = 3m };
+        var today = 100m * (100m * 5 * 0.05m + 100m * 1 * 0.5m) * 20 / (20 * 100m * 6);              // 12.5 %
+
+        var r = CampaignPlanner.Plan("spend-to-margin", spec, candidates, Depth, NoRounding, int.MaxValue, new Dictionary<string, int>());
+
+        Assert.True(r.Totals.MarginPct > today);                                                    // the mix moved toward the rich SKUs
+        Assert.DoesNotContain(r.Lines, l => l.Sku.StartsWith("THIN") && l.CampaignPrice is not null);
+        Assert.Contains(r.Lines, l => l.Sku.StartsWith("RICH") && l.CampaignPrice is not null);
+        Assert.Equal(GoalVerdicts.NotReachable, r.GoalVerdict);                                      // 30 % stays out of reach: said, not hidden
+    }
+
+    [Fact]
+    public async Task Discount_optimization_is_off_on_the_campaigns_days_and_back_on_after()
+    {
+        var layer = new Layer { Brand = "GjirafaEcommerce", CountryCode = "KS", DisplayName = "Gjirafa50 — Kosovo", OperationalDatabase = "GjirafaEcommerce", StoreId = 2,
+            Currency = "EUR", VatRatePct = 18m, DiscountOptimizationEnabled = true };
+        _tool.Layers.Add(layer);
+        _tool.SaveChanges();
+        var entry = new CampaignCalendarEntry { LayerId = layer.Id, Name = "Java e Portokalltë 2026", Type = "main", StartDate = new DateOnly(2026, 11, 4),
+            EndDate = new DateOnly(2026, 11, 9), Status = CampaignStatus.Proposed, DiscountOptimizationOff = true, CreatedBy = "test" };
+        _db.CampaignCalendar.Add(entry);
+        await _db.SaveChangesAsync();
+        var switches = new CampaignSwitches(_db, _tool);
+
+        Assert.Equal("", await switches.ApplyAsync(new DateOnly(2026, 11, 3)));
+        Assert.Contains("discount optimization off for Java e Portokalltë 2026", await switches.ApplyAsync(new DateOnly(2026, 11, 4)));
+        Assert.False((await _tool.Layers.SingleAsync()).DiscountOptimizationEnabled);
+        Assert.NotNull(entry.DiscountOptimizationSwitchedOffUtc);
+        Assert.Equal("", await switches.ApplyAsync(new DateOnly(2026, 11, 9)));                         // still its days: nothing to change
+        Assert.Contains("back on after Java e Portokalltë 2026", await switches.ApplyAsync(new DateOnly(2026, 11, 10)));
+        Assert.True((await _tool.Layers.SingleAsync()).DiscountOptimizationEnabled);
+        Assert.Null(entry.DiscountOptimizationSwitchedOffUtc);
+        Assert.Equal("", await switches.ApplyAsync(new DateOnly(2026, 11, 11)));
+        Assert.Equal(2, await _tool.AuditLog.CountAsync(a => a.UserName == CampaignSwitches.AuditUser));
+
+        // Off already when a campaign starts (a person's choice): left off after it too.
+        layer.DiscountOptimizationEnabled = false;
+        (entry.StartDate, entry.EndDate) = (new DateOnly(2026, 11, 20), new DateOnly(2026, 11, 22));
+        await _db.SaveChangesAsync();
+        await _tool.SaveChangesAsync();
+        Assert.Equal("", await switches.ApplyAsync(new DateOnly(2026, 11, 20)));
+        Assert.Equal("", await switches.ApplyAsync(new DateOnly(2026, 11, 23)));
+        Assert.False((await _tool.Layers.SingleAsync()).DiscountOptimizationEnabled);
+    }
+
+    [Fact]
     public void The_strategies_trade_profit_for_volume_and_the_minimum_margin_holds()
     {
         var candidates = Enumerable.Range(0, 50).Select(i => C($"S{i}", 100m, 100m, 60m)).ToList();
@@ -220,7 +287,7 @@ public class CampaignPlanningTests : IDisposable
 
     private sealed class Candidates : ICampaignCandidateSource
     {
-        public Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        public Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default, bool everyInStock = false) =>
             Task.FromResult<IReadOnlyList<CampaignCandidate>>(Enumerable.Range(0, 40).Select(i => C($"S{i}", 100m, 100m, 60m, category: i < 4 ? "Sport" : "Kozmetikë"))
                 .Append(C("THIN", 100m, 100m, 97.5m, perDay: 3m))                                         // 2.5 % margin today
                 .Append(new CampaignCandidate("DEAD", null, "Kozmetikë", "Brand", 100m, 70m, 60m, 1m, 5, 0, DeadStock: true, FollowsGj50: false)).ToList());
@@ -334,6 +401,29 @@ public class CampaignPlanningTests : IDisposable
         Assert.Single(publisher.Calls);
         Assert.All(await _db.CampaignPlans.Where(p => p.BriefId == earlier.Id).ToListAsync(), p => Assert.Equal(PlanStatus.Superseded, p.Status));
         Assert.Contains(await _db.CampaignMessages.Select(m => m.Text).ToListAsync(), t => t.Contains($"(batch #{onShelf.Id}) rolled back (3 rows restored): plan #{r.Final!.Id} replaces it"));
+    }
+
+    [Fact]
+    public async Task A_margin_a_person_set_is_planned_as_one_plan_spent_down_to_it_without_the_depth_cap()
+    {
+        var (planning, publisher, brief) = Setup();
+        var entry = await _db.CampaignCalendar.SingleAsync();
+        (entry.GoalType, entry.GoalValue, entry.GoalSetBy, entry.DepthCapLiftedBy, entry.EverySkuInStock) = ("margin", 30m, "user in the chat", "user in the chat", true);
+        (brief.GoalType, brief.GoalValue, brief.MinMarginPct, brief.MaxDepthPct) = ("margin", 30m, 5m, 60m);
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "spend-to-margin", ["explanation"] = "The person's margin, spent." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: true);
+
+        Assert.Equal((PlanStatus.Published, "spend-to-margin"), (r.Status, r.Final!.Strategy));
+        Assert.Single(r.Plans);
+        Assert.InRange(r.Final.ExpectedMarginPct, 30m, 32m);                                         // down to the target, not the brief's 5 %
+        var round = (await _db.CampaignMessages.OrderBy(m => m.Id).FirstAsync()).Text;
+        Assert.StartsWith("Round 1: 1 plan computed.", round);
+        Assert.Contains("spent down to 30%", round);
+        Assert.Contains("Depth cap lifted by user in the chat", round);
+        Assert.Contains("Every SKU in stock", round);
     }
 
     [Fact]

@@ -22,6 +22,9 @@ public class CampaignLimitOptions
     /// <summary>The longest main (whole-shop) campaign a person can put on the calendar from the chat.</summary>
     public int MaxMainDays { get; set; } = 14;
 
+    /// <summary>The deepest discount when a person lifted <see cref="MaxDepthPct"/> for one campaign: the margin floors bound it first.</summary>
+    public const decimal LiftedMaxDepthPct = 90m;
+
     /// <summary>A campaign starts at least this many days after the brief (time to plan, publish and veto).</summary>
     public int LeadDays { get; set; } = 3;
 
@@ -31,9 +34,11 @@ public class CampaignLimitOptions
 }
 
 /// <summary>A brief as the campaign agent wrote it, with what code needs to judge it.</summary>
+/// <param name="DepthCapLifted">A person lifted the depth cap for this campaign (in the chat): the depth is clamped to
+/// <see cref="CampaignLimitOptions.LiftedMaxDepthPct"/> instead.</param>
 public sealed record BriefInput(
     string Kind, long? CalendarId, string ScopeKind, string? ScopeValue, DateOnly Start, DateOnly End,
-    string GoalType, decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct);
+    string GoalType, decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct, bool DepthCapLifted = false);
 
 public sealed record BriefVerdict(string Status, decimal MaxDepthPct, string? Limit, string? Detail);
 
@@ -53,7 +58,8 @@ public static class CampaignLimits
     public static BriefVerdict Evaluate(BriefInput b, int layerId, DateOnly today, IReadOnlyList<CampaignCalendarEntry> calendar,
         Func<string, bool> isHoldout, CampaignLimitOptions o)
     {
-        var depth = Math.Min(b.MaxDepthPct, o.MaxDepthPct);
+        var cap = b.DepthCapLifted ? CampaignLimitOptions.LiftedMaxDepthPct : o.MaxDepthPct;
+        var depth = Math.Min(b.MaxDepthPct, cap);
         BriefVerdict Reject(string limit, string detail) => new(BriefStatus.Rejected, depth, limit, detail);
 
         if (!GoalTypes.Contains(b.GoalType) || b.GoalValue <= 0)
@@ -116,7 +122,7 @@ public static class CampaignLimits
             return Reject("malformed", $"Kind '{b.Kind}' must be calendar, mini or main.");
 
         return depth < b.MaxDepthPct
-            ? new BriefVerdict(BriefStatus.Proposed, depth, "max-depth", $"Max depth {b.MaxDepthPct}% capped at {o.MaxDepthPct}%.")
+            ? new BriefVerdict(BriefStatus.Proposed, depth, "max-depth", $"Max depth {b.MaxDepthPct}% capped at {cap}%.")
             : new BriefVerdict(BriefStatus.Proposed, depth, null, null);
     }
 }

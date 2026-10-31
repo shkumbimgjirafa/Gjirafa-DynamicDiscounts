@@ -93,6 +93,7 @@ public class AgentChatTests : IDisposable
     {
         ["kind"] = "mini", ["layer"] = 1, ["name"] = "Laptops 3 days", ["scopeKind"] = "category", ["scopeValue"] = "Teknologji", ["startDate"] = start, ["endDate"] = end,
         ["goalType"] = "gross-profit", ["goalValue"] = 4000m, ["minMarginPct"] = 10m, ["maxDepthPct"] = 20m, ["rationale"] = "Asked for in the chat.",
+        ["noDepthCap"] = false, ["everySkuInStock"] = false, ["discountOptimizationOff"] = false,
     };
 
     [Fact]
@@ -305,11 +306,26 @@ public class AgentChatTests : IDisposable
         return entry;
     }
 
-    private static JsonObject Main(int layer, string start, string end) => new()
+    private static JsonObject Main(int layer, string start, string end, bool terms = false) => new()
     {
         ["kind"] = "main", ["layer"] = layer, ["name"] = "Java e Portokalltë 2026", ["scopeKind"] = "all", ["scopeValue"] = null, ["startDate"] = start, ["endDate"] = end,
-        ["goalType"] = "gross-profit", ["goalValue"] = 15000m, ["minMarginPct"] = 8m, ["maxDepthPct"] = 20m, ["rationale"] = "The shops' birthday, asked for in the chat.",
+        ["goalType"] = terms ? "margin" : "gross-profit", ["goalValue"] = terms ? 17m : 15000m, ["minMarginPct"] = 8m, ["maxDepthPct"] = terms ? 90m : 20m,
+        ["rationale"] = "The shops' birthday, asked for in the chat.", ["noDepthCap"] = terms, ["everySkuInStock"] = terms, ["discountOptimizationOff"] = terms,
     };
+
+    [Fact]
+    public async Task A_persons_terms_go_on_the_campaign_under_their_name_and_lift_its_depth_cap()
+    {
+        Says("Java e Portokalltë at a 17% effective margin, no cap, every SKU in stock, discount optimization off on its days.", briefs: new[] { Main(1, "2026-11-09", "2026-11-14", terms: true) });
+
+        var t = await Chat().AskAsync(null, "No cap, effective margin 17%, every SKU in stock, turn off discount optimization", "manager@test", topic: ChatTopics.NewCampaign);
+
+        var e = await _db.CampaignCalendar.SingleAsync();
+        Assert.Equal(("manager@test in the chat (conversation 1)", true, true, "margin", 17m), (e.DepthCapLiftedBy, e.EverySkuInStock, e.DiscountOptimizationOff, e.GoalType, e.GoalValue!.Value));
+        Assert.Equal((90m, (string?)null), ((await _db.CampaignBriefs.SingleAsync()).MaxDepthPct, (await _db.CampaignBriefs.SingleAsync()).Limit));   // not capped at 25
+        Assert.Contains("with the person's terms: no depth cap (lifted by manager@test in the chat (conversation 1)); every SKU in stock", t.Added[2].Text);
+        Assert.Contains("discount optimization off", t.Added[2].Text);
+    }
 
     [Fact]
     public async Task Nova_cancels_the_campaigns_the_person_names_and_a_whole_shop_campaign_on_both_shops_takes_their_days()

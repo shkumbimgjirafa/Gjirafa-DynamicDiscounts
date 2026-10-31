@@ -15,7 +15,7 @@ public sealed class AsOfCampaignCandidateSource : ICampaignCandidateSource
     private readonly PricingDataReader _reader;
     public AsOfCampaignCandidateSource(PricingDataReader reader) => _reader = reader;
 
-    public Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+    public Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default, bool everyInStock = false) =>
         _reader.GetAsOfCandidatesAsync(layerId, from, to, ct);
 }
 

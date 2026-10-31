@@ -168,7 +168,23 @@ Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
   `briefs` holds one brief per layer (a campaign on both shops in one answer), kind `mini` or `main`: a main campaign a
   person asks for covers the whole shop for 2–14 days and shares no day with another campaign on its layer. Not done:
   nothing was cancelled or created live; the user's next message to Nova decides (the goals for Java e Portokalltë are
-  theirs).
+  theirs). (Later the same day the user cancelled #19 and #20 through Nova, and Nova put Java e Portokalltë 2026 on both
+  shops, #21 and #22.)
+- **A person's terms for one campaign (31 Oct; Nova had ignored "no cap", "effective margin 17% / 15%" and "turn off
+  discount optimization").** The user's definitions: the effective margin is the whole campaign's gross profit over its
+  net revenue; every SKU in stock; discount optimization off on the campaign's days only. Now, on the calendar entry,
+  recorded under the person's name: `DepthCapLiftedBy` (the 25% cap lifted: depth up to 90%, bounded by the 3% SKU floor
+  and the target), `EverySkuInStock` (not only the six weeks' sellers, no 2,000 cap), `DiscountOptimizationOff`
+  (migration `CampaignTerms`). A margin goal a person set is planned as one plan, `spend-to-margin` in a new mode: from
+  today's prices, deeper one grid step at a time, the most units per euro first, until the blend reaches the target
+  (under it, only steps that raise it); a SKU with no recent sales is priced at the target margin. Beyond the deepest
+  past campaign the estimate counts no extra units (conservative), and the thread says so. A new daily-cycle step,
+  `campaign-switches`, before the engine runs, turns the layer's discount optimization off on such a campaign's days
+  and back on after (only if it switched it off), audited. Nova's brief has `noDepthCap`, `everySkuInStock`,
+  `discountOptimizationOff`; its rules say what each does and that a margin goal is spent down to. Not done live: the
+  re-plan of #21 / #22 waits for the user's message on each card; Gjirafa50's prices average 13.6% today on the
+  planner's estimate, so 15% needs a shift toward its higher-margin SKUs and may stay out of reach (the plan says so).
+  The engine host must run this build by 4 Nov for the switch to happen.
 
 ## Verification
 

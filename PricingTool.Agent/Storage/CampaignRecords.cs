@@ -55,6 +55,20 @@ public class CampaignCalendarEntry
     /// <summary>False when a person says this window isn't what such a campaign normally does: shown with its context, but
     /// left out of the event lift by type and the depth fit, so no goal or plan is anchored on it.</summary>
     public bool Representative { get; set; } = true;
+
+    /// <summary>A person lifted the 25 % depth cap for this campaign (who, where): its depth is bounded by the margin floors and its
+    /// margin target instead.</summary>
+    public string? DepthCapLiftedBy { get; set; }
+
+    /// <summary>A person asked for every SKU in stock, not only the ones that sold in the last six weeks, and no cap on how many.</summary>
+    public bool EverySkuInStock { get; set; }
+
+    /// <summary>A person asked for the engine's discount optimization (the Schedule page's trim of deep displayed discounts) to be off
+    /// on this campaign's days: the daily cycle switches the layer's setting off on its first day and back on after.</summary>
+    public bool DiscountOptimizationOff { get; set; }
+
+    /// <summary>When the daily cycle switched the layer's discount optimization off for this campaign, so it switches it back on.</summary>
+    public DateTime? DiscountOptimizationSwitchedOffUtc { get; set; }
 }
 
 /// <summary>Campaign brief statuses, as stored in ai.CampaignBrief.</summary>

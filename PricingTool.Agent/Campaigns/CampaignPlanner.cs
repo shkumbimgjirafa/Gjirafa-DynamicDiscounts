@@ -48,6 +48,14 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
 
     /// <summary>Shown beside a verdict on the arithmetic when there is no leave-one-out calibration for the case; never decides it.</summary>
     public CampaignCalibration? InSampleCalibration { get; init; }
+
+    /// <summary>
+    /// A margin a person set as the campaign's effective margin (its gross profit over its net revenue): spend-to-margin then
+    /// starts from today's prices and goes deeper, the most units per euro given up first, until the blended margin reaches
+    /// <see cref="MinMarginPct"/> (below it, only steps that raise the blend). A SKU with no expected sales is priced at that
+    /// margin, so if it does sell it doesn't pull the blend under it.
+    /// </summary>
+    public bool SpendToTarget { get; init; }
 }
 
 /// <summary>
@@ -80,7 +88,8 @@ public static class CampaignPlanner
         var leftOut = new Dictionary<string, int>(leftOutBefore);
         void Out(string why) => leftOut[why] = leftOut.GetValueOrDefault(why) + 1;
         var vat = 1m + spec.VatRatePct / 100m;
-        var grid = CampaignMath.DepthGrid.Where(d => d <= spec.MaxDepthPct + 0.001m).ToList();
+        var grid = (spec.MaxDepthPct > CampaignMath.DepthGrid[^1] ? CampaignMath.WideDepthGrid : CampaignMath.DepthGrid).Where(d => d <= spec.MaxDepthPct + 0.001m).ToList();
+        var toTarget = spec.SpendToTarget && strategy == "spend-to-margin";
 
         var lines = new List<PlanLine>();
         var options = new Dictionary<string, List<PlanLine>>();
@@ -114,8 +123,22 @@ public static class CampaignPlanner
                 at.Add(new PlanLine(c.Sku, c.Category, c.RegularPrice, c.CurrentPrice, c.Cost, price, Math.Round(100m * (1m - price / c.RegularPrice), 1),
                     units, units * (price - c.Cost) / vat, units * price / vat, baseGp, false));
             }
+            if (toTarget && baseUnits <= 0)
+            {
+                // No sales to plan on: priced at the campaign's margin, so a sale there keeps the blend.
+                var floor = spec.SkuMarginFloorPct > 0 ? c.Cost / (1m - spec.SkuMarginFloorPct / 100m) : c.Cost;
+                var below = c.CurrentPrice - 0.01m;
+                var target = c.Cost / (1m - spec.MinMarginPct / 100m);
+                var atTarget = below < floor || target >= c.CurrentPrice ? 0m
+                    : rounding == RoundingConvention.None ? Math.Floor(Math.Clamp(target, floor, below) * 100m) / 100m
+                    : Rounding.Apply(Math.Clamp(target, floor, below), rounding, new PriceBounds(floor, below)).Price;
+                if (atTarget <= 0 || atTarget >= c.CurrentPrice || atTarget < floor) { Out("already at or under the campaign margin"); lines.Add(none); continue; }
+                lines.Add(none with { CampaignPrice = atTarget, DepthPct = Math.Round(100m * (1m - atTarget / c.RegularPrice), 1) });
+                continue;
+            }
             if (at.Count == 0) { Out("no grid depth below today's price and above cost"); lines.Add(none); continue; }
             options[c.Sku] = at;
+            if (toTarget) { lines.Add(none); continue; }                        // from today's price; the spending below goes deeper
 
             var pick = strategy switch
             {
@@ -129,7 +152,7 @@ public static class CampaignPlanner
         }
 
         // The brief's minimum blended margin: make the costliest discounts shallower until it holds.
-        for (var guard = 0; Margin(lines) < spec.MinMarginPct && guard < 100_000; guard++)
+        for (var guard = 0; !toTarget && Margin(lines) < spec.MinMarginPct && guard < 100_000; guard++)
         {
             var step = lines.Select((l, i) => (l, i)).Where(x => x.l.CampaignPrice is not null)
                 .Select(x =>
@@ -151,8 +174,10 @@ public static class CampaignPlanner
             Out($"over the cap of {maxSkus} discounted SKUs");
         }
 
+        if (toTarget) SpendToTarget(lines, options, spec.MinMarginPct);
+
         // Spend to the margin floor: deeper where a euro of gross profit given up buys the most units, while the floor holds.
-        if (strategy == "spend-to-margin")
+        if (strategy == "spend-to-margin" && !toTarget)
         {
             decimal gp = lines.Sum(l => l.ExpectedGrossProfit), net = lines.Sum(l => l.ExpectedNetRevenue);
             var blocked = new HashSet<string>(StringComparer.Ordinal);
@@ -177,6 +202,37 @@ public static class CampaignPlanner
         var (verdict, why) = Feasibility(spec, totals);
         return new PlanResult(strategy, totals, lines, leftOut, verdict != GoalVerdicts.NotReachable, why,
             lines.Where(l => l.CampaignPrice is not null).OrderByDescending(l => l.ExpectedGrossProfit).Take(10).ToList()) { GoalVerdict = verdict };
+    }
+
+    /// <summary>
+    /// A person's margin target, spent: from today's prices, each step takes one SKU one grid depth deeper, the step that buys the
+    /// most units per euro of gross profit given up first (equal ones: the shallowest discount first, so depth spreads). A step is
+    /// taken when the blended margin stays at the target or, while the blend is still under it, when it raises the blend; a SKU
+    /// whose next step can't be taken stops there. A priority queue, so a whole shop's SKUs plan in seconds.
+    /// </summary>
+    private static void SpendToTarget(List<PlanLine> lines, IReadOnlyDictionary<string, List<PlanLine>> options, decimal target)
+    {
+        decimal gp = lines.Sum(l => l.ExpectedGrossProfit), net = lines.Sum(l => l.ExpectedNetRevenue);
+        var queue = new PriorityQueue<(int I, PlanLine Next), (decimal NegValue, decimal Depth)>();
+        void Push(int i)
+        {
+            var now = lines[i];
+            if (!options.TryGetValue(now.Sku, out var opts)) return;
+            var deeper = opts.Where(o => o.DepthPct > now.DepthPct).MinBy(o => o.DepthPct);
+            if (deeper is null) return;
+            var given = now.ExpectedGrossProfit - deeper.ExpectedGrossProfit;
+            queue.Enqueue((i, deeper), (-(deeper.ExpectedUnits - now.ExpectedUnits) / Math.Max(0.01m, given), now.DepthPct));
+        }
+        for (var i = 0; i < lines.Count; i++) Push(i);
+        while (queue.TryDequeue(out var step, out _))
+        {
+            var now = lines[step.I];
+            var (gp2, net2) = (gp - now.ExpectedGrossProfit + step.Next.ExpectedGrossProfit, net - now.ExpectedNetRevenue + step.Next.ExpectedNetRevenue);
+            decimal before = net > 0 ? 100m * gp / net : 100m, after = net2 > 0 ? 100m * gp2 / net2 : 100m;
+            if (after < target && after <= before) continue;                    // it would break the target: this SKU stops here
+            (lines[step.I], gp, net) = (step.Next, gp2, net2);
+            Push(step.I);
+        }
     }
 
     /// <summary>A fixed ~10 % of SKUs per campaign (by a stable hash of the campaign and the SKU), so a re-plan keeps the same holdout.</summary>

@@ -50,6 +50,7 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<MoneyLedger>();
         services.AddScoped<OutcomeTracker>();
         services.AddScoped<Campaigns.CampaignCalendar>();
+        services.AddScoped<Campaigns.CampaignSwitches>();
         services.AddScoped<Campaigns.CampaignAgent>();
         services.AddScoped<Campaigns.ICampaignCandidateSource, Campaigns.SqlCampaignCandidateSource>();
         services.AddScoped<Campaigns.CampaignPlanning>();

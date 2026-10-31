@@ -123,6 +123,10 @@
                         @Model.LayerName(e.LayerId) · @e.StartDate.ToString("ddd dd MMM") – @e.EndDate.ToString("ddd dd MMM") (@days day@(days == 1 ? "" : "s")) · @e.Type ·
                         @(e.ScopeKind == "all" ? "the whole shop" : $"{e.ScopeKind} {e.ScopeValue}") · goal @Goal(e.GoalType, e.GoalValue)
                         @if (e.GoalSetBy is not null) { <span class="badge bg-info text-dark" title="@e.GoalSetBy">set by a person</span> }
+                        @if (e.GoalSetBy is not null && e.GoalType == "margin") { <span class="badge bg-light text-dark border" title="Gross profit over net revenue of the whole campaign; code spends the discounts down to it">effective margin, spent down to</span> }
+                        @if (e.DepthCapLiftedBy is not null) { <span class="badge bg-light text-dark border" title="@e.DepthCapLiftedBy">no depth cap</span> }
+                        @if (e.EverySkuInStock) { <span class="badge bg-light text-dark border">every SKU in stock</span> }
+                        @if (e.DiscountOptimizationOff) { <span class="badge bg-light text-dark border" title="The engine's trim of deep displayed discounts is switched off on the campaign's days and back on after">discount optimization off on its days</span> }
                     </div>
                     <div class="alert @(state == "waits" ? "alert-warning" : state is "live" or "published" ? "alert-success" : "alert-light border") py-1 px-2 small my-2">@sel.StateText(today)</div>
                     @if (plan is not null)

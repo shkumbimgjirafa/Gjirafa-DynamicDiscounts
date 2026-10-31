@@ -218,6 +218,7 @@ public sealed class AgentChat
                 sb.Append($"; plan #{plan.Id} {plan.Strategy} {plan.Status}{(string.IsNullOrEmpty(plan.GoalVerdict) ? "" : $" ({plan.GoalVerdict})")}{(plan.WaitsForPerson ? ", waiting for a person" : "")}: " +
                           $"{plan.DiscountedSkus} SKUs at {plan.AverageDepthPct:0.0}%, expected GP {plan.ExpectedGrossProfit:N0}, margin {plan.ExpectedMarginPct:0.0}%. Goal check: {plan.Feasibility}");
             if (e.Context is not null) sb.Append($" Context: {e.Context}");
+            if (Terms(e) is { Length: > 0 } terms) sb.Append($" A person's terms: {terms}.");
             sb.AppendLine();
         }
         return sb.ToString();
@@ -237,6 +238,7 @@ public sealed class AgentChat
                       $"{e.StartDate:yyyy-MM-dd}..{e.EndDate:yyyy-MM-dd} ({when}), status {e.Status}, scope {e.ScopeKind}{(e.ScopeValue is null ? "" : " " + e.ScopeValue)}, " +
                       (e.GoalType is null ? "no goal" : $"goal {e.GoalType} {e.GoalValue:0.##}") + (e.GoalSetBy is null ? "" : $" (set by a person, binding: {e.GoalSetBy})") +
                       (e.Context is null ? "" : $". Context: {e.Context}") + (e.Notes is null ? "" : $". Notes: {Clip(e.Notes, 400)}"));
+        if (Terms(e) is { Length: > 0 } terms) sb.AppendLine($"- A person's terms for it (keep them in a re-brief unless the person changes them): {terms}.");
         var briefs = await _db.CampaignBriefs.AsNoTracking().Where(b => b.CalendarId == calendarId && !b.IsTest).OrderByDescending(b => b.Id).Take(4).ToListAsync(ct);
         foreach (var b in briefs)
             sb.AppendLine($"- Brief #{b.Id} {b.Status}: {b.StartDate:yyyy-MM-dd}..{b.EndDate:yyyy-MM-dd}, scope {b.ScopeKind}{(b.ScopeValue is null ? "" : " " + b.ScopeValue)}, " +
@@ -327,7 +329,8 @@ public sealed class AgentChat
         (brief.StartDate, brief.EndDate) = (start, end);
         var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == entry.LayerId).ToListAsync(ct);
         var holdouts = _options.Limits.Holdouts.TryGetValue(entry.LayerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
-        var verdict = CampaignLimits.Evaluate(new BriefInput("calendar", entry.Id, brief.ScopeKind, brief.ScopeValue, start, end, b.GoalType, b.GoalValue, b.MinMarginPct, b.MaxDepthPct),
+        var verdict = CampaignLimits.Evaluate(new BriefInput("calendar", entry.Id, brief.ScopeKind, brief.ScopeValue, start, end, b.GoalType, b.GoalValue, b.MinMarginPct, b.MaxDepthPct,
+                b.NoDepthCap),
             entry.LayerId, today, calendar, c => holdouts.Contains(c, StringComparer.OrdinalIgnoreCase), _options.Campaigns);
         (brief.Status, brief.MaxDepthPct, brief.Limit, brief.LimitDetail) = (verdict.Status, verdict.MaxDepthPct, verdict.Limit, verdict.Detail);
         await _db.SaveChangesAsync(ct);
@@ -346,6 +349,10 @@ public sealed class AgentChat
             goalNote = $" Goal {(entry.GoalType is null ? "none" : $"{entry.GoalType} {entry.GoalValue:N0}")} → {brief.GoalType} {brief.GoalValue:N0}, set by {author} in this conversation (binding).";
             (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = (brief.GoalType, brief.GoalValue, $"{author} on the Campaigns tab (conversation {conversation})");
         }
+        var termsBefore = Terms(entry);
+        entry.DepthCapLiftedBy = b.NoDepthCap ? entry.DepthCapLiftedBy ?? $"{author} on the Campaigns tab (conversation {conversation})" : null;
+        (entry.EverySkuInStock, entry.DiscountOptimizationOff) = (b.EverySkuInStock, b.DiscountOptimizationOff);
+        if (Terms(entry) != termsBefore) goalNote += $" Terms now: {(Terms(entry) is { Length: > 0 } t ? t : "none")}.";
         await _db.SaveChangesAsync(ct);
         await AddAsync(conversation, "code", $"Brief #{brief.Id} passes the campaign limits{(brief.LimitDetail is null ? "" : $" ({brief.LimitDetail})")}.{goalNote} " +
                                              "The pricing agent is planning it again.", null, added, ct);
@@ -453,7 +460,8 @@ public sealed class AgentChat
         (brief.StartDate, brief.EndDate) = (start, end);
         var calendar = await _db.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == b.Layer).ToListAsync(ct);
         var holdouts = _options.Limits.Holdouts.TryGetValue(b.Layer.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
-        var verdict = CampaignLimits.Evaluate(new BriefInput(main ? "main" : "mini", null, brief.ScopeKind, brief.ScopeValue, start, end, b.GoalType, b.GoalValue, b.MinMarginPct, b.MaxDepthPct),
+        var verdict = CampaignLimits.Evaluate(new BriefInput(main ? "main" : "mini", null, brief.ScopeKind, brief.ScopeValue, start, end, b.GoalType, b.GoalValue, b.MinMarginPct, b.MaxDepthPct,
+                b.NoDepthCap),
             b.Layer, today, calendar, c => holdouts.Contains(c, StringComparer.OrdinalIgnoreCase), _options.Campaigns);
         (brief.Status, brief.MaxDepthPct, brief.Limit, brief.LimitDetail) = (verdict.Status, verdict.MaxDepthPct, verdict.Limit, verdict.Detail);
         await _db.SaveChangesAsync(ct);
@@ -473,13 +481,16 @@ public sealed class AgentChat
             // A person asked for this campaign in the chat, so its goal is theirs: binding, like a goal set on the calendar
             // (the campaign agent can't lower it to make a plan pass; a plan short of it waits for that person).
             GoalSetBy = $"{author} in the chat (conversation {conversation})",
+            DepthCapLiftedBy = b.NoDepthCap ? $"{author} in the chat (conversation {conversation})" : null,
+            EverySkuInStock = b.EverySkuInStock, DiscountOptimizationOff = b.DiscountOptimizationOff,
         };
         _db.CampaignCalendar.Add(entry);
         await _db.SaveChangesAsync(ct);
         brief.CalendarId = entry.Id;
         await _db.SaveChangesAsync(ct);
         await AddAsync(conversation, "code", $"Brief #{brief.Id} passes the campaign limits{(brief.LimitDetail is null ? "" : $" ({brief.LimitDetail})")}: {entry.Name} " +
-                                             $"(#{entry.Id}, layer {entry.LayerId}, {entry.Type}) is on the calendar; the pricing agent is planning it.", null, added, ct);
+                                             $"(#{entry.Id}, layer {entry.LayerId}, {entry.Type}) is on the calendar{(Terms(entry) is { Length: > 0 } terms ? $", with the person's terms: {terms}" : "")}; " +
+                                             "the pricing agent is planning it.", null, added, ct);
 
         var plan = await (PlanSource ?? ((id, c) => _planning.PlanAsync(id, publish: true, c)))(brief.Id, ct);
         var final = plan.Final;
@@ -527,7 +538,17 @@ public sealed class AgentChat
     private sealed record ChatGoalDto(int Layer, string Period, string Start, string Kind, decimal Value);
 
     private sealed record ChatBriefDto(int Layer, string Name, string ScopeKind, string? ScopeValue, string StartDate, string EndDate, string GoalType,
-        decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct, string Rationale, string? Kind = null);
+        decimal GoalValue, decimal MinMarginPct, decimal MaxDepthPct, string Rationale, string? Kind = null, bool NoDepthCap = false, bool EverySkuInStock = false,
+        bool DiscountOptimizationOff = false);
+
+    /// <summary>The person's terms a brief carries onto its campaign, in words for the thread.</summary>
+    private static string Terms(CampaignCalendarEntry e) => string.Join("; ", new[]
+    {
+        e.DepthCapLiftedBy is { } by ? $"no depth cap (lifted by {by})" : null,
+        e.EverySkuInStock ? "every SKU in stock, no cap on how many" : null,
+        e.DiscountOptimizationOff ? "the engine's discount optimization off on its days" : null,
+        e.GoalSetBy is not null && e.GoalType == "margin" ? $"the {e.GoalValue:0.#}% margin is the campaign's effective margin, spent down to" : null,
+    }.Where(t => t is not null));
 
     private sealed record ChatRuleDto(int? Layer, string Kind, string Value, string FromDate, string ToDate);
 }

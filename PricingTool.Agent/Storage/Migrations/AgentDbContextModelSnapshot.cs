@@ -831,8 +831,21 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<DateTime>("CreatedUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DepthCapLiftedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("DiscountOptimizationOff")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("DiscountOptimizationSwitchedOffUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
+
+                    b.Property<bool>("EverySkuInStock")
+                        .HasColumnType("bit");
 
                     b.Property<string>("GoalSetBy")
                         .HasMaxLength(200)

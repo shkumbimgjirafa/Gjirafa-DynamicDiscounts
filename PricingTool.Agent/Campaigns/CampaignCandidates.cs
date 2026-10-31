@@ -7,8 +7,9 @@ namespace PricingTool.Agent.Campaigns;
 public interface ICampaignCandidateSource
 {
     /// <summary>Every SKU of the layer's latest engine run that sold on normal days in [<paramref name="from"/>, <paramref name="to"/>),
-    /// with its rate per normal day.</summary>
-    Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default);
+    /// with its rate per normal day; with <paramref name="everyInStock"/>, the run's other SKUs too (rate 0), for a person's
+    /// whole-shop campaign.</summary>
+    Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default, bool everyInStock = false);
 }
 
 /// <summary>
@@ -22,7 +23,7 @@ public sealed class SqlCampaignCandidateSource : ICampaignCandidateSource
     private readonly AgentDataSource _source;
     public SqlCampaignCandidateSource(AgentDataSource source) => _source = source;
 
-    public async Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CampaignCandidate>> LoadAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default, bool everyInStock = false)
     {
         await using var conn = new SqlConnection(_source.ConnectionString);
         await conn.OpenAsync(ct);
@@ -49,12 +50,14 @@ public sealed class SqlCampaignCandidateSource : ICampaignCandidateSource
                    CAST(CASE WHEN pp.DeadStockStage <> 0 OR pp.ReasonCodes LIKE '%DEAD_STOCK%' OR pp.GuardrailFlags LIKE '%DEAD_STOCK%'
                                   OR pp.GuardrailFlags LIKE '%CLEARANCE_LOCK%' THEN 1 ELSE 0 END AS bit),
                    CAST(CASE WHEN pp.ReasonCodes LIKE '%SYNCED_TO_GJ50%' THEN 1 ELSE 0 END AS bit)
-            FROM s
-            JOIN PricingTool.ProposedPrices pp ON pp.PricingRunId = @Run AND pp.Sku = s.Sku
+            FROM PricingTool.ProposedPrices pp
+            LEFT JOIN s ON s.Sku = pp.Sku
             LEFT JOIN PricingTool.DailySnapshots ds ON ds.LayerId = @L AND ds.SnapshotDate = @Snap AND ds.Sku = pp.Sku
             OUTER APPLY hk.ProductForProposal(pp.LayerId, pp.ProductId, pp.Sku) m
-            WHERE pp.Pptcv > 0 AND pp.CurrentPrice > 0 AND pp.AnchorPrice > 0
+            WHERE pp.PricingRunId = @Run AND (s.Sku IS NOT NULL OR @All = 1)
+              AND pp.Pptcv > 0 AND pp.CurrentPrice > 0 AND pp.AnchorPrice > 0
             """, conn) { CommandTimeout = 300 };
+        cmd.Parameters.AddWithValue("@All", everyInStock);
         cmd.Parameters.AddWithValue("@L", layerId);
         cmd.Parameters.Add("@From", System.Data.SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
         cmd.Parameters.Add("@To", System.Data.SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
