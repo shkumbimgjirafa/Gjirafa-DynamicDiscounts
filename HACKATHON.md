@@ -152,9 +152,10 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
   - **Minutes saved per task** are not set, so the time sheet exports no rows yet.
   - **The Evidence page** isn't a separate page: the Backtest tab and `numbers.json` carry the figures.
   - **Campaign what-ifs** go through a brief and the planning loop; only the floor what-if has its own tool.
-  - **The daily cycle doesn't publish regular prices:** it ends in a checked export file for the push; the publisher
-    writes discounts for the canary (`publish-canary`), campaign plans and the cost watcher. There is no "Run week"
-    button: the loop runs in the engine host (`docs/hackathon-2026/demo-dry-run-1.md`).
+  - **The daily cycle doesn't publish regular prices:** it ends in a checked export file for the push. The whole loop
+    with a publish is **Run week** on the Agent tab (Alpha → engine → run checker → the checked prices to the shop
+    sandbox → read-back; `RunWeekLoop`), which writes no export. A discount can only lower a price, so a run's raises
+    go out with the regular-price push file, not as discounts.
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
 - **Known limitations** (several found by our own AI-judge dry run, `docs/hackathon-2026/ai-judge/dry-run-1.md`):
   - E20 and E21 were measured in the main repo before the hackathon; no script here reruns them. Framing B's B0 is the

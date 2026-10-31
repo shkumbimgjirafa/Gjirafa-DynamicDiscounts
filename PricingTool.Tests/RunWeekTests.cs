@@ -17,6 +17,12 @@ public class RunWeekTests
         public List<string> Calls { get; } = new();
         public string CheckStatus { get; set; } = StepStatus.Succeeded;
 
+        public Task<RunWeekStepResult> SizeCheckAsync(CancellationToken ct)
+        {
+            Calls.Add("size");
+            return Task.FromResult(new RunWeekStepResult(StepStatus.Succeeded, "5.6 GB"));
+        }
+
         public Task<RunWeekStepResult> AlphaAsync(int layerId, CancellationToken ct)
         {
             Calls.Add("alpha");
@@ -75,12 +81,12 @@ public class RunWeekTests
 
         var (week, rows) = await RunAsync(db, steps, new Switch());
 
-        Assert.Equal(new[] { "alpha", "engine", "check", "prices", "publish" }, steps.Calls);
-        Assert.Equal(new[] { "alpha", "engine", "check", "publish", "verify" }, rows.Select(r => r.Step));
+        Assert.Equal(new[] { "size", "alpha", "engine", "check", "prices", "publish" }, steps.Calls);
+        Assert.Equal(new[] { "size-check", "alpha", "engine", "check", "publish", "verify" }, rows.Select(r => r.Step));
         Assert.All(rows, r => Assert.Equal(StepStatus.Succeeded, r.Status));
         Assert.Equal(("Succeeded", 7L, 1200L, 9L, 55L), (week.Status, week.PassId!.Value, week.EngineRunId!.Value, week.CheckId!.Value, week.PublishBatchId!.Value));
         Assert.Contains("2 of 2 read back", rows[^1].Detail);
-        Assert.Contains("Aksesorë", rows[0].Why);                                                  // the reasons are kept with the step
+        Assert.Contains("Aksesorë", rows[1].Why);                                                  // the reasons are kept with the step
     }
 
     [Fact]
@@ -92,7 +98,7 @@ public class RunWeekTests
         var (week, rows) = await RunAsync(db, steps, new Switch());
 
         Assert.DoesNotContain("publish", steps.Calls);
-        Assert.Equal(new[] { "alpha", "engine", "check" }, rows.Select(r => r.Step));
+        Assert.Equal(new[] { "size-check", "alpha", "engine", "check" }, rows.Select(r => r.Step));
         Assert.Equal("Stopped", week.Status);
         Assert.Contains("Nothing was published", week.Outcome);
     }
@@ -109,6 +115,21 @@ public class RunWeekTests
         Assert.Equal(("kill-switch", StepStatus.Failed), (rows.Single().Step, rows.Single().Status));
         Assert.Equal("Stopped", week.Status);
         Assert.Contains("before alpha", week.Outcome);
+    }
+
+    [Fact]
+    public async Task It_waits_while_the_daily_cycle_runs()
+    {
+        await using var db = Db();
+        db.DailyCycleSteps.Add(new DailyCycleStep { CycleDate = DateOnly.FromDateTime(DateTime.Now), Step = "engine-L4", Status = StepStatus.Running, StartedUtc = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+        var steps = new Steps();
+
+        var (week, rows) = await RunAsync(db, steps, new Switch());
+
+        Assert.Empty(steps.Calls);
+        Assert.Equal("daily-cycle", rows.Single().Step);
+        Assert.Equal("Stopped", week.Status);
     }
 
     [Fact]

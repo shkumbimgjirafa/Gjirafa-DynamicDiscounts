@@ -73,6 +73,7 @@ public class AgentController : Controller
             Rules = await _ai.ChatRules.AsNoTracking().Where(r => r.RemovedUtc == null).OrderBy(r => r.Id).ToListAsync(),
             RunWeeks = await RunWeeksAsync(),
             RunWeekRunning = HttpContext.RequestServices.GetRequiredService<Services.RunWeekLauncher>().IsRunning,
+            RunWeekLayers = RunWeekLayers,
         });
     }
 
@@ -93,6 +94,11 @@ public class AgentController : Controller
     public async Task<IActionResult> RunWeek(int layerId, [FromServices] Services.RunWeekLauncher launcher)
     {
         if (!await _db.Layers.AnyAsync(l => l.Id == layerId)) return NotFound();
+        if (!RunWeekLayers.Contains(layerId))
+        {
+            TempData["Error"] = $"Run week runs only the daily cycle's layers ({string.Join(", ", RunWeekLayers)}): the others have no data loaded here.";
+            return RedirectToAction(nameof(Index), null, "run-week");
+        }
         var id = await launcher.TryStartAsync(layerId, Who);
         if (id is null)
         {
@@ -332,4 +338,7 @@ public class AgentController : Controller
     }
 
     private string Who => User.Identity?.Name ?? "unknown";
+
+    private IReadOnlyList<int> RunWeekLayers =>
+        HttpContext.RequestServices.GetRequiredService<IOptions<PricingTool.Agent.AgentOptions>>().Value.Cycle.Layers;
 }

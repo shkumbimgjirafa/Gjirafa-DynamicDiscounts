@@ -87,8 +87,6 @@
     </div>
 </div>
 
-@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
-@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
 
 <h2 class="h5" id="run-week">Run week</h2>
 <p class="small text-muted">The whole loop for one layer with no clicks in between: Alpha's pass in the layer's mode → an engine run with the
@@ -98,7 +96,7 @@
 @if (isManager)
 {
     <div class="mb-2">
-        @foreach (var l in Model.Layers)
+        @foreach (var l in Model.Layers.Where(l => Model.RunWeekLayers.Contains(l.LayerId)))
         {
             <form method="post" asp-action="RunWeek" class="d-inline">
                 <input type="hidden" name="layerId" value="@l.LayerId" />

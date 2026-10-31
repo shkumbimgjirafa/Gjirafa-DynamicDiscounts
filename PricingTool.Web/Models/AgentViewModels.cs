@@ -37,6 +37,8 @@ public class AgentStatusViewModel
     /// <summary>The latest Run week per layer, with its steps; whether one is running in this process.</summary>
     public IReadOnlyList<(RunWeek Week, IReadOnlyList<RunWeekStep> Steps)> RunWeeks { get; init; } = Array.Empty<(RunWeek, IReadOnlyList<RunWeekStep>)>();
     public bool RunWeekRunning { get; init; }
+    /// <summary>The layers Run week may run: the daily cycle's (the ones with data loaded).</summary>
+    public IReadOnlyList<int> RunWeekLayers { get; init; } = Array.Empty<int>();
 
     public string LayerName(int layerId) => LayerNames.TryGetValue(layerId, out var n) ? n : $"Layer {layerId}";
 }

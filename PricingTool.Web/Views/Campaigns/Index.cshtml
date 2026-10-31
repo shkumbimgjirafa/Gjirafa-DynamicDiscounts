@@ -17,8 +17,6 @@
     computed; an accepted plan is published as time-boxed discounts (the sandbox during the hackathon). A campaign published ahead of its start
     can be stopped until it goes live. Every expected figure is an estimate; measured results appear once a campaign has ended.
 </p>
-@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
-@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
 @if (isManager)
 {
     <form method="post" asp-controller="Agent" asp-action="Chat" class="card card-body mb-3"

@@ -17,6 +17,8 @@ public sealed record RunWeekStepResult(string Status, string Detail, string? Why
 /// <summary>The services Run week drives, one call per step (a seam for tests).</summary>
 public interface IRunWeekSteps
 {
+    /// <summary>Failed when the database is over the cycle's size warning line (an engine run adds up to 0.5 GB).</summary>
+    Task<RunWeekStepResult> SizeCheckAsync(CancellationToken ct);
     Task<RunWeekStepResult> AlphaAsync(int layerId, CancellationToken ct);
     Task<RunWeekStepResult> EngineAsync(int layerId, string triggeredBy, CancellationToken ct);
     /// <summary>The check's <see cref="RunWeekStepResult.Status"/> is <see cref="StepStatus.Failed"/> when it blocked the run.</summary>
@@ -78,7 +80,13 @@ public sealed class RunWeekLoop
             (week.Status, week.Outcome) = ("Failed", Truncate(ex.GetBaseException().Message, 2000));
         }
         week.FinishedUtc = _clock.GetUtcNow().UtcDateTime;
-        var calls = await _db.AiCallLog.AsNoTracking().Where(c => c.CalledAtUtc >= week.StartedUtc && c.CalledAtUtc <= week.FinishedUtc).ToListAsync(CancellationToken.None);
+        // Its own calls only: Alpha's pass for the layer and the check of its engine run, inside its window.
+        var alphaPurpose = $"floor-target L{week.LayerId}";
+        var checkPurpose = $"run-check {week.EngineRunId}";
+        var calls = await _db.AiCallLog.AsNoTracking()
+            .Where(c => c.CalledAtUtc >= week.StartedUtc && c.CalledAtUtc <= week.FinishedUtc
+                        && (c.Purpose == alphaPurpose || (week.EngineRunId != null && c.Purpose == checkPurpose)))
+            .ToListAsync(CancellationToken.None);
         (week.AiCalls, week.AiCostUsd) = (calls.Count, calls.Sum(c => c.CostUsd ?? 0m));
         await _db.SaveChangesAsync(CancellationToken.None);
         return week;
@@ -89,6 +97,14 @@ public sealed class RunWeekLoop
         string Stop(string why) { week.Status = "Stopped"; return why; }
 
         if (await KillSwitchAsync(week, "alpha", ct) is { } stopped) return Stop(stopped);
+        var since = _clock.GetUtcNow().UtcDateTime.AddHours(-6);
+        if (await _db.DailyCycleSteps.AsNoTracking().AnyAsync(s => s.Status == StepStatus.Running && s.StartedUtc >= since, ct))
+        {
+            await RecordAsync(week, "daily-cycle", new RunWeekStepResult(StepStatus.Failed, "The daily cycle is running: Run week waits for it to finish (they run the same agents and engine)."), ct);
+            return Stop("The daily cycle is running: try again when it has finished.");
+        }
+        var size = await StepAsync(week, "size-check", () => _steps.SizeCheckAsync(ct), ct);
+        if (size.Status == StepStatus.Failed) return Stop($"The database is too full for another engine run: {size.Detail}.");
         var alpha = await StepAsync(week, "alpha", () => _steps.AlphaAsync(week.LayerId, ct), ct);
         week.PassId = alpha.Id;
         if (alpha.Status == StepStatus.Failed) return Stop($"Alpha's pass failed: {alpha.Detail}. Nothing after it ran.");
@@ -122,9 +138,11 @@ public sealed class RunWeekLoop
         {
             outcome = await _steps.PublishAsync(week.LayerId, engine.Id.Value, items, ct);
             var skipped = outcome.Exceptions.GroupBy(e => e.Kind).Select(g => $"{g.Key} {g.Count():N0} (e.g. {g.First().Sku}: {g.First().Detail})");
-            return new RunWeekStepResult(outcome.Status == "Published" ? StepStatus.Succeeded : StepStatus.Failed,
+            var raises = outcome.Exceptions.Count(e => e.Kind == "at-or-above-shelf");
+            return new RunWeekStepResult(outcome.Status == "Published" ? (raises > 0 ? StepStatus.Warning : StepStatus.Succeeded) : StepStatus.Failed,
                 $"batch #{outcome.BatchId} {outcome.Status}: {chosen}; created {outcome.Created:N0}, updated {outcome.Updated:N0}, unchanged {outcome.Unchanged:N0}, " +
-                $"skipped {outcome.Skipped:N0}", outcome.Exceptions.Count == 0 ? null : "Left as they are: " + string.Join("; ", skipped), outcome.BatchId);
+                $"skipped {outcome.Skipped:N0}" + (raises > 0 ? $"; {raises:N0} raises can't be discounts: they go out with the regular-price push file" : ""),
+                outcome.Exceptions.Count == 0 ? null : "Left as they are: " + string.Join("; ", skipped), outcome.BatchId);
         }, ct);
         week.PublishBatchId = publish.Id;
         if (outcome is null || publish.Status == StepStatus.Failed) return Stop($"The publish didn't go through: {publish.Detail}.");
@@ -177,6 +195,13 @@ public sealed class RunWeekSteps : IRunWeekSteps
     private readonly IServiceProvider _sp;
 
     public RunWeekSteps(IServiceProvider sp) => _sp = sp;
+
+    public async Task<RunWeekStepResult> SizeCheckAsync(CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        var (gb, warn) = await scope.ServiceProvider.GetRequiredService<DatabaseMaintenance>().SizeAsync(ct);
+        return new RunWeekStepResult(warn ? StepStatus.Failed : StepStatus.Succeeded, $"{gb:0.00} GB used of LocalDB's 10 GB" + (warn ? ", over the warning line" : ""));
+    }
 
     public async Task<RunWeekStepResult> AlphaAsync(int layerId, CancellationToken ct)
     {

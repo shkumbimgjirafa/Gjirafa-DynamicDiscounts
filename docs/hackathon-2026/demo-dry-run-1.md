@@ -34,3 +34,21 @@ demo or leave them out. Everything the agents added opens in under 0.3 s.
 - Step 2: show the cycle page and run the canary live (or add a "Run week" button: not built).
 - Step 3: choose and try a brief where a discount pays, or show Black Friday's thread; a live brief takes about 74 s.
 - Step 4: the injected cases from the command line with `--test`, or screenshots.
+
+## Step 2 again, with Run week (31 Oct, 01:07–01:14)
+
+Built after this dry run (`2837618`): "Run week: Gjirafa50 — Kosovo" on the Agent tab, pressed once. Run week #1,
+measured, all steps succeeded, 379 s in all:
+
+| Step | Seconds | Result |
+|---|---|---|
+| alpha | 87 | pass #8: 0 changed (this week's one-point step was already used by pass #2), 0 held |
+| engine | 164 | run #1105: 129,675 SKUs, 0 errors |
+| check | 96 | check #8: verdict warn, 6,801 flagged (6,762 change over 20 %, 34 near the floor, 8 off-grid), 150 judged by the model, 6,770 held |
+| publish | 30 | sandbox batch #8: 37,939 checked prices (6,764 holdout left out); 11,917 discounts created, 13 updated; 25,811 left alone because a cheaper team deal (`oct-deals-26-…`) is live; 198 raises can't be discounts |
+| verify | 0 | 11,930 of 11,930 read back as written |
+
+AI: 2 calls, $0.64 (Alpha, the run checker). **For the demo:** 379 s is too long to wait through in 60 s, so press it
+before the step and show the timeline (each step's seconds, counts and "why?"), or press it at the start of the pitch
+and come back to it. The fixes from the code review (`code-review-1.md`) came after this run: the size check and the
+daily-cycle guard now run first, and raises are reported as such.

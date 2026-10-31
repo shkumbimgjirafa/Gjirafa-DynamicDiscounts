@@ -21,7 +21,6 @@
     @if (e.GoalSetBy is not null) { <span class="badge bg-info text-dark">set by a person: @e.GoalSetBy</span> }
 </p>
 @if (e.Context is not null) { <div class="alert alert-light small"><strong>Context:</strong> @e.Context</div> }
-@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
 
 @if (latest is not null)
 {
