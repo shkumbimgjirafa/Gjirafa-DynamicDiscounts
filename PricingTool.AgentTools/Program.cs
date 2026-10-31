@@ -30,7 +30,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   plan-campaign <brief id> [--publish]                             brief -> plan -> accept/adjust (Alpha + Nova), optionally publish
 //   approve-plan <plan id> [--by <who>] [--publish]                  a person approves a plan waiting for them (held, or a stretch)
 //   backtest-campaigns <layer> [<layer> ...]                         replay finished campaigns with the planner's arithmetic
-//   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3, 5, 6 on booked sales lines
+//   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd] [--detail] [--gj50-split]   levers 1-3, 5, 6 on
+//                                                                   booked sales lines; --gj50-split: Mall's gain on Gjirafa50-listed lines
 //   backtest-coverage                                                lever 4: the Kosovo effect on the MK/AL months without a push
 //   backtest-snapshot [--by <who>]                                   run every lever and store it for the results page and CSV
 //   backtest-below-floor <layer> [<layer> ...] [--from --to] [--json] E21: GP forgone below the hand-set floor of each day, by month
@@ -438,6 +439,28 @@ switch (command)
             Console.WriteLine("month | cross-dock loss on normal days (measured) | lines | caught by the known-cost rule | campaign-day cross-dock loss (lever 7)");
             foreach (var c in r.Context)
                 Console.WriteLine($"{c.Month} | {c.CrossDockLoss:N0} | {c.CrossDockLossLines:N0} | {c.CaughtLoss:N0} ({(c.CrossDockLoss > 0 ? 100m * c.CaughtLoss / c.CrossDockLoss : 0):0}%) | {c.CampaignDayCrossDockLoss:N0}");
+            if (args.Contains("--gj50-split") && layer == 1)
+            {
+                // GjirafaMall lines of SKUs listed on Gjirafa50 that day: v2 moves their price on Gjirafa50, and the sync carries it to Mall.
+                var listed = new HashSet<(string, DateOnly)>();
+                await using (var conn = new SqlConnection(host.Services.GetRequiredService<AgentDataSource>().ConnectionString))
+                {
+                    await conn.OpenAsync();
+                    await using var cmd = new SqlCommand("SELECT DISTINCT Sku, SaleDate FROM agent.SalesLines WHERE LayerId = 1 AND IsGj50Listed = 1 AND SaleDate >= @From AND SaleDate < @To", conn)
+                        { CommandTimeout = 300 };
+                    cmd.Parameters.AddWithValue("@From", from.ToDateTime(TimeOnly.MinValue));
+                    cmd.Parameters.AddWithValue("@To", to.ToDateTime(TimeOnly.MinValue));
+                    await using var rd = await cmd.ExecuteReaderAsync();
+                    while (await rd.ReadAsync()) listed.Add((rd.GetString(0), DateOnly.FromDateTime(rd.GetDateTime(1))));
+                }
+                Console.WriteLine("lever | gain at e -1.0 | of it on Gjirafa50-listed lines | share");
+                foreach (var lv in trace.GroupBy(t => t.Lever).OrderBy(g => g.Key))
+                {
+                    var all = lv.Sum(t => t.Gain);
+                    var onGj50 = lv.Where(t => listed.Contains((t.Line.Sku, t.Line.Day))).Sum(t => t.Gain);
+                    Console.WriteLine($"{lv.Key} {names[lv.Key]} | {all:N0} | {onGj50:N0} | {(all != 0 ? 100m * onGj50 / all : 0):0}%");
+                }
+            }
         }
         return 0;
     }

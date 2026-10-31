@@ -56,6 +56,14 @@ band5 = summary["B30"].value
 holdout = inputs["B34"].value
 per_ty = v("E11")
 e20 = v("E20")
+e21 = v("E21")
+
+
+def cause(n):
+    return next(c for k, c in e21["augSepByCause"].items() if k.startswith(n + " "))
+
+
+e21_free = cause("1")["both"] + cause("3")["both"]
 money = money.replace("Net benefit (11 live months − all costs)", f"Net benefit ({months:g} full-benefit months − all costs)")
 
 page = f"""# Pricing Tool v2: two AI agents that set prices, plan campaigns and publish discounts
@@ -66,7 +74,11 @@ Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with 
 **The problem.** The pricing calculator (v0.5, declared, running since July 2026) only reads and calculates. A person sets
 every floor and target by hand, plans campaigns in spreadsheets, exports prices and creates the discounts in the shop.
 So prices reach customers on a few manual dates, only in Kosovo, and a cost rise waits for the next push: cross-dock
-lines alone sold {eur(v('E14'))} a month under their booked cost over the last 12 months (E14, measured).
+lines alone sold {eur(v('E14'))} a month under their booked cost over the last 12 months (E14, measured). In Aug–Sep
+{eur(e21['augSepTotal'])} a month of gross profit went under the hand-set floor (E21), but it isn't one leak:
+{eur(e21_free)} of it is allowed or not a price (dead stock, vouchers), {eur(cause('2')['both'])} is GjirafaMall SKUs that take
+Gjirafa50's price, and the rest sits where the agents' levers work (loss sales, cost reaction, days without a calculator
+price).
 
 **What's new (built this weekend, everything after the labelled import commit).** **Alpha**, the pricing agent, sets
 each band's floor and target per main category every week. **Nova**, the campaign agent, keeps the calendar, writes

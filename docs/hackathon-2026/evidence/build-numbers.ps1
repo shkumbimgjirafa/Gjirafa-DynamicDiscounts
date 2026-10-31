@@ -5,8 +5,8 @@
 # database (the Për ty reproduction) or hours.md. To refresh after new data:
 #   PricingTool.AgentTools backtest-snapshot        (about a minute: every lever)
 #   powershell -ExecutionPolicy Bypass -File docs\hackathon-2026\evidence\build-numbers.ps1
-# The calculator's test phase (E20) is recomputed from this repo's copy of its approvals (e20-test-phase.sql); only its
-# high case and E21 are quoted from the main repo, with that label and source.
+# The calculator's test phase (E20) and the below-floor loss (E21) are recomputed from this repo's data (e20-test-phase.sql,
+# e21-by-cause.sql); only E20's high case is quoted from the main repo, with that label and source.
 
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
@@ -189,16 +189,38 @@ Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B
     ([ordered]@{ low = 'measured, same-weeks control, one run per layer, the stricter control on Mall'; mid = 'measured before/after, not controlled'; high = 'estimated: before/after season-adjusted with 2025, not controlled; quoted from the main repo' }) `
     "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept $mallKept + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval $gj50NotIn (with Mall's other control, vs not in the approval, $mallNotIn + $gj50NotIn = $($mallNotIn + $gj50NotIn)); mid: before/after on the approvals, SKU-deduplicated spans (Aug $aug, Sep $sep; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)" `
     'PricingTool.Approvals / ApprovalItems (copied from the deployed tool DB) and hk.SalesLines, booked COGS' 'docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)'
-$tools = Join-Path $repo 'PricingTool.AgentTools\bin\Debug\net8.0\PricingTool.AgentTools.exe'
-$e21 = (& $tools backtest-below-floor 1 4 --from 2026-06-01 --to 2026-11-01 --json 2>$null | Select-Object -Last 1) | ConvertFrom-Json
+# E21 from e21-by-cause.sql: the same rule, floors and scope as `backtest-below-floor` (its totals tie to it to the euro),
+# each line with the first cause that fits. Monthly totals (normal days = causes 1-7, campaign days = cause 0), and the
+# calculator's era (Aug-Sep 2026) split by cause, monthly average.
+$e21Sets = QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 (Join-Path $here 'e21-by-cause.sql'))
+function N0($v) { if ($v -is [DBNull] -or $null -eq $v) { 0 } else { [decimal]$v } }
 $e21Months = [ordered]@{}
-foreach ($m in ($e21 | ForEach-Object { $_.months } | Group-Object month | Sort-Object Name)) {
-    $e21Months[$m.Name] = [ordered]@{ normalDays = Round0 ($m.Group | Measure-Object normalGp -Sum).Sum; campaignDays = Round0 ($m.Group | Measure-Object campaignGp -Sum).Sum }
+foreach ($m in ($e21Sets[0].Rows | Group-Object Month | Sort-Object Name)) {
+    $campaign = ($m.Group | Where-Object { $_.Cause -like '0 *' } | ForEach-Object { N0 $_.Forgone } | Measure-Object -Sum).Sum
+    $normal = ($m.Group | Where-Object { $_.Cause -notlike '0 *' } | ForEach-Object { N0 $_.Forgone } | Measure-Object -Sum).Sum
+    $e21Months[$m.Name] = [ordered]@{ normalDays = Round0 $normal; campaignDays = Round0 $campaign }
 }
-$e21Layers = ($e21 | ForEach-Object { $l = $_.layerId; "layer ${l}: " + (($_.months | ForEach-Object { "$($_.month) $([math]::Round($_.normalGp)) + $([math]::Round($_.campaignGp)) campaign" }) -join ', ') }) -join '; '
-Add 'E21' 'Below-floor GP forgone, Kosovo, by month (Jun-Oct 2026)' $e21Months 'EUR/month' 'measured (October provisional: late cancellations post for two weeks)' `
-    "Each booked line whose margin on booked COGS is under its band's hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units; campaign days apart; both KS layers. Tool scope (no outlet, Apple, Starlink): the June/July analysis in the main repo (Jun 24,400, Jul 15,100) included them. $e21Layers" `
-    'agent.SalesLines, PricingTool.AuditLog, PricingTool band config' 'PricingTool.AgentTools backtest-below-floor 1 4 [--json]'
+$lanes = @{ '1' = 'allowed below the floor (dead-stock lane)'; '2' = 'GjirafaMall SKU priced by Gjirafa50 (shared SKUs: v2 moves it on Gjirafa50)'; '3' = 'not a price (order-level voucher)'
+            '4' = 'lever 1 (loss-sale block)'; '5' = 'lever 5 (no calculator price live that day; the backtest can''t score it)'; '6' = 'team deals (superseding is a person''s call)'
+            '7' = 'lever 3 / cost basis (at the calculator''s price, under the floor on booked cost)' }
+$byCause = [ordered]@{}
+foreach ($c in ($e21Sets[0].Rows | Where-Object { $_.Month -in '2026-08', '2026-09' -and $_.Cause -notlike '0 *' } | Group-Object Cause | Sort-Object Name)) {
+    $mall = Round0 ((($c.Group | ForEach-Object { N0 $_.MallKs }) | Measure-Object -Sum).Sum / 2)
+    $gj50 = Round0 ((($c.Group | ForEach-Object { N0 $_.Gj50Ks }) | Measure-Object -Sum).Sum / 2)
+    $key = $c.Name.Substring(0, 1)
+    $byCause[$c.Name] = [ordered]@{ mallKs = $mall; gj50Ks = $gj50; both = $mall + $gj50; lane = $lanes[$key] }
+}
+$e21Total = ($byCause.Values | ForEach-Object { $_.both } | Measure-Object -Sum).Sum
+$notAPrice = ($byCause.GetEnumerator() | Where-Object { $_.Key -like '1 *' -or $_.Key -like '3 *' } | ForEach-Object { $_.Value.both } | Measure-Object -Sum).Sum
+$shared = $e21Sets[1].Rows | Where-Object { $_.Where_ -eq "below Gj50's floor too" } | Select-Object -First 1
+$raisedToday = @{}
+foreach ($r in ($e21Sets[2].Rows | Where-Object { $_.Today -eq 'today: raise' })) { $raisedToday[[int]$r.LayerId] = (N0 $raisedToday[[int]$r.LayerId]) + (N0 $r.ForgonePerMonth) }
+Add 'E21' 'Below-floor GP forgone, Kosovo: by month (Jun-Oct 2026) and, in the calculator''s era (Aug-Sep 2026), by cause' ([ordered]@{ months = $e21Months; augSepByCause = $byCause; augSepTotal = $e21Total }) 'EUR/month' 'measured (October provisional: late cancellations post for two weeks)' `
+    ("Each booked line whose margin on booked COGS is under its band's hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units, both KS layers, tool scope (no outlet, Apple, Starlink; the June/July analysis in the main repo, Jun 24,400 and Jul 15,100, included them). " +
+     "Each line gets the first cause that fits: 0 campaign day; 1 its SKU in a live markdown batch; 2 a GjirafaMall SKU listed on Gjirafa50, which takes Gjirafa50's price; 3 above the floor before an order-level voucher; 4 cross-dock sold under its booked cost; 5 no calculator price live for the SKU that day; 6 sold more than 2 % under the calculator's live price; 7 at the calculator's price but under the floor on booked cost. " +
+     "Aug-Sep: $(Round0 $notAPrice) a month is allowed or not a price (dead stock, vouchers); the rest sits in the lanes of levers 1, 3 and 5, partly on Gjirafa50's side of shared SKUs (cause 2: $(Round0 (N0 $shared.ForgoneVsGj50FloorPerMonth)) a month under Gjirafa50's own floor, $(Round0 (N0 $shared.UnderCostPerMonth)) under cost). " +
+     "Cause 5 as context only: on SKUs today's engine run raises, about $(Round0 ((N0 $raisedToday[1]) + (N0 $raisedToday[4]))) a month (Mall $(Round0 (N0 $raisedToday[1])), Gj50 $(Round0 (N0 $raisedToday[4]))), a proxy (August's runs weren't kept), not in the sheet. The totals equal PricingTool.AgentTools backtest-below-floor 1 4.") `
+    'hk.SalesLines, hk.SalesLineDiscountsKs, PricingTool.AuditLog, PricingTool.Approvals / ApprovalItems, band config' 'docs/hackathon-2026/evidence/e21-by-cause.sql (three result sets; this script runs it); totals also by PricingTool.AgentTools backtest-below-floor 1 4'
 
 $out = [ordered]@{
     generated = (Get-Date).ToString('yyyy-MM-dd HH:mm'); generator = 'docs/hackathon-2026/evidence/build-numbers.ps1'

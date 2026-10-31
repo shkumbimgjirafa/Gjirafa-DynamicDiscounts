@@ -6,7 +6,11 @@ Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with 
 **The problem.** The pricing calculator (v0.5, declared, running since July 2026) only reads and calculates. A person sets
 every floor and target by hand, plans campaigns in spreadsheets, exports prices and creates the discounts in the shop.
 So prices reach customers on a few manual dates, only in Kosovo, and a cost rise waits for the next push: cross-dock
-lines alone sold €2,134 a month under their booked cost over the last 12 months (E14, measured).
+lines alone sold €2,134 a month under their booked cost over the last 12 months (E14, measured). In Aug–Sep
+€14,705 a month of gross profit went under the hand-set floor (E21), but it isn't one leak:
+€2,954 of it is allowed or not a price (dead stock, vouchers), €4,238 is GjirafaMall SKUs that take
+Gjirafa50's price, and the rest sits where the agents' levers work (loss sales, cost reaction, days without a calculator
+price).
 
 **What's new (built this weekend, everything after the labelled import commit).** **Alpha**, the pricing agent, sets
 each band's floor and target per main category every week. **Nova**, the campaign agent, keeps the calendar, writes
@@ -39,15 +43,15 @@ season-adjusted, neither controlled (E20; the low and mid cases recomputed from 
 past benefit, and B counts only the next 12 months of the automated system. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months). Costs:
 €8,918 one-time (hackathon hours at €50, 160 hours to production including code review, the build
-sessions' AI usage of $272.70 API-equivalent, E18) and €6,905 running (AI
-€67 a month from the measured cost per call, E19; maintenance and review hours), €15,822 in all.
+sessions' AI usage of $272.70 API-equivalent, E18) and €6,903 running (AI
+€67 a month from the measured cost per call, E19; maintenance and review hours), €15,821 in all.
 Which framing counts is the organisers' call.
 
 | Year 1 | A · Low | A · Mid | A · High | B · Low | B · Mid | B · High |
 |---|---|---|---|---|---|---|
 | Extra gross profit a month at full scope | €1,824 | €3,783 | €5,167 | €5,741 | €13,047 | €16,737 |
-| Net benefit (9.5 full-benefit months − all costs) | €1,502 | €20,120 | €33,268 | €38,721 | €108,128 | €143,183 |
-| ROI | 9% | 127% | 210% | 245% | 683% | 905% |
+| Net benefit (9.5 full-benefit months − all costs) | €1,504 | €20,122 | €33,269 | €38,723 | €108,130 | €143,184 |
+| ROI | 10% | 127% | 210% | 245% | 683% | 905% |
 | Payback (months) | 10.8 | 5.7 | 4.8 | 4.5 | 3.3 | 3.1 |
 | Track A score (/100; Evidence and Works are our own ratings) | 40 | 66 | 68 | 68 | 84 | 84 |
 

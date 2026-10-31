@@ -172,7 +172,10 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 - **Known limitations** (several found by our own AI-judge dry runs, `docs/hackathon-2026/ai-judge/dry-run-1.md` and
   `dry-run-2.md`):
   - E20's high case (its 2025 season adjustment) is quoted from the main repo; its low and mid cases and E21 are
-    recomputed here (`evidence/e20-test-phase.sql`, `PricingTool.AgentTools backtest-below-floor`). E20's controlled
+    recomputed here (`evidence/e20-test-phase.sql`, `evidence/e21-by-cause.sql`). E21 is not one leak the agents fix:
+    of the €14.7k a month sold under the hand-set floor in Aug–Sep, €3.0k is allowed or not a price (dead stock,
+    vouchers), €4.2k is GjirafaMall SKUs priced by Gjirafa50, and the rest sits in the lanes of levers 1 (€1.4k),
+    3 (€1.1k) and 5 (€4.6k, which the backtest can't score) and team deals (€0.4k). E20's controlled
     low case is one run per KS layer, not a randomized test. Framing B's B0 is the non-AI calculator's effect: the declaration did not claim its past result, and whether its forward rate counts is
     the organisers' call.
   - E18 rests on the Claude Code session transcripts, which are not in the repo (they hold the whole build conversation).

@@ -55,9 +55,16 @@ answers the one-event point instead.
   (673 lines against about 180 in a normal week) and prices followed about two weeks later (e.g. SKU 892712lt,
   cost €17.44 → €21.81 on 4–5 Aug, sold at €22.03 net until 19 Aug). So the low case is September only.
   For context, before the calculator Mall's lever 3 ran €93–736 a month at e −1 (Nov–Jul), €2,467 in August.
+- **Levers 1 and 3 on GjirafaMall** include its Gjirafa50-listed lines, whose price v2 moves on Gjirafa50 and the sync
+  carries to Mall at the next daily run; they are a small part: €9 of lever 1's €76 and €10 of lever 3's €1,316 a month
+  (Aug–Sep, e −1; `backtest-levers 1 --from 2026-08-01 --to 2026-10-01 --gj50-split`, today's rerun of the stored €77 /
+  €1,334).
 - **Lever 5.** Sales on full days between a run finishing and its approval going live, at the price the engine
   had already computed. Lags were 0–3 days per push. What the engine would have proposed *between* pushes
-  can't be scored: those proposals weren't kept. Gj50's October gap was mostly markdowns (−€123 to −€218).
+  can't be scored: those proposals weren't kept. Gj50's October gap was mostly markdowns (−€123 to −€218). That
+  unscored part is E21's cause 5 (lines sold under the floor with no calculator price live that day: €4.6k a month in
+  Aug–Sep); as context only, about €1.6k a month of it is on SKUs today's engine raises (a proxy, since August's runs
+  weren't kept), not counted in the sheet.
 - **Lever 6.** Approval 12 (Mall, 6 Aug) judged per category, GP/day 28 days after vs before, season-adjusted
   with 2025. The plan's plain rule ("roll back where the category didn't gain": Shtëpi ×0.81, Sport ×0.96)
   would have **cost** €1.0–1.3k in September: the raised SKUs earned more even where the category's GP/day

@@ -496,7 +496,9 @@ facts = [
      "Sales lines monthly, tool scope (Aug 15.8% vs 11.7%; Sep 15.2% vs 10.2%)", "2026-10-27"),
     ("Profit forgone below the margin floor", "Jun €24.4k · Jul €15.1k", "measured",
      "Sales lines vs per-band floors, booked COGS; reconciled with the Power BI model. Wider scope than E21 (Apple, "
-     "Starlink in); E21 on tool scope gives Jun €15.8k · Jul €10.9k", "2026-07-31"),
+     "Starlink in); E21 on tool scope gives Jun €12.8k · Jul €10.9k on normal days. Not one leak: in Aug–Sep €14.7k a "
+     "month, of which €3.0k is allowed or not a price (dead stock, vouchers), €4.2k GjirafaMall SKUs priced by Gjirafa50, "
+     "and the rest in the lanes of levers 1, 3 and 5 (E21 by cause)", "2026-07-31"),
 ]
 for i, row in enumerate(facts):
     r = r0 + 2 + i
