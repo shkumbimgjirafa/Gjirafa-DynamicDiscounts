@@ -33,8 +33,8 @@ namespace PricingTool.Agent.Storage.Migrations
 
                     b.Property<string>("Action")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<long?>("AiCallLogId")
                         .HasColumnType("bigint");

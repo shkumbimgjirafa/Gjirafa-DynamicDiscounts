@@ -91,7 +91,7 @@ public class AgentDbContext : DbContext
             e.HasOne<AgentPass>().WithMany().HasForeignKey(x => x.PassId).OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.Category).HasMaxLength(200);
             e.Property(x => x.Source).HasMaxLength(20);
-            e.Property(x => x.Action).HasMaxLength(10);
+            e.Property(x => x.Action).HasMaxLength(30);              // the cost watcher's actions run to 21 characters
             e.Property(x => x.Status).HasMaxLength(20);
             e.Property(x => x.Limit).HasMaxLength(40);
             e.Property(x => x.LimitDetail).HasMaxLength(500);

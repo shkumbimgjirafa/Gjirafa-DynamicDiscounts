@@ -936,4 +936,24 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         await Writer().RollbackAsync(halfDone);
         Assert.Equal(40m, EngineShelf(201));
     }
+
+    [LocalDbFact]
+    public async Task The_cost_watchers_raise_on_a_sku_at_its_regular_price_writes_the_regular_price_so_the_shelf_really_moves()
+    {
+        Product(201, "AT-REGULAR", hasTier: true);
+        Product(202, "UNDER-TEAM", hasTier: true);
+        var regular = TierRow(201, 46.50m, 59.50m);
+        TierRow(202, 46.50m, 59.50m);
+        TeamDeal("oct-deals-26-UNDER-TEAM", 44m, new[] { 202 });
+        var publisher = new PricingTool.NopIntegration.CostWatch.WriterCostPublisher(Writer(), _db);
+
+        var raised = await publisher.RaiseAsync(4, "AT-REGULAR", 49.50m, 58.50m, 46.50m, 59.50m, default);
+        var underTeam = await publisher.RaiseAsync(4, "UNDER-TEAM", 49.50m, 58.50m, 44m, 59.50m, default);
+
+        Assert.Equal(("Published", (string?)null), (raised.Status, raised.LeftOut));
+        Assert.Equal((49.50m, 59.50m), Tier(regular));                           // a discount at 49.50 over a 46.50 regular price would change nothing
+        Assert.Equal(49.50m, EngineShelf(201));
+        Assert.Equal("raised-under-team-deal", underTeam.LeftOut);               // the watcher holds it for a person
+        Assert.Equal(44m, EngineShelf(202));
+    }
 }

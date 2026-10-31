@@ -38,7 +38,7 @@ public class CostWatcherTests : IDisposable
         // sku, cost, current price, anchor
         foreach (var (sku, cost, current, anchor) in new[] { ("RISE", 60m, 75m, 100m), ("JUMP", 60m, 75m, 100m), ("SHELF", 60m, 70m, 72m),
                      ("TEAM", 60m, 70m, 100m), ("FINE", 60m, 90m, 100m), ("DOWN", 60m, 70m, 100m), ("DEAD", 60m, 50m, 100m), ("LOCK", 60m, 70m, 100m),
-                     ("HOLD", 60m, 70m, 100m), ("TINY", 60m, 70m, 80m) })
+                     ("HOLD", 60m, 70m, 100m), ("TINY", 60m, 70m, 80m), ("MOVED", 60m, 75m, 100m) })
             _tool.DailySnapshots.Add(new DailySnapshot { LayerId = _layer, SnapshotDate = run.StartedUtc.Date, Sku = sku, Pptcv = cost, CurrentPrice = current,
                 AnchorPrice = anchor, OldPrice = anchor, LocalWarehouseStock = 5 });
         // The run's proposals: a dead-stock SKU under the floor on purpose, a clearance lock, and the holdout SKU (product 7, "Gaming").
@@ -59,10 +59,11 @@ public class CostWatcherTests : IDisposable
     {
         public List<(string Sku, decimal Price)> Raised { get; } = new();
         public List<string> Ended { get; } = new();
-        public Task<(long BatchId, string Status, bool CheaperTeamDeal)> RaiseAsync(int layerId, string sku, decimal price, decimal shelfPrice, CancellationToken ct)
+        public Task<(long BatchId, string Status, string? LeftOut)> RaiseAsync(int layerId, string sku, decimal price, decimal ceiling, decimal runCurrentPrice,
+            decimal runOldPrice, CancellationToken ct)
         {
             Raised.Add((sku, price));
-            return Task.FromResult((100L + Raised.Count, "Published", sku == "TEAM"));
+            return Task.FromResult((100L + Raised.Count, "Published", sku == "TEAM" ? "cheaper-deal" : sku == "MOVED" ? "changed-since-run" : (string?)null));
         }
         public Task<long?> EndOurDiscountAsync(int layerId, string sku, CancellationToken ct)
         {
@@ -245,5 +246,32 @@ public class CostWatcherTests : IDisposable
         var moves = PricingTool.NopIntegration.CostWatch.ReplicaCostFeed.NewMoves(watched, costs, seen, 0.5m).ToList();
 
         Assert.Equal(new[] { ("C", 33m), ("D", 44m) }, moves);                   // B moved under 0.5 %: noise
+    }
+
+    [Fact]
+    public async Task A_raise_that_does_not_stand_because_the_shop_price_moved_since_the_run_is_held_with_that_reason()
+    {
+        Observe("MOVED", 70m, "replica");     // floor price 77.78 > live 75: raise, but the shop's row changed since the run
+        await _ai.SaveChangesAsync();
+
+        var r = await Watcher().WatchAsync();
+
+        Assert.Equal((0, 1), (r.Raised, r.Held));
+        Assert.Equal("held-not-published", (await _ai.CostObservations.SingleAsync()).Outcome);
+        var d = await _ai.AgentDecisions.SingleAsync();
+        Assert.Equal(("changed-since-run", DecisionStatus.Held), (d.Limit, d.Status));
+        Assert.Contains("didn't stand (changed-since-run)", d.Reason);
+    }
+
+    [Fact]
+    public void Every_action_the_watcher_records_fits_the_decision_tables_column()
+    {
+        var max = _ai.Model.FindEntityType(typeof(AgentDecision))!.FindProperty(nameof(AgentDecision.Action))!.GetMaxLength();
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "PricingTool.NopIntegration", "CostWatch", "CostWatcher.cs"));
+        var actions = System.Text.RegularExpressions.Regex.Matches(source, @"Decision\(o, [^,]+, [^,]+, [^,]+, ""([a-z-]+)""").Select(m => m.Groups[1].Value)
+            .Concat(new[] { "raise-to-floor", "end-our-discount", "end-campaign-discount" }).Distinct().ToList();
+
+        Assert.Contains("end-campaign-discount", actions);
+        Assert.All(actions, a => Assert.True(a.Length <= max, $"'{a}' is {a.Length} characters; the column holds {max}"));
     }
 }

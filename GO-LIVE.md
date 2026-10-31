@@ -5,7 +5,8 @@ NOP `Discount` tables the way the discount module does, and, for a price above t
 the regular price itself (`TierPrice`, `NopRegularPriceWriter`: a discount can only lower a price). During the
 hackathon it writes only to the sandbox (`shop_sandbox_GjirafaMall`, `shop_sandbox_GjirafaEcommerce` in
 `PricingToolHackathon`), which has the exact live DDL of both (checked by the schema contract test). The cost
-watcher still writes discounts only: no regular-price writes from it yet.
+watcher publishes its raise to the floor the same way (since 31 Oct: before, it put a discount over the regular price,
+which changes nothing on the shelf).
 
 **Going live is a configuration change, never a code change.** The code that ran against the sandbox is
 the code that runs against the shop. Nothing below has been done yet.

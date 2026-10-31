@@ -37,8 +37,12 @@ public class CostWatcherOptions
 /// <summary>What publishing does for the watcher; the writer in production, a fake in tests.</summary>
 public interface ICostPublisher
 {
-    /// <summary>Puts our ai-price discount at <paramref name="price"/>: (batch, status, true when a cheaper deal we didn't create won).</summary>
-    Task<(long BatchId, string Status, bool CheaperTeamDeal)> RaiseAsync(int layerId, string sku, decimal price, decimal shelfPrice, CancellationToken ct);
+    /// <summary>Puts the shopper's price at <paramref name="price"/>, as the daily publish does: our ai-price discount when it is under
+    /// the store's regular price, the regular price itself when it is at or above it (a discount can't raise a price). With what the
+    /// engine run saw and the ceiling max(anchor, current). Returns the batch, its status, and why the price didn't stand, if it
+    /// didn't (the writer's exception kind: a cheaper team deal, a price changed since the run, a round-trip mismatch).</summary>
+    Task<(long BatchId, string Status, string? LeftOut)> RaiseAsync(int layerId, string sku, decimal price, decimal ceiling, decimal runCurrentPrice,
+        decimal runOldPrice, CancellationToken ct);
 
     /// <summary>Ends our ai-price discount on the SKU, if it has one: the batch, or null when there was nothing of ours.</summary>
     Task<long?> EndOurDiscountAsync(int layerId, string sku, CancellationToken ct);
@@ -58,10 +62,12 @@ public sealed class WriterCostPublisher : ICostPublisher
         _db = db;
     }
 
-    public async Task<(long BatchId, string Status, bool CheaperTeamDeal)> RaiseAsync(int layerId, string sku, decimal price, decimal shelfPrice, CancellationToken ct)
+    public async Task<(long BatchId, string Status, string? LeftOut)> RaiseAsync(int layerId, string sku, decimal price, decimal ceiling, decimal runCurrentPrice,
+        decimal runOldPrice, CancellationToken ct)
     {
-        var o = await _writer.PublishAsync(new PublishRequest(layerId, new[] { new PublishItem(sku, price, shelfPrice) }), ct);
-        return (o.BatchId, o.Status, o.Exceptions.Any(e => e.Sku == sku && e.Kind == "cheaper-deal"));
+        var item = new PublishItem(sku, price, runOldPrice) { RunCurrentPrice = runCurrentPrice, RunOldPrice = runOldPrice, Ceiling = ceiling };
+        var o = await _writer.PublishAsync(new PublishRequest(layerId, new[] { item }) { RaiseRegularPrices = true }, ct);
+        return (o.BatchId, o.Status, o.Exceptions.FirstOrDefault(e => e.Sku == sku)?.Kind);
     }
 
     public async Task<long?> EndOurDiscountAsync(int layerId, string sku, CancellationToken ct)
@@ -105,8 +111,9 @@ public static class CostWatchLanes
 
 /// <summary>
 /// The fast lane for cost rises (plan section 5, "CostWatcher"). Holding the floor is a rule, not a judgment, so code
-/// does it within one watch: a SKU whose cost rose and whose live price is now under its floor gets our ai-price
-/// discount raised to the floor price (cost ÷ (1 − floor), charm-rounded up), never above max(anchor, current price).
+/// does it within one watch: a SKU whose cost rose and whose live price is now under its floor is raised to the floor price
+/// (cost ÷ (1 − floor), charm-rounded up), never above max(anchor, current price), the way the daily publish writes a price:
+/// our ai-price discount under the store's regular price, the regular price itself at or above it.
 /// It doesn't just raise in three cases: a cost jump that looks like a data error is held and alerted, nothing
 /// published; a floor price above the shelf price (our discount removed would still be under the floor) ends our
 /// discount and alerts that the regular price needs changing; a low price from a discount we didn't create is held for
@@ -323,10 +330,11 @@ public sealed class CostWatcher
                         }
                         continue;
                     }
-                    var (batchId, status, cheaper) = await _publisher.RaiseAsync(o.LayerId, o.Sku, price, anchor, ct);
+                    var (batchId, status, leftOut) = await _publisher.RaiseAsync(o.LayerId, o.Sku, price, ceiling, current, s.OldPrice ?? current, ct);
                     facts["publishBatch"] = batchId;
                     facts["publishStatus"] = status;
-                    if (status == "Published" && !cheaper)
+                    if (leftOut is not null) facts["leftOut"] = leftOut;
+                    if (status == "Published" && leftOut is null)
                     {
                         facts["publishedPrice"] = price;
                         var d = Decision(o, band.BandId, category, floorPct, "raise-to-floor", DecisionStatus.Applied, null,
@@ -338,6 +346,14 @@ public sealed class CostWatcher
                     {
                         _logger.LogInformation("Cost watcher: publishing stopped for {Sku}; the observation waits.", o.Sku);
                         continue;                                                    // a switch stopped publishing: try again next watch
+                    }
+                    else if (leftOut is not ("cheaper-deal" or "raised-under-team-deal"))
+                    {
+                        var d = Decision(o, band.BandId, category, floorPct, "hold", DecisionStatus.Held, leftOut ?? "not-published",
+                            $"Cost {oldCost:0.00} -> {o.Pptcv:0.00} put the live price {live:0.00} under the floor ({floorPrice:0.00}), but {price:0.00} didn't stand " +
+                            $"({leftOut ?? status}): a person looks.", facts);
+                        Done(o, "held-not-published", d, batchId);
+                        held++;
                     }
                     else
                     {

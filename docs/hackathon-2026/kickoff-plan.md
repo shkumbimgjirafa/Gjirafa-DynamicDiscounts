@@ -671,11 +671,14 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
 ## 7. Demo script (4 minutes + 4 minutes of questions)
 
 1. **(20s) The problem.** Today the calculator only reads and calculates. A person sets every floor and target by hand, plans campaigns in spreadsheets, exports prices and creates the discounts in the shop. Show the declaration slide: what existed and what's new.
-2. **(60s) Pricing loop, with no clicks in between.** Press "Run week" for Gjirafa50 KS in Autonomous mode:
+2. **(60s) Pricing loop, with no clicks in between.** Press "Run week" for Gjirafa50 KS in Autonomous mode (it takes about
+   4–6 minutes: press it before the demo and show its timeline; never a GjirafaMall run during the demo):
    - The agent calls its tools and applies N floor/target changes within the limits, each with a reason. Open one reason.
    - The engine recalculates locally.
    - The run checker holds X prices with reasons. Show one held real cost jump and one injected test case.
-   - The publisher writes M discount records to the shop sandbox, exactly as the shop stores them, and expires the ones they replace.
+   - The publisher writes M discount records and R regular-price raises to the shop sandbox, exactly as the shop stores
+     them (a discount can only lower a price, so a raise is the store's regular price), and expires the ones they replace;
+     the rest are left to cheaper team deals, which a person supersedes or not.
    - The exceptions inbox shows only the few items that need a person.
 3. **(60s) Nova and Alpha planning a campaign.** Hand a juror the keyboard on the Campaigns tab, e.g. "Plan a 3-day laptops campaign next week, €4k profit":
    - The campaign agent writes the brief using the laptops uplift history.
@@ -685,7 +688,8 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
 4. **(30s) Safety without approvals.**
    - An out-of-range decision is rejected by code.
    - A simulated sales drop in one category triggers the automatic rollback and pause.
-   - An injected cost rise: the feed shows it raised to the floor within a minute, with the reason.
+   - An injected cost rise: the feed shows it raised to the floor within a minute, with the reason. (Real ones too: on
+     31 Oct the watcher read the morning's 293 cost moves within 1–9 minutes and held 54 for a person, E22.)
    - Show the kill switch, the holdout categories, the audit log, and the AI call log with its cost.
 5. **(45s) Money, shown on the Evidence page, computed live** (not on a slide):
    - Backtest result, with its elasticity sensitivity.
@@ -704,7 +708,8 @@ Timing: 20 + 60 + 60 + 30 + 45 + 25 = 240 seconds.
 **In the 4 minutes of questions:** when a juror asks a data question no screen covers, type it into the
 chat. The agent writes its own `query_data` query, answers, and the query shows under "What it looked at".
 
-Have the backup video and screenshots ready in case the network or API fails during the demo.
+Have the backup video and screenshots ready in case the network or API fails during the demo (shot list:
+`docs/hackathon-2026/demo-backup-video.md`; timings measured in `demo-dry-run-2.md`).
 
 ## 8. Submission checklist
 

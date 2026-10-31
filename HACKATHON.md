@@ -170,7 +170,7 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
     publishes the same checked prices to the sandbox (`publish-L<layer>`, from the 1 Nov cycle on the restarted host). The
     whole loop on demand is **Run week** on the Agent tab (Alpha → engine → run checker → the checked prices to the
     sandbox → read-back; `RunWeekLoop`). Cuts go out as discounts, raises as the store's regular price
-    (`NopRegularPriceWriter`); the cost watcher still writes discounts only.
+    (`NopRegularPriceWriter`); the cost watcher's raise to the floor goes the same way.
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
 - **Known limitations** (several found by our own AI-judge dry runs, `docs/hackathon-2026/ai-judge/dry-run-1.md` and
   `dry-run-2.md`):
@@ -191,7 +191,6 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
   - Raises are written as the regular price on the sandbox only; going live needs the `TierPrice` grant and the shop's
     answer on its price cache and the `OldPrice` convention (`GO-LIVE.md`). A cheaper team deal still wins over our price
     (raise or cut) until a person supersedes it: on 31 Oct that held 43 % of the checked prices off the sandbox shelf.
-    The cost watcher writes no regular prices yet.
   - With `Publisher:Target` = Sandbox the guard is on the schema name (`shop_sandbox_*`), not the server.
   - The hackathon's 8,000-request bar: the agents make about 290 calls a month by design (one per run or pass, never
     one per product), and no call is made to raise a count.
