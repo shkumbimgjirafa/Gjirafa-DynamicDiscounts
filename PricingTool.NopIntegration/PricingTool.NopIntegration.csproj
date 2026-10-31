@@ -14,6 +14,8 @@
   <ItemGroup>
     <None Remove="Sandbox\live-discount-schema.json" />
     <EmbeddedResource Include="Sandbox\live-discount-schema.json" />
+    <None Remove="Sandbox\live-price-schema.json" />
+    <EmbeddedResource Include="Sandbox\live-price-schema.json" />
   </ItemGroup>
 
   <PropertyGroup>

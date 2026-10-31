@@ -11,26 +11,32 @@ public sealed record LiveSchemaRow(
 
 /// <summary>
 /// The shop sandbox: per shop DB a schema <c>shop_sandbox_&lt;Db&gt;</c> in the hackathon database holding
-/// <c>Discount</c>, <c>Discount_AppliedToProducts</c> and the <c>Product</c> columns the publisher touches,
-/// with exactly the live columns (types, lengths, nullability, identity) and the live indexes. One schema per
-/// shop because GjirafaMall's <c>Discount</c> has a column GjirafaEcommerce's lacks. The writer addresses the
-/// shop through a configured schema (<c>dbo</c> live), so the SQL it runs is the same in both places.
+/// <c>Discount</c>, <c>Discount_AppliedToProducts</c>, <c>TierPrice</c> (the store's regular price) and the
+/// <c>Product</c> columns the publisher touches, with exactly the live columns (types, lengths, nullability,
+/// identity) and the live indexes. One schema per shop because the shops differ (GjirafaMall's <c>Discount</c>
+/// has a column GjirafaEcommerce's lacks; <c>TierPrice.Price</c> is decimal(18,4) on GjirafaMall, (18,2) on
+/// GjirafaEcommerce). The writer addresses the shop through a configured schema (<c>dbo</c> live), so the SQL it
+/// runs is the same in both places.
 ///
-/// The snapshot (<c>live-discount-schema.json</c>, embedded) covers the discount tables' indexes but no
-/// <c>Product</c> index; the sandbox gives <c>Product</c> its primary key on the identity <c>Id</c> plus a
-/// sandbox-only index on <c>Sku</c> (named <c>IX_Sandbox_*</c>, outside the contract).
+/// Two snapshots, embedded: <c>live-discount-schema.json</c> (the discount tables, the Product discount flags)
+/// and <c>live-price-schema.json</c> (TierPrice, Product.HasTierPrices). They hold no <c>Product</c> index; the
+/// sandbox gives <c>Product</c> its primary key on the identity <c>Id</c> plus a sandbox-only index on <c>Sku</c>
+/// (named <c>IX_Sandbox_*</c>, outside the contract).
 /// </summary>
 public static class SandboxSchema
 {
     public const string SchemaPrefix = "shop_sandbox_";
-    public static readonly string[] Tables = { "Discount", "Discount_AppliedToProducts", "Product" };
+    public static readonly string[] Tables = { "Discount", "Discount_AppliedToProducts", "Product", "TierPrice" };
 
     public static string SchemaFor(string db) => SchemaPrefix + db;
 
-    public static IReadOnlyList<LiveSchemaRow> LoadSnapshot()
+    public static IReadOnlyList<LiveSchemaRow> LoadSnapshot() =>
+        Load("live-discount-schema.json").Concat(Load("live-price-schema.json")).ToList();
+
+    private static IEnumerable<LiveSchemaRow> Load(string file)
     {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("PricingTool.NopIntegration.Sandbox.live-discount-schema.json")
-            ?? throw new InvalidOperationException("The live schema snapshot is not embedded.");
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"PricingTool.NopIntegration.Sandbox.{file}")
+            ?? throw new InvalidOperationException($"The live schema snapshot {file} is not embedded.");
         using var doc = JsonDocument.Parse(stream);
         return doc.RootElement.GetProperty("rows").EnumerateArray().Select(r => new LiveSchemaRow(
             r.GetProperty("db").GetString()!, r.GetProperty("kind").GetString()!, r.GetProperty("table").GetString()!,
@@ -54,31 +60,37 @@ public static class SandboxSchema
             foreach (var table in Tables.Reverse())
                 sql.Add($"IF OBJECT_ID('[{schema}].[{table}]') IS NOT NULL DROP TABLE [{schema}].[{table}];");
             sql.Add($"IF SCHEMA_ID('{schema}') IS NULL EXEC('CREATE SCHEMA [{schema}]');");
-
             foreach (var table in Tables)
-            {
-                var columns = snapshot.Where(r => r.Db == db && r.Kind == "column" && r.Table == table).OrderBy(r => r.Ordinal).ToList();
-                if (columns.Count == 0) continue;
-                var indexes = snapshot.Where(r => r.Db == db && r.Kind == "index" && r.Table == table).ToList();
-                var pk = indexes.FirstOrDefault(i => i.Name.StartsWith("PK_", StringComparison.Ordinal));
-
-                var body = new List<string>(columns.Select(ColumnDefinition));
-                if (pk is not null)
-                    body.Add($"CONSTRAINT [{pk.Name}] PRIMARY KEY {pk.Type} ({KeyList(pk.IndexColumns!)})");
-                else if (table == "Product")
-                    body.Add("CONSTRAINT [PK_Product] PRIMARY KEY CLUSTERED ([Id])");
-                sql.Add($"CREATE TABLE [{schema}].[{table}] (\n    {string.Join(",\n    ", body)}\n);");
-
-                foreach (var ix in indexes.Where(i => i != pk))
-                {
-                    var include = IncludedList(ix.IndexColumns!);
-                    sql.Add($"CREATE {ix.Type} INDEX [{ix.Name}] ON [{schema}].[{table}] ({KeyList(ix.IndexColumns!)})" +
-                            (include.Length > 0 ? $" INCLUDE ({include})" : "") + ";");
-                }
-                if (table == "Product")
-                    sql.Add($"CREATE NONCLUSTERED INDEX [IX_Sandbox_Product_Sku] ON [{schema}].[Product] ([Sku]);");
-            }
+                sql.AddRange(TableStatements(snapshot, db, table));
         }
+        return sql;
+    }
+
+    /// <summary>CREATE TABLE and its indexes for one shop's table (nothing when the snapshot has no such table).</summary>
+    public static IReadOnlyList<string> TableStatements(IReadOnlyList<LiveSchemaRow> snapshot, string db, string table)
+    {
+        var sql = new List<string>();
+        var schema = SchemaFor(db);
+        var columns = snapshot.Where(r => r.Db == db && r.Kind == "column" && r.Table == table).OrderBy(r => r.Ordinal).ToList();
+        if (columns.Count == 0) return sql;
+        var indexes = snapshot.Where(r => r.Db == db && r.Kind == "index" && r.Table == table).ToList();
+        var pk = indexes.FirstOrDefault(i => i.Name.StartsWith("PK_", StringComparison.Ordinal));
+
+        var body = new List<string>(columns.Select(ColumnDefinition));
+        if (pk is not null)
+            body.Add($"CONSTRAINT [{pk.Name}] PRIMARY KEY {pk.Type} ({KeyList(pk.IndexColumns!)})");
+        else if (table == "Product")
+            body.Add("CONSTRAINT [PK_Product] PRIMARY KEY CLUSTERED ([Id])");
+        sql.Add($"CREATE TABLE [{schema}].[{table}] (\n    {string.Join(",\n    ", body)}\n);");
+
+        foreach (var ix in indexes.Where(i => i != pk))
+        {
+            var include = IncludedList(ix.IndexColumns!);
+            sql.Add($"CREATE {ix.Type} INDEX [{ix.Name}] ON [{schema}].[{table}] ({KeyList(ix.IndexColumns!)})" +
+                    (include.Length > 0 ? $" INCLUDE ({include})" : "") + ";");
+        }
+        if (table == "Product")
+            sql.Add($"CREATE NONCLUSTERED INDEX [IX_Sandbox_Product_Sku] ON [{schema}].[Product] ([Sku]);");
         return sql;
     }
 
@@ -109,7 +121,7 @@ public static class SandboxSchema
     /// <summary>A human-readable script of the same statements (for review; the code runs the list).</summary>
     public static string Script(IReadOnlyList<LiveSchemaRow> snapshot)
     {
-        var sb = new StringBuilder("-- Generated from live-discount-schema.json by SandboxSchema.CreateStatements. Do not edit.\n");
+        var sb = new StringBuilder("-- Generated from live-discount-schema.json and live-price-schema.json by SandboxSchema.CreateStatements. Do not edit.\n");
         foreach (var s in CreateStatements(snapshot)) sb.Append(s).Append("\nGO\n");
         return sb.ToString();
     }

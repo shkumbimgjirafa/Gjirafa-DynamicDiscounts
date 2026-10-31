@@ -43,7 +43,8 @@ using PricingTool.NopIntegration.Sandbox;
 //   campaign-goal <calendar id> <gross-profit|margin|units> <value> [--by <who>] [--note "<why>"]  a person's binding goal
 //   cost-watch [--poll] [--inject <layer> <sku> <cost>]              one cost watch: optionally poll the replica, or inject a labelled
 //                                                                   [INJECTED-TEST] cost (with --test its records go to the test DB)
-//   sandbox [check|create [--recreate]|script]                      the shop sandbox: contract check, build + seed, DDL
+//   sandbox [check|create [--recreate]|add-prices|script]           the shop sandbox: contract check, build + seed, add the
+//                                                                   regular-price tables to an existing one (discounts kept), DDL
 //   publish-canary <layer> --run <id> --category <c> [--max n] [--rollback]   publish a run's sample, show the rows
 //   publish-rollback <batch id>                                     restore what a publish batch changed
 //   check-run <run id> [--test]                                     the pre-publish run check (one model call)
@@ -203,8 +204,11 @@ switch (command)
             await SandboxSeeder.CreateAsync(conn, snapshot);
             Console.WriteLine($"Created {string.Join(", ", dbs.Select(SandboxSchema.SchemaFor))} in {sw.ElapsedMilliseconds} ms");
             foreach (var r in await SandboxSeeder.SeedAsync(conn, snapshot))
-                Console.WriteLine($"Seeded {r.Db}: {r.Discounts:N0} discounts, {r.Mappings:N0} mappings, {r.Products:N0} products in {r.Milliseconds:N0} ms");
+                Console.WriteLine($"Seeded {r.Db}: {r.Discounts:N0} discounts, {r.Mappings:N0} mappings, {r.Products:N0} products, {r.TierPrices:N0} tier prices in {r.Milliseconds:N0} ms");
         }
+        if (sub == "add-prices")
+            foreach (var r in await SandboxSeeder.AddPricesAsync(conn, snapshot))
+                Console.WriteLine($"{r.Db}: {(r.Products > 0 ? $"Product rebuilt with HasTierPrices ({r.Products:N0} rows kept), " : "")}TierPrice seeded with {r.TierPrices:N0} rows in {r.Milliseconds:N0} ms");
         var failed = false;
         foreach (var db in dbs)
         {

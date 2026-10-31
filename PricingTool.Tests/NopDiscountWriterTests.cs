@@ -47,7 +47,7 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
             if (!_created || !SchemaExists(conn)) { SandboxSeeder.CreateAsync(conn, SandboxSchema.LoadSnapshot()).GetAwaiter().GetResult(); _created = true; }
         }
         foreach (var s in new[] { G50, Mall })
-            foreach (var t in new[] { "Discount_AppliedToProducts", "Discount", "Product" })
+            foreach (var t in new[] { "Discount_AppliedToProducts", "Discount", "Product", "TierPrice" })
                 Exec(conn, $"TRUNCATE TABLE [{s}].[{t}]");
     }
 
@@ -114,7 +114,7 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
     private void Product(int id, string sku, bool has = false, string? storeIds = null, string schema = G50)
     {
         using var c = _fixture.Open();
-        using var cmd = new SqlCommand($"SET IDENTITY_INSERT [{schema}].[Product] ON; INSERT INTO [{schema}].[Product] (Id, Sku, Deleted, HasDiscountsApplied, HasDiscountsAppliedStoreIds) VALUES (@Id, @Sku, 0, @Has, @Ids); SET IDENTITY_INSERT [{schema}].[Product] OFF;", c);
+        using var cmd = new SqlCommand($"SET IDENTITY_INSERT [{schema}].[Product] ON; INSERT INTO [{schema}].[Product] (Id, Sku, HasTierPrices, Deleted, HasDiscountsApplied, HasDiscountsAppliedStoreIds) VALUES (@Id, @Sku, 0, 0, @Has, @Ids); SET IDENTITY_INSERT [{schema}].[Product] OFF;", c);
         cmd.Parameters.AddWithValue("@Id", id);
         cmd.Parameters.AddWithValue("@Sku", sku);
         cmd.Parameters.AddWithValue("@Has", has);
