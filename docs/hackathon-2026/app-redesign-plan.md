@@ -140,6 +140,10 @@ Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
   or a price a person set), the export too; after a publish our earlier discount on those SKUs is ended. Republished: Gjirafa50
   #1109 +€1,608 a month (11,714 cuts held back), GjirafaMall #1107 +€6,321 (84,800 held back). Most raises are now held by
   the calculator's own earlier pushes (33,901 and 24,223), which the existing `SupersedeTeamRegularDiscounts` switch ends.
+- **Decision, 31 Oct (the user): `SupersedeTeamRegularDiscounts` on.** Republished: GjirafaMall #1107 49,214 of 50,969 on the
+  shelf (batch #10164), **+€17,176 a month** (48,561 raises +€17,412, 653 cuts −€235; +€13,871 / +€10,865 at elasticity
+  −1 / −2); Gjirafa50 #1109 25,390 of 26,604 (#10162), **+€8,984** (+€7,388 / +€5,934). Estimated, sandbox. Real team deals
+  still hold 1,754 and 1,214 prices.
 
 ## Verification
 
