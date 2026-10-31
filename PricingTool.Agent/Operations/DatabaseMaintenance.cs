@@ -87,6 +87,31 @@ public sealed class DatabaseMaintenance
         return (r.GetInt32(0), r.GetInt32(1));
     }
 
+    /// <summary>Publish exceptions are kept this many days: the inbox and the weekly report read 7.</summary>
+    public const int ExceptionDays = 14;
+
+    /// <summary>
+    /// Deletes publish exceptions older than <see cref="ExceptionDays"/> days, 50k rows per delete. The same SKUs come back every
+    /// day (73k rows a day on 31 Oct, about 13 MB), which alone would take the 30-day projection to the 8 GB line; each batch keeps
+    /// its own counts on its row.
+    /// </summary>
+    public async Task<int> ExceptionRetentionAsync(CancellationToken ct = default)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new SqlCommand("""
+            SET NOCOUNT ON;
+            DECLARE @total int = 0, @rows int = 1;
+            WHILE @rows > 0
+            BEGIN
+                DELETE TOP (50000) FROM ai.PublishException WHERE CreatedUtc < @Cutoff;
+                SET @rows = @@ROWCOUNT; SET @total += @rows;
+            END
+            SELECT @total;
+            """, conn) { CommandTimeout = 1800 };
+        cmd.Parameters.AddWithValue("@Cutoff", _clock.GetUtcNow().UtcDateTime.AddDays(-ExceptionDays));
+        return (int)(await cmd.ExecuteScalarAsync(ct))!;
+    }
+
     /// <summary>A full backup with checksum into the backup folder; keeps the newest <see cref="CycleOptions.KeepBackups"/>.</summary>
     public async Task<(string Path, long Bytes, int Removed)> BackupAsync(CancellationToken ct = default)
     {

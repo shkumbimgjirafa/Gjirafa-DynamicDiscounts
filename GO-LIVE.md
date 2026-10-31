@@ -9,7 +9,9 @@ watcher publishes its raise to the floor the same way (since 31 Oct: before, it 
 which changes nothing on the shelf).
 
 **Going live is a configuration change, never a code change.** The code that ran against the sandbox is
-the code that runs against the shop. Nothing below has been done yet.
+the code that runs against the shop. Nothing below has been done yet. The sandbox mirror (the daily `mirror-L<layer>`
+step that copies the live shop's other discounts and regular prices into the sandbox) exists only for the sandbox: with
+`Publisher:Target` = `Live` it does nothing.
 
 ## Before go-live: open questions for the platform team
 

@@ -95,6 +95,12 @@ public sealed class AgentChat
         sb.AppendLine($"- Publishes: {batches.Count(b => b.Status == "Published" && b.RolledBackUtc == null)} live, {batches.Count(b => b.RolledBackUtc != null)} rolled back " +
                       $"({batches.Where(b => b.RolledBackUtc == null).Sum(b => b.Created + b.Updated):N0} discounts and {batches.Where(b => b.RolledBackUtc == null).Sum(b => b.TierRaised + b.TierInserted):N0} " +
                       $"regular prices written to {(batches.FirstOrDefault()?.Target ?? "the sandbox")}).");
+        // The daily publish to the sandbox, which follows the live shop: the shadow of the live shelf, the latest per layer.
+        var shelf = batches.Where(b => b.Kind == "Regular" && b.Status == "Published" && b.RolledBackUtc == null)
+            .GroupBy(b => b.LayerId).Select(g => g.OrderByDescending(b => b.Id).First()).OrderBy(b => b.LayerId).ToList();
+        if (shelf.Count > 0)
+            sb.AppendLine("- On the shelf at our price (the latest daily publish to the sandbox, which follows the live shop): " + string.Join("; ", shelf.Select(b =>
+                $"layer {b.LayerId} {b.RoundTripChecked - b.RoundTripMismatches:N0} of {b.Requested:N0} checked prices (batch #{b.Id})")) + "; what held the rest is the next line.");
         var leftOut = await Operations.ExceptionsInbox.PublishSkusAsync(_db, since, now, 0, ct);
         if (leftOut.Count > 0)
             sb.AppendLine("- Left out by the publisher, once per SKU: " + string.Join("; ", leftOut.Select(g =>

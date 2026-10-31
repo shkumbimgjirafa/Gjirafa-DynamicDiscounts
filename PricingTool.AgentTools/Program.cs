@@ -96,9 +96,9 @@ if (testRun)
     Console.Error.WriteLine($"Test run: the agents' records go to {new SqlConnectionStringBuilder(testDb).InitialCatalog}.");
 }
 
-// Only the cost watch reads the replica (its read-only connection is in user-secrets, shared with the engine and web);
-// no other command, and never the MCP server the agents use, loads it.
-if (command == "cost-watch")
+// Only the cost watch and the sandbox mirror read the replica (its read-only connection is in user-secrets, shared with the
+// engine and web); no other command, and never the MCP server the agents use, loads it.
+if (command is "cost-watch" or "sandbox-mirror")
     builder.Configuration.AddUserSecrets("gjirafa-hackathon-pricing-agent-2026");
 
 builder.Services.AddPricingTool(builder.Configuration);
@@ -223,6 +223,23 @@ switch (command)
             failed |= diffs.Count > 0;
         }
         return failed ? 1 : 0;
+    }
+
+    case "sandbox-mirror":
+    {
+        // The daily cycle's mirror-L<layer> step by hand: the live shop's other discounts and regular prices into the sandbox.
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var layer = int.Parse(positional[0]);
+        var tool = scope.ServiceProvider.GetRequiredService<PricingToolDbContext>();
+        var run = Opt("--run") is { } r ? long.Parse(r) : await tool.PricingRuns.AsNoTracking()
+            .Where(x => x.LayerId == layer && (x.Status == PricingTool.Data.Entities.RunStatus.Succeeded || x.Status == PricingTool.Data.Entities.RunStatus.SucceededWithErrors))
+            .OrderByDescending(x => x.Id).Select(x => x.Id).FirstAsync();
+        var result = await scope.ServiceProvider.GetRequiredService<PricingTool.NopIntegration.Sandbox.SandboxMirror>().RunAsync(layer, run);
+        Console.WriteLine($"Mirrored {result.Describe()}");
+        Console.WriteLine($"Peak working set of this process: {Process.GetCurrentProcess().PeakWorkingSet64 / 1024 / 1024:N0} MB");
+        return 0;
     }
 
     case "publish-canary":

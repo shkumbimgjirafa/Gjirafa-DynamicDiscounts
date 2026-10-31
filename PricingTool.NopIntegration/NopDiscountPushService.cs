@@ -55,6 +55,8 @@ public static class NopPublisherServiceCollectionExtensions
         services.AddSingleton<IShopCacheInvalidator, ShopCacheInvalidator>();
         services.AddScoped<NopDiscountWriter>();
         services.AddScoped<PricingTool.Agent.Operations.ICheckedPricePublisher, CheckedPricePublisher>();
+        services.AddScoped<Sandbox.SandboxMirror>();
+        services.AddScoped<PricingTool.Agent.Operations.ISandboxMirror>(sp => sp.GetRequiredService<Sandbox.SandboxMirror>());
         services.AddScoped<PricingTool.Agent.Operations.IRaiseRestorer, NopRaiseRestorer>();
         services.Configure<CostWatch.CostWatcherOptions>(config.GetSection(CostWatch.CostWatcherOptions.SectionName));
         services.AddScoped<CostWatch.ICostPublisher, CostWatch.WriterCostPublisher>();

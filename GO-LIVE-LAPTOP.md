@@ -76,7 +76,11 @@ be rebuilt while it runs) and starts the engine host (`--hackathon-host`). The h
 
 size check (warns at 8 GB) → incremental hk refresh from the replica → engine runs, Gjirafa50 then GjirafaMall →
 Alpha's floor/target pass (Mondays) → run checks → checked exports for the push (holdout categories left out) →
-money ledger → time-sheet export → retention (latest 2 local runs per layer) → backup (keeps 7).
+the live shop's other discounts and regular prices into the shop sandbox (`mirror-L<layer>`, read-only from the replica,
+about 20 s on Gjirafa50 and 45 s on GjirafaMall) → the checked prices to the sandbox (`publish-L<layer>`: its first
+figure, "on the shelf at our price", is the day's shadow of the live shelf) → money ledger → time-sheet export →
+retention (latest 2 local runs per layer, publish exceptions older than 14 days; the mirror deletes its own copies ended
+over 14 days ago) → backup (keeps 7).
 
 Each step writes a row (page **Daily cycle**); a failed step doesn't stop the rest and is tried again after an
 hour, three times a day at most. Steps not built yet are logged as NotBuilt.

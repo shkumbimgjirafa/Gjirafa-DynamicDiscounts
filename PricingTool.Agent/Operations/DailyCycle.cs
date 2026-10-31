@@ -31,11 +31,19 @@ public interface ICheckedPricePublisher
     Task<(string Status, string Detail)> PublishCheckedAsync(int layerId, long runId, CancellationToken ct = default);
 }
 
+/// <summary>Brings the live shop's other discounts and regular prices into the shop sandbox for a run's products, so the publish
+/// after it measures what would reach the live shelf (the publisher implements it; Prompt 10 part B).</summary>
+public interface ISandboxMirror
+{
+    Task<(string Status, string Detail)> MirrorAsync(int layerId, long runId, CancellationToken ct = default);
+}
+
 /// <summary>
 /// The laptop's daily cycle for the 30 days (plan section 5 "Live operation on the laptop", prompt 05), one job
 /// per day: size check → incremental hk refresh → engine runs (Gjirafa50 first) → Alpha's pass (weekly, on its
-/// day) → run checks → exports for the team's push → the same checked prices to the shop sandbox (discounts and
-/// raises, prompt 07) → money ledger → time-sheet export → retention → backup.
+/// day) → run checks → exports for the team's push → the live shop's other discounts and regular prices into the shop
+/// sandbox (Prompt 10 part B) → the same checked prices to the sandbox (discounts and raises, prompt 07) → money ledger →
+/// time-sheet export → retention → backup.
 /// Each step writes its own <c>ai.DailyCycleStep</c> row, and a failing step doesn't stop the rest. Idempotent
 /// per day: a second start resumes the steps not done yet; a failed step is retried at most
 /// <see cref="MaxAttemptsPerDay"/> times a day (so a failing AI step can't turn into a stream of paid calls).
@@ -156,6 +164,15 @@ public sealed class DailyCycle
                 return (r.Exported ? StepStatus.Succeeded : StepStatus.Warning, r.Reason + (r.FilePath is null ? "" : $" File: {r.FilePath}"));
             });
         foreach (var layer in c.Layers)
+            yield return new Step($"mirror-L{layer}", async ct =>
+            {
+                var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
+                using var scope = _sp.CreateScope();
+                if (scope.ServiceProvider.GetService<ISandboxMirror>() is not { } mirror)
+                    return (StepStatus.NotBuilt, "no sandbox mirror in this host: the sandbox keeps the shop as it was seeded");
+                return await mirror.MirrorAsync(layer, run.Id, ct);
+            });
+        foreach (var layer in c.Layers)
             yield return new Step($"publish-L{layer}", async ct =>
             {
                 var run = await TodaysRunAsync(layer, day, ct) ?? throw new InvalidOperationException($"no engine run today for layer {layer}");
@@ -194,7 +211,9 @@ public sealed class DailyCycle
         yield return new Step("retention", async ct =>
         {
             var (proposals, snapshots) = await With((DatabaseMaintenance m) => m.RetentionAsync(ct));
-            return (StepStatus.Succeeded, $"deleted {proposals:N0} proposals and {snapshots:N0} snapshot rows of older local runs (keeping {c.KeepRunsPerLayer} per layer and the imported prod runs)");
+            var exceptions = await With((DatabaseMaintenance m) => m.ExceptionRetentionAsync(ct));
+            return (StepStatus.Succeeded, $"deleted {proposals:N0} proposals and {snapshots:N0} snapshot rows of older local runs (keeping {c.KeepRunsPerLayer} per layer and the imported prod runs), " +
+                                          $"and {exceptions:N0} publish exceptions older than {DatabaseMaintenance.ExceptionDays} days");
         });
         yield return new Step("backup", async ct =>
         {

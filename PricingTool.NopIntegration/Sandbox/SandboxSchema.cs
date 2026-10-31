@@ -57,6 +57,8 @@ public static class SandboxSchema
         foreach (var db in snapshot.Select(r => r.Db).Distinct().OrderBy(d => d, StringComparer.Ordinal))
         {
             var schema = SchemaFor(db);
+            // The mirror's map of live ids goes with the rows it maps.
+            sql.Add($"IF OBJECT_ID('[{schema}].[{SandboxMirror.MapTable}]') IS NOT NULL DROP TABLE [{schema}].[{SandboxMirror.MapTable}];");
             foreach (var table in Tables.Reverse())
                 sql.Add($"IF OBJECT_ID('[{schema}].[{table}]') IS NOT NULL DROP TABLE [{schema}].[{table}];");
             sql.Add($"IF SCHEMA_ID('{schema}') IS NULL EXEC('CREATE SCHEMA [{schema}]');");
@@ -66,11 +68,12 @@ public static class SandboxSchema
         return sql;
     }
 
-    /// <summary>CREATE TABLE and its indexes for one shop's table (nothing when the snapshot has no such table).</summary>
-    public static IReadOnlyList<string> TableStatements(IReadOnlyList<LiveSchemaRow> snapshot, string db, string table)
+    /// <summary>CREATE TABLE and its indexes for one shop's table (nothing when the snapshot has no such table), in the sandbox
+    /// schema or, for tests standing in for the live shop, in <paramref name="schema"/>.</summary>
+    public static IReadOnlyList<string> TableStatements(IReadOnlyList<LiveSchemaRow> snapshot, string db, string table, string? schema = null)
     {
         var sql = new List<string>();
-        var schema = SchemaFor(db);
+        schema ??= SchemaFor(db);
         var columns = snapshot.Where(r => r.Db == db && r.Kind == "column" && r.Table == table).OrderBy(r => r.Ordinal).ToList();
         if (columns.Count == 0) return sql;
         var indexes = snapshot.Where(r => r.Db == db && r.Kind == "index" && r.Table == table).ToList();

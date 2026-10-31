@@ -162,9 +162,12 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 
 - **Publishing is to the sandbox only.** `Publisher:Target` is Sandbox in every `appsettings.Hackathon.json`; the writer
   then refuses any schema outside `shop_sandbox_*`. Nothing writes to a shop database. The sandbox holds the shop's
-  discount tables and its regular prices (`TierPrice`, seeded from the 31 Oct KS copy), each with the live DDL. Going live
-  is configuration plus a DBA's grant (`GO-LIVE.md`); the live path is built and tested against the sandbox, never run
-  against the shop.
+  discount tables and its regular prices (`TierPrice`, seeded from the 31 Oct KS copy), each with the live DDL. Since
+  31 Oct a daily mirror step (`mirror-L<layer>`, before the publish) brings the live shop's other discounts, their product
+  mappings and flags, and the regular prices the publisher hasn't written into it for the run's products, read-only from
+  the replica, so each day's publish measures what would reach the live shelf (the October sets ended that night; without
+  it the sandbox would describe a shop that no longer exists). Going live is configuration plus a DBA's grant
+  (`GO-LIVE.md`); the live path is built and tested against the sandbox, never run against the shop.
 - **Injected test cases** run against a separate database, `PricingToolHackathonTest`, and are tagged `[INJECTED-TEST]`
   in data, logs and UI. The live database holds no mock data; `PricingEngine:UseDemoData` is false.
 - **Not finished:**

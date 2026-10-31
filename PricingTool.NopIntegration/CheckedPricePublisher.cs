@@ -80,7 +80,9 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
             "Published" or "RolledBack" => StepStatus.Warning,
             _ => StepStatus.Failed,
         };
-        return (status, $"sandbox batch #{o.BatchId} {o.Status} for run #{runId}: {Chosen(set)}; {Describe(o)}; " +
+        // The sandbox follows the live shop (the mirror step before this one), so this is the day's shadow of the live shelf.
+        return (status, $"on the shelf at our price: {o.RoundTripChecked - o.RoundTripMismatches:N0} of {items.Count:N0} checked prices; " +
+                        $"sandbox batch #{o.BatchId} {o.Status} for run #{runId}: {Chosen(set)}; {Describe(o)}; " +
                         $"round-trip {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0}");
     }
 }
