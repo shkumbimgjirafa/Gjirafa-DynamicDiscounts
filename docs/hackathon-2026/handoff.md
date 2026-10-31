@@ -35,3 +35,5 @@
 #done prompt 10 part D (LocalDB started first in the host scripts; GO-LIVE-LAPTOP.md notes) · 2026-10-31 10:14 · commits 1e3e356..981bbac · not met: none (the memory cap and the instance timeout are the user's instance-wide calls, documented, not changed)
 
 #done prompt 09 part C (AI-judge dry run 3 on d980294 and its defect fixes) · 2026-10-31 10:27 · commits 6f95d35..6f95d35 · not met: the juror doesn't accept framing B's claim (B 54/58, A 42/46: the uncontrolled B0 rate; the reasons given for B0 are levers already counted) — that is Prompt 13's restatement of the user's decision, next; Monday 06:00's run stays the final one
+
+#done prompt 13 (B's claim: B0 €10,409, €12,965 a month, 84 points; the controlled €4,402 under it; €13,000 out of the claim) · 2026-10-31 10:32 · commits a9d135d..a9d135d · not met: none of the done-when items; noted: E20's method still says the layer-level year-over-year check doesn't support the uncontrolled cases (a main-repo check, kept as written), which dry run 3 cited against the claim
