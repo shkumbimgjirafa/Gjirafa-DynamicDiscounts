@@ -69,7 +69,7 @@ $snapOut = [ordered]@{ snapshot = $snapRef; note = 'Every lever per layer, month
 $leverScript = 'PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV'
 $names = @{ 1 = 'Loss-sale block'; 2 = 'Per-category floors'; 3 = 'Cost reaction'; 5 = 'Cadence'; 6 = 'Learning (as built)'; 8 = 'Raises reach the shelf' }
 $test = @('2026-08', '2026-09')
-# Every lever on the calculator's era, Aug-Sep 2026: framing A's baseline is today's process, the calculator with its pushes
+# Every lever on the calculator's era, Aug-Sep 2026: the baseline is today's process, the calculator with its pushes
 # (a 12-month window tried on 31 Oct scored levers 1 and 3 against months before the calculator, a baseline that no longer
 # exists). Lever 3's low case leaves out August, one cost event (backtest-results.md), so it isn't counted every month.
 function MonthsFor($lever, $case) { if ($lever -eq 3 -and $case -eq 'low') { return @('2026-09') } else { return $test } }
@@ -139,7 +139,7 @@ $l8value = [ordered]@{ central = $l8; low = $l8; high = $octRemovable }
 $totals.high += $l8value.high; $totals.central += $l8value.central; $totals.low += $l8value.low
 Add 'E24' 'Lever 8, raises reach the shelf (the publisher): extra GP a month, both KS layers' $l8value 'EUR/month' 'estimated' `
     ("Lines of an approved raise sold at the old price because today's process left the calculator's earlier push live or never raised the regular price (E23's rule), priced at the new price; walk-forward in the backtest after levers 1-6, so a line another lever scores is counted once. " +
-     "Central = low: the Aug-Sep monthly average at e -1 ($($l8parts -join '; '); E23's whole spans give $($augSep.v2Removes)). High: October's pace ($octRemovable a month, E23), the month two push sets overlapped. Framing A only: what v2's publisher adds over the CSV import; team deals stay a person's call.") `
+     "Central = low: the Aug-Sep monthly average at e -1 ($($l8parts -join '; '); E23's whole spans give $($augSep.v2Removes)). High: October's pace ($octRemovable a month, E23), the month two push sets overlapped. It is what v2's publisher adds over the CSV import; team deals stay a person's call.") `
     $snapRef $leverScript
 
 # Lever 7: the median gain per campaign day (reallocate) x the campaign days of the last 12 months; the uplift curve as fitted
@@ -175,7 +175,7 @@ Add 'E4' 'Lever 4, coverage MK/AL: extra GP a month on months without a push' $l
     "The calculator's measured Kosovo gain as a share of Kosovo GP ($effects) x MK/AL tool-scope GP (hk.SalesLinesMkAl, EUR at the load day's shop rate) on months with no push of their own (hk.PushDatesMkAl); Aug-Sep average" `
     $snapRef 'PricingTool.AgentTools backtest-coverage'
 $totals.high += $l4.high; $totals.central += $l4.mid; $totals.low += $l4.low
-Add 'E8' 'Framing A: all levers together, extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low; high = $totals.high; underTeamDealCentral = $teamMoved.central }) 'EUR/month' 'estimated' `
+Add 'E8' 'All levers together, extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low; high = $totals.high; underTeamDealCentral = $teamMoved.central }) 'EUR/month' 'estimated' `
     ("E1 + E2 + E3 + E4 (mid / low / high) + E5 + E6 + E7 + E24 (lever 8); each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5), for lever 4 by the calculator test-phase case and for lever 8 by month (high = October's pace). " +
      "The raise levers' gain on lines sold under a team deal, $($teamMoved.central) a month of their central $($teamMoved.before) ($([math]::Round(100.0 * $teamMoved.central / [math]::Max(1, $teamMoved.before), 0)) %), is in high only.") $snapRef 'this script'
 
@@ -267,12 +267,12 @@ $byMonth = @{}; foreach ($r in $e20Sets[0].Rows) { $byMonth[$r.Month] = $r }
 $ctl = @{}; foreach ($r in $e20Sets[1].Rows) { if ($r.Grp -eq 'Changed total') { $ctl[[int]$r.ApprovalId] = $r } }
 $mallKept = Round0 $ctl[25].VsKeptPerMonth; $mallNotIn = Round0 $ctl[25].VsNotInApprovalPerMonth; $gj50NotIn = Round0 $ctl[1].VsNotInApprovalPerMonth
 $aug = Round0 $byMonth['2026-08'].Total; $sep = Round0 $byMonth['2026-09'].Total
-# Framing B's claim is the mid case (the user's decision, 31 Oct); the low case is the controlled measurement, shown under it;
+# The claim uses the mid case (the user's decision, 31 Oct); the low case is a robustness check in the evidence;
 # the high case is quoted from the main repo and not part of the claim.
 $e20Months = [ordered]@{}
 foreach ($m in '2026-08', '2026-09') { $e20Months[$m] = [ordered]@{ mallKs = Round0 $byMonth[$m].MallKs; gj50Ks = Round0 $byMonth[$m].Gj50Ks; total = Round0 $byMonth[$m].Total
     byApproval = "$($byMonth[$m].Spans)" } }
-Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = $mallKept + $gj50NotIn; mid = Round0 $byMonth['Aug-Sep average'].Total; high = 13000; byShopAugSepAvg = [ordered]@{ mallKs = Round0 $byMonth['Aug-Sep average'].MallKs; gj50Ks = Round0 $byMonth['Aug-Sep average'].Gj50Ks }
+Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (B0)" ([ordered]@{ low = $mallKept + $gj50NotIn; mid = Round0 $byMonth['Aug-Sep average'].Total; high = 13000; byShopAugSepAvg = [ordered]@{ mallKs = Round0 $byMonth['Aug-Sep average'].MallKs; gj50Ks = Round0 $byMonth['Aug-Sep average'].Gj50Ks }
         byMonth = $e20Months; controls = [ordered]@{ mall25VsKept = $mallKept; mall25VsNotInApproval = $mallNotIn; gj50No1VsNotInApproval = $gj50NotIn } }) 'EUR/month' `
     ([ordered]@{ low = 'robustness check: measured, same-weeks control, one run per layer, the stricter control on Mall'; mid = 'measured before/after each approval, not controlled (B0 in the claim)'; high = 'sensitivity: estimated, before/after season-adjusted with 2025, not controlled; quoted from the main repo, not recomputed, not part of the claim' }) `
     "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept $mallKept + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval $gj50NotIn (with Mall's other control, vs not in the approval, $mallNotIn + $gj50NotIn = $($mallNotIn + $gj50NotIn)); mid: before/after on the approvals, SKU-deduplicated spans (Aug $aug, Sep $sep; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025's seasonal growth)" `

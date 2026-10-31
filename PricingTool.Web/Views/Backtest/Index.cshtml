@@ -4,7 +4,7 @@
     ViewData["Title"] = "Backtest";
     var record = ViewData["Record"] as PricingTool.Agent.Storage.BacktestSnapshotRecord;
     string[] names = { "", "Loss-sale block", "Per-category floors", "Cost reaction", "Coverage MK/AL", "Cadence", "Learning", "Campaign planning", "Raises reach the shelf" };
-    // Every lever on the calculator's era (framing A's baseline is today's process); the stored run goes back to Oct 2025 for
+    // Every lever on the calculator's era (the baseline is today's process); the stored run goes back to Oct 2025 for
     // context, and lever 3's low case in numbers.json leaves out August's one cost event.
     var testMonths = new[] { "2026-08", "2026-09" };
     string[] MonthsFor(int lever) => testMonths;

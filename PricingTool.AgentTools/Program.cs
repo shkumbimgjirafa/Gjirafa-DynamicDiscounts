@@ -528,7 +528,7 @@ switch (command)
         using var host = builder.Build();
         var reader = host.Services.GetRequiredService<PricingDataReader>();
         var months = await reader.GetCoverageMonthsAsync(PricingTool.Agent.Backtest.CoverageBacktest.PushMinDiscounts);
-        // The calculator's measured Kosovo gain over Aug-Sep 2026 (E20, framing B), as a share of Kosovo's gross profit over
+        // The calculator's measured Kosovo gain over Aug-Sep 2026 (E20, B0), as a share of Kosovo's gross profit over
         // the same two months.
         var ksGp = await reader.GetKosovoGrossProfitAsync(new DateOnly(2026, 8, 1), new DateOnly(2026, 10, 1)) / 2m;
         var effects = PricingTool.Agent.Backtest.CoverageBacktest.TestPhase

@@ -79,15 +79,14 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
             .Select(label => Num(inputs["B" + inputs.Single(c => c.Key.StartsWith('A') && c.Value.StartsWith(label, StringComparison.Ordinal)).Key[1..]])).ToArray();
         Assert.Equal(b0, b0Rows);                                                                   // the sheet types E20 in
         var caseSheet = SheetValues(sheet, "Financial case");
-        Assert.Equal("The claim", caseSheet["F3"]);
-        Assert.All(new[] { "B3", "C3", "D3", "E3", "G3" }, c => Assert.Matches("^(Sensitivity|Robustness check):", caseSheet[c]));
+        Assert.Equal("The claim", caseSheet["B3"]);                                                 // one model column: the claim
+        Assert.All(new[] { "D3", "E3", "F3", "G3" }, c => Assert.False(caseSheet.ContainsKey(c)));
         var summary = SheetValues(sheet, "Summary");
         var (claim, score) = (Num(summary["B6"]), Num(summary["B20"]));
-        Assert.Equal(Num(caseSheet["F4"]), claim);                                                  // the Summary shows column F alone
+        Assert.Equal(Num(caseSheet["B4"]), claim);
         var bySource = SheetValues(sheet, "Benefit by source");
         Assert.Equal(b0[1], Num(bySource["B4"]));
         Assert.Equal(Math.Round(claim, 2), Math.Round(Num(bySource["B11"]), 2));
-        var others = new[] { "B4", "C4", "D4", "E4", "G4" }.Select(c => Num(caseSheet[c])).ToArray();
 
         var onePager = File.ReadAllText(Path.Combine(dir, "..", "one-pager.md"));
         var hackathon = File.ReadAllText(Path.Combine(dir, "..", "..", "..", "HACKATHON.md"));
@@ -97,8 +96,8 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
             foreach (var x in new[] { claim, b0[1], mall, gj50 }) Assert.Contains(Eur(x), doc);
             Assert.Contains($"{score:0} points", doc);
             Assert.Contains("robustness checks: E20, E27", doc);
-            foreach (var x in others.Append(b0[0]).Append(b0[2])) Assert.DoesNotContain(Eur(x), doc);
-            foreach (var word in new[] { "framing A", "cross-check", "controlled measurement", "scenario" })
+            foreach (var x in new[] { b0[0], b0[2] }) Assert.DoesNotContain(Eur(x), doc);
+            foreach (var word in new[] { "framing", "cross-check", "controlled measurement", "scenario", "levers alone", "levers only" })
                 Assert.DoesNotContain(word, doc, StringComparison.OrdinalIgnoreCase);
         }
 

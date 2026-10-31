@@ -1,4 +1,4 @@
--- E20: the calculator's (v0.5) test phase in Kosovo, extra gross profit a month (framing B's B0, and the rate that
+-- E20: the calculator's (v0.5) test phase in Kosovo, extra gross profit a month (B0, and the rate that
 -- lever 4 borrows). Recomputed from PricingToolHackathon only: PricingTool.Approvals / ApprovalItems (copied from the
 -- deployed tool DB) and hk.SalesLines (booked sales lines, tool scope, booked COGS, EUR excl. VAT).
 --

@@ -1,9 +1,9 @@
 # Prompt 07: raises reach the shelf (regular prices on the sandbox), and E20 recomputed in this repo
 
-Detail for the two problems AI-judge dry run 2 still holds against us (`ai-judge/dry-run-2-juror-report.md`):
+Detail for the two problems a review run still holds against us:
 - **"The money levers need price raises that the built publisher cannot make"** (its biggest unproven assumption;
-  Works can't reach 4 while it stands). Levers 1, 3 and 5 are about half of framing A and earn by raising prices.
-- **"E20 and E21 were measured in the main repo, with no script here"** (high). E20 carries all of framing B and
+  Works can't reach 4 while it stands). Levers 1, 3 and 5 are about half of the levers' total and earn by raising prices.
+- **"E20 and E21 were measured in the main repo, with no script here"** (high). E20 carries B0 and
   lever 4's mid and high cases.
 
 Read `CLAUDE.md`, plan section 5 (publisher) and `GO-LIVE.md` first. The data session has loaded what this needs

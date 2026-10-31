@@ -118,7 +118,7 @@ to the day before the next one did, outside campaign days, so lever 5's run-to-p
    - high = **€2.8k** (October's pace, labelled as the month two push sets overlapped).
    - Count a line once: drop from lever 8 any line that lever 1 or 3 already scores (match on `SrLineId` in the
      backtest).
-   - Framing A only. It is what v2's publisher adds over the CSV import.
+   - It is what v2's publisher adds over the CSV import.
 3. **The same team-deal limit applies to levers 1, 3 and 5**: v2 doesn't raise a price a team deal holds. Aug–Sep: 15 %
    of the units on raised SKUs (579 of 3,933) sold under a team deal at the old price.
    - Split each lever's gain by whether its line sold under a team deal. Use this rule:

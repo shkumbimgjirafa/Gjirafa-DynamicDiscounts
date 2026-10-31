@@ -2,7 +2,7 @@
 
 What v2 would have added on Kosovo's two layers, lever by lever, on booked sales lines (booked COGS, EUR VAT
 excluded). **Every lever on the calculator's era, Aug 1 – Sep 30 2026** (monthly average below), with Oct 1–15 as an
-out-of-sample check: framing A's baseline is today's process, the calculator with its pushes. Lever 3's low case leaves
+out-of-sample check: the baseline is today's process, the calculator with its pushes. Lever 3's low case leaves
 out August (one cost event, below). Commands: `PricingTool.AgentTools backtest-snapshot` (the stored run,
 `ai.BacktestSnapshot`, shown on the Backtest page with a CSV download; it goes back to Oct 2025 for context), or
 `backtest-levers 1 4 [--from --to] [--detail]` and `backtest-campaigns 1 4`. All gains are **estimated** unless marked
@@ -27,8 +27,8 @@ holds; a person may supersede it. That is €378 a month of the €2,179 central
 Gjirafa50 it is most of levers 1 and 3: in Aug–Sep 72 % of its lines sold under a discount the calculator never set
 (approval #1 listed only the prices it changed); on GjirafaMall 2 %.
 
-**With lever 4 (MK/AL): about €4.2k a month central, €2.0k low, €8.7k high (E8: €4,158 / €1,996 / €8,675; snapshot #5 of 31 Oct, E20 recomputed).** The high case is up from €5.8k mostly through lever 8's October pace. Against the €10k bar for band 5
-this is far short; the levers add to the rollout of the calculator's tested effect (framing B), they don't replace it.
+**With lever 4 (MK/AL): about €4.2k a month central, €2.0k low, €8.7k high (E8: €4,158 / €1,996 / €8,675; snapshot #5 of 31 Oct, E20 recomputed).** The high case is up from €5.8k mostly through lever 8's October pace. The levers add to the rollout
+of the calculator's tested effect (B0) in the claim; they don't replace it.
 The financial sheet then leaves out the holdout categories' share (about 11 % of the changed prices), which the backtest
 doesn't. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
 2026) to stop August's one event counting every month; dry run 2 showed that scored them against months before the
@@ -43,7 +43,7 @@ answers the one-event point instead.
   a public, all-platform discount set of 50,000+ products started in it (`hk.PushDatesMkAl`): Gj50 AL in July, Mall AL
   in September, all four in October (21 Oct). The calculator's measured Kosovo gain as a share of Kosovo's gross profit
   (€180.4k a month, Aug–Sep): low €4.4k = 2.4 % (same-weeks control, one run per KS layer), mid €10.4k = 5.8 %
-  (before/after), high €13.0k = 7.2 % (season-adjusted; quoted from the main repo, not part of framing B's claim). Low and mid are recomputed from this
+  (before/after), high €13.0k = 7.2 % (season-adjusted; quoted from the main repo, not part of the claim). Low and mid are recomputed from this
   repo's data (`evidence/e20-test-phase.sql`). The plan's "≈ 10 %" is above all three measurements. `backtest-coverage`.
 - **Lever 1.** Cross-dock lines on normal days sold under their booked cost, e.g. €394 / €2,671 / €250 a month on
   Mall (Aug / Sep / Oct 1–15), €402 / €539 / €175 on Gj50 (measured). Counted only where the cost the SKU last
@@ -92,7 +92,7 @@ answers the one-event point instead.
   a person and not counted. GP forgone at e −1, Aug–Sep: €300 a month v2 removes, €1,274 team deals. The backtest prices
   the removable lines at the new price after levers 1–6, so a line another lever scores counts once: €249 a month
   (GjirafaMall; Gjirafa50 had no approved raise in Aug–Sep). High: October's pace, €2,830 a month, the month two push
-  sets overlapped. Framing A only: what the publisher adds over the CSV import.
+  sets overlapped. What the publisher adds over the CSV import.
 - **Team deals (all raise levers).** v2 doesn't raise a price a team deal holds, so the part of levers 1, 2, 3 and 5 on
   lines sold under one (above) is in the high case only. Snapshot #5 also reads each day's lines in sale-time order
   (snapshot #3 took the database's order, which `before.LastOrDefault` and lever 3's episode state depend on): lever 3

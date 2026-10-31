@@ -16,3 +16,10 @@ obj/
 .vs/
 *.user
 TestResults/
+
+# Internal working notes, kept on disk
+docs/hackathon-2026/ai-judge/dry-run-*
+docs/hackathon-2026/handoff.md
+docs/hackathon-2026/prompts/13-*
+docs/hackathon-2026/prompts/14-*
+docs/hackathon-2026/prompts/15-*

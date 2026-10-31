@@ -182,7 +182,7 @@ person, not counted). It is scored in the backtest after the other levers, so a 
 (E23's whole spans give €300). The stored run (#5) reads each day's lines in sale-time order; before, the database's
 order moved lever 3 by €35 a month. (A 12-month window, tried after dry run 1, scored levers 1 and 3 against months before
 the calculator; dry run 2 caught it.) Each lever's sensitivity to other elasticities is in
-[`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md) and the sheet's sensitivity columns;
+[`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md) and on the sheet's Inputs (Low / Mid / High per lever);
 the Backtest tab shows the stored run and its CSV.
 
 **Where the levers come from.** Mostly automation, not the model's own choices: the loss block and the cost reaction
@@ -200,8 +200,8 @@ model chooses among the strategies). What the agents add so far is running the w
 without a person; how much their own judgment is worth is what the pilot's holdout measures.
 
 **The financial sheet** (live formulas; inputs typed from `numbers.json` with their IDs) gives the claim, its Track A
-score and where its benefit comes from (the "Benefit by source" sheet); the same model's other columns are labelled
-sensitivity (the levers alone, other elasticities) and a robustness check of B0, not alternative claims. Payback is what
+score and where its benefit comes from (the "Benefit by source" sheet); B0's robustness checks are on its Inputs and
+Evidence sheets, labelled. Payback is what
 the sheet computes from the ramp: built in month 1, a two-month pilot at an assumed quarter of the benefit, then full
 scope (9.5 full-benefit months); the pilot's assumptions are not tuned to cross a line. Costs: the attended hackathon
 hours at €50 (E16) plus an assumed hour of the person's time inside unattended blocks, 160 assumed hours to production
@@ -254,8 +254,7 @@ the reason next to each.
     sandbox → read-back; `RunWeekLoop`). Cuts go out as discounts, raises as the store's regular price
     (`NopRegularPriceWriter`); the cost watcher's raise to the floor goes the same way.
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
-- **Known limitations** (several found by our own AI-judge dry runs, `docs/hackathon-2026/ai-judge/dry-run-1.md` and
-  `dry-run-2.md`):
+- **Known limitations** (several found by our own review runs):
   - E20's high case (its 2025 season adjustment) is quoted from the main repo and not part of the claim; its low and mid cases and E21 are
     recomputed here (`evidence/e20-test-phase.sql`, `evidence/e21-by-cause.sql`). E21 is not one leak the agents fix:
     of the €14.7k a month sold under the hand-set floor in Aug–Sep, €3.0k is allowed or not a price (dead stock,
@@ -305,7 +304,7 @@ the reason next to each.
 | Read-only data access; no shop writes | The replica connection exists only in user-secrets (`ConnectionStrings:SourceReadOnly`); the agents' `query_data` runs SELECT-only on `agent.*` views with a 30 s timeout and 500-row cap (`QuerySqlGuard`, tested); the publisher writes only `shop_sandbox_*` |
 | Every copied dataset is logged | `hk.DataSources`: 40 rows (source, time, row count, the SQL file in `docs/hackathon-2026/exports/`) |
 | No personal data | Sales lines carry no order, customer, email, name or address; the AI call log redacts emails. The imported calculator's default admin was an employee's work email: removed from this tree on 31 Oct (it remains in the import commit) |
-| No live system written | The replica and a one-time read-only copy of the tool database are read, both allowed at the kickoff. On 31 Oct a web start with the wrong launch profile (Development) migrated and seeded the main repo's *local* development database `PricingTool` on this laptop. Five minutes later, after a backup, its schema changes were reverted (every object created at 00:20:58–59 dropped). The demo data it seeded is still there (one demo run #40010 with its 360 proposals, one day of snapshots and KPIs, and 360 updated dead-stock states): the backup was taken after the start, so the updated rows' earlier values can't be restored, and removing only the inserted rows would leave that database inconsistent; the user decides (`docs/hackathon-2026/ai-judge/dry-run-1.md`). The web app and the engine now refuse to start in any environment but Hackathon |
+| No live system written | The replica and a one-time read-only copy of the tool database are read, both allowed at the kickoff. On 31 Oct a web start with the wrong launch profile (Development) migrated and seeded the main repo's *local* development database `PricingTool` on this laptop. Five minutes later, after a backup, its schema changes were reverted (every object created at 00:20:58–59 dropped). The demo data it seeded is still there (one demo run #40010 with its 360 proposals, one day of snapshots and KPIs, and 360 updated dead-stock states): the backup was taken after the start, so the updated rows' earlier values can't be restored, and removing only the inserted rows would leave that database inconsistent; the user decides. The web app and the engine now refuse to start in any environment but Hackathon |
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
 | The organisers' AI Pioneer meter (31 Oct, at Mergca's request) | The build sessions report through Claude Code hooks in this project's `.claude/settings.local.json` (git-ignored); the agents' own calls through `HacktrackMeter` (one event per attempt that reached the model, task name, requests and tokens; labelled injected tests are not counted) handing each event to the organisers' `hook.js`. The team token lives only in that ignored file and in the user's environment variables, never in a tracked file |

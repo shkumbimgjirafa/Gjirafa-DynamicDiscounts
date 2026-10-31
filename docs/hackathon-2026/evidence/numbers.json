@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 18:06",
+    "generated":  "2026-10-31 18:40",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -208,7 +208,7 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Lines of an approved raise sold at the old price because today\u0027s process left the calculator\u0027s earlier push live or never raised the regular price (E23\u0027s rule), priced at the new price; walk-forward in the backtest after levers 1-6, so a line another lever scores is counted once. Central = low: the Aug-Sep monthly average at e -1 (layer 1: 249; layer 4: 0; E23\u0027s whole spans give 300). High: October\u0027s pace (2830 a month, E23), the month two push sets overlapped. Framing A only: what v2\u0027s publisher adds over the CSV import; team deals stay a person\u0027s call.",
+                        "method":  "Lines of an approved raise sold at the old price because today\u0027s process left the calculator\u0027s earlier push live or never raised the regular price (E23\u0027s rule), priced at the new price; walk-forward in the backtest after levers 1-6, so a line another lever scores is counted once. Central = low: the Aug-Sep monthly average at e -1 (layer 1: 249; layer 4: 0; E23\u0027s whole spans give 300). High: October\u0027s pace (2830 a month, E23), the month two push sets overlapped. It is what v2\u0027s publisher adds over the CSV import; team deals stay a person\u0027s call.",
                         "source":  "ai.BacktestSnapshot #5 (2026-10-31 08:10 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
@@ -242,7 +242,7 @@
                     },
                     {
                         "id":  "E8",
-                        "name":  "Framing A: all levers together, extra GP a month",
+                        "name":  "All levers together, extra GP a month",
                         "value":  {
                                       "central":  4158,
                                       "low":  1996,
@@ -469,7 +469,7 @@
                     },
                     {
                         "id":  "E20",
-                        "name":  "Calculator v0.5\u0027s test phase, Kosovo, extra GP a month (framing B\u0027s B0)",
+                        "name":  "Calculator v0.5\u0027s test phase, Kosovo, extra GP a month (B0)",
                         "value":  {
                                       "low":  4402,
                                       "mid":  10409,

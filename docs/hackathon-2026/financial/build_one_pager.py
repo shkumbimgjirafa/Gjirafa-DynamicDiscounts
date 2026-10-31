@@ -35,9 +35,9 @@ def k(x):
     return f"€{x / 1000:.1f}k"
 
 
-# One framing, one number (the user's decision, 31 Oct): the claim is the sheet's column F and its score; where it comes
-# from is the sheet's 'Benefit by source'. The model's other columns are sensitivity, not alternative claims.
-claim = {k: case[f"F{r}"].value for k, r in (("month", 4), ("net", 10), ("roi", 11), ("payback", 13))}
+# One claim, one number (the user's decision, 31 Oct): the claim is the sheet's model column (B) and its score; where it
+# comes from is the sheet's 'Benefit by source'.
+claim = {k: case[f"B{r}"].value for k, r in (("month", 4), ("net", 10), ("roi", 11), ("payback", 13))}
 score = summary["B20"].value
 money = "\n".join([
     "| Year 1 | The claim |",
@@ -75,7 +75,7 @@ per_ty = v("E11")
 e20 = v("E20")
 shop = e20["byShopAugSepAvg"]
 e27 = v("E27")
-# Prompt 15's footnote: every check on the rate, so no reader finds a number we left out (AI-judge dry run 4 found it missing).
+# Every check on the rate, so no reader finds a number we left out.
 rate_checks = (f"against untouched products in the same shop and category it holds ({k(e27['total']['vsUntouched'])}) when every "
                f"product counts, and it is {k(e27['total']['vsUntouchedSoldInBothWindows'])} when only products that sold in both "
                f"windows count (August's run coincided with restocking); September alone gives "

@@ -37,12 +37,10 @@ were still headings only.
 - Every person-hour costs €50, including our hackathon hours.
 - Hours saved are capacity, not money.
 - Label every input as measured, estimated or assumed, with its source. Finance strikes out any line it can't trace.
-- **What counts as the baseline is an open question for the organisers** (section 3), and the financial sheet carries both framings (section 8):
-  - **Framing A, strict:** baseline = today's manual process carries on; only what the weekend adds counts.
-  - **Framing B, full system (the user's position), told as test phase → rollout.** The calculator (v0.5, Jul–Oct 2026) **was the test phase**: prices it calculated went live by hand on a few dates in Kosovo, and the effect was measured (≈ €13k/month season-adjusted, margin +4–5 points vs last year; *the margin part superseded
-by E25 on 31 Oct: not evidence for B0*). v2 is the **rollout** of the tested approach, automated, weekly and on every layer. Name the design honestly: "a test phase measured before/after against the same weeks of 2025 [and changed vs unchanged SKUs in the same weeks, if that comparison is run]". Never call it a randomized A/B test; there was no random control group, and a reviewer will check.
-  - *(31 Oct, AI-judge dry run 3b: the record shows four October approvals and pushes on MK/AL in some months, so "only in KS" no longer holds.)*
-  - Background to framing B: the calculator is an unsupported prototype that only earns when one person pushes prices by hand, irregularly and only in KS. Without v2 nothing secures that profit. v2 turns it into a system that runs and improves on its own every week, on every layer. So the benefit is everything the automated system earns in the next 12 months, forecast from the measured rate.
+- **The claim** (the financial sheet, section 8): the full system, told as test phase → rollout.
+  - The calculator (v0.5, Jul–Oct 2026) **was the test phase**: prices it calculated went live by hand on a few dates in Kosovo, and the effect was measured (E20: €10.4k a month, before and after each approval, booked sales lines). v2 is the **rollout** of the tested approach, automated, weekly and on every layer. Name the design honestly: "a test phase measured before/after against the same weeks of 2025 [and changed vs unchanged SKUs in the same weeks, if that comparison is run]". Never call it a randomized A/B test; there was no random control group, and a reviewer will check.
+  - *(31 Oct: the record shows four October approvals and pushes on MK/AL in some months, so "only in KS" no longer holds.)*
+  - Background: the calculator is an unsupported prototype that only earns when one person pushes prices by hand, irregularly and only in KS. Without v2 nothing secures that profit. v2 turns it into a system that runs and improves on its own every week, on every layer. So the benefit is everything the automated system earns in the next 12 months, forecast from the measured rate.
 
 ## 2. What is declared (submitted in the registration form)
 
@@ -134,8 +132,8 @@ aspirational and the engine is rules plus statistics.
   solution on Monday"; Mergca checks every row daily against the solution's own usage, and inflated or
   invented numbers remove the entry. Time BEFORE is the one number we set, once per task type,
   measured honestly. See "Time-sheet log" in section 5.
-- Baseline framing (A or B): no organisers' answer recorded by 31 Oct. The headline is framing B, by the user's decision
-  (31 Oct, Prompts 13 and 15: one framing, one number); framing A is the cross-check.
+- The baseline: no organisers' answer recorded by 31 Oct. The claim is the full system's next 12 months, the user's
+  decision (31 Oct): one claim, one number.
 
 **The 10% bar (announced Fri 30 Oct; separate from the prizes, decided Wed 2 Dec).** A permanent
 10% raise and the "AI Pioneer" title for everyone who clears it; solo = 10%; no cap on how many.
@@ -183,7 +181,7 @@ the warehouse is missing anything.
 - [ ] **Post the questions in the Chat space "Gjirafa AI Hackathon 2026"** and record Mergca's answers here:
   - Can a declared, already-deployed tool be extended, with only the weekend work scored?
   - Can the calculator's measured result be used as evidence?
-  - **Baseline for net benefit:** is it measured against the status quo, where a prototype is run by hand by one person with no supported process, so that the automated system's whole forecast counts (framing B)? Or only against what the weekend build adds (framing A)? This decides the 60 money points, so ask it word for word.
+  - **Baseline for net benefit:** is it measured against the status quo, where a prototype is run by hand by one person with no supported process, so that the automated system's whole forecast counts? This decides the 60 money points, so ask it word for word.
   - Does reading the read-only NOP replica, or the tool's own prod DB, count as "live"?
   - Can data exports be prepared before Friday?
   - Which card is this, and who grants warehouse access?
@@ -507,7 +505,7 @@ gain **lever by lever**. Each lever has its own method and label, and one total.
 | 1 | **Loss-sale block** | Holds or fixes any price below cost before it goes out | Sum of negative GP on cross-dock lines it would have caught. Units lost at a higher price earned negative GP, so losing them is no cost. Baseline: €2.85k/month (last 12 months, KS cross-dock, booked COGS). Count only lines whose price passes through the tool; campaign lists only if the run checker reviews them. | measured baseline, estimated catch rate |
 | 2 | **Per-category floors** | Sets floor and target per band × main category, instead of one per band | Lines priced below the agent's floor are lifted to it, units scaled by elasticity, GP difference vs actual. Lines where it lowered a floor get no simulated gain, since only the engine knows what it would have priced. Method = the June/July below-floor analysis (€24.4k / €15.1k forgone). | estimated |
 | 3 | **Cost reaction** | Re-prices within a week when unit cost rises more than 5% | From SR: SKUs whose booked unit COGS jumped more than 5% while the selling price didn't move. Gain = margin lost during the lag (units × cost increase), capped at restoring the prior margin, units scaled by elasticity. | measured lag, estimated recovery |
-| 4 | **Coverage: MK and AL** | Publishes on all six layers automatically. The calculator's measured gain is KS only. **Check first:** MK/AL *were* pushed in October (`oct-disc-mk-26` / `oct-disc-al-26`, ≈ 200k discounts each, seen 2026-10-28). Measure MK/AL push frequency over Jul–Oct; this lever only counts the months and layers that weren't pushed. | Apply the calculator's season-adjusted KS effect (gain ÷ GP base, ≈ 10%) to the MK/AL GP base in tool scope, converted to EUR at the NOP `Currency.Rate` of each month. Rough size from SR: MK/AL GP ≈ €20–24k/month (all vendors; Mall tool scope is smaller), so roughly €2–2.5k/month. Cross-check with the few MK/AL approvals that were pushed. | estimated |
+| 4 | **Coverage: MK and AL** | Publishes on all six layers automatically. The calculator's measured gain is KS only. **Check first:** MK/AL *were* pushed in October (`oct-disc-mk-26` / `oct-disc-al-26`, ≈ 200k discounts each, seen 2026-10-28). Measure MK/AL push frequency over Jul–Oct; this lever only counts the months and layers that weren't pushed. | Apply the calculator's season-adjusted KS effect (gain ÷ GP base, ≈ 10%) to the MK/AL GP base in tool scope, converted to EUR at the NOP `Currency.Rate` of each month. Rough size from SR: MK/AL GP ≈ €20–24k/month (all vendors; Mall tool scope is smaller), so roughly €2–2.5k/month. Cross-check against the few MK/AL approvals that were pushed. | estimated |
 | 5 | **Cadence: daily publishing** | Prices go live every day instead of in manual pushes (KS regular prices went live on about 5 dates in Jul–Oct; Gj50 KS regular prices only on 7/21 and 10/7) | For each day between pushes: GP at the price live that day vs the price the engine had already proposed (from the approval/proposal history), units scaled by elasticity. Applied after lever 3, so cost-driven gaps aren't counted twice. | estimated |
 | 7 | **Campaign planning** | The campaign and pricing agents plan each campaign's depth per SKU against a profit goal, instead of one blanket discount level | Replay two past campaigns (GjirafaMall KS Për ty, 14–18 Oct 2026; KS Black Friday, Nov 2025) on their actual SR lines. For each SKU, the agents' depth vs the actual depth; units from the category uplift curve; GP difference vs what actually happened. Report per campaign, then annualise over the calendar's campaign days. | estimated |
 | 6 | **Learning from past changes** | Keeps price changes where they paid off and rolls back where they didn't, per category | The calculator's own approvals as experiments: per-category GP before/after for August's run (#12), seasonally adjusted. For September, the agent keeps August's raises only in categories where August showed a gain and rolls back the rest. Score that September policy against what actually happened. | estimated |
@@ -622,7 +620,7 @@ for 30 days on real data, on its own.
   - **the same-weeks control (changed vs unchanged products, run 2026-10-27):**
     - It confirms the margin effect: products priced up went from 18.4% to 24.5% margin in the September run, losing about 6 points more volume than unchanged products, with gross profit up about 9 points relative to them.
     - It does **not** cleanly confirm the €13k/month. The September run's controlled gain is ≈ €3.5–4.3k/month. The August run can't be separated from restocking (units rose 285% after price *rises*).
-    - So present the test phase's profit effect as a **range** (≈ €4k to €13k/month), and pitch v2's randomized holdout as what turns it into a clean A/B. In framing B, use the conservative end for the headline, with €13k as the upper estimate.
+    - So present the test phase's profit effect as a **range** (≈ €4k to €13k/month), and pitch v2's randomized holdout as what turns it into a clean A/B. *(31 Oct: the headline is the before/after mid, €10.4k a month, by the user's decision; the controlled figure is a robustness check and €13k is not claimed.)*
   - Për ty Oct 2026, if measured: hand plan vs agents' plan vs actual
   - cross-dock below-cost loss, last 12 months (~€2.85k/month)
   - below-floor GP forgone (Jun €24.4k / Jul €15.1k, booked COGS)
@@ -643,7 +641,7 @@ the Për ty test), which is the hackathon-hours line in the financial sheet.
 
 | When | Goal | Done when |
 |---|---|---|
-| Fri 16:00–16:30 | Kickoff | Note the answers in section 3: are the replica and tool-DB exports allowed, the API key, warehouse access, and the **net-benefit baseline** (framing A or B). If there's no API key yet, Friday's data and engine steps go ahead without it. |
+| Fri 16:00–16:30 | Kickoff | Note the answers in section 3: are the replica and tool-DB exports allowed, the API key, warehouse access, and the **net-benefit baseline**. If there's no API key yet, Friday's data and engine steps go ahead without it. |
 | **Fri 16:30–17:00** | Start | New repo per section 5 "Repo setup": commit 1 docs, commit 2 the labelled import. The app builds and `dotnet test` passes on the import, before any change. The main repo is not touched for the whole event. |
 | Fri 17:00–19:00 | Data | Exports loaded into `PricingToolHackathon`, including the campaign windows and the category map; `hk.DataSources` filled; the `agent.*` views for `query_data`; sanity check passed |
 | Fri 19:00–21:00 | Engine on real local data | Local readers + `SourceMode=LocalExport`; the existing engine runs for L1 and L4; spot-check 10 SKUs against the exported dataset; the first Claude API call works with the key from env |
@@ -748,13 +746,12 @@ Have the backup video and screenshots ready in case the network or Claude fails 
     - B1: floor/target agent, extra GP from the backtest (estimated) × months live in year 1 (assume live from month 2 → 11/12, and say so).
     - B2: run checker, bad-price losses avoided. Count it only if the replay shows a real € figure; otherwise list it as unquantified.
     - B3: campaign planning (lever 7), the replayed gain per campaign day × the campaign days in the next 12 months' calendar. Count only the margin, never campaign revenue.
-    - **Two tabs, one per framing; the headline follows the organisers' answer.**
-      - **Framing A:** levers 1–7 only.
-      - **Framing B:** adds B0, the rollout of what the test phase (v0.5) measured, as the automated system's forecast run-rate, plus levers 1–7 on top. It's labelled "forecast from measured history". B0 per scenario, each one a real measurement: Low = same-weeks control ≈ €4k/month (one run on one layer, so a floor), Mid = measured before/after ≈ €10.6k/month, High = season-adjusted ≈ €13k/month. **Evidence rates 5 under framing B**: the rate was measured live on the real shop and the evidence file recomputes it in the demo. The measured €10.6k alone clears the net-benefit band-5 line (≈ €10.3k/month) before any new lever.
-      *(31 Oct: superseded. No organisers' answer came; the user made B the one claim (Prompts 13 and 15). The sheet rates
-      Evidence 3, not 5; at the build's costs the band-5 line is about €12.2k a month at full scope, and B0 after the holdout
-      share is €9,264, so B0 alone doesn't clear it.)*
-    - **Consistent with the registration:** the declaration said the calculator's *measured past result* (Aug–Sep) is not claimed. Framing B claims no past euro. It claims the **next 12 months** of an automated system and uses the past as evidence for the rate. Say this in one line in `HACKATHON.md` and the one-pager.
+    - **One claim, one number (the user's decision, 31 Oct):** B0, the rollout of what the test phase (v0.5) measured, as
+      the automated system's forecast run-rate, plus levers 1–8 on top. It's labelled "forecast from measured history". B0
+      is E20 mid, measured before/after, €10.4k a month; the same-weeks control (E20 low) and E27 are robustness checks in
+      the evidence, and the season-adjusted €13k is not claimed. The sheet rates Evidence 3; at the build's costs the
+      net-benefit band-5 line is about €12.2k a month at full scope.
+    - **Consistent with the registration:** the declaration said the calculator's *measured past result* (Aug–Sep) is not claimed. The claim takes no past euro. It claims the **next 12 months** of an automated system and uses the past as evidence for the rate. Say this in one line in `HACKATHON.md` and the one-pager.
     - Hours saved are never counted (capacity only).
     - All benefit is on own-retail SKUs, so margin counts in full. No marketplace seller sales are included.
   - **One-time cost:**
