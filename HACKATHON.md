@@ -51,7 +51,11 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (918 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (966 passed, 1 skipped: the opt-in real headless call; E17).
+   The **Evidence** tab lists every figure of `numbers.json` with its label, method, sources (and when each was loaded) and
+   where it is used (the one-pager, the financial sheet's cells, this file). Nine figures whose script is a SQL file
+   (E12–E14, E20–E23, E25, E26) recompute live on the page: it runs that exact file as `evidence_reader`, a database user
+   that can only read, and compares each cell with the stored value (31 Oct: all nine matched; E20 in 9 s).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
    engine refuse to start in any other environment)
    (Agent, Campaigns, Backtest, Exceptions tabs).
@@ -179,7 +183,6 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
   - **The Monday report** is written in the chat; its email is not built (the address isn't confirmed).
   - **The laptop start-up task** is written but not registered (the user's step); today the host is started by hand.
   - **Minutes saved per task** are not set, so the time sheet exports no rows yet.
-  - **The Evidence page** isn't a separate page: the Backtest tab and `numbers.json` carry the figures.
   - **Campaign what-ifs** go through a brief and the planning loop; only the floor what-if has its own tool.
   - **To the live shop, the checked push file is still the path.** The daily cycle writes it, and since prompt 07 also
     publishes the same checked prices to the sandbox (`publish-L<layer>`, from the 1 Nov cycle on the restarted host). The
@@ -234,7 +237,7 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 918 passed, 1 skipped (31 Oct, about 01:30). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 966 passed, 1 skipped (31 Oct, 10:05; three runs in a row, 13–14 s each). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

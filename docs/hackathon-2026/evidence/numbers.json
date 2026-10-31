@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 09:12",
+    "generated":  "2026-10-31 10:06",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.",
     "figures":  [
@@ -137,7 +137,66 @@
                         "label":  "measured (units); estimated (GP at e -1)",
                         "method":  "Sales of each approval\u0027s raised SKUs (new price over old x 1.02) on its layer, from the day after it went live to the day before the next one did, outside campaign days; at the old price within 1.1 %. Share of units at the old price: #12 17.0 %, #25 20.0 %, #35 84.0 %, #37 70.3 % (17-20 % Aug-Sep, 70-84 % in late October, when two push sets overlapped). What held the old price, from the live discount at the sold price (hk.DiscountHistoryRaisedKs): the calculator\u0027s earlier push still live, or the regular price never raised (v2\u0027s publisher removes both), or a team deal (left to a person). Aug-Sep, GP forgone a month at e -1: 300 that v2 removes, 1274 team deals; October\u0027s pace of the part v2 removes: 2830 a month.",
                         "source":  "PricingTool.ApprovalItems, hk.SalesLines, hk.CampaignWindows, hk.DiscountHistoryRaisedKs",
-                        "script":  "docs/hackathon-2026/evidence/raises-not-on-shelf.sql (three result sets; this script runs it)"
+                        "script":  "docs/hackathon-2026/evidence/raises-not-on-shelf.sql (three result sets; this script runs it)",
+                        "recompute":  {
+                                          "file":  "raises-not-on-shelf.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "#12 units at the old price, %",
+                                                             "set":  0,
+                                                             "column":  "PctAtOld",
+                                                             "where":  {
+                                                                           "ApprovalId":  "12"
+                                                                       },
+                                                             "value":  17.0
+                                                         },
+                                                         {
+                                                             "label":  "#25 units at the old price, %",
+                                                             "set":  0,
+                                                             "column":  "PctAtOld",
+                                                             "where":  {
+                                                                           "ApprovalId":  "25"
+                                                                       },
+                                                             "value":  20.0
+                                                         },
+                                                         {
+                                                             "label":  "#35 units at the old price, %",
+                                                             "set":  0,
+                                                             "column":  "PctAtOld",
+                                                             "where":  {
+                                                                           "ApprovalId":  "35"
+                                                                       },
+                                                             "value":  84.0
+                                                         },
+                                                         {
+                                                             "label":  "#37 units at the old price, %",
+                                                             "set":  0,
+                                                             "column":  "PctAtOld",
+                                                             "where":  {
+                                                                           "ApprovalId":  "37"
+                                                                       },
+                                                             "value":  70.3
+                                                         },
+                                                         {
+                                                             "label":  "Aug-Sep, a month at e -1: what v2 removes",
+                                                             "set":  2,
+                                                             "column":  "EurPerMonthEm1",
+                                                             "where":  {
+                                                                           "Part":  "earlier push still live or regular price not raised (v2\u0027s publisher removes it)"
+                                                                       },
+                                                             "value":  300
+                                                         },
+                                                         {
+                                                             "label":  "Aug-Sep, a month at e -1: team deals",
+                                                             "set":  2,
+                                                             "column":  "EurPerMonthEm1",
+                                                             "where":  {
+                                                                           "Part":  "team deal (v2 leaves it to a person)"
+                                                                       },
+                                                             "value":  1274
+                                                         }
+                                                     ]
+                                      }
                     },
                     {
                         "id":  "E24",
@@ -255,7 +314,24 @@
                         "label":  "measured",
                         "method":  "Booked sales lines 14-18 Oct 2026, not Gjirafa50-listed; provisional (cancellations post for two weeks)",
                         "source":  "agent.SalesLines",
-                        "script":  "this script (SQL above)"
+                        "script":  "docs/hackathon-2026/evidence/e12-per-ty-actual.sql (this script runs it)",
+                        "recompute":  {
+                                          "file":  "e12-per-ty-actual.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "gross profit",
+                                                             "set":  0,
+                                                             "column":  "Gp",
+                                                             "value":  39558
+                                                         },
+                                                         {
+                                                             "label":  "margin %",
+                                                             "set":  0,
+                                                             "column":  "MarginPct",
+                                                             "value":  14.8
+                                                         }
+                                                     ]
+                                      }
                     },
                     {
                         "id":  "E13",
@@ -265,7 +341,18 @@
                         "label":  "measured",
                         "method":  "Booked sales lines, every day, tool scope (no outlet, Apple, Starlink)",
                         "source":  "agent.SalesLines",
-                        "script":  "this script (SQL above)"
+                        "script":  "docs/hackathon-2026/evidence/e13-ks-gross-profit.sql (this script runs it)",
+                        "recompute":  {
+                                          "file":  "e13-ks-gross-profit.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "gross profit a month",
+                                                             "set":  0,
+                                                             "column":  "KsGpPerMonth",
+                                                             "value":  180411
+                                                         }
+                                                     ]
+                                      }
                     },
                     {
                         "id":  "E14",
@@ -275,7 +362,18 @@
                         "label":  "measured",
                         "method":  "Negative GP of cross-dock lines, 12 months ending 16 Oct 2026 (the newest two weeks left out), both layers",
                         "source":  "agent.SalesLines",
-                        "script":  "this script (SQL above)"
+                        "script":  "docs/hackathon-2026/evidence/e14-cross-dock-loss.sql (this script runs it)",
+                        "recompute":  {
+                                          "file":  "e14-cross-dock-loss.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "cross-dock loss a month",
+                                                             "set":  0,
+                                                             "column":  "CrossDockLossPerMonth",
+                                                             "value":  2134
+                                                         }
+                                                     ]
+                                      }
                     },
                     {
                         "id":  "E15",
@@ -347,8 +445,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  32,
-                                      "rows":  42
+                                      "unattendedBlocks":  35,
+                                      "rows":  45
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -360,12 +458,12 @@
                         "id":  "E17",
                         "name":  "Automated tests",
                         "value":  {
-                                      "passed":  918,
+                                      "passed":  966,
                                       "skipped":  1
                                   },
                         "unit":  "tests",
                         "label":  "measured",
-                        "method":  "dotnet test PricingTool.sln: 918 passed, 1 skipped (the opt-in real headless call), 31 Oct about 01:30",
+                        "method":  "dotnet test PricingTool.sln: 966 passed, 1 skipped (the opt-in real headless call), 31 Oct 10:05, three runs in a row (13-14 s each)",
                         "source":  "PricingTool.Tests",
                         "script":  "dotnet test PricingTool.sln"
                     },
@@ -385,7 +483,42 @@
                                   },
                         "method":  "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept 3263 + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval 1139 (with Mall\u0027s other control, vs not in the approval, 4088 + 1139 = 5227); mid: before/after on the approvals, SKU-deduplicated spans (Aug 11068, Sep 9749; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025\u0027\u0027s seasonal growth)",
                         "source":  "PricingTool.Approvals / ApprovalItems (copied from the deployed tool DB) and hk.SalesLines, booked COGS",
-                        "script":  "docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)"
+                        "script":  "docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)",
+                        "sinceRegistration":  "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo\u0027s data it is 10409 (E20 mid). A same-weeks control run on 27 Oct (changed vs unchanged products in the same weeks) puts the price effect at 4402 (E20 low), so framing B leads with that; the season-adjusted 13000 (E20 high) is quoted from the main repo, not recomputed. The claim narrowed to what a control supports; the before/after figure itself did not change.",
+                        "recompute":  {
+                                          "file":  "e20-test-phase.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "mid: before/after, the Aug-Sep average",
+                                                             "set":  0,
+                                                             "column":  "Total",
+                                                             "where":  {
+                                                                           "Month":  "Aug-Sep average"
+                                                                       },
+                                                             "value":  10409
+                                                         },
+                                                         {
+                                                             "label":  "low: Mall #25 vs the products it kept, a month",
+                                                             "set":  1,
+                                                             "column":  "VsKeptPerMonth",
+                                                             "where":  {
+                                                                           "ApprovalId":  "25",
+                                                                           "Grp":  "Changed total"
+                                                                       },
+                                                             "value":  3263
+                                                         },
+                                                         {
+                                                             "label":  "low: Gj50 #1 vs products not in the approval, a month",
+                                                             "set":  1,
+                                                             "column":  "VsNotInApprovalPerMonth",
+                                                             "where":  {
+                                                                           "ApprovalId":  "1",
+                                                                           "Grp":  "Changed total"
+                                                                       },
+                                                             "value":  1139
+                                                         }
+                                                     ]
+                                      }
                     },
                     {
                         "id":  "E21",
@@ -463,7 +596,52 @@
                         "label":  "measured (October provisional: late cancellations post for two weeks)",
                         "method":  "Each booked line whose margin on booked COGS is under its band\u0027s hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units, both KS layers, tool scope (no outlet, Apple, Starlink; the June/July analysis in the main repo, Jun 24,400 and Jul 15,100, included them). Each line gets the first cause that fits: 0 campaign day; 1 its SKU in a live markdown batch; 2 a GjirafaMall SKU listed on Gjirafa50, which takes Gjirafa50\u0027s price; 3 above the floor before an order-level voucher; 4 cross-dock sold under its booked cost; 5 no calculator price live for the SKU that day; 6 sold more than 2 % under the calculator\u0027s live price; 7 at the calculator\u0027s price but under the floor on booked cost. Aug-Sep: 2954 a month is allowed or not a price (dead stock, vouchers); the rest sits in the lanes of levers 1, 3 and 5, partly on Gjirafa50\u0027s side of shared SKUs (cause 2: 3459 a month under Gjirafa50\u0027s own floor, 1851 under cost). Cause 5 as context only: on SKUs today\u0027s engine run raises, about 1648 a month (Mall 300, Gj50 1348), a proxy (August\u0027s runs weren\u0027t kept), not in the sheet. The totals equal PricingTool.AgentTools backtest-below-floor 1 4.",
                         "source":  "hk.SalesLines, hk.SalesLineDiscountsKs, PricingTool.AuditLog, PricingTool.Approvals / ApprovalItems, band config",
-                        "script":  "docs/hackathon-2026/evidence/e21-by-cause.sql (three result sets; this script runs it); totals also by PricingTool.AgentTools backtest-below-floor 1 4"
+                        "script":  "docs/hackathon-2026/evidence/e21-by-cause.sql (three result sets; this script runs it); totals also by PricingTool.AgentTools backtest-below-floor 1 4",
+                        "recompute":  {
+                                          "file":  "e21-by-cause.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "August, every cause",
+                                                             "set":  0,
+                                                             "column":  "Forgone",
+                                                             "where":  {
+                                                                           "Month":  "2026-08"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  12476
+                                                         },
+                                                         {
+                                                             "label":  "September, every cause",
+                                                             "set":  0,
+                                                             "column":  "Forgone",
+                                                             "where":  {
+                                                                           "Month":  "2026-09"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  16936
+                                                         },
+                                                         {
+                                                             "label":  "August, cross-dock under cost (lever 1)",
+                                                             "set":  0,
+                                                             "column":  "Forgone",
+                                                             "where":  {
+                                                                           "Month":  "2026-08",
+                                                                           "Cause":  "4 cross-dock under cost"
+                                                                       },
+                                                             "value":  1439
+                                                         },
+                                                         {
+                                                             "label":  "September, sold under the calculator price (team deals)",
+                                                             "set":  0,
+                                                             "column":  "Forgone",
+                                                             "where":  {
+                                                                           "Month":  "2026-09",
+                                                                           "Cause":  "6 sold under the calculator price"
+                                                                       },
+                                                             "value":  348
+                                                         }
+                                                     ]
+                                      }
                     },
                     {
                         "id":  "E22",
@@ -494,7 +672,304 @@
                         "label":  "measured",
                         "method":  "The replica\u0027s costs refreshed that morning; the feed read the costs of the SKUs no other rule owns that sit near their floor, and 293 had moved at least 0.5 % from the engine run\u0027s. No rise was raised: 102 of the 156 rises left the live price above its floor, 52 put it under but the price was a cheaper deal (held for a person: the publisher leaves those alone), and 2 had a floor above max(anchor, current) (held: the regular price needs changing); no jump looked like a data error. The rebuild spanned two polls: 168 of the 461 observations were the same moves seen again (each held a second time); the feed now skips a cost already observed since the run. What held the 52 (Prompt 10, on the sandbox\u0027s discounts at the observation): 28 the calculator\u0027s own earlier push (an October set the team imported, carrying a price an approval gave that SKU), 21 only an app-only deal (no longer a hold: the web price is ours, written since 31 Oct), 3 a real team deal. With the go-live switch on (own pushes superseded), 49 of the 52 would have been raised; with it off (the default), 21. Ten observations were checked by hand against the engine run (hours.md, 31 Oct).",
                         "source":  "ai.CostObservation, ai.AgentDecision, ai.PublishException, the sandbox discounts, PricingTool.Approvals / ApprovalItems",
-                        "script":  "docs/hackathon-2026/evidence/e22-cost-watch.sql (two result sets; this script runs it)"
+                        "script":  "docs/hackathon-2026/evidence/e22-cost-watch.sql (two result sets; this script runs it)",
+                        "recompute":  {
+                                          "file":  "e22-cost-watch.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "distinct moves",
+                                                             "set":  0,
+                                                             "column":  "DistinctMoves",
+                                                             "value":  293
+                                                         },
+                                                         {
+                                                             "label":  "rises",
+                                                             "set":  0,
+                                                             "column":  "Rises",
+                                                             "value":  156
+                                                         },
+                                                         {
+                                                             "label":  "rises still above the floor",
+                                                             "set":  0,
+                                                             "column":  "RisesStillAboveTheFloor",
+                                                             "value":  102
+                                                         },
+                                                         {
+                                                             "label":  "raised",
+                                                             "set":  0,
+                                                             "column":  "Raised",
+                                                             "value":  0
+                                                         },
+                                                         {
+                                                             "label":  "held at a cheaper deal",
+                                                             "set":  0,
+                                                             "column":  "HeldTeamDeal",
+                                                             "value":  52
+                                                         },
+                                                         {
+                                                             "label":  "held by our own earlier push",
+                                                             "set":  1,
+                                                             "column":  "HeldByOwnPush",
+                                                             "value":  28
+                                                         },
+                                                         {
+                                                             "label":  "held only by an app-only deal",
+                                                             "set":  1,
+                                                             "column":  "AppOnlyOnly",
+                                                             "value":  21
+                                                         },
+                                                         {
+                                                             "label":  "held by a team deal",
+                                                             "set":  1,
+                                                             "column":  "HeldByTeamDeal",
+                                                             "value":  3
+                                                         }
+                                                     ]
+                                      }
+                    },
+                    {
+                        "id":  "E25",
+                        "name":  "Kosovo margin against the same months a year earlier (the YoY fingerprint), both KS layers",
+                        "value":  {
+                                      "periods":  {
+                                                      "Nov 2025 - Feb 2026":  {
+                                                                                  "marginPct":  16.6,
+                                                                                  "yearBeforePct":  8.0,
+                                                                                  "deltaPp":  8.6
+                                                                              },
+                                                      "Mar - Jun 2026, before the calculator":  {
+                                                                                                    "marginPct":  14.3,
+                                                                                                    "yearBeforePct":  11.2,
+                                                                                                    "deltaPp":  3.1
+                                                                                                },
+                                                      "Aug - Sep 2026, the calculator live":  {
+                                                                                                  "marginPct":  15.5,
+                                                                                                  "yearBeforePct":  10.8,
+                                                                                                  "deltaPp":  4.7
+                                                                                              },
+                                                      "Oct 2026, provisional":  {
+                                                                                    "marginPct":  13.1,
+                                                                                    "yearBeforePct":  11.3,
+                                                                                    "deltaPp":  1.7
+                                                                                }
+                                                  },
+                                      "deltaPpByMonth":  {
+                                                             "2025-10":  2.8,
+                                                             "2025-11":  9.6,
+                                                             "2025-12":  8.9,
+                                                             "2026-01":  7.4,
+                                                             "2026-02":  6.3,
+                                                             "2026-03":  3.6,
+                                                             "2026-04":  3.2,
+                                                             "2026-05":  3.9,
+                                                             "2026-06":  1.4,
+                                                             "2026-07":  2.6,
+                                                             "2026-08":  4.1,
+                                                             "2026-09":  5.0,
+                                                             "2026-10":  1.7
+                                                         }
+                                  },
+                        "unit":  "percentage points",
+                        "label":  "measured (October 2026 provisional)",
+                        "method":  "Booked gross profit over net revenue, tool scope, every day, against the same months a year earlier (hk.SalesLines starts 1 Oct 2024). Aug - Sep 2026, the calculator live: 15.5 % vs 10.8 %, +4.7 pt; Mar - Jun 2026, before the calculator: +3.1 pt; but Nov 2025 - Feb 2026, with no calculator, ran +8.6 pt, so the fingerprint alone doesn\u0027t separate the calculator from what else moved margin (E20\u0027s same-weeks control does). Oct 2026, provisional: +1.7 pt.",
+                        "source":  "hk.SalesLines",
+                        "script":  "docs/hackathon-2026/evidence/e25-yoy-margin.sql (two result sets; this script runs it)",
+                        "recompute":  {
+                                          "file":  "e25-yoy-margin.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "Nov 2025 - Feb 2026, points over a year earlier",
+                                                             "set":  1,
+                                                             "column":  "DeltaPp",
+                                                             "where":  {
+                                                                           "Period":  "Nov 2025 - Feb 2026"
+                                                                       },
+                                                             "value":  8.6
+                                                         },
+                                                         {
+                                                             "label":  "Mar - Jun 2026, before the calculator, points over a year earlier",
+                                                             "set":  1,
+                                                             "column":  "DeltaPp",
+                                                             "where":  {
+                                                                           "Period":  "Mar - Jun 2026, before the calculator"
+                                                                       },
+                                                             "value":  3.1
+                                                         },
+                                                         {
+                                                             "label":  "Aug - Sep 2026, the calculator live, points over a year earlier",
+                                                             "set":  1,
+                                                             "column":  "DeltaPp",
+                                                             "where":  {
+                                                                           "Period":  "Aug - Sep 2026, the calculator live"
+                                                                       },
+                                                             "value":  4.7
+                                                         },
+                                                         {
+                                                             "label":  "Oct 2026, provisional, points over a year earlier",
+                                                             "set":  1,
+                                                             "column":  "DeltaPp",
+                                                             "where":  {
+                                                                           "Period":  "Oct 2026, provisional"
+                                                                       },
+                                                             "value":  1.7
+                                                         }
+                                                     ]
+                                      }
+                    },
+                    {
+                        "id":  "E26",
+                        "name":  "Sales Report tie-out: each approval\u0027s 30-day gross profit before it, the tool\u0027s vs hk.SalesLines",
+                        "value":  {
+                                      "approvals":  [
+                                                        {
+                                                            "approval":  1,
+                                                            "layer":  4,
+                                                            "approved":  "2026-07-21",
+                                                            "toolProfit30Before":  3158,
+                                                            "fromSalesLines":  3158,
+                                                            "diffPct":  0.0
+                                                        },
+                                                        {
+                                                            "approval":  32,
+                                                            "layer":  4,
+                                                            "approved":  "2026-10-07",
+                                                            "toolProfit30Before":  20471,
+                                                            "fromSalesLines":  20471,
+                                                            "diffPct":  0.0
+                                                        },
+                                                        {
+                                                            "approval":  37,
+                                                            "layer":  4,
+                                                            "approved":  "2026-10-21",
+                                                            "toolProfit30Before":  50047,
+                                                            "fromSalesLines":  51065,
+                                                            "diffPct":  2.0
+                                                        },
+                                                        {
+                                                            "approval":  2,
+                                                            "layer":  1,
+                                                            "approved":  "2026-07-21",
+                                                            "toolProfit30Before":  11751,
+                                                            "fromSalesLines":  11710,
+                                                            "diffPct":  -0.3
+                                                        },
+                                                        {
+                                                            "approval":  12,
+                                                            "layer":  1,
+                                                            "approved":  "2026-08-06",
+                                                            "toolProfit30Before":  50667,
+                                                            "fromSalesLines":  50672,
+                                                            "diffPct":  0.0
+                                                        },
+                                                        {
+                                                            "approval":  25,
+                                                            "layer":  1,
+                                                            "approved":  "2026-09-03",
+                                                            "toolProfit30Before":  69750,
+                                                            "fromSalesLines":  69763,
+                                                            "diffPct":  0.0
+                                                        },
+                                                        {
+                                                            "approval":  30,
+                                                            "layer":  1,
+                                                            "approved":  "2026-10-06",
+                                                            "toolProfit30Before":  75450,
+                                                            "fromSalesLines":  75450,
+                                                            "diffPct":  0.0
+                                                        },
+                                                        {
+                                                            "approval":  35,
+                                                            "layer":  1,
+                                                            "approved":  "2026-10-19",
+                                                            "toolProfit30Before":  83076,
+                                                            "fromSalesLines":  83044,
+                                                            "diffPct":  0.0
+                                                        }
+                                                    ],
+                                      "maxAbsDiffPct":  2
+                                  },
+                        "unit":  "EUR",
+                        "label":  "measured",
+                        "method":  "The deployed tool computes Profit30Before from the Sales Report; the same SKUs, layer and 30 days from the exported lines (hk.SalesLines). The largest gap is 2 % (the newest approvals: late cancellations still post); the exported lines are the Sales Report\u0027s.",
+                        "source":  "PricingTool.Approvals / ApprovalItems, hk.SalesLines",
+                        "script":  "docs/hackathon-2026/evidence/e26-sales-report-tie-out.sql (this script runs it)",
+                        "recompute":  {
+                                          "file":  "e26-sales-report-tie-out.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "#1 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "1"
+                                                                       },
+                                                             "value":  3158
+                                                         },
+                                                         {
+                                                             "label":  "#32 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "32"
+                                                                       },
+                                                             "value":  20471
+                                                         },
+                                                         {
+                                                             "label":  "#37 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "37"
+                                                                       },
+                                                             "value":  51065
+                                                         },
+                                                         {
+                                                             "label":  "#2 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "2"
+                                                                       },
+                                                             "value":  11710
+                                                         },
+                                                         {
+                                                             "label":  "#12 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "12"
+                                                                       },
+                                                             "value":  50672
+                                                         },
+                                                         {
+                                                             "label":  "#25 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "25"
+                                                                       },
+                                                             "value":  69763
+                                                         },
+                                                         {
+                                                             "label":  "#30 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "30"
+                                                                       },
+                                                             "value":  75450
+                                                         },
+                                                         {
+                                                             "label":  "#35 from hk.SalesLines",
+                                                             "set":  0,
+                                                             "column":  "FromSalesLines",
+                                                             "where":  {
+                                                                           "ApprovalId":  "35"
+                                                                       },
+                                                             "value":  83044
+                                                         }
+                                                     ]
+                                      }
                     }
                 ]
 }

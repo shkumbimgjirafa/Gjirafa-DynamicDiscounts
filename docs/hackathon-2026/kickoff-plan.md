@@ -691,7 +691,9 @@ the run checker, the discount publisher with rollback, backtest levers 1 and 7.
    - An injected cost rise: the feed shows it raised to the floor within a minute, with the reason. (Real ones too: on
      31 Oct the watcher read the morning's 293 cost moves within 1–9 minutes and held 54 for a person, E22.)
    - Show the kill switch, the holdout categories, the audit log, and the AI call log with its cost.
-5. **(45s) Money, shown on the Evidence page, computed live** (not on a slide):
+5. **(45s) Money, shown on the Evidence page, computed live** (not on a slide). Built 31 Oct: open the **Evidence** tab
+   (2 s); the plan's list is at the top; press **Recompute live** on E20 and let it run while you talk (9 s; "3 of 3
+   match, run as evidence_reader"):
    - Backtest result, with its elasticity sensitivity.
    - "We already ran the test": the test phase (v0.5, Jul–Oct, Kosovo) measured ≈ €13k/month season-adjusted and margin +4–5 points vs last year. v2 is the rollout: automatic, weekly, every layer.
    - The financial sheet totals.

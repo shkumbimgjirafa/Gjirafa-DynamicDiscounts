@@ -38,6 +38,9 @@ builder.Services.AddSingleton<RunLauncher>();
 builder.Services.AddScoped<PricingTool.NopIntegration.IRunWeekSteps, PricingTool.NopIntegration.RunWeekSteps>();
 builder.Services.AddScoped<PricingTool.NopIntegration.RunWeekLoop>();
 builder.Services.AddSingleton<RunWeekLauncher>();
+// The Evidence page: numbers.json, and its SQL figures recomputed live as a read-only database user.
+builder.Services.Configure<EvidenceOptions>(builder.Configuration.GetSection(EvidenceOptions.SectionName));
+builder.Services.AddScoped<EvidenceService>();
 
 // Liveness/readiness endpoint for the container orchestrator (see k8s probes). Kept
 // dependency-free so it answers as soon as Kestrel is up, independent of DB health.

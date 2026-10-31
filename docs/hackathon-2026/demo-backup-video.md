@@ -12,6 +12,7 @@ Timings measured in [demo dry run 2](demo-dry-run-2.md).
 | 4 | 20 | Campaigns tab, Black Friday's thread (plan #6) | Nova briefs, Alpha plans; the plan is held for the person who set the goal, because the arithmetic falls short |
 | 5 | 20 | Terminal: `cost-watch --inject 4 <sku> <cost> --test`, then the decision in the exceptions inbox | A cost rise under the floor is raised to the floor within one watch, with the reason; on 31 Oct the real refresh's 293 moves were read within 1–9 minutes |
 | 6 | 15 | Agent tab: kill switch, autonomy, publishing; the exceptions inbox; the AI call log with its cost | Code enforces the limits; a person can stop everything and roll any publish back |
-| 7 | 15 | Backtest page and the financial sheet's score table | Estimated vs measured, both framings, and the pilot ask |
+| 7 | 15 | Evidence tab: the plan's list, then **Recompute live** on E20 (9 s, "3 of 3 match") | Every figure carries its label and source, and the measured ones recompute from the database, read-only |
+| 8 | 10 | The financial sheet's score table | Estimated vs measured, and the pilot ask |
 
 Keep the screenshots of steps 2, 3 and 5 as stills too.

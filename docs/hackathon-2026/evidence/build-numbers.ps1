@@ -29,6 +29,31 @@ function QuerySets($db, $sql) {
     } finally { $cn.Close() }
 }
 function Round0($v) { [math]::Round([decimal]$v, 0) }
+function N0($v) { if ($v -is [DBNull] -or $null -eq $v) { 0 } else { [decimal]$v } }
+function RunFile($name) { QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 (Join-Path $here $name)) }
+
+# The Evidence page's live recompute (Prompt 11): per figure, the SQL file it runs and the cells it compares, each with the value
+# this script read from the same file. A cell is a result set, a column, optionally the row whose columns equal `where`, and
+# optionally `sum` over the rows that match.
+$recomputes = @{}
+function C($label, $set, $column, $where = $null, $agg = $null) { @{ label = $label; set = $set; column = $column; where = $where; agg = $agg } }
+function CellValue($sets, $c) {
+    $rows = @($sets[$c.set].Rows)
+    if ($c.where) { foreach ($k in $c.where.Keys) { $rows = @($rows | Where-Object { "$($_[$k])" -eq "$($c.where[$k])" }) } }
+    if ($c.agg -eq 'sum') { return [math]::Round([decimal](($rows | ForEach-Object { N0 $_[$c.column] } | Measure-Object -Sum).Sum), 2) }
+    if ($rows.Count -eq 0) { return $null }
+    return [math]::Round((N0 $rows[0][$c.column]), 2)
+}
+function Recompute($id, $file, $sets, $checks) {
+    $list = @(foreach ($c in $checks) {
+        $o = [ordered]@{ label = $c.label; set = $c.set; column = $c.column }
+        if ($c.where) { $o.where = $c.where }
+        if ($c.agg) { $o.agg = $c.agg }
+        $o.value = CellValue $sets $c
+        $o
+    })
+    $recomputes[$id] = [ordered]@{ file = $file; checks = $list }
+}
 $figures = New-Object System.Collections.ArrayList
 function Add($id, $name, $value, $unit, $label, $method, $source, $script) {
     [void]$figures.Add([ordered]@{ id = $id; name = $name; value = $value; unit = $unit; label = $label; method = $method; source = $source; script = $script })
@@ -83,7 +108,10 @@ foreach ($lever in 1, 2, 3, 5, 6) {
 }
 
 # E23: approved raises that didn't reach the shelf in today's process (the CSV push the team imports as discounts).
-$e23Sets = QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 (Join-Path $here 'raises-not-on-shelf.sql'))
+$e23Sets = RunFile 'raises-not-on-shelf.sql'
+Recompute 'E23' 'raises-not-on-shelf.sql' $e23Sets (@(12, 25, 35, 37 | ForEach-Object { C "#$_ units at the old price, %" 0 'PctAtOld' @{ ApprovalId = "$_" } }) +
+    @((C 'Aug-Sep, a month at e -1: what v2 removes' 2 'EurPerMonthEm1' @{ Part = "earlier push still live or regular price not raised (v2's publisher removes it)" }),
+      (C 'Aug-Sep, a month at e -1: team deals' 2 'EurPerMonthEm1' @{ Part = 'team deal (v2 leaves it to a person)' })))
 $perApproval = @($e23Sets[0].Rows | ForEach-Object { [ordered]@{ approval = $_.ApprovalId; layer = $_.Layer; days = $_.Days; units = $_.Units; atNewPrice = $_.AtNewPrice
     atOldPrice = $_.AtOldPrice; pctAtOld = $_.PctAtOld; gpForgoneEm1 = $_.GpForgoneEm1; gpForgoneConstantUnits = $_.GpForgoneConstUnits } })
 $augSep = [ordered]@{}
@@ -176,15 +204,19 @@ Add 'E11' 'Për ty reproduction test (agents alone, data cut off at 7 Oct)' ([or
         handBaseNotedPct = 20.5; requiredKeptPct = '70-80'; verdict = 'FAIL (by one point on the kept share)' }) 'mixed' 'estimated' `
     'Expected margin of the plan the agents chose vs the hand plan of 6 Oct; kept share = expected margin / normal margin of Mall''s own SKUs, on our base (rate window, non-holdout) and the hand plan''s (booked, 6 Sep - 6 Oct)' `
     'PricingToolHackathonTest ai.CampaignPlan; agent.SalesLines' 'PricingTool.AgentTools reproduce-per-ty --test (two model calls)'
-$actual = (Query 'PricingToolHackathon' "SELECT SUM(GrossProfit), SUM(NetRevenue) FROM agent.SalesLines WHERE LayerId = 1 AND SaleDate >= '2026-10-14' AND SaleDate < '2026-10-19' AND ISNULL(IsGj50Listed, 0) = 0").Rows[0]
-Add 'E12' "What Për ty Oct 2026 made on GjirafaMall's own SKUs (scores the hand plan's 15.1 % forecast)" ([ordered]@{ gp = Round0 $actual[0]; marginPct = [math]::Round(100 * [decimal]$actual[0] / [decimal]$actual[1], 1) }) `
-    'EUR / percent' 'measured' 'Booked sales lines 14-18 Oct 2026, not Gjirafa50-listed; provisional (cancellations post for two weeks)' 'agent.SalesLines' 'this script (SQL above)'
+$e12Sets = RunFile 'e12-per-ty-actual.sql'
+$actual = $e12Sets[0].Rows[0]
+Add 'E12' "What Për ty Oct 2026 made on GjirafaMall's own SKUs (scores the hand plan's 15.1 % forecast)" ([ordered]@{ gp = Round0 $actual.Gp; marginPct = [decimal]$actual.MarginPct }) `
+    'EUR / percent' 'measured' 'Booked sales lines 14-18 Oct 2026, not Gjirafa50-listed; provisional (cancellations post for two weeks)' 'agent.SalesLines' 'docs/hackathon-2026/evidence/e12-per-ty-actual.sql (this script runs it)'
+Recompute 'E12' 'e12-per-ty-actual.sql' $e12Sets @((C 'gross profit' 0 'Gp'), (C 'margin %' 0 'MarginPct'))
 
 # --- Kosovo bases --------------------------------------------------------------------------------------------------
-$ks = (Query 'PricingToolHackathon' "SELECT SUM(GrossProfit) / 2 FROM agent.SalesLines WHERE LayerId IN (1, 4) AND SaleDate >= '2026-08-01' AND SaleDate < '2026-10-01'").Rows[0][0]
-Add 'E13' 'Kosovo gross profit a month, both layers, Aug-Sep 2026' (Round0 $ks) 'EUR/month' 'measured' 'Booked sales lines, every day, tool scope (no outlet, Apple, Starlink)' 'agent.SalesLines' 'this script (SQL above)'
-$cd = (Query 'PricingToolHackathon' "SELECT -SUM(GrossProfit) / 12 FROM agent.SalesLines WHERE LayerId IN (1, 4) AND StockClass = 'CrossDock' AND GrossProfit < 0 AND SaleDate >= DATEADD(day, -365, '2026-10-16') AND SaleDate < '2026-10-16'").Rows[0][0]
-Add 'E14' 'Cross-dock lines sold under booked cost, a month (last 12 months, KS)' (Round0 $cd) 'EUR/month' 'measured' 'Negative GP of cross-dock lines, 12 months ending 16 Oct 2026 (the newest two weeks left out), both layers' 'agent.SalesLines' 'this script (SQL above)'
+$e13Sets = RunFile 'e13-ks-gross-profit.sql'
+Add 'E13' 'Kosovo gross profit a month, both layers, Aug-Sep 2026' (Round0 $e13Sets[0].Rows[0].KsGpPerMonth) 'EUR/month' 'measured' 'Booked sales lines, every day, tool scope (no outlet, Apple, Starlink)' 'agent.SalesLines' 'docs/hackathon-2026/evidence/e13-ks-gross-profit.sql (this script runs it)'
+Recompute 'E13' 'e13-ks-gross-profit.sql' $e13Sets @((C 'gross profit a month' 0 'KsGpPerMonth'))
+$e14Sets = RunFile 'e14-cross-dock-loss.sql'
+Add 'E14' 'Cross-dock lines sold under booked cost, a month (last 12 months, KS)' (Round0 $e14Sets[0].Rows[0].CrossDockLossPerMonth) 'EUR/month' 'measured' 'Negative GP of cross-dock lines, 12 months ending 16 Oct 2026 (the newest two weeks left out), both layers' 'agent.SalesLines' 'docs/hackathon-2026/evidence/e14-cross-dock-loss.sql (this script runs it)'
+Recompute 'E14' 'e14-cross-dock-loss.sql' $e14Sets @((C 'cross-dock loss a month' 0 'CrossDockLossPerMonth'))
 
 # --- AI cost and hours ---------------------------------------------------------------------------------------------
 $ai = (Query 'PricingToolHackathon' 'SELECT COUNT(*), SUM(CostUsd), SUM(InputTokens), SUM(OutputTokens), SUM(CacheReadTokens), SUM(CacheCreationTokens) FROM ai.AiCallLog').Rows[0]
@@ -221,14 +253,16 @@ Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that 
     'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
 Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured (attended rows only; the person''s time inside unattended blocks is not timed)' `
     'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
-$testsLine = 'dotnet test PricingTool.sln: 918 passed, 1 skipped (the opt-in real headless call), 31 Oct about 01:30'
-Add 'E17' 'Automated tests' ([ordered]@{ passed = 918; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
+$testsLine = 'dotnet test PricingTool.sln: 966 passed, 1 skipped (the opt-in real headless call), 31 Oct 10:05, three runs in a row (13-14 s each)'
+Add 'E17' 'Automated tests' ([ordered]@{ passed = 966; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results ----------------------------------------------------------------------------------------
 # E20 low and mid recomputed from PricingToolHackathon (the deployed tool's approvals and the booked sales lines); the
 # high case's 2025 season adjustment is quoted from the main repo.
-$e20File = Join-Path $here 'e20-test-phase.sql'
-$e20Sets = QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 $e20File)
+$e20Sets = RunFile 'e20-test-phase.sql'
+Recompute 'E20' 'e20-test-phase.sql' $e20Sets @((C 'mid: before/after, the Aug-Sep average' 0 'Total' @{ Month = 'Aug-Sep average' }),
+    (C 'low: Mall #25 vs the products it kept, a month' 1 'VsKeptPerMonth' @{ ApprovalId = '25'; Grp = 'Changed total' }),
+    (C 'low: Gj50 #1 vs products not in the approval, a month' 1 'VsNotInApprovalPerMonth' @{ ApprovalId = '1'; Grp = 'Changed total' }))
 $byMonth = @{}; foreach ($r in $e20Sets[0].Rows) { $byMonth[$r.Month] = $r }
 $ctl = @{}; foreach ($r in $e20Sets[1].Rows) { if ($r.Grp -eq 'Changed total') { $ctl[[int]$r.ApprovalId] = $r } }
 $mallKept = Round0 $ctl[25].VsKeptPerMonth; $mallNotIn = Round0 $ctl[25].VsNotInApprovalPerMonth; $gj50NotIn = Round0 $ctl[1].VsNotInApprovalPerMonth
@@ -240,8 +274,10 @@ Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B
 # E21 from e21-by-cause.sql: the same rule, floors and scope as `backtest-below-floor` (its totals tie to it to the euro),
 # each line with the first cause that fits. Monthly totals (normal days = causes 1-7, campaign days = cause 0), and the
 # calculator's era (Aug-Sep 2026) split by cause, monthly average.
-$e21Sets = QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 (Join-Path $here 'e21-by-cause.sql'))
-function N0($v) { if ($v -is [DBNull] -or $null -eq $v) { 0 } else { [decimal]$v } }
+$e21Sets = RunFile 'e21-by-cause.sql'
+Recompute 'E21' 'e21-by-cause.sql' $e21Sets @((C 'August, every cause' 0 'Forgone' @{ Month = '2026-08' } 'sum'), (C 'September, every cause' 0 'Forgone' @{ Month = '2026-09' } 'sum'),
+    (C 'August, cross-dock under cost (lever 1)' 0 'Forgone' @{ Month = '2026-08'; Cause = '4 cross-dock under cost' }),
+    (C 'September, sold under the calculator price (team deals)' 0 'Forgone' @{ Month = '2026-09'; Cause = '6 sold under the calculator price' }))
 $e21Months = [ordered]@{}
 foreach ($m in ($e21Sets[0].Rows | Group-Object Month | Sort-Object Name)) {
     $campaign = ($m.Group | Where-Object { $_.Cause -like '0 *' } | ForEach-Object { N0 $_.Forgone } | Measure-Object -Sum).Sum
@@ -271,9 +307,12 @@ Add 'E21' 'Below-floor GP forgone, Kosovo: by month (Jun-Oct 2026) and, in the c
     'hk.SalesLines, hk.SalesLineDiscountsKs, PricingTool.AuditLog, PricingTool.Approvals / ApprovalItems, band config' 'docs/hackathon-2026/evidence/e21-by-cause.sql (three result sets; this script runs it); totals also by PricingTool.AgentTools backtest-below-floor 1 4'
 
 # E22: the cost watcher on its first real cost refresh, from the ai tables (aggregates only).
-$cwSets = QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 (Join-Path $here 'e22-cost-watch.sql'))
+$cwSets = RunFile 'e22-cost-watch.sql'
 $cw = $cwSets[0].Rows[0]
 $hb = $cwSets[1].Rows[0]
+Recompute 'E22' 'e22-cost-watch.sql' $cwSets @((C 'distinct moves' 0 'DistinctMoves'), (C 'rises' 0 'Rises'), (C 'rises still above the floor' 0 'RisesStillAboveTheFloor'),
+    (C 'raised' 0 'Raised'), (C 'held at a cheaper deal' 0 'HeldTeamDeal'), (C 'held by our own earlier push' 1 'HeldByOwnPush'), (C 'held only by an app-only deal' 1 'AppOnlyOnly'),
+    (C 'held by a team deal' 1 'HeldByTeamDeal'))
 Add 'E22' 'Cost watcher on the first real cost refresh (31 Oct 2026, both KS layers)' ([ordered]@{
         distinctMoves = $cw.DistinctMoves; rises = $cw.Rises; falls = $cw.Falls; risesStillAboveTheFloor = $cw.RisesStillAboveTheFloor; raised = $cw.Raised
         heldTeamDeal = $cw.HeldTeamDeal
@@ -286,6 +325,33 @@ Add 'E22' 'Cost watcher on the first real cost refresh (31 Oct 2026, both KS lay
      "The rebuild spanned two polls: $($cw.RepeatsOfTheSameMove) of the $($cw.Observations) observations were the same moves seen again (each held a second time); the feed now skips a cost already observed since the run. " +
      "What held the $($cw.HeldTeamDeal) (Prompt 10, on the sandbox's discounts at the observation): $($hb.HeldByOwnPush) the calculator's own earlier push (an October set the team imported, carrying a price an approval gave that SKU), $($hb.AppOnlyOnly) only an app-only deal (no longer a hold: the web price is ours, written since 31 Oct), $($hb.HeldByTeamDeal) a real team deal. With the go-live switch on (own pushes superseded), $([int]$hb.HeldByOwnPush + [int]$hb.AppOnlyOnly) of the $($cw.HeldTeamDeal) would have been raised; with it off (the default), $($hb.AppOnlyOnly). Ten observations were checked by hand against the engine run (hours.md, 31 Oct).") `
     'ai.CostObservation, ai.AgentDecision, ai.PublishException, the sandbox discounts, PricingTool.Approvals / ApprovalItems' 'docs/hackathon-2026/evidence/e22-cost-watch.sql (two result sets; this script runs it)'
+
+# E25: the year-over-year margin fingerprint (plan section 5).
+$e25Sets = RunFile 'e25-yoy-margin.sql'
+$periods = [ordered]@{}; foreach ($r in $e25Sets[1].Rows) { $periods[$r.Period] = [ordered]@{ marginPct = $r.MarginPct; yearBeforePct = $r.YearBeforePct; deltaPp = $r.DeltaPp } }
+$monthsDelta = [ordered]@{}; foreach ($r in $e25Sets[0].Rows) { $monthsDelta[$r.Month] = $r.DeltaPp }
+$pd = @($e25Sets[1].Rows)
+Add 'E25' 'Kosovo margin against the same months a year earlier (the YoY fingerprint), both KS layers' ([ordered]@{ periods = $periods; deltaPpByMonth = $monthsDelta }) 'percentage points' 'measured (October 2026 provisional)' `
+    ("Booked gross profit over net revenue, tool scope, every day, against the same months a year earlier (hk.SalesLines starts 1 Oct 2024). $($pd[2].Period): $($pd[2].MarginPct) % vs $($pd[2].YearBeforePct) %, +$($pd[2].DeltaPp) pt; " +
+     "$($pd[1].Period): +$($pd[1].DeltaPp) pt; but $($pd[0].Period), with no calculator, ran +$($pd[0].DeltaPp) pt, so the fingerprint alone doesn't separate the calculator from what else moved margin (E20's same-weeks control does). $($pd[3].Period): +$($pd[3].DeltaPp) pt.") `
+    'hk.SalesLines' 'docs/hackathon-2026/evidence/e25-yoy-margin.sql (two result sets; this script runs it)'
+Recompute 'E25' 'e25-yoy-margin.sql' $e25Sets @($pd | ForEach-Object { C "$($_.Period), points over a year earlier" 1 'DeltaPp' @{ Period = $_.Period } })
+
+# E26: the Sales Report tie-out (plan section 4; exports/README.md).
+$e26Sets = RunFile 'e26-sales-report-tie-out.sql'
+$tie = @(foreach ($r in $e26Sets[0].Rows) { [ordered]@{ approval = $r.ApprovalId; layer = $r.LayerId; approved = ([datetime]$r.Approved).ToString('yyyy-MM-dd')
+    toolProfit30Before = $r.ToolProfit30Before; fromSalesLines = $r.FromSalesLines; diffPct = $r.DiffPct } })
+$maxDiff = ($e26Sets[0].Rows | ForEach-Object { [math]::Abs((N0 $_.DiffPct)) } | Measure-Object -Maximum).Maximum
+Add 'E26' "Sales Report tie-out: each approval's 30-day gross profit before it, the tool's vs hk.SalesLines" ([ordered]@{ approvals = $tie; maxAbsDiffPct = $maxDiff }) 'EUR' 'measured' `
+    "The deployed tool computes Profit30Before from the Sales Report; the same SKUs, layer and 30 days from the exported lines (hk.SalesLines). The largest gap is $maxDiff % (the newest approvals: late cancellations still post); the exported lines are the Sales Report's." `
+    'PricingTool.Approvals / ApprovalItems, hk.SalesLines' 'docs/hackathon-2026/evidence/e26-sales-report-tie-out.sql (this script runs it)'
+Recompute 'E26' 'e26-sales-report-tie-out.sql' $e26Sets @($e26Sets[0].Rows | ForEach-Object { C "#$($_.ApprovalId) from hk.SalesLines" 0 'FromSalesLines' @{ ApprovalId = "$($_.ApprovalId)" } })
+
+# Why the calculator's figure moved since the registration (the Evidence page shows it with E20).
+$e20 = $figures | Where-Object { $_.id -eq 'E20' }
+$e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) (E20 mid). A same-weeks control run on 27 Oct (changed vs unchanged products in the same weeks) puts the price effect at $($e20.value.low) (E20 low), so framing B leads with that; the season-adjusted $($e20.value.high) (E20 high) is quoted from the main repo, not recomputed. The claim narrowed to what a control supports; the before/after figure itself did not change."
+
+foreach ($f in $figures) { if ($recomputes.ContainsKey($f.id)) { $f.recompute = $recomputes[$f.id] } }
 
 $out = [ordered]@{
     generated = (Get-Date).ToString('yyyy-MM-dd HH:mm'); generator = 'docs/hackathon-2026/evidence/build-numbers.ps1'
