@@ -60,8 +60,9 @@ internal sealed record LiveSource(int LayerId, long RunId, DateTime LiveUtc, lon
 /// called a drop in about one window in five. So the same comparison is run on <see cref="OutcomeOptions.PlaceboWindows"/>
 /// no-change windows of the same band × category before the change, and a drop must be at least
 /// <see cref="OutcomeOptions.DropPct"/> % under the expectation <i>and</i> worse than every one of them (a false alarm
-/// about once in 27 measurements). A drop rolls the change back, restoring the rule's previous floor and target and the
-/// regular prices the publisher raised there since (<see cref="IRaiseRestorer"/>), and pauses the band × category, so the
+/// about once in 27 measurements). A drop rolls the change back, restoring the rule's previous floor and target, the
+/// regular prices the publisher raised there since and the discounts of ours those raises ended (<see cref="IRaiseRestorer"/>),
+/// and pauses the band × category, so the
 /// pricing agent's next changes there wait for a person and its raises are held back. Each outcome is written to
 /// <c>ai.AgentOutcome</c> and read back by <c>get_past_decisions</c>.</para>
 /// </summary>

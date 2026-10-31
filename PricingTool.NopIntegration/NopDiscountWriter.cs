@@ -93,6 +93,9 @@ public sealed class NopDiscountWriter
     /// <summary>Tests only: runs after each chunk's read and audit, before its transaction (someone else's change in between).</summary>
     internal Func<int, Task>? AfterChunkRead { get; set; }
 
+    /// <summary>Tests only: runs after each chunk's commit, before its audit rows are marked applied (an interruption there).</summary>
+    internal Func<int, Task>? AfterChunkCommit { get; set; }
+
     public NopDiscountWriter(IOptions<PublisherOptions> options, AgentDataSource tool, AgentDbContext db, PricingToolDbContext toolDb,
         IShopCacheInvalidator cache, ILogger<NopDiscountWriter> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null)
     {
@@ -178,8 +181,8 @@ public sealed class NopDiscountWriter
         }
 
         _db.PublishExceptions.AddRange(exceptions);
-        batch.Skipped = exceptions.Select(e => e.Sku).Distinct()
-            .Count(sku => written.All(w => w.Item.Sku != sku) && regular.All(r => r.Item.Sku != sku)) + canaryLeftOut;
+        var reached = written.Select(w => w.Item.Sku).Concat(regular.Select(r => r.Item.Sku)).ToHashSet(StringComparer.Ordinal);
+        batch.Skipped = exceptions.Select(e => e.Sku).Distinct().Count(sku => !reached.Contains(sku)) + canaryLeftOut;
         written.AddRange(regular.Select(r => (r.Item, r.ProductId, "")));
         batch.Status = written.Count == 0 && items.Count > 0 ? "Failed" : "Published";
         batch.FinishedUtc = Truncate(_clock.GetUtcNow().UtcDateTime);
@@ -458,8 +461,11 @@ public sealed class NopDiscountWriter
             }
         }
 
+        if (AfterChunkCommit is not null) await AfterChunkCommit(chunkNo);
+
         // 4. The writes happened: mark their audit rows, with the ids of the discounts just created. A regular price the
-        // transaction didn't write (its row changed between the read and the write) keeps its audits unapplied.
+        // transaction didn't write (its row changed between the read and the write) keeps its audits unapplied. If the
+        // process or the database stops before this is saved, the batch stays Running and ReconcileAsync repairs it.
         var regularSkus = regular.Select(r => r.Item.Sku).ToHashSet(StringComparer.Ordinal);
         foreach (var a in audits.Where(a => !regularSkus.Contains(a.Sku)))
         {
@@ -468,9 +474,11 @@ public sealed class NopDiscountWriter
         }
         batch.Created += rows.Count(r => r.Ours is null);
         batch.Updated += audits.Count(a => a.Change == "DiscountUpdated" && !regularSkus.Contains(a.Sku));
-        batch.Unchanged += rows.Count(r => r.Ours is not null && audits.All(a => !(a.Change == "DiscountUpdated" && a.Sku == r.Item.Sku)));
+        var updated = audits.Where(a => a.Change == "DiscountUpdated").Select(a => a.Sku).ToHashSet(StringComparer.Ordinal);
+        batch.Unchanged += rows.Count(r => r.Ours is not null && !updated.Contains(r.Item.Sku));
 
         var regularDone = new List<TierWritten>();
+        var auditsBySku = audits.ToLookup(a => a.Sku, StringComparer.Ordinal);
         foreach (var r in regular)
         {
             var done = tierDone.TryGetValue(r.Product.Id, out var t);
@@ -480,7 +488,7 @@ public sealed class NopDiscountWriter
                 batch.ChangedSinceRun++;
                 continue;
             }
-            foreach (var a in audits.Where(a => a.Sku == r.Item.Sku))
+            foreach (var a in auditsBySku[r.Item.Sku])
             {
                 a.Applied = true;
                 if (a.Change == "TierPriceInserted") a.TierPriceId = t.TierId;
@@ -675,6 +683,9 @@ public sealed class NopDiscountWriter
     public async Task<int> RollbackAsync(long batchId, CancellationToken ct = default)
     {
         var batch = await _db.PublishBatches.SingleAsync(b => b.Id == batchId, ct);
+        if (batch.Status == "Running")
+            throw new InvalidOperationException($"Batch {batchId} is still marked Running. If its publish was interrupted, reconcile it first " +
+                                                "(PricingTool.AgentTools publish-reconcile), so the rollback covers every row it wrote.");
         var audits = await _db.PublishAudits.Where(a => a.BatchId == batchId && a.Applied && a.RolledBackUtc == null).OrderByDescending(a => a.Id).ToListAsync(ct);
         var now = Truncate(_clock.GetUtcNow().UtcDateTime);
         var shop = _options.ShopFor(batch.Db, _tool.ConnectionString);
@@ -720,13 +731,79 @@ public sealed class NopDiscountWriter
     }
 
     /// <summary>
+    /// Repairs a batch whose publish was interrupted (the process or the database stopped) between a chunk's commit and the
+    /// marking of its audit rows: those rows say "not applied" for writes that happened, so a rollback would miss them.
+    /// Each unapplied row is marked applied where the shop shows its change: a created discount found by name, store and
+    /// this batch's AdminComment; an updated, superseded or ended discount at its new values; product flags at their new
+    /// values; a raised regular price at its new Price and OldPrice; an inserted tier row (role NULL, quantity 0, OldPrice 0,
+    /// ProfitMargin NULL, at our price). The batch becomes Interrupted; then <see cref="RollbackAsync"/> restores it.
+    /// Returns how many rows it marked and how many it left unapplied (not written).
+    /// </summary>
+    public async Task<(int Marked, int NotWritten)> ReconcileAsync(long batchId, CancellationToken ct = default)
+    {
+        var batch = await _db.PublishBatches.SingleAsync(b => b.Id == batchId, ct);
+        if (batch.Status != "Running") throw new InvalidOperationException($"Batch {batchId} is {batch.Status}, not Running: nothing to reconcile.");
+        var shop = _options.ShopFor(batch.Db, _tool.ConnectionString);
+        if (!string.Equals(shop.Schema, batch.ShopSchema, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Batch {batchId} was written to '{batch.ShopSchema}', but the publisher now points at '{shop.Schema}'.");
+        var s = shop.Schema;
+        var audits = await _db.PublishAudits.Where(a => a.BatchId == batchId && !a.Applied).OrderBy(a => a.Id).ToListAsync(ct);
+        var marked = 0;
+        await using (var conn = new SqlConnection(shop.ConnectionString))
+        {
+            await conn.OpenAsync(ct);
+            foreach (var a in audits)
+            {
+                var (sql, bind) = a.Change switch
+                {
+                    // Through the product's mapping (indexed): a created discount is mapped in the same transaction.
+                    "DiscountCreated" => ($"""
+                        SELECT TOP 1 d.Id FROM [{s}].[Discount_AppliedToProducts] dap JOIN [{s}].[Discount] d ON d.Id = dap.Discount_Id
+                        WHERE dap.Product_Id = @P AND d.Name = @Name AND d.StoreId = @Store AND (d.AdminComment = @Comment OR d.AdminComment LIKE @CommentRun)
+                        ORDER BY d.Id DESC
+                        """,
+                        (Action<SqlParameterCollection>)(p => { p.AddWithValue("@P", a.ProductId!.Value); p.AddWithValue("@Name", a.DiscountName!); p.AddWithValue("@Store", batch.StoreId); p.AddWithValue("@Comment", $"pricing-tool batch {batchId}"); p.AddWithValue("@CommentRun", $"pricing-tool batch {batchId};%"); })),
+                    "DiscountUpdated" or "DiscountSuperseded" => ($"SELECT Id FROM [{s}].[Discount] WHERE Id = @Id AND ISNULL(EndDateUtc, '2999-01-01') = ISNULL(@End, '2999-01-01')" +
+                        (a.Change == "DiscountUpdated" ? " AND DiscountAmount = @Amount AND ISNULL(StartDateUtc, '1900-01-01') = ISNULL(@Start, '1900-01-01')" : ""),
+                        p => { p.AddWithValue("@Id", a.DiscountId!.Value); Dt(p, "@End", a.NewEndDateUtc); p.AddWithValue("@Amount", (object?)a.NewDiscountAmount ?? DBNull.Value); Dt(p, "@Start", a.NewStartDateUtc); }),
+                    "ProductFlags" => ($"SELECT Id FROM [{s}].[Product] WHERE Id = @Id AND HasDiscountsApplied = 1 AND ISNULL(HasDiscountsAppliedStoreIds, '') = ISNULL(@Ids, '')",
+                        p => { p.AddWithValue("@Id", a.ProductId!.Value); p.AddWithValue("@Ids", (object?)a.NewStoreIds ?? DBNull.Value); }),
+                    "TierPriceUpdated" => ($"SELECT Id FROM [{s}].[TierPrice] WHERE Id = @Id AND Price = @Price AND OldPrice = @Old",
+                        p => { p.AddWithValue("@Id", a.TierPriceId!.Value); p.AddWithValue("@Price", a.NewTierPrice!.Value); p.AddWithValue("@Old", a.NewTierOldPrice!.Value); }),
+                    "TierPriceInserted" => ($"SELECT TOP 1 Id FROM [{s}].[TierPrice] WHERE ProductId = @P AND StoreId = @Store AND CustomerRoleId IS NULL AND Quantity = 0 AND ProfitMargin IS NULL AND Price = @Price AND OldPrice = 0 ORDER BY Id DESC",
+                        p => { p.AddWithValue("@P", a.ProductId!.Value); p.AddWithValue("@Store", batch.StoreId); p.AddWithValue("@Price", a.NewTierPrice!.Value); }),
+                    "ProductHasTierPrices" => ($"SELECT Id FROM [{s}].[Product] WHERE Id = @Id AND HasTierPrices = 1",
+                        p => p.AddWithValue("@Id", a.ProductId!.Value)),
+                    _ => throw new InvalidOperationException($"Audit #{a.Id}: unknown change '{a.Change}'."),
+                };
+                await using var cmd = new SqlCommand(sql, conn);
+                bind(cmd.Parameters);
+                if (await cmd.ExecuteScalarAsync(ct) is not int id) continue;
+                a.Applied = true;
+                if (a.Change == "DiscountCreated") a.DiscountId = id;
+                if (a.Change == "TierPriceInserted") a.TierPriceId = id;
+                marked++;
+            }
+        }
+        batch.Status = "Interrupted";
+        batch.FinishedUtc ??= Truncate(_clock.GetUtcNow().UtcDateTime);
+        var note = $"Interrupted publish reconciled: {marked} audit rows found written and marked applied, {audits.Count - marked} not written.";
+        batch.Note = batch.Note is null ? note : $"{batch.Note} {note}";
+        if (batch.Note.Length > 2000) batch.Note = batch.Note[..2000];
+        await _db.SaveChangesAsync(CancellationToken.None);
+        return (marked, audits.Count - marked);
+    }
+
+    /// <summary>
     /// Restores regular prices this writer raised (the given TierPriceUpdated audits) to the Price and OldPrice they had
     /// before the first of them on each row, where the row still holds our last write; a row someone changed since is left
-    /// alone and listed. A new batch (Kind "Restore") audits each write first, so a person can undo it like any publish;
-    /// the raises it undoes are marked rolled back. One transaction. Returns (restored, left alone, batch id).
+    /// alone and listed. Where that first raise ended our own ai-price discount, the discount comes back too (its end date
+    /// from the audit, while it is still ended as we left it), so the shopper pays what they paid before the raise. A new
+    /// batch (Kind "Restore") audits each write first, so a person can undo it like any publish; the raises it undoes are
+    /// marked rolled back. One transaction. Returns (regular prices restored, left alone, discounts back, batch id).
     /// </summary>
-    public async Task<(int Restored, int LeftAlone, long BatchId)> RestoreRegularPricesAsync(int layerId, IReadOnlyCollection<long> auditIds, string reason,
-        CancellationToken ct = default)
+    public async Task<(int Restored, int LeftAlone, int DiscountsBack, long BatchId)> RestoreRegularPricesAsync(int layerId, IReadOnlyCollection<long> auditIds,
+        string reason, CancellationToken ct = default)
     {
         var now = Truncate(_clock.GetUtcNow().UtcDateTime);
         var (shop, layer) = await ShopForLayerAsync(layerId, ct);
@@ -735,6 +812,12 @@ public sealed class NopDiscountWriter
             .ToListAsync(ct);
         var rows = raises.GroupBy(a => a.TierPriceId!.Value)
             .Select(g => (First: g.OrderBy(a => a.Id).First(), Last: g.OrderByDescending(a => a.Id).First(), All: g.ToList())).ToList();
+        // The ai-price discounts the first raise of each row ended (same batch and SKU, ended at the write).
+        var firstBatches = rows.Select(r => r.First.BatchId).Distinct().ToList();
+        var ended = (await _db.PublishAudits.Where(a => firstBatches.Contains(a.BatchId) && a.Change == "DiscountUpdated" && a.Applied && a.RolledBackUtc == null
+                                                        && a.NewEndDateUtc != null && a.NewEndDateUtc <= a.CreatedUtc)
+                .ToListAsync(ct))
+            .ToLookup(a => (a.BatchId, a.Sku));
         var batch = new PublishBatch
         {
             LayerId = layerId, Db = layer.Db, StoreId = layer.StoreId, Target = _options.Target, ShopSchema = shop.Schema, Kind = "Restore",
@@ -742,13 +825,21 @@ public sealed class NopDiscountWriter
         };
         _db.PublishBatches.Add(batch);
         await _db.SaveChangesAsync(ct);
-        var audits = rows.Select(r => Audit(batch, r.Last.Sku, r.Last.ProductId ?? 0, "TierPriceUpdated", now, a =>
-        {
-            a.TierPriceId = r.Last.TierPriceId; a.ProposalId = r.Last.ProposalId;
-            a.OldTierPrice = r.Last.NewTierPrice; a.OldTierOldPrice = r.Last.NewTierOldPrice;
-            a.NewTierPrice = r.First.OldTierPrice; a.NewTierOldPrice = r.First.OldTierOldPrice;
-        })).ToList();
-        _db.PublishAudits.AddRange(audits);
+        var plan = rows.Select(r => (Row: r,
+            Tier: Audit(batch, r.Last.Sku, r.Last.ProductId ?? 0, "TierPriceUpdated", now, a =>
+            {
+                a.TierPriceId = r.Last.TierPriceId; a.ProposalId = r.Last.ProposalId;
+                a.OldTierPrice = r.Last.NewTierPrice; a.OldTierOldPrice = r.Last.NewTierOldPrice;
+                a.NewTierPrice = r.First.OldTierPrice; a.NewTierOldPrice = r.First.OldTierOldPrice;
+            }),
+            Ended: ended[(r.First.BatchId, r.First.Sku)].Select(e => (Source: e, Back: Audit(batch, e.Sku, e.ProductId ?? 0, "DiscountUpdated", now, a =>
+            {
+                a.DiscountId = e.DiscountId; a.DiscountName = e.DiscountName;
+                a.OldDiscountAmount = e.NewDiscountAmount; a.NewDiscountAmount = e.OldDiscountAmount;
+                a.OldStartDateUtc = e.NewStartDateUtc; a.NewStartDateUtc = e.OldStartDateUtc;
+                a.OldEndDateUtc = e.NewEndDateUtc; a.NewEndDateUtc = e.OldEndDateUtc;
+            }))).ToList())).ToList();
+        _db.PublishAudits.AddRange(plan.Select(p => p.Tier).Concat(plan.SelectMany(p => p.Ended.Select(e => e.Back))));
         await _db.SaveChangesAsync(ct);
 
         var exceptions = new List<PublishException>();
@@ -756,7 +847,7 @@ public sealed class NopDiscountWriter
         {
             await conn.OpenAsync(ct);
             await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
-            foreach (var (r, a) in rows.Zip(audits))
+            foreach (var (r, a, back) in plan)
             {
                 await using var cmd = new SqlCommand(
                     $"UPDATE [{shop.Schema}].[TierPrice] SET Price = @Price, OldPrice = @Old WHERE Id = @Id AND Price = @Ours AND OldPrice = @OursOld", conn, tx);
@@ -765,24 +856,35 @@ public sealed class NopDiscountWriter
                 cmd.Parameters.AddWithValue("@Id", a.TierPriceId!.Value);
                 cmd.Parameters.AddWithValue("@Ours", a.OldTierPrice!.Value);
                 cmd.Parameters.AddWithValue("@OursOld", a.OldTierOldPrice!.Value);
-                if (await cmd.ExecuteNonQueryAsync(ct) == 1)
+                if (await cmd.ExecuteNonQueryAsync(ct) != 1)
                 {
-                    a.Applied = true;
-                    foreach (var raise in r.All) raise.RolledBackUtc = now;
-                }
-                else
                     exceptions.Add(Exception(batch, a.Sku, "changed-since-raise", $"The regular price isn't our raise to {a.OldTierPrice:0.00} any more: someone changed it; left as it is."));
+                    continue;
+                }
+                a.Applied = true;
+                foreach (var raise in r.All) raise.RolledBackUtc = now;
+                foreach (var (source, d) in back)
+                {
+                    await using var bring = new SqlCommand(
+                        $"UPDATE [{shop.Schema}].[Discount] SET EndDateUtc = @End WHERE Id = @Id AND EndDateUtc = @Ended", conn, tx);
+                    Dt(bring.Parameters, "@End", d.NewEndDateUtc);
+                    bring.Parameters.AddWithValue("@Id", d.DiscountId!.Value);
+                    Dt(bring.Parameters, "@Ended", d.OldEndDateUtc);
+                    if (await bring.ExecuteNonQueryAsync(ct) != 1) continue;     // changed since: the restored regular price stands alone
+                    d.Applied = true;
+                    source.RolledBackUtc = now;
+                }
             }
             await tx.CommitAsync(ct);
         }
-        await _cache.InvalidateAsync(layer.Db, rows.Where((_, i) => audits[i].Applied).Select(r => r.Last.ProductId ?? 0).ToList(), ct);
+        await _cache.InvalidateAsync(layer.Db, plan.Where(p => p.Tier.Applied).Select(p => p.Row.Last.ProductId ?? 0).ToList(), ct);
         _db.PublishExceptions.AddRange(exceptions);
-        batch.Updated = audits.Count(a => a.Applied);
+        batch.Updated = plan.Count(p => p.Tier.Applied);
         batch.Skipped = exceptions.Count;
         batch.Status = "Published";
         batch.FinishedUtc = Truncate(_clock.GetUtcNow().UtcDateTime);
         await _db.SaveChangesAsync(CancellationToken.None);
-        return (batch.Updated, batch.Skipped, batch.Id);
+        return (batch.Updated, batch.Skipped, plan.Sum(p => p.Ended.Count(e => e.Back.Applied)), batch.Id);
     }
 
     private sealed record LayerRef(int LayerId, string Db, int StoreId, bool HasDisplayAvailabilityTime, bool IsMall);

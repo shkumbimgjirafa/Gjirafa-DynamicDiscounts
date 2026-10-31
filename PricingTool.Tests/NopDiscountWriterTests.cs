@@ -862,4 +862,53 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         await Writer().RollbackAsync(restore.Id);                                  // a person can undo the restore like any publish
         Assert.Equal((47m, 0m), Tier(inScope));
     }
+
+    [LocalDbFact]
+    public async Task A_drop_brings_back_our_discount_the_raise_had_ended_so_the_shopper_pays_what_they_paid_before()
+    {
+        Product(201, "SKU-A", hasTier: true);
+        var tier = TierRow(201, 40m, 0m);
+        Proposal(1, "SKU-A", 26);
+        await Writer().PublishAsync(RaisesFor(("SKU-A", 35m, 1)));                 // a cut: our discount at 35
+        await Writer().PublishAsync(RaisesFor(("SKU-A", 45m, 1)) with
+        {
+            Items = new[] { new PublishItem("SKU-A", 45m) { RunCurrentPrice = 35m, RunOldPrice = 40m, Ceiling = 1000m, ProposalId = 1 } },
+        });                                                                         // the raise ends it
+        Assert.Equal(45m, EngineShelf(201));
+
+        var line = await new NopRaiseRestorer(_db, _tool, new Categories { Ids = { 1 } }, Writer())
+            .RestoreRaisesAsync(4, 26, "Aksesorë", Now.AddHours(-1), "outcome drop (test)");
+
+        Assert.Equal((40m, 0m), Tier(tier));
+        Assert.Equal(35m, EngineShelf(201));                                       // our discount is back: the price before the raise
+        Assert.Contains("1 of our discounts the raises had ended brought back", line);
+    }
+
+    [LocalDbFact]
+    public async Task An_interrupted_publish_is_reconciled_from_what_the_shop_shows_and_then_rolls_back_exactly()
+    {
+        Product(201, "CUT", hasTier: true);
+        Product(202, "RAISE", hasTier: true);
+        TierRow(201, 40m, 0m);
+        var raised = TierRow(202, 40m, 0m);
+        var before = RowJson(raised);
+        var writer = Writer();
+        writer.AfterChunkCommit = _ => throw new InvalidOperationException("the database stopped (test)");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => writer.PublishAsync(Raises(4, ("CUT", 35m, 40m, 40m), ("RAISE", 45m, 40m, 40m))));
+        var batch = await _db.PublishBatches.SingleAsync();
+        Assert.Equal("Running", batch.Status);
+        Assert.All(await _db.PublishAudits.ToListAsync(), a => Assert.False(a.Applied));   // written, but not marked
+        Assert.Equal(35m, EngineShelf(201));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Writer().RollbackAsync(batch.Id));   // refused until reconciled
+
+        var (marked, notWritten) = await Writer().ReconcileAsync(batch.Id);
+
+        Assert.Equal((3, 0), (marked, notWritten));                                // the created discount, its product flags, the raise
+        Assert.Equal("Interrupted", (await _db.PublishBatches.SingleAsync()).Status);
+        await Writer().RollbackAsync(batch.Id);
+        Assert.Equal(40m, EngineShelf(201));
+        Assert.Equal((false, (string?)null), Flags(201));
+        Assert.Equal(before, RowJson(raised));
+    }
 }

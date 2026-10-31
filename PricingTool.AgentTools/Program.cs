@@ -47,6 +47,10 @@ using PricingTool.NopIntegration.Sandbox;
 //                                                                   regular-price tables to an existing one (discounts kept), DDL
 //   publish-canary <layer> --run <id> --category <c> [--max n] [--rollback]   publish a run's sample, show the rows
 //   publish-rollback <batch id>                                     restore what a publish batch changed
+//   publish-reconcile <batch id>                                    an interrupted publish (still Running): mark what the shop
+//                                                                   shows as written, so publish-rollback covers it
+//   publish-checked <layer> --run <id>                              a run's checked prices to the sandbox (cuts as discounts,
+//                                                                   raises as the regular price), as Run week and the cycle do
 //   check-run <run id> [--test]                                     the pre-publish run check (one model call)
 //   export-run <run id> [--out <dir>]                               the checked export for the push (refused when blocked)
 //   mark-pushed <export batch id> [--by <who>]                      record an export as pushed (an Approval): its measurement starts
@@ -807,6 +811,30 @@ switch (command)
         var restored = await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().RollbackAsync(batchId);
         Console.WriteLine($"Rolled back batch #{batchId}: {restored} rows restored from ai.PublishAudit");
         return 0;
+    }
+
+    case "publish-reconcile":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var batchId = long.Parse(positional[0]);
+        var (marked, notWritten) = await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().ReconcileAsync(batchId);
+        Console.WriteLine($"Batch #{batchId} reconciled: {marked} audit rows the shop shows as written now marked applied, {notWritten} not written. " +
+                          "It can be rolled back now (publish-rollback).");
+        return 0;
+    }
+
+    case "publish-checked":
+    {
+        using var host = builder.Build();
+        using var scope = host.Services.CreateScope();
+        await scope.ServiceProvider.MigrateAgentDbAsync();
+        var run = long.Parse(Opt("--run") ?? throw new ArgumentException("--run <engine run id> is required"));
+        var (status, detail) = await scope.ServiceProvider.GetRequiredService<PricingTool.Agent.Operations.ICheckedPricePublisher>()
+            .PublishCheckedAsync(int.Parse(positional[0]), run);
+        Console.WriteLine($"{status}: {detail}");
+        return status is "Succeeded" or "Warning" ? 0 : 1;
     }
 
     default:

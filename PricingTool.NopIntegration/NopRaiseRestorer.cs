@@ -10,8 +10,8 @@ namespace PricingTool.NopIntegration;
 /// The outcome tracker's rollback of raises (prompt 07): the regular prices this publisher raised since a decision was
 /// applied, on the layer's SKUs of the decision's band × category (the band from the proposal the price came from, the
 /// category from the product map, as for the holdout), go back to their Price and OldPrice from the publish audit
-/// (<see cref="NopDiscountWriter.RestoreRegularPricesAsync"/>). A row someone changed since our raise is left alone. Rows we
-/// inserted, and the ai-price discounts a raise ended, are left for a person's batch rollback.
+/// (<see cref="NopDiscountWriter.RestoreRegularPricesAsync"/>), and an ai-price discount of ours that the raise ended comes
+/// back with it. A row someone changed since our raise is left alone. Rows we inserted are left for a person's batch rollback.
 /// </summary>
 public sealed class NopRaiseRestorer : IRaiseRestorer
 {
@@ -49,8 +49,9 @@ public sealed class NopRaiseRestorer : IRaiseRestorer
         var selected = raises.Where(r => inScope.Contains(r.ProposalId)).Select(r => r.Id).ToList();
         if (selected.Count == 0) return $"No regular price was raised in band {bandId} × {category} since {sinceUtc:yyyy-MM-dd}.";
 
-        var (restored, left, batch) = await _writer.RestoreRegularPricesAsync(layerId, selected, reason, ct);
+        var (restored, left, discounts, batch) = await _writer.RestoreRegularPricesAsync(layerId, selected, reason, ct);
         return $"Regular prices raised in band {bandId} × {category} since {sinceUtc:yyyy-MM-dd}: {restored} restored from the publish audit" +
-               (left > 0 ? $", {left} left alone (changed since our raise)" : "") + $" (batch #{batch}).";
+               (left > 0 ? $", {left} left alone (changed since our raise)" : "") +
+               (discounts > 0 ? $", {discounts} of our discounts the raises had ended brought back" : "") + $" (batch #{batch}).";
     }
 }
