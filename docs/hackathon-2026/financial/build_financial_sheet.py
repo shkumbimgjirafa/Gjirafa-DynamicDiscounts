@@ -208,7 +208,7 @@ cost_rows = [
     ("pilot", "Pilot length at reduced scope", 2, "months", "assumed",
      "The pilot ask: 6–8 weeks on Kosovo, a few categories live first, then the go/no-go", True, ""),
     ("share", "Pilot scope, share of the full benefit", 0.25, "share", "assumed",
-     "About one Kosovo layer's few categories; the full benefit counts both Kosovo layers and MK/AL", True, ""),
+     "About one Kosovo layer's few categories; the full benefit counts both Kosovo layers", True, ""),
     ("buildAi", "Build sessions' AI usage, whole build", v("E18", "sinceKickoffUsd"), "USD", label("E18"),
      f"The two Claude Code sessions since kickoff, {v('E18', 'sinceKickoffResponses')} responses; "
      f"${v('E18', 'unattendedBlocksUsd')} of it in the unattended blocks. API-equivalent: the actual spend is the "
