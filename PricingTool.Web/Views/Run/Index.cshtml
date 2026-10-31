@@ -9,6 +9,14 @@
     string Pct(decimal? v) => v is { } x ? x.ToString("0.#") + "%" : "–";
     string Eur(decimal v) => (v < 0 ? "−€" : "€") + Math.Abs(v).ToString("N0");
     string ModeBadge(AutonomyMode m) => m switch { AutonomyMode.Autonomous => "bg-success", AutonomyMode.ApproveFirst => "bg-primary", _ => "bg-secondary" };
+    string ModeName(AutonomyMode m) => m switch { AutonomyMode.ApproveFirst => "Approve first", _ => m.ToString() };
+    string ModeHint(AutonomyMode m) => m switch
+    {
+        AutonomyMode.Off => "Alpha doesn't run on this layer.",
+        AutonomyMode.ApproveFirst => "Each change within the limits waits for one click.",
+        AutonomyMode.Autonomous => "Changes within the limits apply at once; only what's outside them waits for a person.",
+        _ => "",
+    };
     string LeftOutWords(string kind) => kind switch
     {
         "cheaper-deal" => "a cheaper team deal wins",
@@ -31,57 +39,76 @@
     decimal? mtdChange = r.LastMonthSameDaysGp == 0 ? null : (r.MonthToDateGp / r.LastMonthSameDaysGp - 1m) * 100m;
 }
 
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-    <div>
-        <h1 class="h3 mb-1">Current run <span class="text-muted">· @r.Layer.DisplayName</span></h1>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 page-head">
+    <div class="flex-grow-1" style="min-width: 0">
+        <h1 class="h3">Current run <span class="text-muted">· @r.Layer.DisplayName</span></h1>
         @if (r.Batch is null || r.Run is null)
         {
-            <p class="page-sub mb-0">Nothing has been published on this layer yet. Run week prices it, checks it and publishes it.</p>
+            <p class="page-intro mb-0">Nothing has been published on this layer yet. Run week prices it, checks it and publishes it.</p>
         }
         else
         {
-            <div>Run <strong>#@r.Run.Id</strong>, priced @Local(r.Run.StartedUtc); published @Local(r.Batch.FinishedUtc ?? r.Batch.StartedUtc)
+            <div class="page-meta">Run <strong>#@r.Run.Id</strong>, priced @Local(r.Run.StartedUtc); published @Local(r.Batch.FinishedUtc ?? r.Batch.StartedUtc)
                 in batch #@r.Batch.Id@(r.Week is { } w ? $" by Run week #{w.Id} ({w.StartedBy})" : "").</div>
             <div class="small mt-1"><span class="badge bg-success">treated as live</span>
                 <span class="text-muted">during the hackathon it is published to the shop sandbox, so the shop's real prices didn't change.</span></div>
         }
     </div>
-    <div class="tile small" style="min-width: 24rem; max-width: 34rem">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-            <span class="text-muted">Alpha on this layer:</span> <span class="badge @ModeBadge(Model.Mode)">@Model.Mode</span>
-            @if (isManager)
-            {
-                <form method="post" asp-controller="Agent" asp-action="SetMode" class="d-inline-flex gap-1">
-                    <input type="hidden" name="layerId" value="@r.Layer.Id" />
-                    <select name="mode" class="form-select form-select-sm w-auto py-0">
-                        @foreach (var m in Enum.GetValues<AutonomyMode>()) { <option value="@m" selected="@(m == Model.Mode)">@m</option> }
-                    </select>
-                    <button class="btn btn-sm btn-outline-secondary py-0">Set</button>
-                </form>
-            }
+    <div class="tile small run-controls">
+        <div class="ctl-row">
+            <span class="ctl-name">Alpha's mode</span>
+            <div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge @ModeBadge(Model.Mode)" title="@Model.Mode">@ModeName(Model.Mode)</span>
+                    @if (isManager)
+                    {
+                        <form method="post" asp-controller="Agent" asp-action="SetMode" class="d-inline-flex gap-1">
+                            <input type="hidden" name="layerId" value="@r.Layer.Id" />
+                            <select name="mode" class="form-select form-select-sm w-auto py-0" aria-label="Alpha's mode on this layer">
+                                @foreach (var m in Enum.GetValues<AutonomyMode>()) { <option value="@m" selected="@(m == Model.Mode)">@ModeName(m)</option> }
+                            </select>
+                            <button class="btn btn-sm btn-outline-secondary py-0">Set</button>
+                        </form>
+                    }
+                </div>
+                <div class="text-muted mt-1">@ModeHint(Model.Mode)</div>
+            </div>
         </div>
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-            <span class="text-muted">Kill switch:</span>
-            @if (ks.Stopped) { <span class="badge bg-danger">Stopped</span> <span>@ks.Reason</span> }
-            else { <span class="badge bg-success">Running</span> }
-            @if (isManager && !ks.ByConfiguration)
-            {
-                <form method="post" asp-controller="Agent" asp-action="SetKillSwitch" class="d-inline">
-                    <input type="hidden" name="stop" value="@(ks.Stopped ? "false" : "true")" />
-                    <button class="btn btn-sm py-0 @(ks.Stopped ? "btn-outline-success" : "btn-outline-danger")">@(ks.Stopped ? "Release" : "Pull")</button>
-                </form>
-            }
+        <div class="ctl-row">
+            <span class="ctl-name">Kill switch</span>
+            <div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    @if (ks.Stopped) { <span class="badge bg-danger">Stopped</span> <span>@ks.Reason</span> }
+                    else { <span class="badge bg-success">Running</span> }
+                    @if (isManager && !ks.ByConfiguration)
+                    {
+                        <form method="post" asp-controller="Agent" asp-action="SetKillSwitch" class="d-inline">
+                            <input type="hidden" name="stop" value="@(ks.Stopped ? "false" : "true")" />
+                            <button class="btn btn-sm py-0 @(ks.Stopped ? "btn-outline-success" : "btn-outline-danger")">@(ks.Stopped ? "Release" : "Pull")</button>
+                        </form>
+                    }
+                </div>
+                <div class="text-muted mt-1">Pulled, it stops every agent call, the run checker and the publisher at once.</div>
+            </div>
         </div>
         @if (isManager && Model.CanRunWeek)
         {
-            <form method="post" asp-controller="Agent" asp-action="RunWeek" class="d-inline" id="run-week">
-                <input type="hidden" name="layerId" value="@r.Layer.Id" />
-                <button class="btn btn-sm btn-primary" disabled="@(Model.RunWeekRunning || ks.Stopped)">
-                    @(Model.RunWeekRunning ? "Run week is running…" : "Run week now")</button>
-            </form>
-            <span class="text-muted">Alpha → engine → run checker → publish → read-back</span>
+            <div class="ctl-row">
+                <span class="ctl-name">Run week</span>
+                <div>
+                    <form method="post" asp-controller="Agent" asp-action="RunWeek" class="d-inline" id="run-week">
+                        <input type="hidden" name="layerId" value="@r.Layer.Id" />
+                        <button class="btn btn-sm btn-primary" disabled="@(Model.RunWeekRunning || ks.Stopped)">
+                            @(Model.RunWeekRunning ? "Run week is running…" : "Run week now")</button>
+                    </form>
+                    <div class="text-muted mt-1">Alpha → engine → run checker → publish → read-back</div>
+                </div>
+            </div>
         }
-        <div class="text-muted mt-1">AI this week: $@Model.Week.AiCostUsd.ToString("0.00"), @Model.Week.AiCalls calls (measured)</div>
+        <div class="ctl-row">
+            <span class="ctl-name">AI this week</span>
+            <span>$@Model.Week.AiCostUsd.ToString("0.00"), @Model.Week.AiCalls calls <span class="badge bg-success">measured</span></span>
+        </div>
     </div>
 </div>
 @if (Model.RunWeekRunning)
@@ -91,109 +118,50 @@
 
 @if (r.Batch is not null && r.Run is not null)
 {
-    <div class="card mb-4">
-        <div class="card-body">
-            <h2 class="h5 mb-2">Alpha's report
-                @if (r.Stored?.AlphaText is not null) { <span class="small text-muted">written @Local(r.Stored.CreatedUtc) from this run's numbers</span> }
-                else if (r.AlphaPass is { } pass) { <span class="small text-muted">its weekly pass #@pass.Id, @Local(pass.StartedUtc)</span> }</h2>
-            @if (r.Stored?.AlphaText is { } text)
-            {
-                <p class="fw-semibold mb-1">@r.Stored.Headline</p>
-                <div style="white-space: pre-wrap">@text</div>
-                @if (r.Watch.Count > 0)
-                {
-                    <div class="mt-2"><span class="text-muted">To watch:</span>
-                        <ul class="mb-0">@foreach (var w in r.Watch) { <li>@w</li> }</ul></div>
-                }
-                @if (r.AlphaPass?.Summary is { Length: > 0 } passSummary)
-                {
-                    <details class="how mt-2"><summary>Its weekly pass (#@r.AlphaPass.Id, @Local(r.AlphaPass.StartedUtc))</summary>
-                        <div style="white-space: pre-wrap">@passSummary</div></details>
-                }
-            }
-            else
-            {
-                if (r.AlphaPass?.Summary is { Length: > 0 } summary)
-                {
-                    <div style="white-space: pre-wrap">@summary</div>
-                }
-                else
-                {
-                    <p class="text-muted mb-0">Alpha hasn't written about this layer yet: its first pass runs with the next Run week.</p>
-                }
-                <p class="small text-muted mt-2 mb-0">Alpha's report on this run itself: @(r.Stored is null ? "not written yet (it is written right after a publish)" : r.Stored.AlphaStatus).</p>
-            }
-            @if (r.AlphaChanges.Count > 0)
-            {
-                <h3 class="h6 mt-3">What Alpha changed this week (@r.AlphaChanges.Count)</h3>
-                <table class="table table-sm align-middle small mb-0">
-                    <thead><tr><th>When</th><th>Band</th><th>Category</th><th>Floor</th><th>Target</th><th>Why</th></tr></thead>
-                    <tbody>
-                    @foreach (var d in r.AlphaChanges)
-                    {
-                        <tr>
-                            <td class="text-nowrap">@Local(d.CreatedUtc)</td>
-                            <td>@(bandName.TryGetValue(d.BandId, out var bn) ? bn : $"band {d.BandId}")</td>
-                            <td>@d.Category</td>
-                            <td class="text-nowrap">@Pct(d.CurrentFloorPct) → <strong>@Pct(d.ProposedFloorPct)</strong></td>
-                            <td class="text-nowrap">@Pct(d.CurrentTargetPct) → <strong>@Pct(d.ProposedTargetPct)</strong></td>
-                            <td><details><summary class="text-muted">why?</summary><div style="white-space: pre-wrap">@d.Reason</div></details></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            }
-            else
-            {
-                <p class="small text-muted mt-2 mb-0">No floor or target changed this week: Alpha kept every cell.</p>
-            }
-        </div>
-    </div>
-
-    <h2 class="h5">Progress</h2>
+    <h2 class="section-title mt-0">Progress</h2>
     <div class="row g-2 mb-4 small">
         <div class="col-md-6 col-xl-3">
             <div class="tile">
-                <div class="text-muted">On the shelf at our price <span class="badge bg-success">measured</span></div>
+                <div class="tile-label">On the shelf at our price <span class="badge bg-success">measured</span></div>
                 <div class="tile-value">@r.OnShelf.ToString("N0") of @r.Batch.Requested.ToString("N0")
-                    <span class="fs-6 text-muted">(@(r.Batch.Requested == 0 ? "–" : (100m * r.OnShelf / r.Batch.Requested).ToString("0") + "%"))</span></div>
-                <div class="text-muted">prices read back as written: @r.Batch.RoundTripChecked.ToString("N0") checked, @r.Batch.RoundTripMismatches mismatched</div>
+                    <span class="fs-6 fw-normal text-muted">(@(r.Batch.Requested == 0 ? "–" : (100m * r.OnShelf / r.Batch.Requested).ToString("0") + "%"))</span></div>
+                <div class="tile-note">prices read back as written: @r.Batch.RoundTripChecked.ToString("N0") checked, @r.Batch.RoundTripMismatches mismatched</div>
                 @if (r.LeftOut.Count > 0)
                 {
-                    <div class="mt-1">Left out: @foreach (var l in r.LeftOut.Take(3)) { <div>@l.Skus.ToString("N0") · @LeftOutWords(l.Kind)</div> }</div>
+                    <div class="tile-detail"><span class="text-muted">Left out:</span> @foreach (var l in r.LeftOut.Take(3)) { <div>@l.Skus.ToString("N0") · @LeftOutWords(l.Kind)</div> }</div>
                 }
             </div>
         </div>
         <div class="col-md-6 col-xl-3">
             <div class="tile">
-                <div class="text-muted">Expected gross profit a month <span class="badge bg-warning text-dark">estimated</span></div>
+                <div class="tile-label">Expected gross profit a month <span class="badge bg-warning text-dark">estimated</span></div>
                 @if (r.Effect is { } fx)
                 {
                     <div class="tile-value">@Eur(fx.GrossProfit)</div>
-                    <div class="text-muted">if the units sold stay as they were; @Eur(fx.IfElasticityMinus1) to @Eur(fx.IfElasticityMinus2) if each 1% cut sells 1–2% more
+                    <div class="tile-note">if the units sold stay as they were; @Eur(fx.IfElasticityMinus1) to @Eur(fx.IfElasticityMinus2) if each 1% cut sells 1–2% more
                         (and a raise the reverse)</div>
-                    <div class="mt-1">@fx.Skus.ToString("N0") prices on the shelf differ from the shop's:
+                    <div class="tile-detail">@fx.Skus.ToString("N0") prices on the shelf differ from the shop's:
                         <span class="text-success">@fx.Raises.ToString("N0") raises @Eur(fx.FromRaises)</span>,
                         <span class="text-danger">@fx.Cuts.ToString("N0") cuts @Eur(fx.FromCuts)</span>.
                         @fx.SoldSkus.ToString("N0") of them sold in the last 30 days.</div>
-                    <div class="text-muted">Against what the shop charged when the run priced it, × each SKU's last 30 days' units, VAT excluded.</div>
+                    <div class="tile-note">Against what the shop charged when the run priced it, × each SKU's last 30 days' units, VAT excluded.</div>
                 }
                 else
                 {
                     <div class="tile-value">–</div>
-                    <div class="text-muted">The run's proposals were cleaned up, so it can't be counted any more.</div>
+                    <div class="tile-note">The run's proposals were cleaned up, so it can't be counted any more.</div>
                 }
             </div>
         </div>
         <div class="col-md-6 col-xl-3">
             <div class="tile">
-                <div class="text-muted">Gross profit this month <span class="badge bg-success">measured</span></div>
+                <div class="tile-label">Gross profit this month <span class="badge bg-success">measured</span></div>
                 <div class="tile-value">@Eur(r.MonthToDateGp)</div>
-                <div class="text-muted">@Eur(r.LastMonthSameDaysGp) on the same days last month@(mtdChange is { } mc ? $" ({(mc >= 0 ? "+" : "−")}{Math.Abs(mc):0}%)" : "").
+                <div class="tile-note"><strong class="text-body fw-semibold">@Eur(r.LastMonthSameDaysGp) on the same days last month@(mtdChange is { } mc ? $" ({(mc >= 0 ? "+" : "−")}{Math.Abs(mc):0}%)" : "").</strong>
                     Booked sales lines through @(r.SalesThrough?.ToString("d MMM HH:mm") ?? "–"); the real shop's sales (sandbox prices don't reach customers); the last two weeks still lose lines to cancellations.</div>
                 @foreach (var g in r.Goals)
                 {
-                    <div class="mt-1 @(g.OnTrack == false ? "text-danger" : g.OnTrack == true ? "text-success" : "")">
+                    <div class="tile-detail @(g.OnTrack == false ? "text-danger" : g.OnTrack == true ? "text-success" : "")">
                         <strong>Goal, @(g.Goal.Period == "month" ? "this month" : $"week of {g.Goal.Start:d MMM}"):</strong>
                         @if (g.Goal.Kind == "gross-profit")
                         {
@@ -208,27 +176,93 @@
                 }
                 @if (r.Goals.Count == 0)
                 {
-                    <div class="mt-1 text-muted">No goal for this month or week: tell Nova in the <a asp-controller="Chat" asp-action="Index">Chat</a> ("GjirafaMall: €180k gross profit this month").</div>
+                    <div class="tile-detail text-muted">No goal for this month or week: tell Nova in the <a asp-controller="Chat" asp-action="Index">Chat</a> ("GjirafaMall: €180k gross profit this month").</div>
                 }
             </div>
         </div>
         <div class="col-md-6 col-xl-3">
             <div class="tile">
-                <div class="text-muted">Against the holdout categories</div>
-                <div class="tile-value">not measured yet</div>
-                <div class="text-muted">Measured 7 and 30 days after a publish that reaches customers, against @(r.Holdouts.Count > 0 ? string.Join(", ", r.Holdouts) : "the holdout"); a sandbox publish never does.</div>
+                <div class="tile-label">Against the holdout categories</div>
+                <div class="tile-value text-muted">not measured yet</div>
+                <div class="tile-note">Measured 7 and 30 days after a publish that reaches customers, against @(r.Holdouts.Count > 0 ? string.Join(", ", r.Holdouts) : "the holdout"); a sandbox publish never does.</div>
             </div>
         </div>
     </div>
 
-    <h2 class="h5">What changed</h2>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h5 mb-2">Alpha's report
+                @if (r.Stored?.AlphaText is not null) { <span class="small fw-normal text-muted">written @Local(r.Stored.CreatedUtc) from this run's numbers</span> }
+                else if (r.AlphaPass is { } pass) { <span class="small fw-normal text-muted">its weekly pass #@pass.Id, @Local(pass.StartedUtc)</span> }</h2>
+            @if (r.Stored?.AlphaText is { } text)
+            {
+                <p class="report-lead md-lite">@r.Stored.Headline</p>
+                @if (r.Watch.Count > 0)
+                {
+                    <div class="callout my-3 prose">
+                        <div class="callout-title">To watch</div>
+                        <ul>@foreach (var w in r.Watch) { <li class="md-lite">@w</li> }</ul>
+                    </div>
+                }
+                <div class="prose pre-wrap md-lite clamp" id="report-text">@text</div>
+                <button type="button" class="btn btn-link btn-more d-none" data-clamp="report-text">Show the whole report</button>
+                @if (r.AlphaPass?.Summary is { Length: > 0 } passSummary)
+                {
+                    <details class="how mt-2"><summary>Its weekly pass (#@r.AlphaPass.Id, @Local(r.AlphaPass.StartedUtc))</summary>
+                        <div class="prose pre-wrap md-lite">@passSummary</div></details>
+                }
+            }
+            else
+            {
+                if (r.AlphaPass?.Summary is { Length: > 0 } summary)
+                {
+                    <div class="prose pre-wrap md-lite clamp" id="report-text">@summary</div>
+                    <button type="button" class="btn btn-link btn-more d-none" data-clamp="report-text">Show the whole report</button>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">Alpha hasn't written about this layer yet: its first pass runs with the next Run week.</p>
+                }
+                <p class="small text-muted mt-2 mb-0">Alpha's report on this run itself: @(r.Stored is null ? "not written yet (it is written right after a publish)" : r.Stored.AlphaStatus).</p>
+            }
+            @if (r.AlphaChanges.Count > 0)
+            {
+                <h3 class="h6 mt-3">What Alpha changed this week (@r.AlphaChanges.Count)</h3>
+                <div class="table-responsive">
+                <table class="table table-sm align-middle small mb-0">
+                    <thead><tr><th>When</th><th>Band</th><th>Category</th><th>Floor</th><th>Target</th><th>Why</th></tr></thead>
+                    <tbody>
+                    @foreach (var d in r.AlphaChanges)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@Local(d.CreatedUtc)</td>
+                            <td>@(bandName.TryGetValue(d.BandId, out var bn) ? bn : $"band {d.BandId}")</td>
+                            <td>@d.Category</td>
+                            <td class="text-nowrap">@Pct(d.CurrentFloorPct) → <strong>@Pct(d.ProposedFloorPct)</strong></td>
+                            <td class="text-nowrap">@Pct(d.CurrentTargetPct) → <strong>@Pct(d.ProposedTargetPct)</strong></td>
+                            <td><details><summary class="text-muted">why?</summary><div class="pre-wrap md-lite">@d.Reason</div></details></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                </div>
+            }
+            else
+            {
+                <p class="small text-muted mt-2 mb-0">No floor or target changed this week: Alpha kept every cell.</p>
+            }
+        </div>
+    </div>
+
+    <h2 class="section-title">What changed</h2>
     @if (r.Cells is null)
     {
         <p class="text-muted">The run's proposals were cleaned up (the database keeps the last two runs per layer), so its counts are gone.</p>
     }
     else
     {
-        <table class="table table-sm align-middle w-auto mb-4">
+        <div class="table-responsive mb-4">
+        <table class="table table-sm align-middle w-auto mb-0 change-table">
             <thead><tr><th></th><th class="text-end">This run #@r.Run.Id</th>
                 <th class="text-end">@(r.PreviousBatch is { } pb ? $"Publish before: run #{pb.EngineRunId} (batch #{pb.Id})" : "Publish before")</th></tr></thead>
             <tbody>
@@ -241,26 +275,34 @@
                 ("changed in holdout categories (not published)", now.Holdout, r.PreviousCells is null ? null : before.Holdout),
             })
             {
-                <tr><td>@label</td><td class="text-end">@a.ToString("N0")</td><td class="text-end text-muted">@(b?.ToString("N0") ?? "–")</td></tr>
+                <tr class="@(label is "raised" or "lowered" ? "sub" : "")"><td>@(label == "raised" ? "▲ " : label == "lowered" ? "▼ " : "")@label</td>
+                    <td class="text-end @(label is "Priced SKUs" or "Price changed" ? "fw-semibold" : "")">@a.ToString("N0")</td><td class="text-end text-muted">@(b?.ToString("N0") ?? "–")</td></tr>
             }
             <tr><td>held back by the run checker</td><td class="text-end">@(r.Check?.Warns.ToString("N0") ?? "–")</td><td class="text-end text-muted">–</td></tr>
             <tr><td title="Cuts the margin target trim made are not published (your decision, 31 Oct): cheaper team deals block most raises while every cut lands">margin-trim cuts held back (the shop's price stays)</td>
                 <td class="text-end">@(r.Batch.HeldBackTrimCuts?.ToString("N0") ?? "not held back then")</td>
                 <td class="text-end text-muted">@(r.PreviousBatch?.HeldBackTrimCuts?.ToString("N0") ?? "–")</td></tr>
-            <tr><td>on the shelf at our price</td><td class="text-end">@r.OnShelf.ToString("N0")</td>
+            <tr class="table-light"><td class="fw-semibold">on the shelf at our price</td><td class="text-end fw-semibold">@r.OnShelf.ToString("N0")</td>
                 <td class="text-end text-muted">@(r.PreviousBatch?.OnShelf.ToString("N0") ?? "–")</td></tr>
             </tbody>
         </table>
+        </div>
         @if (r.PreviousBatch is null)
         {
             <p class="small text-muted">No earlier run has been published on this layer: the comparison starts with the next one.</p>
         }
 
-        <h2 class="h5">Floors and targets by category × band</h2>
-        <p class="small text-muted mb-2">Each band's floor / target margin in its header; a shaded cell is one Alpha set for that category, ★ marks a change this week.
-            In each cell: SKUs whose price changed, of the priced SKUs (▲ raised, ▼ lowered). Bands are by cost.</p>
+        <h2 class="section-title">Floors and targets by category × band</h2>
+        <div class="legend mb-2">
+            <span>Under each band: its floor / target margin</span>
+            <span><span class="swatch swatch-alpha"></span> shaded cell: a floor / target Alpha set for that category</span>
+            <span>★ changed this week</span>
+            <span>In each cell: SKUs whose price changed <span class="text-muted">of the priced SKUs</span></span>
+            <span><span class="text-success">▲ raised</span> <span class="text-danger">▼ lowered</span></span>
+            <span>Bands are by cost.</span>
+        </div>
         <div class="table-responsive mb-4">
-        <table class="table table-sm table-bordered align-middle small text-center">
+        <table class="table table-sm table-bordered align-middle small text-center ft-grid">
             <thead class="table-light">
                 <tr>
                     <th class="text-start">Category</th>
@@ -315,6 +357,7 @@
     {
         <details class="mb-4">
             <summary class="h6">How this run got here: Run week #@week.Id, @week.Status@(week.FinishedUtc is { } f ? $" in {(f - week.StartedUtc).TotalSeconds:N0} s" : ""), AI $@week.AiCostUsd.ToString("0.00")</summary>
+            <div class="table-responsive">
             <table class="table table-sm align-middle small mt-2">
                 <thead><tr><th>Step</th><th>Status</th><th class="text-end">Seconds</th><th>Result</th><th>Why</th></tr></thead>
                 <tbody>
@@ -330,6 +373,20 @@
                 }
                 </tbody>
             </table>
+            </div>
         </details>
     }
 }
+
+<script>
+    // Long report text starts as a few lines; the button shows the rest (and hides itself when nothing is cut off).
+    document.querySelectorAll('[data-clamp]').forEach(function (btn) {
+        var el = document.getElementById(btn.getAttribute('data-clamp'));
+        if (!el) return;
+        if (el.scrollHeight > el.clientHeight + 4) btn.classList.remove('d-none'); else el.classList.remove('clamp');
+        btn.addEventListener('click', function () {
+            var open = el.classList.toggle('clamp') === false;
+            btn.textContent = open ? 'Show less' : 'Show the whole report';
+        });
+    });
+</script>

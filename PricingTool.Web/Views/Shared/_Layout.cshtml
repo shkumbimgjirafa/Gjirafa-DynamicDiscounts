@@ -153,6 +153,27 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // The agents write a little Markdown. In elements marked .md-lite, show **text** as bold and a line's
+        // leading "- " as a bullet. Works on text nodes only (no HTML is parsed), so nothing else changes.
+        (function () {
+            document.querySelectorAll('.md-lite').forEach(function (el) {
+                var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes = [];
+                while (walker.nextNode()) nodes.push(walker.currentNode);
+                nodes.forEach(function (n) {
+                    var text = n.nodeValue.replace(/(^|\n)(\s*)- /g, '$1$2• ');
+                    var parts = text.split(/\*\*([^*\n]+?)\*\*/);
+                    if (parts.length < 2) { if (text !== n.nodeValue) n.nodeValue = text; return; }
+                    var frag = document.createDocumentFragment();
+                    parts.forEach(function (p, i) {
+                        if (i % 2) { var b = document.createElement('strong'); b.textContent = p; frag.appendChild(b); }
+                        else if (p) { frag.appendChild(document.createTextNode(p)); }
+                    });
+                    n.parentNode.replaceChild(frag, n);
+                });
+            });
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

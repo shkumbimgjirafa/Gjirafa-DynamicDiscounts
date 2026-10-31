@@ -34,23 +34,18 @@
         };
 }
 
-<div class="d-flex flex-wrap align-items-baseline gap-3">
-    <h1 class="h3 mb-1">Campaigns</h1>
-    <div class="small text-muted d-flex flex-wrap gap-2 align-items-center">
-        <span class="cal-key layer-4 state-published">Gjirafa50</span>
-        <span class="cal-key layer-1 state-published">GjirafaMall</span>
-        <span>solid: published or live · <span class="cal-key layer-4 state-waits">!</span> waits for you · <span class="cal-key layer-4 state-briefed">dashed</span>: not published yet · faded: over</span>
-    </div>
+<div class="page-head">
+    <h1 class="h3">Campaigns</h1>
+    <p class="page-intro mb-0">Pick a campaign on the calendar to see where it stands and talk it through with Nova (campaign agent). A change you agree on is planned again by Alpha (pricing agent), checked by code and published to the sandbox, where you can stop it until it starts.</p>
 </div>
-<p class="page-sub">Pick a campaign to see where it stands and talk it through with Nova (campaign agent). A change you agree on is planned again by Alpha (pricing agent), checked by code and published to the sandbox, where you can stop it until it starts.</p>
 
-<div class="row g-3">
-    <div class="col-xl-7">
-        <div class="d-flex justify-content-between align-items-center mb-1 small">
-            <a asp-action="Index" asp-route-from="@Model.From.AddDays(-28).ToString("yyyy-MM-dd")" asp-route-id="@sel?.Entry.Id">&lsaquo; Earlier</a>
-            <span><strong>@Model.From.ToString("dd MMM") – @end.ToString("dd MMM yyyy")</strong>
-                · <a asp-action="Index" asp-route-id="@sel?.Entry.Id" asp-route-from="@today.ToString("yyyy-MM-dd")">this week</a></span>
-            <a asp-action="Index" asp-route-from="@Model.From.AddDays(28).ToString("yyyy-MM-dd")" asp-route-id="@sel?.Entry.Id">Later &rsaquo;</a>
+<div class="camp-layout">
+    <div class="camp-cal">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <a class="btn btn-sm btn-outline-secondary" asp-action="Index" asp-route-from="@Model.From.AddDays(-28).ToString("yyyy-MM-dd")" asp-route-id="@sel?.Entry.Id">&lsaquo; Earlier</a>
+            <span class="text-center"><strong>@Model.From.ToString("dd MMM") – @end.ToString("dd MMM yyyy")</strong>
+                <a class="small ms-1" asp-action="Index" asp-route-id="@sel?.Entry.Id" asp-route-from="@today.ToString("yyyy-MM-dd")">this week</a></span>
+            <a class="btn btn-sm btn-outline-secondary" asp-action="Index" asp-route-from="@Model.From.AddDays(28).ToString("yyyy-MM-dd")" asp-route-id="@sel?.Entry.Id">Later &rsaquo;</a>
         </div>
         <div class="cal border rounded">
             <div class="cal-head">
@@ -81,12 +76,24 @@
                 </div>
             }
         </div>
+        <div class="legend mt-2">
+            <span><span class="cal-key layer-4 state-published">Gjirafa50</span> <span class="cal-key layer-1 state-published">GjirafaMall</span></span>
+            <span><span class="cal-key layer-4 state-published key-blank">&nbsp;</span> solid: published or live</span>
+            <span><span class="cal-key layer-4 state-briefed key-blank">&nbsp;</span> dashed: not published yet</span>
+            <span><span class="cal-key layer-4 state-waits">!</span> waits for you</span>
+            <span><span class="cal-key layer-4 state-done key-blank">&nbsp;</span> faded: over</span>
+            <span><span class="cal-key state-stopped">stopped</span> crossed out: stopped</span>
+        </div>
+    </div>
 
+    <div class="camp-lists">
         @foreach (var (title, rows) in new[] { ("Live", Model.Live), ("Coming up", Model.ComingUp), ("Done (last 120 days)", Model.Done), ("Cancelled", Model.Cancelled) })
         {
             if (title == "Cancelled" && rows.Count == 0) { continue; }
-            <h2 class="h6 mt-3 mb-1">@title (@rows.Count)</h2>
-            <table class="table table-sm table-hover align-middle small mb-1">
+            <h2 class="h6 mt-3 mb-1">@title <span class="text-muted fw-normal">(@rows.Count)</span></h2>
+            <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle small mb-1 camp-list">
+                <colgroup><col /><col class="c-layer" /><col class="c-dates" /><col class="c-goal" /><col class="c-state" /><col class="c-gp" /></colgroup>
                 <tbody>
                 @foreach (var r in rows)
                 {
@@ -100,13 +107,14 @@
                         <td class="text-end text-nowrap">@(r.Plan is { } p ? $"GP €{p.ExpectedGrossProfit:N0} (est.)" : "")</td>
                     </tr>
                 }
-                @if (rows.Count == 0) { <tr><td class="text-muted">None.</td></tr> }
+                @if (rows.Count == 0) { <tr><td class="text-muted" colspan="6">None.</td></tr> }
                 </tbody>
             </table>
+            </div>
         }
     </div>
 
-    <div class="col-xl-5" id="nova">
+    <div class="camp-side" id="nova">
         @if (sel is not null)
         {
             var e = sel.Entry;
@@ -119,31 +127,38 @@
                         <h2 class="h5 mb-0">@e.Name</h2>
                         <span class="small text-nowrap"><a asp-action="Detail" asp-route-id="@e.Id">full record</a> · <a asp-action="Index" asp-route-from="@Model.From.ToString("yyyy-MM-dd")">close</a></span>
                     </div>
-                    <div class="small text-muted">
-                        @Model.LayerName(e.LayerId) · @e.StartDate.ToString("ddd dd MMM") – @e.EndDate.ToString("ddd dd MMM") (@days day@(days == 1 ? "" : "s")) · @e.Type ·
-                        @(e.ScopeKind == "all" ? "the whole shop" : $"{e.ScopeKind} {e.ScopeValue}") · goal @Goal(e.GoalType, e.GoalValue)
-                        @if (e.GoalSetBy is not null) { <span class="badge bg-info text-dark" title="@e.GoalSetBy">set by a person</span> }
-                        @if (e.GoalSetBy is not null && e.GoalType == "margin") { <span class="badge bg-light text-dark border" title="Gross profit over net revenue of the whole campaign; code spends the discounts down to it">effective margin, spent down to</span> }
-                        @if (e.DepthCapLiftedBy is not null) { <span class="badge bg-light text-dark border" title="@e.DepthCapLiftedBy">no depth cap</span> }
-                        @if (e.EverySkuInStock) { <span class="badge bg-light text-dark border">every SKU in stock</span> }
-                        @if (e.DiscountOptimizationOff) { <span class="badge bg-light text-dark border" title="The engine's trim of deep displayed discounts is switched off on the campaign's days and back on after">discount optimization off on its days</span> }
+                    <div class="small mt-1">
+                        <span class="fw-semibold">@Model.LayerName(e.LayerId)</span>
+                        <span class="text-muted">· @e.StartDate.ToString("ddd dd MMM") – @e.EndDate.ToString("ddd dd MMM") (@days day@(days == 1 ? "" : "s")) · @e.Type ·
+                            @(e.ScopeKind == "all" ? "the whole shop" : $"{e.ScopeKind} {e.ScopeValue}")</span>
                     </div>
+                    <div class="small mt-1">Goal: <strong>@Goal(e.GoalType, e.GoalValue)</strong></div>
+                    @if (e.GoalSetBy is not null || e.DepthCapLiftedBy is not null || e.EverySkuInStock || e.DiscountOptimizationOff)
+                    {
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            @if (e.GoalSetBy is not null) { <span class="chip chip-info" title="@e.GoalSetBy">goal set by a person</span> }
+                            @if (e.GoalSetBy is not null && e.GoalType == "margin") { <span class="chip" title="Gross profit over net revenue of the whole campaign; code spends the discounts down to it">effective margin, spent down to</span> }
+                            @if (e.DepthCapLiftedBy is not null) { <span class="chip" title="@e.DepthCapLiftedBy">no depth cap</span> }
+                            @if (e.EverySkuInStock) { <span class="chip">every SKU in stock</span> }
+                            @if (e.DiscountOptimizationOff) { <span class="chip" title="The engine's trim of deep displayed discounts is switched off on the campaign's days and back on after">discount optimization off on its days</span> }
+                        </div>
+                    }
                     <div class="alert @(state == "waits" ? "alert-warning" : state is "live" or "published" ? "alert-success" : "alert-light border") py-1 px-2 small my-2">@sel.StateText(today)</div>
                     @if (plan is not null)
                     {
                         <div class="row g-2 small mb-2">
-                            <div class="col-4"><div class="tile"><div class="text-muted">Discounted</div><div class="tile-value">@plan.DiscountedSkus.ToString("N0")</div>
-                                <div class="text-muted">of @plan.SkusInScope.ToString("N0") SKUs, @plan.AverageDepthPct.ToString("0.0")% off on average</div></div></div>
-                            <div class="col-4"><div class="tile"><div class="text-muted">Gross profit, its SKUs</div><div class="tile-value">€@plan.ExpectedGrossProfit.ToString("N0")</div>
-                                <div class="text-muted">estimated; €@plan.GrossProfitWithoutDiscounts.ToString("N0") with no discount</div></div></div>
-                            <div class="col-4"><div class="tile"><div class="text-muted">Margin</div><div class="tile-value">@plan.ExpectedMarginPct.ToString("0.0")%</div>
-                                <div class="text-muted">estimated; @plan.ExpectedUnits.ToString("N0") units</div></div></div>
+                            <div class="col-sm-4"><div class="tile"><div class="tile-label">Discounted</div><div class="tile-value">@plan.DiscountedSkus.ToString("N0")</div>
+                                <div class="tile-note">of @plan.SkusInScope.ToString("N0") SKUs, @plan.AverageDepthPct.ToString("0.0")% off on average</div></div></div>
+                            <div class="col-sm-4"><div class="tile"><div class="tile-label">Gross profit, its SKUs <span class="badge bg-warning text-dark">estimated</span></div><div class="tile-value">€@plan.ExpectedGrossProfit.ToString("N0")</div>
+                                <div class="tile-note">€@plan.GrossProfitWithoutDiscounts.ToString("N0") with no discount (estimated)</div></div></div>
+                            <div class="col-sm-4"><div class="tile"><div class="tile-label">Margin <span class="badge bg-warning text-dark">estimated</span></div><div class="tile-value">@plan.ExpectedMarginPct.ToString("0.0")%</div>
+                                <div class="tile-note">@plan.ExpectedUnits.ToString("N0") units (estimated)</div></div></div>
                         </div>
-                        <p class="small mb-2"><strong>Plan #@plan.Id (@plan.Strategy)@(string.IsNullOrEmpty(plan.GoalVerdict) ? "" : $", {plan.GoalVerdict}"):</strong> @plan.Feasibility</p>
+                        <p class="small mb-2"><strong>Plan #@plan.Id (@plan.Strategy)@(string.IsNullOrEmpty(plan.GoalVerdict) ? "" : $", {plan.GoalVerdict}"):</strong> <span class="md-lite">@plan.Feasibility</span></p>
                     }
                     @if (isManager && (sel.Waits || sel.CanPublish || sel.CanStop(today)))
                     {
-                        <div class="d-flex gap-2 mb-2">
+                        <div class="d-flex flex-wrap gap-2 mb-2">
                             @if (sel.Waits && plan is not null)
                             {
                                 <form asp-controller="Agent" asp-action="ApprovePlan" method="post"
@@ -179,7 +194,7 @@
                     }
                     @if (sel.Result is { } result)
                     {
-                        <p class="small mb-1"><strong>Nova's lesson@(result.Provisional ? " (provisional)" : ""):</strong> @(result.Lesson ?? "none written")</p>
+                        <p class="small mb-1"><strong>Nova's lesson@(result.Provisional ? " (provisional)" : ""):</strong> <span class="md-lite">@(result.Lesson ?? "none written")</span></p>
                         <details class="how"><summary>What code measured</summary><pre class="small bg-light p-2 text-wrap mb-0">@result.Measured</pre></details>
                     }
                     @if (Model.PlanningThread.Count > 0)
@@ -187,10 +202,10 @@
                         <details class="how mb-0"><summary>How Nova and Alpha planned it (the last @Model.PlanningThread.Count messages)</summary>
                             @foreach (var m in Model.PlanningThread)
                             {
-                                <div class="mb-1">
+                                <div class="mb-2">
                                     <span class="badge @WhoBadge(m.From)">@WhoName(m.From)</span>
                                     <span class="text-muted">round @m.Round@(m.PlanId is { } pid ? $" · plan #{pid}" : "") · @Local(m.CreatedUtc).ToString("dd MMM HH:mm")</span>
-                                    <div class="text-body" style="white-space: pre-wrap">@m.Text</div>
+                                    <div class="text-body pre-wrap md-lite">@m.Text</div>
                                 </div>
                             }
                         </details>
@@ -204,17 +219,17 @@
                 <strong>@(sel is null ? "Plan a new campaign with Nova" : $"Talk to Nova about {sel.Entry.Name}")</strong>
                 @if (sel is null) { <div class="small text-muted">Or pick a campaign on the calendar to talk about it.</div> }
             </div>
-            <div id="conversation" class="card-body p-2" style="height: @(sel is null ? "52vh" : "38vh"); overflow-y: auto">
+            <div id="conversation" class="card-body p-2" style="max-height: @(sel is null ? "52vh" : "38vh"); min-height: 6rem; overflow-y: auto">
                 @foreach (var m in Model.Conversation)
                 {
                     var mine = m.From == "user";
                     <div class="d-flex @(mine ? "justify-content-end" : "") mb-2">
-                        <div class="rounded p-2 small @(mine ? "bg-primary-subtle" : m.From == "code" ? "bg-body-tertiary border border-secondary-subtle" : "bg-light border")" style="max-width: 88%">
-                            <div class="mb-1">
+                        <div class="msg small @(mine ? "msg-mine" : m.From == "code" ? "msg-code" : "msg-agent")" style="max-width: 88%">
+                            <div class="msg-head">
                                 <span class="badge @(mine ? "bg-light text-dark border" : WhoBadge(m.From))">@(mine ? m.Author ?? "you" : WhoName(m.From))</span>
                                 <span class="text-muted">@Local(m.CreatedUtc).ToString("ddd HH:mm")</span>
                             </div>
-                            <div style="white-space: pre-wrap">@m.Text</div>
+                            <div class="pre-wrap md-lite">@m.Text</div>
                         </div>
                     </div>
                 }

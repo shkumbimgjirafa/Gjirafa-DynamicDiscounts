@@ -11,19 +11,31 @@
     string WhoName(string who) => who switch { "CostWatcher" => "Cost watcher", "code" => "Code", _ => who };
     DateTime Local(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime();
     var publishWaiting = inbox.Publishes.Count(p => p.NeedsAPerson);
+    string RuleWords(string kind) => kind switch
+    {
+        "exclude-brand" => "Keep brand out",
+        "exclude-category" => "Keep category out",
+        "min-campaign-margin" => "Campaign margin at least",
+        "protect-discount" => "Never end team discount",
+        "margin-target" => "Shop margin target",
+        _ => kind,
+    };
 }
 
-<div class="d-flex flex-wrap align-items-baseline gap-3">
-    <h1 class="h3 mb-1">Chat</h1>
-    <div class="form-check form-switch small">
-        <input class="form-check-input" type="checkbox" id="show-activity" checked />
-        <label class="form-check-label" for="show-activity">show what the agents did</label>
+<div class="page-head">
+    <div class="d-flex flex-wrap align-items-baseline gap-3">
+        <h1 class="h3">Chat</h1>
+        <div class="form-check form-switch small">
+            <input class="form-check-input" type="checkbox" id="show-activity" checked />
+            <label class="form-check-label" for="show-activity">show what the agents did</label>
+        </div>
     </div>
+    <p class="page-intro mb-0">Talk to Nova (campaign agent) and Alpha (pricing agent): their reasoning, what they did, and the chat with them.
+        "Waiting for you" lists only what they couldn't settle themselves.</p>
 </div>
-<p class="page-sub">Nova (campaign agent) and Alpha (pricing agent): their reasoning, what they did, and the chat with them. Beside it, only what they couldn't settle themselves.</p>
 
-<div class="row g-3">
-    <div class="col-lg-8">
+<div class="chat-layout">
+    <section class="chat-main" aria-label="Chat with the agents">
         <div id="thread" class="border rounded p-2 mb-2" style="height: 68vh; overflow-y: auto">
             @{ DateOnly? day = null; }
             @foreach (var t in Model.Thread)
@@ -32,24 +44,24 @@
                 if (day != d)
                 {
                     day = d;
-                    <div class="text-center small text-muted my-2">@Local(t.Utc).ToString("dddd d MMMM")</div>
+                    <div class="day-divider">@Local(t.Utc).ToString("dddd d MMMM")</div>
                 }
                 if (t.Message is { } m)
                 {
                     var mine = m.From == "user";
                     <div class="d-flex @(mine ? "justify-content-end" : "") mb-2">
-                        <div class="rounded p-2 @(mine ? "bg-primary-subtle" : "bg-light border")" style="max-width: 85%">
-                            <div class="small mb-1">
+                        <div class="msg @(mine ? "msg-mine" : m.From == "code" ? "msg-code" : "msg-agent")">
+                            <div class="msg-head">
                                 <span class="badge @(mine ? "bg-light text-dark border" : WhoBadge(m.From))">@(mine ? m.Author ?? "you" : WhoName(m.From))</span>
                                 <span class="text-muted">@Local(m.CreatedUtc).ToString("HH:mm")</span>
                             </div>
-                            <div style="white-space: pre-wrap">@m.Text</div>
+                            <div class="pre-wrap md-lite">@m.Text</div>
                         </div>
                     </div>
                 }
                 else if (t.Activity is { } f)
                 {
-                    <div class="activity small text-muted mb-1 ps-1 border-start border-2">
+                    <div class="activity text-muted">
                         <span>@Local(f.Utc).ToString("HH:mm")</span>
                         <span class="badge @WhoBadge(f.Who)">@WhoName(f.Who)</span>
                         @if (f.LayerId is { } lid) { <span>@Model.LayerName(lid):</span> }
@@ -57,7 +69,7 @@
                         @if (!string.IsNullOrWhiteSpace(f.Why))
                         {
                             <details class="d-inline"><summary class="d-inline">@(f.Count > 1 ? $"why? ({f.Count:N0})" : "why?")</summary>
-                                <div class="text-body" style="white-space: pre-wrap">@f.Why</div></details>
+                                <div class="text-body pre-wrap md-lite">@f.Why</div></details>
                         }
                     </div>
                 }
@@ -86,17 +98,17 @@
             <details class="how mt-1"><summary>What you can say</summary>
                 Ask why they did something, or what a change would do. Ask Nova for a campaign ("Plan a 3-day laptops campaign next week, €4k
                 profit"): code checks the brief against the limits, Alpha plans it, and it publishes to the sandbox, where you can stop it until
-                it starts. Give instructions ("keep Samsung out this week"): they become rules code enforces, listed on the right. The agents
+                it starts. Give instructions ("keep Samsung out this week"): they become rules code enforces, listed under "Rules you gave". The agents
                 read the data first, so an answer takes up to a minute or two; the page refreshes when it lands.
             </details>
         }
-    </div>
+    </section>
 
-    <div class="col-lg-4 small">
-        <div class="card mb-3 @(inbox.WaitingCount > 0 ? "border-warning" : "border-success")">
+    <aside class="chat-waiting small" aria-label="Waiting for you">
+        <div class="card @(inbox.WaitingCount > 0 ? "border-warning border-2" : "border-success")">
             <div class="card-body">
-                <h2 class="h6 d-flex justify-content-between">Waiting for you
-                    <span class="badge @(inbox.WaitingCount > 0 ? "bg-warning text-dark" : "bg-success")">@inbox.WaitingCount</span></h2>
+                <h2 class="h6 d-flex justify-content-between align-items-center">Waiting for you
+                    <span class="badge rounded-pill @(inbox.WaitingCount > 0 ? "bg-warning text-dark" : "bg-success")">@inbox.WaitingCount</span></h2>
                 @if (inbox.WaitingCount == 0) { <p class="text-muted mb-0">Nothing: the agents settled everything themselves.</p> }
                 @foreach (var g in inbox.CostHoldSkus.GroupBy(h => h.Latest.Limit).OrderByDescending(g => g.Count()))
                 {
@@ -152,13 +164,15 @@
                 {
                     <form method="post" asp-controller="Agent" asp-action="Problems" class="mt-2">
                         <button class="btn btn-sm btn-outline-primary" disabled="@Model.ProblemsRunning">Ask Alpha to look now</button>
-                        <div class="text-muted">Code settles what it can (closes what resolved itself, ends a team discount under the floor), then
+                        <div class="text-muted mt-1">Code settles what it can (closes what resolved itself, ends a team discount under the floor), then
                             Alpha looks at the rest and posts who can fix it. It also runs once a day.</div>
                     </form>
                 }
             </div>
         </div>
+    </aside>
 
+    <aside class="chat-side small" aria-label="Goals, campaigns and rules">
         <div class="card mb-3" id="goals">
             <div class="card-body">
                 <h2 class="h6">Goals</h2>
@@ -218,8 +232,8 @@
                 <h2 class="h6">Rules you gave</h2>
                 @foreach (var r in Model.Rules)
                 {
-                    <div class="mb-1 d-flex justify-content-between gap-2">
-                        <div>@r.Kind <strong>@r.Value@(r.Kind == "min-campaign-margin" ? "%" : "")</strong>,
+                    <div class="mb-2 d-flex justify-content-between gap-2">
+                        <div><span title="@r.Kind">@RuleWords(r.Kind)</span> <strong>@r.Value@(r.Kind is "min-campaign-margin" or "margin-target" && !r.Value.TrimEnd().EndsWith("%") ? "%" : "")</strong>,
                             @(r.LayerId is { } lid ? Model.LayerName(lid) : "both layers"), @r.FromDate.ToString("d MMM")–@r.ToDate.ToString("d MMM")
                             <div class="text-muted">@r.CreatedBy: "@r.Instruction"</div></div>
                         @if (isManager)
@@ -274,7 +288,7 @@
                 </div>
             }
         </details>
-    </div>
+    </aside>
 </div>
 
 <script>
