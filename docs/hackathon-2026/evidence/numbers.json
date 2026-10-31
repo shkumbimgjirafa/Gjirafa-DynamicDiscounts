@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 19:37",
+    "generated":  "2026-10-31 19:48",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -429,8 +429,8 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  585.45,
-                                      "sinceKickoffResponses":  3385,
+                                      "sinceKickoffUsd":  594.13,
+                                      "sinceKickoffResponses":  3421,
                                       "unattendedBlocksUsd":  358.85,
                                       "unattendedBlocksResponses":  1765
                                   },
@@ -446,7 +446,7 @@
                         "value":  {
                                       "attendedHours":  3.9,
                                       "unattendedBlocks":  44,
-                                      "rows":  74
+                                      "rows":  76
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -1128,7 +1128,7 @@
                                   },
                         "unit":  "dates / days",
                         "label":  "measured",
-                        "method":  "The deployed tool\u0027s runs (PricingTool.Approvals) and the sets pushed to the shops (hk.PushDatesKs, hk.PushDatesMkAl): one person ran them by hand from 21 Jul, with no schedule. GjirafaMall KS regular runs on 2026-07-21, 2026-08-06, 2026-09-03, 2026-10-06, 2026-10-19; Gjirafa50 KS regular runs on 2026-07-21, 2026-10-07, 2026-10-21 (78 days from the first to the second), with dead-stock runs on 2026-08-03, 2026-08-19, 2026-09-03. MK/AL full pushes (50,000+ public discounts started in a month): GjirafaMall MK 2026-10 from 2026-10-21; GjirafaMall AL 2026-09 from 2026-09-01; GjirafaMall AL 2026-10 from 2026-10-21; Gjirafa50 MK 2026-10 from 2026-10-21; Gjirafa50 AL 2026-07 from 2026-07-07; Gjirafa50 AL 2026-10 from 2026-10-21. GjirafaMall KS\u0027s sets of 50,000+ public discounts stayed live 12-36 days. Even when a run went live, 19 % of the units on SKUs approvals #12 and #25 raised still sold at the old price in Aug-Sep (E23); late October\u0027s 70-84 % was the month two push sets overlapped.",
+                        "method":  "The deployed tool\u0027s runs (PricingTool.Approvals) and the sets pushed to the shops (hk.PushDatesKs, hk.PushDatesMkAl): one person ran them by hand from 21 Jul, with no schedule. GjirafaMall KS regular runs on 2026-07-21, 2026-08-06, 2026-09-03, 2026-10-06, 2026-10-19; Gjirafa50 KS regular runs on 2026-07-21, 2026-10-07, 2026-10-21 (78 days from the first to the second), with dead-stock runs in that gap on 2026-08-03, 2026-08-19, 2026-09-03. MK/AL full pushes (50,000+ public discounts started in a month): GjirafaMall MK 2026-10 from 2026-10-21; GjirafaMall AL 2026-09 from 2026-09-01; GjirafaMall AL 2026-10 from 2026-10-21; Gjirafa50 MK 2026-10 from 2026-10-21; Gjirafa50 AL 2026-07 from 2026-07-07; Gjirafa50 AL 2026-10 from 2026-10-21. GjirafaMall KS\u0027s sets of 50,000+ public discounts stayed live 12-36 days. Even when a run went live, 19 % of the units on SKUs approvals #12 and #25 raised still sold at the old price in Aug-Sep (E23); late October\u0027s 70-84 % was the month two push sets overlapped.",
                         "source":  "PricingTool.Approvals / ApprovalItems, hk.PushDatesKs, hk.PushDatesMkAl",
                         "script":  "docs/hackathon-2026/evidence/e28-runs-by-hand.sql (four result sets; this script runs it)",
                         "recompute":  {

@@ -97,7 +97,7 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
 `ai.AgentQueryLog`. The agents' runtime Claude calls: 85 calls, $10.29 in the live database and 5 calls, $1.03 in the test
-database (E15). The Claude Code sessions that built this used $585.45 since kickoff (API-equivalent; the eight AI-judge dry runs and the released data session's share included), $358.85 of it in the unattended
+database (E15). The Claude Code sessions that built this used $594.13 since kickoff (API-equivalent; the nine AI-judge dry runs and the released data session's share included), $358.85 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -120,7 +120,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit €107,006, ROI 662 %, payback 3.4 months; the
+**The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit €106,998, ROI 662 %, payback 3.4 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
@@ -137,7 +137,7 @@ query.
 
 **Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on 21 Jul, 6 Aug, 3 Sep, 6 Oct
-and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for 78 days (dead-stock runs on 3 Aug,
+and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for 78 days (dead-stock runs in that gap on 3 Aug,
 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only GjirafaMall AL had a full push. Even when it ran, 19 % of the units on raised
 products still sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So
 the build's value is the stream it makes permanent, plus the levers:
@@ -308,7 +308,7 @@ the reason next to each.
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
 | The organisers' AI Pioneer meter (31 Oct, at Mergca's request) | The build sessions report through Claude Code hooks in this project's `.claude/settings.local.json` (git-ignored); the agents' own calls through `HacktrackMeter` (one event per attempt that reached the model, task name, requests and tokens; labelled injected tests are not counted) handing each event to the organisers' `hook.js`. The team token lives only in that ignored file and in the user's environment variables, never in a tracked file |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $358.85 API-equivalent; $585.45 since the kickoff (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours, the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $358.85 API-equivalent; $594.13 since the kickoff (E18) |
 
 ## 7. Tests
 

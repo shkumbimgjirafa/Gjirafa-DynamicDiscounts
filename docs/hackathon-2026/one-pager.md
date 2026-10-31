@@ -43,7 +43,7 @@ aren't calibrated yet (E10); the Monday email isn't built and the start-up task 
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
 **Money (12 months). The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit
-€107,006, ROI 662%, payback 3.4 months).
+€106,998, ROI 662%, payback 3.4 months).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
@@ -55,7 +55,7 @@ query.
 **Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
 21 Jul, 6 Aug, 3 Sep, 6 Oct and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
-78 days (dead-stock runs on 3 Aug, 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only
+78 days (dead-stock runs in that gap on 3 Aug, 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only
 GjirafaMall AL had a full push. Even when it ran, 19 % of the units on raised products still
 sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So the build's
 value is the stream it makes permanent, plus the levers:
@@ -76,14 +76,14 @@ month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no
 orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
 fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
-€9,230 one-time (hackathon hours at €50, 160 hours to production including code review, the build
-sessions' AI usage of $585.45 API-equivalent, E18) and €6,927 running (AI
-€69 a month from the measured cost per call, E19; maintenance and review hours), €16,158 in all.
+€9,239 one-time (hackathon hours at €50, 160 hours to production including code review, the build
+sessions' AI usage of $594.13 API-equivalent, E18) and €6,927 running (AI
+€69 a month from the measured cost per call, E19; maintenance and review hours), €16,166 in all.
 
 | Year 1 | The claim |
 |---|---|
 | Extra gross profit a month at full scope | €12,965 |
-| Net benefit (9.5 full-benefit months − all costs) | €107,006 |
+| Net benefit (9.5 full-benefit months − all costs) | €106,998 |
 | ROI | 662% |
 | Payback (months) | 3.4 |
 | Track A score (/100; Evidence and Works are our own ratings) | 84 |

@@ -156,7 +156,7 @@ query.
 **Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
 {days(e28['gjirafaMallKsRegularRuns'])}; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
-{e28['gjirafa50KsLongestGapDays']} days (dead-stock runs on {days([d for d in e28['gjirafa50KsDeadStockRuns'] if d < '2026-10-01'])}); on MK/AL, in Aug–Sep only
+{e28['gjirafa50KsLongestGapDays']} days (dead-stock runs in that gap on {days([d for d in e28['gjirafa50KsDeadStockRuns'] if d < '2026-10-01'])}); on MK/AL, in Aug–Sep only
 GjirafaMall AL had a full push. Even when it ran, {e28['unitsAtOldPriceAugSepPct']} % of the units on raised products still
 sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So the build's
 value is the stream it makes permanent, plus the levers:

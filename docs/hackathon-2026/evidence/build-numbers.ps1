@@ -401,7 +401,7 @@ Add 'E28' 'The test, run by hand: the facts beside the without-the-build line (K
         gjirafaMallKsRegularRuns = $mallRuns; gjirafa50KsRegularRuns = $gj50Runs; gjirafa50KsDeadStockRuns = $gj50Dead; gjirafa50KsLongestGapDays = $gj50Gap
         mkalFullPushes = $mkal; unitsAtOldPriceAugSepPct = $oldPct }) 'dates / days' 'measured' `
     ("The deployed tool's runs (PricingTool.Approvals) and the sets pushed to the shops (hk.PushDatesKs, hk.PushDatesMkAl): one person ran them by hand from 21 Jul, with no schedule. " +
-     "GjirafaMall KS regular runs on $($mallRuns -join ', '); Gjirafa50 KS regular runs on $($gj50Runs -join ', ') ($gj50Gap days from the first to the second), with dead-stock runs on $(($gj50Dead | Where-Object { $_ -lt '2026-10-01' }) -join ', '). " +
+     "GjirafaMall KS regular runs on $($mallRuns -join ', '); Gjirafa50 KS regular runs on $($gj50Runs -join ', ') ($gj50Gap days from the first to the second), with dead-stock runs in that gap on $(($gj50Dead | Where-Object { $_ -lt '2026-10-01' }) -join ', '). " +
      "MK/AL full pushes (50,000+ public discounts started in a month): $(($mkal.GetEnumerator() | ForEach-Object { "$($_.Key) from $($_.Value)" }) -join '; '). " +
      "GjirafaMall KS's sets of 50,000+ public discounts stayed live $($ksSets.Minimum)-$($ksSets.Maximum) days. Even when a run went live, $oldPct % of the units on SKUs approvals #12 and #25 raised still sold at the old price in Aug-Sep (E23); late October's 70-84 % was the month two push sets overlapped.") `
     'PricingTool.Approvals / ApprovalItems, hk.PushDatesKs, hk.PushDatesMkAl' 'docs/hackathon-2026/evidence/e28-runs-by-hand.sql (four result sets; this script runs it)'
