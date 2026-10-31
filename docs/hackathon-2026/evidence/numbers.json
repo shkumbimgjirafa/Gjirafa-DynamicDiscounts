@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 00:49",
+    "generated":  "2026-10-31 01:00",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.",
     "figures":  [
@@ -200,14 +200,14 @@
                         "id":  "E15",
                         "name":  "Agents\u0027 runtime Claude calls (Alpha, Nova, the run checker, the chat), as logged",
                         "value":  {
-                                      "liveCalls":  39,
-                                      "liveUsd":  4.56,
+                                      "liveCalls":  45,
+                                      "liveUsd":  5.08,
                                       "testCalls":  5,
                                       "testUsd":  1.03,
-                                      "inputTokens":  1225,
-                                      "outputTokens":  179958,
-                                      "cacheReadTokens":  274580,
-                                      "cacheCreationTokens":  275388
+                                      "inputTokens":  1243,
+                                      "outputTokens":  205608,
+                                      "cacheReadTokens":  308893,
+                                      "cacheCreationTokens":  308062
                                   },
                         "unit":  "calls / USD",
                         "label":  "measured",
@@ -224,20 +224,20 @@
                                                               "avgUsd":  0.3765
                                                           },
                                       "chat":  {
-                                                   "calls":  10,
-                                                   "avgUsd":  0.0718
+                                                   "calls":  11,
+                                                   "avgUsd":  0.0728
                                                },
                                       "novaWeeklyPass":  {
                                                              "calls":  3,
                                                              "avgUsd":  0.2179
                                                          },
                                       "planningCall":  {
-                                                           "calls":  12,
-                                                           "avgUsd":  0.0379
+                                                           "calls":  16,
+                                                           "avgUsd":  0.0393
                                                        },
                                       "runCheck":  {
-                                                       "calls":  6,
-                                                       "avgUsd":  0.2625
+                                                       "calls":  7,
+                                                       "avgUsd":  0.2624
                                                    }
                                   },
                         "unit":  "USD per call",
@@ -250,10 +250,10 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  243.5,
-                                      "sinceKickoffResponses":  1558,
-                                      "unattendedBlocksUsd":  168.63,
-                                      "unattendedBlocksResponses":  1110
+                                      "sinceKickoffUsd":  250.93,
+                                      "sinceKickoffResponses":  1619,
+                                      "unattendedBlocksUsd":  175.86,
+                                      "unattendedBlocksResponses":  1170
                                   },
                         "unit":  "USD (API-equivalent)",
                         "label":  "measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)",
@@ -266,8 +266,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  21,
-                                      "rows":  31
+                                      "unattendedBlocks":  22,
+                                      "rows":  32
                                   },
                         "unit":  "hours",
                         "label":  "measured",
@@ -279,12 +279,12 @@
                         "id":  "E17",
                         "name":  "Automated tests",
                         "value":  {
-                                      "passed":  910,
+                                      "passed":  912,
                                       "skipped":  1
                                   },
                         "unit":  "tests",
                         "label":  "measured",
-                        "method":  "dotnet test PricingTool.sln: 910 passed, 1 skipped (the opt-in real headless call), 31 Oct 00:47",
+                        "method":  "dotnet test PricingTool.sln: 912 passed, 1 skipped (the opt-in real headless call), 31 Oct 00:59",
                         "source":  "PricingTool.Tests",
                         "script":  "dotnet test PricingTool.sln"
                     },

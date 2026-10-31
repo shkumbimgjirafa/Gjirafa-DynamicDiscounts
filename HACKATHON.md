@@ -47,7 +47,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (910 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (912 passed, 1 skipped: the opt-in real headless call; E17).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
    engine refuse to start in any other environment)
    (Agent, Campaigns, Backtest, Exceptions tabs).
@@ -71,8 +71,8 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 | **Publisher** | nothing | with `Publisher:Target` = Sandbox (every config in this repo) the writer refuses any schema but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly | `NopIntegration/PublisherOptions.cs:58` |
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
-`ai.AgentQueryLog`. The agents' runtime Claude calls: 39 calls, $4.56 in the live database and 5 calls, $1.03 in the test
-database (E15). The two Claude Code sessions that built this used $243.50 since kickoff (the AI-judge dry run included), $168.63 of it in the unattended
+`ai.AgentQueryLog`. The agents' runtime Claude calls: 45 calls, $5.08 in the live database and 5 calls, $1.03 in the test
+database (E15). The two Claude Code sessions that built this used $250.93 since kickoff (the AI-judge dry run included), $175.86 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -152,6 +152,9 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
   - **Minutes saved per task** are not set, so the time sheet exports no rows yet.
   - **The Evidence page** isn't a separate page: the Backtest tab and `numbers.json` carry the figures.
   - **Campaign what-ifs** go through a brief and the planning loop; only the floor what-if has its own tool.
+  - **The daily cycle doesn't publish regular prices:** it ends in a checked export file for the push; the publisher
+    writes discounts for the canary (`publish-canary`), campaign plans and the cost watcher. There is no "Run week"
+    button: the loop runs in the engine host (`docs/hackathon-2026/demo-dry-run-1.md`).
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
 - **Known limitations** (several found by our own AI-judge dry run, `docs/hackathon-2026/ai-judge/dry-run-1.md`):
   - E20 and E21 were measured in the main repo before the hackathon; no script here reruns them. Framing B's B0 is the
@@ -175,11 +178,11 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 | No live system written | The replica and a one-time read-only copy of the tool database are read, both allowed at the kickoff. On 31 Oct a web start with the wrong launch profile (Development) migrated and seeded the main repo's *local* development database `PricingTool` on this laptop. Five minutes later, after a backup, its schema changes were reverted (every object created at 00:20:58–59 dropped). The demo data it seeded is still there (one demo run #40010 with its 360 proposals, one day of snapshots and KPIs, and 360 updated dead-stock states): the backup was taken after the start, so the updated rows' earlier values can't be restored, and removing only the inserted rows would leave that database inconsistent; the user decides (`docs/hackathon-2026/ai-judge/dry-run-1.md`). The web app and the engine now refuse to start in any environment but Hackathon |
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours and 21 unattended blocks (E16); unattended blocks count as AI cost only, $168.63 API-equivalent (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours and 22 unattended blocks (E16); unattended blocks count as AI cost only, $175.86 API-equivalent (E18) |
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 910 passed, 1 skipped (31 Oct 00:47). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 912 passed, 1 skipped (31 Oct 00:59). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

@@ -162,8 +162,8 @@ Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that 
     'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
 Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured' `
     'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
-$testsLine = 'dotnet test PricingTool.sln: 910 passed, 1 skipped (the opt-in real headless call), 31 Oct 00:47'
-Add 'E17' 'Automated tests' ([ordered]@{ passed = 910; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
+$testsLine = 'dotnet test PricingTool.sln: 912 passed, 1 skipped (the opt-in real headless call), 31 Oct 00:59'
+Add 'E17' 'Automated tests' ([ordered]@{ passed = 912; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results, measured before the hackathon (quoted, not recomputed here) -------------------------
 Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10632; high = 13000 }) 'EUR/month' `
