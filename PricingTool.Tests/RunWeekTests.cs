@@ -157,15 +157,33 @@ public class RunWeekTests
     {
         var tool = new PricingTool.Data.PricingToolDbContext(new DbContextOptionsBuilder<PricingTool.Data.PricingToolDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        var exporter = new PricingTool.Agent.Checker.CheckedExport(tool, Db(), new NoHoldouts(), Options.Create(new PricingTool.Agent.AgentOptions()));
+        var db = Db();
+        var exporter = new PricingTool.Agent.Checker.CheckedExport(tool, db, new NoHoldouts(), Options.Create(new PricingTool.Agent.AgentOptions()));
 
-        var live = await new CheckedPricePublisher(exporter, null!, Options.Create(new PublisherOptions { Target = PublisherOptions.LiveTarget }))
+        var live = await new CheckedPricePublisher(exporter, null!, db, Options.Create(new PublisherOptions { Target = PublisherOptions.LiveTarget }))
             .PublishCheckedAsync(4, 1105);
-        var notChecked = await new CheckedPricePublisher(exporter, null!, Options.Create(new PublisherOptions())).PublishCheckedAsync(4, 1105);
+        var notChecked = await new CheckedPricePublisher(exporter, null!, db, Options.Create(new PublisherOptions())).PublishCheckedAsync(4, 1105);
 
         Assert.Equal(StepStatus.Skipped, live.Status);
         Assert.Contains("only to the shop sandbox", live.Detail);
         Assert.Equal(StepStatus.Skipped, notChecked.Status);
         Assert.Contains("has no check", notChecked.Detail);
+    }
+
+    [Fact]
+    public async Task The_daily_cycles_publish_skips_a_run_older_than_one_already_on_the_sandbox()
+    {
+        var db = Db();
+        db.PublishBatches.Add(new PublishBatch { LayerId = 4, Db = "GjirafaEcommerce", StoreId = 2, Target = "Sandbox", ShopSchema = "shop_sandbox_GjirafaEcommerce",
+            Kind = PublishKinds.Regular, EngineRunId = 1106, Status = "Published", StartedUtc = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+        var tool = new PricingTool.Data.PricingToolDbContext(new DbContextOptionsBuilder<PricingTool.Data.PricingToolDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var exporter = new PricingTool.Agent.Checker.CheckedExport(tool, db, new NoHoldouts(), Options.Create(new PricingTool.Agent.AgentOptions()));
+
+        var (status, detail) = await new CheckedPricePublisher(exporter, null!, db, Options.Create(new PublisherOptions())).PublishCheckedAsync(4, 1103);
+
+        Assert.Equal(StepStatus.Skipped, status);
+        Assert.Contains("run #1106 is already on the sandbox", detail);
     }
 }

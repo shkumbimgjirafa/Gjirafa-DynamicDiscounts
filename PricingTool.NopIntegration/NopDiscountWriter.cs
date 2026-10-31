@@ -57,6 +57,8 @@ public sealed record PublishOutcome(
     public int RaisedUnderTeamDeal { get; init; }
     public int ChangedSinceRun { get; init; }
     public int DiscountsEnded { get; init; }
+    /// <summary>Interrupted batches of the layer this publish reconciled first (<see cref="NopDiscountWriter.ReconcileInterruptedAsync"/>).</summary>
+    public IReadOnlyList<long> Reconciled { get; init; } = Array.Empty<long>();
 }
 
 /// <summary>
@@ -117,6 +119,8 @@ public sealed class NopDiscountWriter
         var now = Truncate(_clock.GetUtcNow().UtcDateTime);
         var (shop, layer) = await ShopForLayerAsync(request.LayerId, ct);
         var window = Window(request, now);
+        // A publish of this layer that died mid-way is repaired first, so every batch stays exactly undoable.
+        var reconciled = await ReconcileInterruptedAsync(request.LayerId, ct);
 
         var batch = new PublishBatch
         {
@@ -201,7 +205,7 @@ public sealed class NopDiscountWriter
             batch.Skipped, batch.RoundTripChecked, batch.RoundTripMismatches, rolledBack, exceptions)
         {
             TierRaised = batch.TierRaised, TierInserted = batch.TierInserted, RaisedUnderTeamDeal = batch.RaisedUnderTeamDeal,
-            ChangedSinceRun = batch.ChangedSinceRun, DiscountsEnded = batch.DiscountsEnded,
+            ChangedSinceRun = batch.ChangedSinceRun, DiscountsEnded = batch.DiscountsEnded, Reconciled = reconciled,
         };
     }
 
@@ -740,6 +744,27 @@ public sealed class NopDiscountWriter
     /// Returns how many rows it marked and how many it left unapplied (not written).
     /// </summary>
     public async Task<(int Marked, int NotWritten)> ReconcileAsync(long batchId, CancellationToken ct = default)
+        => await ReconcileCoreAsync(batchId, ct);
+
+    /// <summary>How long a batch may stay Running before it counts as interrupted (a GjirafaMall publish takes about a minute).</summary>
+    public static readonly TimeSpan InterruptedAfter = TimeSpan.FromMinutes(30);
+
+    /// <summary>Reconciles the layer's batches still marked Running after <see cref="InterruptedAfter"/>: their process or the
+    /// database stopped mid-publish (<see cref="ReconcileAsync"/>). Every publish runs it first. Returns their ids.</summary>
+    public async Task<IReadOnlyList<long>> ReconcileInterruptedAsync(int layerId, CancellationToken ct = default)
+    {
+        var before = _clock.GetUtcNow().UtcDateTime - InterruptedAfter;
+        var stale = await _db.PublishBatches.AsNoTracking().Where(b => b.LayerId == layerId && b.Status == "Running" && b.StartedUtc < before)
+            .OrderBy(b => b.Id).Select(b => b.Id).ToListAsync(ct);
+        foreach (var id in stale)
+        {
+            var (marked, notWritten) = await ReconcileCoreAsync(id, ct);
+            _logger.LogWarning("Publish batch {Batch} of layer {Layer} was interrupted; reconciled: {Marked} rows written, {NotWritten} not.", id, layerId, marked, notWritten);
+        }
+        return stale;
+    }
+
+    private async Task<(int Marked, int NotWritten)> ReconcileCoreAsync(long batchId, CancellationToken ct)
     {
         var batch = await _db.PublishBatches.SingleAsync(b => b.Id == batchId, ct);
         if (batch.Status != "Running") throw new InvalidOperationException($"Batch {batchId} is {batch.Status}, not Running: nothing to reconcile.");

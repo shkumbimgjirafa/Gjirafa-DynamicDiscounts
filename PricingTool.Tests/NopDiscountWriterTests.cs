@@ -911,4 +911,29 @@ public class NopDiscountWriterTests : IClassFixture<LocalDbFixture>, IDisposable
         Assert.Equal((false, (string?)null), Flags(201));
         Assert.Equal(before, RowJson(raised));
     }
+
+    [LocalDbFact]
+    public async Task The_next_publish_reconciles_a_batch_left_half_done_once_it_is_clearly_interrupted()
+    {
+        foreach (var (id, sku) in new[] { (201, "SKU-A"), (202, "SKU-B"), (203, "SKU-C") }) Product(id, sku, hasTier: true);
+        foreach (var id in new[] { 201, 202, 203 }) TierRow(id, 40m, 0m);
+        var dying = Writer();
+        dying.AfterChunkCommit = _ => throw new InvalidOperationException("the database stopped (test)");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => dying.PublishAsync(Raises(4, ("SKU-A", 35m, 40m, 40m))));
+        var halfDone = (await _db.PublishBatches.SingleAsync()).Id;
+
+        _clock.Now = _clock.Now.AddMinutes(10);                                    // it might still be running: left alone
+        var soon = await Writer().PublishAsync(Raises(4, ("SKU-B", 35m, 40m, 40m)));
+        Assert.Empty(soon.Reconciled);
+        Assert.Equal("Running", (await _db.PublishBatches.SingleAsync(b => b.Id == halfDone)).Status);
+
+        _clock.Now = _clock.Now.AddMinutes(25);
+        var later = await Writer().PublishAsync(Raises(4, ("SKU-C", 35m, 40m, 40m)));
+
+        Assert.Equal(new[] { halfDone }, later.Reconciled);
+        Assert.Equal("Interrupted", (await _db.PublishBatches.SingleAsync(b => b.Id == halfDone)).Status);
+        Assert.All(await _db.PublishAudits.Where(a => a.BatchId == halfDone).ToListAsync(), a => Assert.True(a.Applied));
+        await Writer().RollbackAsync(halfDone);
+        Assert.Equal(40m, EngineShelf(201));
+    }
 }
