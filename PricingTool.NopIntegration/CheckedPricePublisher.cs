@@ -19,13 +19,16 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
     private readonly NopDiscountWriter _writer;
     private readonly AgentDbContext _db;
     private readonly PublisherOptions _options;
+    private readonly PricingTool.Agent.Chat.AgentChat? _chat;
 
-    public CheckedPricePublisher(CheckedExport @checked, NopDiscountWriter writer, AgentDbContext db, IOptions<PublisherOptions> options)
+    public CheckedPricePublisher(CheckedExport @checked, NopDiscountWriter writer, AgentDbContext db, IOptions<PublisherOptions> options,
+        PricingTool.Agent.Chat.AgentChat? chat = null)
     {
         _checked = @checked;
         _writer = writer;
         _db = db;
         _options = options.Value;
+        _chat = chat;
     }
 
     public static IReadOnlyList<PublishItem> Items(CheckedSet set) =>
@@ -84,6 +87,9 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
 
         var o = await _writer.PublishAsync(Request(layerId, runId, items, set.HeldBackTrimCutSkus?.Count), ct);
         var trimLine = o.Status == "Published" ? await EndHeldBackTrimCutsAsync(_writer, layerId, set.HeldBackTrimCutSkus, ct) : "";
+        // A person's margin target for today: what code did, in the thread where they set it.
+        if (set.MarginTargetNote is { } note && o.Status == "Published" && _chat is not null)
+            await _chat.PostAsync("code", $"{note} Sandbox batch #{o.BatchId}.", ct: ct);
         var status = o.Status switch
         {
             "Stopped" => StepStatus.Skipped,
@@ -94,6 +100,7 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
         // The sandbox follows the live shop (the mirror step before this one), so this is the day's shadow of the live shelf.
         return (status, $"on the shelf at our price: {o.RoundTripChecked - o.RoundTripMismatches:N0} of {items.Count:N0} checked prices; " +
                         $"sandbox batch #{o.BatchId} {o.Status} for run #{runId}: {Chosen(set)}; {Describe(o)}; " +
-                        $"round-trip {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0}{trimLine}");
+                        $"round-trip {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0}{trimLine}" +
+                        (set.MarginTargetNote is { } n ? $"; {n}" : ""));
     }
 }

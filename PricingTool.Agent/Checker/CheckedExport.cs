@@ -7,8 +7,11 @@ using Microsoft.Extensions.Options;
 using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
+using PricingTool.Core.Domain;
+using PricingTool.Core.Services;
 using PricingTool.Data;
 using PricingTool.Data.Entities;
+using PricingTool.Data.Services;
 
 namespace PricingTool.Agent.Checker;
 
@@ -27,6 +30,12 @@ public sealed record CheckedSet(AgentRunCheck? Check, string? Blocked, IReadOnly
     int PausedRaisesLeftOut = 0, IReadOnlyList<string>? HeldBackTrimCutSkus = null)
 {
     public int TrimCutsHeldBack => HeldBackTrimCutSkus?.Count ?? 0;
+
+    /// <summary>A person's effective margin target for today on this layer, in a sentence (null when none applies).</summary>
+    public string? MarginTargetNote { get; init; }
+
+    /// <summary>The prices the margin target raised (SKU → price), so GjirafaMall's products that take Gjirafa50's price follow.</summary>
+    public IReadOnlyDictionary<string, decimal>? MarginTargetRaised { get; init; }
 }
 
 /// <summary>The engine's reason code for a price moved toward the band's target margin.</summary>
@@ -97,15 +106,20 @@ public sealed class CheckedExport
     private readonly IHoldoutLookup _holdouts;
     private readonly AgentOptions _options;
     private readonly TimeProvider _clock;
+    private readonly IShelfSource? _shelf;
+    private readonly BandConfigProvider? _bands;
+    private static readonly PricingTool.Core.Services.RoundingService Rounding = new();
 
     public CheckedExport(PricingToolDbContext tool, AgentDbContext db, IHoldoutLookup holdouts, IOptions<AgentOptions> options,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null, IShelfSource? shelf = null, BandConfigProvider? bands = null)
     {
         _tool = tool;
         _db = db;
         _holdouts = holdouts;
         _options = options.Value;
         _clock = clock ?? TimeProvider.System;
+        _shelf = shelf;
+        _bands = bands;
     }
 
     /// <summary>
@@ -165,8 +179,94 @@ public sealed class CheckedExport
             trimCuts = cuts.Select(p => p.Sku).ToList();
             prices = prices.Except(cuts).ToList();
         }
+
+        // A person's effective margin target for today (a margin-target rule): products under the minimum it takes are raised.
+        string? targetNote = null;
+        IReadOnlyDictionary<string, decimal>? targetRaised = null;
+        if (_shelf is not null && _bands is not null)
+        {
+            var notRaised = held.Concat(holdout).Concat(pausedRaises).ToHashSet();
+            if (trimCuts is not null)
+            {
+                var cutSkus = trimCuts.ToHashSet(StringComparer.Ordinal);
+                notRaised.UnionWith(proposals.Where(p => cutSkus.Contains(p.Sku)).Select(p => p.Id));
+            }
+            (prices, targetNote, targetRaised) = await MarginTargetAsync(run, prices, notRaised, ct);
+        }
         return new CheckedSet(check, null, prices, proposals.Count(p => held.Contains(p.Id)), proposals.Count(p => holdout.Contains(p.Id) && !held.Contains(p.Id)),
-            pausedRaises.Count, trimCuts);
+            pausedRaises.Count, trimCuts) { MarginTargetNote = targetNote, MarginTargetRaised = targetRaised };
+    }
+
+    /// <summary>
+    /// Today's margin-target rule for the run's layer, applied to the prices about to go out (see <see cref="MarginTarget"/>): the
+    /// products that sold on normal days in the six weeks before the last two (late cancellations), each at the price it will have
+    /// after this publish; the raisable ones (not held, holdout, paused, held back, dead stock, a person's price, or a GjirafaMall
+    /// product that takes Gjirafa50's price) under the minimum go up to it. GjirafaMall's shared products take Gjirafa50's raised
+    /// price verbatim. Returns the prices with the raises in, and the note.
+    /// </summary>
+    private async Task<(List<CheckedPrice> Prices, string? Note, IReadOnlyDictionary<string, decimal>? Raised)> MarginTargetAsync(PricingRun run,
+        List<CheckedPrice> prices, IReadOnlySet<long> notRaised, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var rule = (await _db.ChatRules.AsNoTracking().Where(r => r.Kind == ChatRuleKinds.MarginTarget && r.RemovedUtc == null && r.LayerId == run.LayerId).ToListAsync(ct))
+            .Where(r => r.ActiveOn(today, today)).Select(r => (Rule: r, Pct: ChatRuleKinds.Percent(r.Value)))
+            .Where(x => x.Pct is > 0 and < 100).OrderByDescending(x => x.Pct).FirstOrDefault();
+        if (rule.Rule is null) return (prices, null, null);
+
+        var layer = await _tool.Layers.AsNoTracking().SingleAsync(l => l.Id == run.LayerId, ct);
+        // GjirafaMall's shared products follow Gjirafa50's published price, raised or not.
+        var gj50Raised = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        if (layer.Brand == "GjirafaMall")
+        {
+            var sibling = await _tool.Layers.AsNoTracking().FirstOrDefaultAsync(l => l.Brand == "GjirafaEcommerce" && l.CountryCode == layer.CountryCode, ct);
+            var siblingRun = sibling is null ? null : await _tool.PricingRuns.AsNoTracking()
+                .Where(r => r.LayerId == sibling.Id && (r.Status == RunStatus.Succeeded || r.Status == RunStatus.SucceededWithErrors)).OrderByDescending(r => r.Id).FirstOrDefaultAsync(ct);
+            if (siblingRun is not null && (await CheckedSetAsync(siblingRun.Id, ct)).MarginTargetRaised is { } raised)
+                foreach (var (sku, price) in raised) gj50Raised[sku] = price;
+        }
+
+        var (from, to) = (today.AddDays(-42), today.AddDays(-14));
+        var rows = await _shelf!.SoldAsync(run.Id, run.LayerId, from, to, ct);
+        var inSet = prices.ToDictionary(p => p.ProposalId);
+        var bands = (await _bands!.GetBandsAsync(run.LayerId, ct)).ToDictionary(b => b.BandId);
+        var products = rows.Select(r =>
+        {
+            var price = r.SyncedToGj50 && gj50Raised.TryGetValue(r.Sku, out var g) ? g : inSet.TryGetValue(r.ProposalId, out var c) ? c.Price : r.CurrentPrice;
+            var raisable = !notRaised.Contains(r.ProposalId) && !r.DeadStock && !r.SyncedToGj50 && !r.PersonSet;
+            return (Row: r, Product: new TargetProduct(r.Sku, price, r.Cost, r.Units, Math.Max(r.AnchorPrice, r.CurrentPrice), raisable));
+        }).ToList();
+        var bandOf = rows.ToDictionary(r => r.Sku, r => r.BandId, StringComparer.Ordinal);
+        decimal PriceAt(TargetProduct p, decimal minimumPct)
+        {
+            var lower = Math.Max(p.Price, p.Cost / (1m - minimumPct / 100m));
+            if (lower >= p.Ceiling) return p.Ceiling;
+            var convention = bandOf.GetValueOrDefault(p.Sku) is { } b && bands.TryGetValue(b, out var band) && band.RoundingEnabled ? band.Rounding : RoundingConvention.None;
+            var rounded = convention == RoundingConvention.None ? Math.Ceiling(lower * 100m) / 100m
+                : Rounding.Apply(lower, convention, new PriceBounds(lower, p.Ceiling)).Price;
+            return rounded >= lower - 0.005m && rounded <= p.Ceiling + 0.005m ? rounded : p.Ceiling;
+        }
+        var outcome = MarginTarget.Solve(products.Select(x => x.Product).ToList(), rule.Pct!.Value, PriceAt);
+
+        var result = new Dictionary<long, CheckedPrice>(inSet);
+        var mirrored = 0;
+        foreach (var (row, product) in products)
+        {
+            decimal? to2 = outcome.Raised.TryGetValue(row.Sku, out var raisedPrice) ? raisedPrice
+                : row.SyncedToGj50 && gj50Raised.TryGetValue(row.Sku, out var g) && Math.Abs(g - (inSet.TryGetValue(row.ProposalId, out var c0) ? c0.Price : row.CurrentPrice)) >= 0.01m ? g : null;
+            if (to2 is not { } newPrice) continue;
+            if (row.SyncedToGj50) mirrored++;
+            result[row.ProposalId] = inSet.TryGetValue(row.ProposalId, out var c)
+                ? c with { Price = newPrice }
+                : new CheckedPrice(row.ProposalId, row.Sku, row.OldPrice, row.CurrentPrice, newPrice, false, row.AnchorPrice);
+        }
+        var note = $"Effective margin target {outcome.TargetPct:0.#}% on {layer.DisplayName} today (rule #{rule.Rule.Id}, {rule.Rule.CreatedBy}): " +
+                   (outcome.MinimumPct is null
+                       ? $"the shop is already at {outcome.BeforePct:0.0}% at these prices, nothing raised"
+                       : $"{outcome.BeforePct:0.0}% → {outcome.AfterPct:0.0}% at these prices; {outcome.Raised.Count:N0} products under {outcome.MinimumPct:0.0}% raised to it " +
+                         $"({outcome.AtCeiling:N0} stopped at their regular price)" + (outcome.Reached ? "" : ", and the target isn't reachable under the regular prices")) +
+                   (mirrored > 0 ? $"; {mirrored:N0} products that take Gjirafa50's price follow its raise" : "") +
+                   $". Estimated on the units each product sold on normal days {from:dd MMM}–{to.AddDays(-1):dd MMM}, volume unchanged (a raise sells less).";
+        return (result.Values.ToList(), note, outcome.Raised);
     }
 
     public async Task<ExportResult> ExportAsync(long runId, string directory, CancellationToken ct = default)

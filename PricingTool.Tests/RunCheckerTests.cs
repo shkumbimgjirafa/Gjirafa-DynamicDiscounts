@@ -314,6 +314,48 @@ public class RunCheckerTests : IDisposable
         Assert.Null(off.HeldBackTrimCutSkus);
     }
 
+    private sealed class Shelf : IShelfSource
+    {
+        public List<ShelfRow> Rows { get; } = new();
+        public Task<IReadOnlyList<ShelfRow>> SoldAsync(long runId, int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<ShelfRow>>(Rows);
+    }
+
+    [Fact]
+    public async Task A_shops_effective_margin_target_raises_the_products_under_the_minimum_it_takes_and_nothing_else()
+    {
+        Injected(1, "CUT", 49.50m, 52.50m, 30m);                                              // in the set: 39 % after the cut
+        _tool.ProposedPrices.Add(new ProposedPrice { Id = 2, PricingRunId = Run, LayerId = 4, Sku = "LOW", ProductName = "[INJECTED-TEST] LOW", PriceBandId = 26,
+            HasChange = false, ProposedPriceValue = 52.50m, CurrentPrice = 52.50m, OldPrice = 60m, AnchorPrice = 60m, Pptcv = 45m, ReasonCodes = "", GuardrailFlags = "" });
+        _tool.SaveChanges();
+        _db.AgentRunChecks.Add(new AgentRunCheck { RunId = Run, LayerId = 4, StartedUtc = DateTime.UtcNow, Status = "Succeeded", Verdict = Severity.Pass });
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        _db.ChatRules.Add(new ChatRule { LayerId = 4, Kind = ChatRuleKinds.MarginTarget, Value = "22", FromDate = today, ToDate = today, Instruction = "test",
+            CreatedBy = "manager@test", CreatedUtc = DateTime.UtcNow });
+        _db.SaveChanges();
+        var shelf = new Shelf();
+        shelf.Rows.AddRange(new[]
+        {
+            new ShelfRow(1, "CUT", 60m, 52.50m, 60m, 30m, 26, false, false, false, 1m),
+            new ShelfRow(2, "LOW", 60m, 52.50m, 60m, 45m, 26, false, false, false, 10m),      // 14.3 %, most of the units
+            new ShelfRow(3, "HIGH", 60m, 50m, 60m, 25m, 26, false, false, false, 2m),
+            new ShelfRow(4, "DEAD", 60m, 40m, 60m, 38m, 26, true, false, false, 5m),          // 5 %, dead stock: its own lane
+        });
+        var exporter = new CheckedExport(_tool, _db, _holdouts, Options.Create(new AgentOptions()), null, shelf, new PricingTool.Data.Services.BandConfigProvider(_tool));
+
+        var set = await exporter.CheckedSetAsync(Run);
+
+        Assert.Equal(new[] { ("CUT", 49.50m), ("LOW", 59.50m) }, set.Prices.OrderBy(p => p.Sku).Select(p => (p.Sku, p.Price)));   // 57.36 needed: charm x5.50 / x9.50, under the 60 ceiling
+        Assert.Equal(new[] { "LOW" }, set.MarginTargetRaised!.Keys);
+        Assert.Contains("Effective margin target 22% on Gjirafa50 — Kosovo today", set.MarginTargetNote);
+        Assert.Contains("17.7% → 23.8% at these prices; 1 products under 21.", set.MarginTargetNote);
+
+        shelf.Rows.RemoveAll(r => r.Sku != "HIGH");                                          // a shop already above it
+        var above = await exporter.CheckedSetAsync(Run);
+        Assert.Equal(new[] { "CUT" }, above.Prices.Select(p => p.Sku));
+        Assert.Contains("already at 50.0% at these prices, nothing raised", above.MarginTargetNote);
+    }
+
     [Fact]
     public async Task A_superseded_export_cannot_be_marked_pushed()
     {

@@ -51,6 +51,7 @@ public static class AgentServiceCollectionExtensions
         services.AddScoped<OutcomeTracker>();
         services.AddScoped<Campaigns.CampaignCalendar>();
         services.AddScoped<Campaigns.CampaignSwitches>();
+        services.AddScoped<Checker.IShelfSource, Checker.SqlShelfSource>();
         services.AddScoped<Campaigns.CampaignAgent>();
         services.AddScoped<Campaigns.ICampaignCandidateSource, Campaigns.SqlCampaignCandidateSource>();
         services.AddScoped<Campaigns.CampaignPlanning>();

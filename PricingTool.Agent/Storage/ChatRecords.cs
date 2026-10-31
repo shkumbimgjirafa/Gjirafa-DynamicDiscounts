@@ -69,7 +69,15 @@ public static class ChatRuleKinds
     /// <summary>A team discount whose name matches the value (a pattern: <c>*</c> any text, <c>&lt;sku&gt;</c> the SKU, else a name
     /// prefix) is never ended by the agents, even when it sells under the floor (the user's decision, 31 Oct).</summary>
     public const string ProtectDiscount = "protect-discount";
-    public static readonly string[] All = { ExcludeBrand, ExcludeCategory, MinCampaignMargin, ProtectDiscount };
+    /// <summary>A shop's effective margin (gross profit over net revenue) on the rule's days: before each day's publish code raises
+    /// the products under the lowest margin that gets the shop there, never above a regular price (the user's request, 31 Oct).
+    /// One layer per rule.</summary>
+    public const string MarginTarget = "margin-target";
+    public static readonly string[] All = { ExcludeBrand, ExcludeCategory, MinCampaignMargin, ProtectDiscount, MarginTarget };
+
+    /// <summary>A rule's value as a percent ("19.5", "19.5%"), or null.</summary>
+    public static decimal? Percent(string value) =>
+        decimal.TryParse(value.Trim().TrimEnd('%', ' '), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
 }
 
 /// <summary>One stored run of the whole backtest (see Backtest.BacktestSnapshotBuilder), shown on the results page and as CSV.</summary>

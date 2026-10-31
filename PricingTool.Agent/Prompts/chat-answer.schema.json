@@ -1,7 +1,7 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["reply", "askAlpha", "briefs", "cancel", "rule", "goal"],
+  "required": ["reply", "askAlpha", "briefs", "cancel", "rules", "goal"],
   "properties": {
     "reply": { "type": "string" },
     "askAlpha": { "type": ["string", "null"] },
@@ -45,16 +45,20 @@
         "value": { "type": "number" }
       }
     },
-    "rule": {
-      "type": ["object", "null"],
-      "additionalProperties": false,
-      "required": ["layer", "kind", "value", "fromDate", "toDate"],
-      "properties": {
-        "layer": { "type": ["integer", "null"] },
-        "kind": { "type": "string", "enum": ["exclude-brand", "exclude-category", "min-campaign-margin", "protect-discount"] },
-        "value": { "type": "string" },
-        "fromDate": { "type": "string" },
-        "toDate": { "type": "string" }
+    "rules": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layer", "kind", "value", "fromDate", "toDate"],
+        "properties": {
+          "layer": { "type": ["integer", "null"] },
+          "kind": { "type": "string", "enum": ["exclude-brand", "exclude-category", "min-campaign-margin", "protect-discount", "margin-target"] },
+          "value": { "type": "string" },
+          "fromDate": { "type": "string" },
+          "toDate": { "type": "string" }
+        }
       }
     }
   }

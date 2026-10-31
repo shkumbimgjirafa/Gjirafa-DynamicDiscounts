@@ -34,9 +34,10 @@ public sealed class AgentChat
     private readonly AgentOptions _options;
     private readonly ILogger<AgentChat> _logger;
     private readonly TimeProvider _clock;
+    private readonly Tools.AgentDataSource? _source;
 
     public AgentChat(AgentDbContext db, ClaudeCodeClient client, CampaignPlanning planning, IOptions<AgentOptions> options, ILogger<AgentChat> logger,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null, Tools.AgentDataSource? source = null)
     {
         _db = db;
         _client = client;
@@ -44,6 +45,7 @@ public sealed class AgentChat
         _options = options.Value;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
+        _source = source;
     }
 
     public static string PromptsDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Prompts");
@@ -78,7 +80,7 @@ public sealed class AgentChat
 
         var (a, callId) = answer.Value;
         var reply = await AddAsync(conversation, role == AgentRole.Alpha ? "Alpha" : "Nova", a.Reply, callId, added, ct);
-        if (a.Rule is { } rule) await RuleAsync(conversation, rule, text, author, reply, added, ct);
+        foreach (var rule in (a.Rules ?? Array.Empty<ChatRuleDto>()).Take(4)) await RuleAsync(conversation, rule, text, author, reply, added, ct);
         // Cancellations first: a new campaign may take the days a cancelled one leaves.
         if (role == AgentRole.Nova && a.Cancel is { Count: > 0 } cancel)
             foreach (var id in cancel.Distinct().Take(10))
@@ -169,7 +171,7 @@ public sealed class AgentChat
                       $"depth at most {_options.Campaigns.MaxDepthPct:0.#}%.");
         sb.AppendLine("Active rules: " + (rules.Count == 0 ? "none." : string.Join("; ", rules.Select(r => $"#{r.Id} {r.Kind} {r.Value} {r.FromDate:yyyy-MM-dd}..{r.ToDate:yyyy-MM-dd}{(r.LayerId is { } l ? $" layer {l}" : "")}"))));
         sb.Append(await Goals.BlockAsync(_db, today, null, ct));
-        sb.AppendLine();
+        sb.AppendLine(await EffectiveMarginAsync(today, ct));
         sb.AppendLine(await CampaignStateAsync(today, ct));
         if (ChatTopics.CalendarIdOf(_topic) is { } focus) sb.AppendLine(await CampaignFocusAsync(focus, today, ct));
         else if (_topic == ChatTopics.NewCampaign)
@@ -177,7 +179,7 @@ public sealed class AgentChat
         sb.AppendLine("The conversation so far (oldest first):");
         foreach (var m in history) sb.AppendLine($"[{m.From}] {m.Text}");
         sb.AppendLine();
-        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha, rule and goal null and briefs and cancel empty.");
+        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha and goal null and briefs, cancel and rules empty.");
         else if (role == AgentRole.Alpha) sb.AppendLine("Answer the person's last message in `reply`. You don't write briefs, cancel campaigns or record goals and don't ask Alpha: goal and askAlpha stay null, briefs and cancel empty.");
         else sb.AppendLine(noMoreAlpha ? "Alpha has answered above. Answer the person's last message now; askAlpha stays null." : "Answer the person's last message.");
 
@@ -194,6 +196,46 @@ public sealed class AgentChat
         if (role == AgentRole.Alpha || handedQuestion is not null) answer = answer with { AskAlpha = null, Briefs = null, Goal = null, Cancel = null };
         if (noMoreAlpha) answer = answer with { AskAlpha = null };
         return (answer, call.CallLogIds.Count > 0 ? call.CallLogIds[^1] : null);
+    }
+
+    /// <summary>
+    /// What a person means by "margin": the effective margin, gross profit over net revenue (both VAT excluded), of everything a
+    /// shop sells, measured per shop on the booked sales lines, so "GjirafaMall at 15%" needs no explaining.
+    /// </summary>
+    private async Task<string> EffectiveMarginAsync(DateOnly today, CancellationToken ct)
+    {
+        var sb = new StringBuilder("Effective margin, what a person means by \"margin\" unless they say otherwise: gross profit over net revenue, both VAT excluded, " +
+                                   "of everything a shop sells (of a campaign: of everything sold in it). ");
+        if (_source is null) return sb.Append("(No measurement in this host.)").ToString();
+        try
+        {
+            await using var conn = new Microsoft.Data.SqlClient.SqlConnection(_source.ConnectionString);
+            await conn.OpenAsync(ct);
+            await using var cmd = new Microsoft.Data.SqlClient.SqlCommand("""
+                SELECT sl.LayerId,
+                       SUM(CASE WHEN sl.SaleDate < @Cut AND c.LayerId IS NULL THEN sl.GrossProfit END), SUM(CASE WHEN sl.SaleDate < @Cut AND c.LayerId IS NULL THEN sl.NetRevenue END),
+                       SUM(CASE WHEN sl.SaleDate >= @Cut THEN sl.GrossProfit END), SUM(CASE WHEN sl.SaleDate >= @Cut THEN sl.NetRevenue END)
+                FROM agent.SalesLines sl
+                OUTER APPLY (SELECT TOP 1 h.LayerId FROM agent.CampaignHistory h WHERE h.LayerId = sl.LayerId AND sl.SaleDate BETWEEN h.StartDate AND h.EndDate) c
+                WHERE sl.SaleDate >= @From
+                GROUP BY sl.LayerId
+                """, conn) { CommandTimeout = 60 };
+            cmd.Parameters.Add("@From", System.Data.SqlDbType.Date).Value = today.AddDays(-42).ToDateTime(TimeOnly.MinValue);
+            cmd.Parameters.Add("@Cut", System.Data.SqlDbType.Date).Value = today.AddDays(-14).ToDateTime(TimeOnly.MinValue);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            sb.Append("Measured on the booked sales lines: ");
+            var parts = new List<string>();
+            static string Pct(object gp, object net) => gp is decimal g && net is decimal n && n > 0 ? $"{100m * g / n:0.0}%" : "no sales";
+            while (await r.ReadAsync(ct))
+                parts.Add($"layer {r.GetInt32(0)} {Pct(r.GetValue(1), r.GetValue(2))} on normal days {today.AddDays(-42):dd MMM}–{today.AddDays(-15):dd MMM}, " +
+                          $"{Pct(r.GetValue(3), r.GetValue(4))} in the last 14 days (provisional: late cancellations still post)");
+            sb.Append(string.Join("; ", parts)).Append('.');
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.SqlClient.SqlException or InvalidOperationException)
+        {
+            sb.Append("(Not measured just now: ").Append(ex.Message).Append(')');
+        }
+        return sb.ToString();
     }
 
     /// <summary>
@@ -411,14 +453,16 @@ public sealed class AgentChat
                  || !DateOnly.TryParseExact(r.ToDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to) || to < from)
             problem = $"Dates '{r.FromDate}'..'{r.ToDate}' aren't a yyyy-MM-dd range.";
         else if (string.IsNullOrWhiteSpace(r.Value)) problem = "The rule has no brand, category or margin.";
-        else if (r.Kind == ChatRuleKinds.MinCampaignMargin && (!decimal.TryParse(r.Value.TrimEnd('%', ' '), NumberStyles.Number, CultureInfo.InvariantCulture, out var pct) || pct <= 0 || pct >= 100))
+        else if (r.Kind is ChatRuleKinds.MinCampaignMargin or ChatRuleKinds.MarginTarget && ChatRuleKinds.Percent(r.Value) is not (> 0 and < 100))
             problem = $"'{r.Value}' isn't a margin in percent.";
+        else if (r.Kind == ChatRuleKinds.MarginTarget && r.Layer is null)
+            problem = "A margin target is for one shop: say which (one rule per shop).";
         else if (r.Layer is { } l && l is not (1 or 4)) problem = $"Layer {l} isn't one the agents work on.";
         else
         {
             var rule = new ChatRule
             {
-                LayerId = r.Layer, Kind = r.Kind, Value = r.Kind == ChatRuleKinds.MinCampaignMargin ? r.Value.TrimEnd('%', ' ') : r.Value.Trim(),
+                LayerId = r.Layer, Kind = r.Kind, Value = r.Kind is ChatRuleKinds.MinCampaignMargin or ChatRuleKinds.MarginTarget ? r.Value.Trim().TrimEnd('%', ' ') : r.Value.Trim(),
                 FromDate = from, ToDate = to, Instruction = instruction.Length > 1000 ? instruction[..1000] : instruction,
                 CreatedBy = author, CreatedUtc = _clock.GetUtcNow().UtcDateTime,
             };
@@ -427,9 +471,14 @@ public sealed class AgentChat
             reply.RuleId = rule.Id;
             await AddAsync(conversation, "code", $"Rule #{rule.Id} in force: {rule.Kind} {rule.Value} from {from:yyyy-MM-dd} to {to:yyyy-MM-dd}" +
                                                  $"{(rule.LayerId is { } layer ? $" on layer {layer}" : " on both layers")}. " +
-                                                 (rule.Kind == ChatRuleKinds.ProtectDiscount
-                                                     ? "The publisher never ends a team discount whose name matches it, even under the floor"
-                                                     : "Campaign planning enforces it") + "; it's listed on the Chat tab.",
+                                                 (rule.Kind switch
+                                                 {
+                                                     ChatRuleKinds.ProtectDiscount => "The publisher never ends a team discount whose name matches it, even under the floor",
+                                                     ChatRuleKinds.MarginTarget => $"Each of those days, before the 07:00 publish, code raises the products under the lowest margin that brings " +
+                                                                                   $"the shop's effective margin (gross profit / net revenue) to {rule.Value}%, never above a regular price, and says " +
+                                                                                   "in this thread what it did",
+                                                     _ => "Campaign planning enforces it",
+                                                 }) + "; it's listed on the Chat tab.",
                 null, added, ct);
             return;
         }
@@ -537,7 +586,7 @@ public sealed class AgentChat
         return m;
     }
 
-    private sealed record ChatAnswer(string Reply, string? AskAlpha, IReadOnlyList<ChatBriefDto>? Briefs, ChatRuleDto? Rule, ChatGoalDto? Goal = null,
+    private sealed record ChatAnswer(string Reply, string? AskAlpha, IReadOnlyList<ChatBriefDto>? Briefs, IReadOnlyList<ChatRuleDto>? Rules, ChatGoalDto? Goal = null,
         IReadOnlyList<long>? Cancel = null);
 
     private sealed record ChatGoalDto(int Layer, string Period, string Start, string Kind, decimal Value);

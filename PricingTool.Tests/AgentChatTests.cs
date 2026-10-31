@@ -78,14 +78,15 @@ public class AgentChatTests : IDisposable
     }
 
     private void Says(string reply, string? askAlpha = null, JsonObject? brief = null, JsonObject? rule = null, JsonObject? goal = null,
-        JsonObject[]? briefs = null, long[]? cancel = null) => _answers.Enqueue(new JsonObject
+        JsonObject[]? briefs = null, long[]? cancel = null, JsonObject[]? rules = null) => _answers.Enqueue(new JsonObject
     {
         ["type"] = "result", ["subtype"] = "success", ["is_error"] = false, ["num_turns"] = 2, ["result"] = "", ["total_cost_usd"] = 0.03m,
         ["usage"] = new JsonObject { ["input_tokens"] = 900, ["output_tokens"] = 120 },
         ["structured_output"] = new JsonObject
         {
             ["reply"] = reply, ["askAlpha"] = askAlpha, ["briefs"] = new JsonArray((briefs ?? (brief is null ? Array.Empty<JsonObject>() : new[] { brief })).Select(b => (JsonNode)b).ToArray()),
-            ["cancel"] = new JsonArray((cancel ?? Array.Empty<long>()).Select(id => (JsonNode)JsonValue.Create(id)).ToArray()), ["rule"] = rule, ["goal"] = goal,
+            ["cancel"] = new JsonArray((cancel ?? Array.Empty<long>()).Select(id => (JsonNode)JsonValue.Create(id)).ToArray()),
+            ["rules"] = new JsonArray((rules ?? (rule is null ? Array.Empty<JsonObject>() : new[] { rule })).Select(r => (JsonNode)r).ToArray()), ["goal"] = goal,
         },
     }.ToJsonString());
 
@@ -165,6 +166,22 @@ public class AgentChatTests : IDisposable
         var bad = await Chat().AskAsync(t.ConversationId, "Keep a good margin", "manager@test");
         Assert.StartsWith("No rule recorded", bad.Added[^1].Text);
         Assert.Single(await _db.ChatRules.ToListAsync());
+    }
+
+    [Fact]
+    public async Task A_shops_effective_margin_for_some_days_is_one_rule_per_shop_and_both_agents_read_margin_that_way()
+    {
+        JsonObject Target(int? layer, string value) => new() { ["layer"] = layer, ["kind"] = "margin-target", ["value"] = value, ["fromDate"] = "2026-11-05", ["toDate"] = "2026-11-07" };
+        Says("GjirafaMall at 19.5% and Gjirafa50 at 15%, 5–7 Nov.", rules: new[] { Target(1, "19.5%"), Target(4, "15"), Target(null, "15") });
+
+        var t = await Chat().AskAsync(null, "@alpha 5-7 Nov GjirafaMall 19.5%, Gjirafa50 15%", "manager@test");
+
+        var rules = await _db.ChatRules.OrderBy(r => r.Id).ToListAsync();
+        Assert.Equal(new[] { (1, "19.5"), (4, "15") }, rules.Select(r => (r.LayerId!.Value, r.Value)));
+        Assert.Contains("raises the products under the lowest margin that brings the shop's effective margin (gross profit / net revenue) to 19.5%", t.Added[2].Text);
+        Assert.Equal("No rule recorded: A margin target is for one shop: say which (one rule per shop).", t.Added[^1].Text);
+        Assert.Contains("Effective margin, what a person means by \"margin\"", _prompts[0]);
+        Assert.Contains("You are Alpha", _prompts[0]);
     }
 
     [Fact]
