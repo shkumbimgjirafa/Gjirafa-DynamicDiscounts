@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 01:31",
+    "generated":  "2026-10-31 06:44",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.",
     "figures":  [
@@ -7,14 +7,14 @@
                         "id":  "E1",
                         "name":  "Lever 1, Loss-sale block: extra GP a month, both KS layers",
                         "value":  {
-                                      "central":  198,
-                                      "low":  198,
-                                      "high":  198
+                                      "central":  197,
+                                      "low":  197,
+                                      "high":  197
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 78 (78 / 78); layer 4: 120 (120 / 120)",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 77 (77 / 77); layer 4: 120 (120 / 120)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
                     {
@@ -28,21 +28,21 @@
                         "unit":  "EUR/month",
                         "label":  "estimated",
                         "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 0 (0 / 0); layer 4: 4 (2 / 4)",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
                     {
                         "id":  "E3",
                         "name":  "Lever 3, Cost reaction: extra GP a month, both KS layers",
                         "value":  {
-                                      "central":  1532,
+                                      "central":  1546,
                                       "low":  327,
-                                      "high":  1717
+                                      "high":  1733
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); the low case September only (August was one cost event); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 1320 (134 / 1488); layer 4: 212 (193 / 229)",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); the low case September only (August was one cost event); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 1334 (134 / 1504); layer 4: 212 (193 / 229)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
                     {
@@ -56,7 +56,7 @@
                         "unit":  "EUR/month",
                         "label":  "estimated",
                         "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 396 (260 / 474); layer 4: 0 (0 / 0)",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
                     {
@@ -70,7 +70,7 @@
                         "unit":  "EUR/month",
                         "label":  "estimated",
                         "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 0 (0 / 0); layer 4: 0 (0 / 0)",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
                     {
@@ -84,35 +84,35 @@
                         "unit":  "EUR/month",
                         "label":  "estimated",
                         "method":  "Each finished campaign replayed with the planner\u0027s depth per SKU, as deep on average; uplift curve leave-one-out, as fitted (central), at half its slope (low) and at twice it (high); central: layer 1: median 210 EUR/day x 33 days / 12 = 578; layer 4: median 112 EUR/day x 22 days / 12 = 205",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
                     {
                         "id":  "E4",
                         "name":  "Lever 4, coverage MK/AL: extra GP a month on months without a push",
                         "value":  {
-                                      "low":  509,
-                                      "mid":  1353,
+                                      "low":  560,
+                                      "mid":  1325,
                                       "high":  1654
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "The calculator\u0027s measured Kosovo gain as a share of Kosovo GP (low 2.2 %, mid 5.9 %, high 7.2 %) x MK/AL tool-scope GP (hk.SalesLinesMkAl, EUR at the load day\u0027s shop rate) on months with no push of their own (hk.PushDatesMkAl); Aug-Sep average",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "method":  "The calculator\u0027s measured Kosovo gain as a share of Kosovo GP (low 2.4 %, mid 5.8 %, high 7.2 %) x MK/AL tool-scope GP (hk.SalesLinesMkAl, EUR at the load day\u0027s shop rate) on months with no push of their own (hk.PushDatesMkAl); Aug-Sep average",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-coverage"
                     },
                     {
                         "id":  "E8",
                         "name":  "Framing A: all levers together, extra GP a month",
                         "value":  {
-                                      "central":  4266,
-                                      "low":  1999,
-                                      "high":  5791
+                                      "central":  4251,
+                                      "low":  2049,
+                                      "high":  5806
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
                         "method":  "E1 + E2 + E3 + E4 (mid / low / high) + E5 + E6 + E7; each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5) and, for lever 4, by the calculator test-phase case",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "this script"
                     },
                     {
@@ -122,7 +122,7 @@
                         "unit":  "percent",
                         "label":  "measured",
                         "method":  "Per usable campaign (representative, enough normal days before it): GP of SKUs with no normal-day sales in the planner\u0027s rate window over the campaign\u0027s GP; median of 7",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-campaigns 1"
                     },
                     {
@@ -137,7 +137,7 @@
                         "unit":  "actual GP / planned GP",
                         "label":  "estimated",
                         "method":  "Leave-one-out needs 4 usable replays of the case (a type with an event lift from another window); null = not enough, plans judge on the arithmetic. In-sample shown for comparison only.",
-                        "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
+                        "source":  "ai.BacktestSnapshot #3 (2026-10-31 05:38 UTC)",
                         "script":  "PricingTool.AgentTools backtest-campaigns 1"
                     },
                     {
@@ -292,32 +292,50 @@
                         "id":  "E20",
                         "name":  "Calculator v0.5\u0027s test phase, Kosovo, extra GP a month (framing B\u0027s B0)",
                         "value":  {
-                                      "low":  4000,
-                                      "mid":  10632,
+                                      "low":  4402,
+                                      "mid":  10409,
                                       "high":  13000
                                   },
                         "unit":  "EUR/month",
                         "label":  {
-                                      "low":  "measured (same-weeks control)",
+                                      "low":  "measured, same-weeks control, one run per layer, the stricter control on Mall",
                                       "mid":  "measured before/after, not controlled",
-                                      "high":  "estimated: before/after season-adjusted with 2025, not controlled"
+                                      "high":  "estimated: before/after season-adjusted with 2025, not controlled; quoted from the main repo"
                                   },
-                        "method":  "Low: changed vs unchanged products in the same weeks (a test phase with a control: one run on one layer, so a floor); mid: before/after on the approvals (Aug 11,184, Sep 10,079; their average); high: the same, season-adjusted with 2025. The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025\u0027s seasonal growth)",
-                        "source":  "Main repo analysis before the hackathon (kickoff-plan.md sections 8 and 10)",
-                        "script":  "not in this repo"
+                        "method":  "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept 3263 + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval 1139 (with Mall\u0027s other control, vs not in the approval, 4088 + 1139 = 5227); mid: before/after on the approvals, SKU-deduplicated spans (Aug 11068, Sep 9749; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025\u0027\u0027s seasonal growth)",
+                        "source":  "PricingTool.Approvals / ApprovalItems (copied from the deployed tool DB) and hk.SalesLines, booked COGS",
+                        "script":  "docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)"
                     },
                     {
                         "id":  "E21",
-                        "name":  "Below-floor GP forgone, Kosovo (the June/July analysis)",
+                        "name":  "Below-floor GP forgone, Kosovo, by month (Jun-Oct 2026)",
                         "value":  {
-                                      "jun":  24400,
-                                      "jul":  15100
+                                      "2026-06":  {
+                                                      "normalDays":  12828,
+                                                      "campaignDays":  2930
+                                                  },
+                                      "2026-07":  {
+                                                      "normalDays":  10890,
+                                                      "campaignDays":  0
+                                                  },
+                                      "2026-08":  {
+                                                      "normalDays":  12475,
+                                                      "campaignDays":  0
+                                                  },
+                                      "2026-09":  {
+                                                      "normalDays":  16936,
+                                                      "campaignDays":  0
+                                                  },
+                                      "2026-10":  {
+                                                      "normalDays":  14920,
+                                                      "campaignDays":  11884
+                                                  }
                                   },
                         "unit":  "EUR/month",
-                        "label":  "measured",
-                        "method":  "Lines priced under the hand-set floor, lifted to it, booked COGS",
-                        "source":  "Main repo analysis before the hackathon (kickoff-plan.md section 5, lever 2)",
-                        "script":  "not in this repo"
+                        "label":  "measured (October provisional: late cancellations post for two weeks)",
+                        "method":  "Each booked line whose margin on booked COGS is under its band\u0027s hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units; campaign days apart; both KS layers. Tool scope (no outlet, Apple, Starlink): the June/July analysis in the main repo (Jun 24,400, Jul 15,100) included them. layer 1: 2026-06 7949 + 0 campaign, 2026-07 4663 + 0 campaign, 2026-08 8003 + 0 campaign, 2026-09 8229 + 0 campaign, 2026-10 5574 + 11884 campaign; layer 4: 2026-06 4879 + 2930 campaign, 2026-07 6227 + 0 campaign, 2026-08 4472 + 0 campaign, 2026-09 8707 + 0 campaign, 2026-10 9346 + 0 campaign",
+                        "source":  "agent.SalesLines, PricingTool.AuditLog, PricingTool band config",
+                        "script":  "PricingTool.AgentTools backtest-below-floor 1 4 [--json]"
                     }
                 ]
 }

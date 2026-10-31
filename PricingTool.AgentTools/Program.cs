@@ -33,6 +33,7 @@ using PricingTool.NopIntegration.Sandbox;
 //   backtest-levers <layer> [<layer> ...] [--from yyyy-MM-dd] [--to yyyy-MM-dd]   levers 1-3, 5, 6 on booked sales lines
 //   backtest-coverage                                                lever 4: the Kosovo effect on the MK/AL months without a push
 //   backtest-snapshot [--by <who>]                                   run every lever and store it for the results page and CSV
+//   backtest-below-floor <layer> [<layer> ...] [--from --to] [--json] E21: GP forgone below the hand-set floor of each day, by month
 //   what-if-floor <layer> <band> "<category>" <floorPct>             the what_if_floor tool by hand (logged like an agent's call)
 //   reproduce-per-ty --test                                          the Për ty reproduction test: the agents plan the 6 Oct brief
 //                                                                   with data cut off at 7 Oct (two model calls; records to the test DB)
@@ -454,11 +455,10 @@ switch (command)
             sp.GetRequiredService<AgentDbContext>());
         var dropPct = sp.GetRequiredService<IOptions<AgentOptions>>().Value.Outcomes.DropPct;
         var sw = Stopwatch.StartNew();
-        // From Oct 2025: levers 1 and 3 are averaged over the 12 complete months; the others have data only from Aug 2026.
+        // From Oct 2025 for context; the figures (build-numbers.ps1) use Aug-Sep 2026, the calculator's era.
         var record = await builderSnap.RunAsync(new DateOnly(2025, 10, 1), new DateOnly(2026, 10, 16), new[] { 1, 4 },
             new PricingTool.Agent.Backtest.LeverBacktester.LearningExperiment(12, new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 3), new DateOnly(2026, 10, 1), 1m - dropPct / 100m),
-            new[] { ("low", 4_000m, "same-weeks control, one run on one layer (a floor)"), ("mid", 10_632m, "measured before/after"), ("high", 13_000m, "before/after, season-adjusted with 2025") },
-            Opt("--by") ?? "cli");
+            PricingTool.Agent.Backtest.CoverageBacktest.TestPhase, Opt("--by") ?? "cli");
         Console.WriteLine($"Backtest snapshot #{record.Id} stored in {sw.Elapsed.TotalSeconds:0} s ({record.Json.Length / 1024} kB).");
         return 0;
     }
@@ -468,15 +468,11 @@ switch (command)
         using var host = builder.Build();
         var reader = host.Services.GetRequiredService<PricingDataReader>();
         var months = await reader.GetCoverageMonthsAsync(PricingTool.Agent.Backtest.CoverageBacktest.PushMinDiscounts);
-        // The calculator's measured Kosovo gain over Aug-Sep 2026 (kickoff plan, framing B: measured in the main repo), as a
-        // share of Kosovo's gross profit over the same two months.
+        // The calculator's measured Kosovo gain over Aug-Sep 2026 (E20, framing B), as a share of Kosovo's gross profit over
+        // the same two months.
         var ksGp = await reader.GetKosovoGrossProfitAsync(new DateOnly(2026, 8, 1), new DateOnly(2026, 10, 1)) / 2m;
-        var effects = new[]
-        {
-            new PricingTool.Agent.Backtest.CoverageEffect("low", 4_000m, ksGp, "same-weeks control, one run on one layer (a floor)"),
-            new PricingTool.Agent.Backtest.CoverageEffect("mid", 10_600m, ksGp, "measured before/after"),
-            new PricingTool.Agent.Backtest.CoverageEffect("high", 13_000m, ksGp, "before/after, season-adjusted with 2025"),
-        };
+        var effects = PricingTool.Agent.Backtest.CoverageBacktest.TestPhase
+            .Select(e => new PricingTool.Agent.Backtest.CoverageEffect(e.Case, e.GainPerMonth, ksGp, e.Source)).ToArray();
         Console.WriteLine("MK/AL tool-scope GP by layer and month (EUR at the load day's shop rate; MKD pegged, ALL at today's rate), * = a push that month:");
         foreach (var m in months.GroupBy(m => m.Month))
             Console.WriteLine($"  {m.Key}: " + string.Join(", ", m.Select(x => $"L{x.LayerId} {x.GrossProfitEur:N0}{(x.Pushed ? "*" : "")}")));
@@ -489,6 +485,27 @@ switch (command)
                               string.Join("; ", gains.Select(g => $"{g.Month} {g.Gain:N0} on {g.Base:N0}")) +
                               $"; Aug-Sep average {(testWindow.Count > 0 ? testWindow.Sum(g => g.Gain) / 2m : 0):N0} a month (estimated).");
         }
+        return 0;
+    }
+
+    case "backtest-below-floor":
+    {
+        using var host = builder.Build();
+        var backtester = new PricingTool.Agent.Backtest.LeverBacktester(host.Services.GetRequiredService<PricingDataReader>());
+        var from = DateOnly.Parse(Opt("--from") ?? "2026-06-01", System.Globalization.CultureInfo.InvariantCulture);
+        var to = DateOnly.Parse(Opt("--to") ?? "2026-11-01", System.Globalization.CultureInfo.InvariantCulture);
+        var result = new List<object>();
+        foreach (var layer in positional.Select(int.Parse))
+        {
+            var months = await backtester.BelowFloorAsync(layer, from, to);
+            result.Add(new { layerId = layer, months });
+            if (args.Contains("--json")) continue;
+            Console.WriteLine($"Layer {layer}: GP forgone below the hand-set floor (measured lines, lifted to the floor at the same units, booked COGS)");
+            Console.WriteLine("month | normal days (lines) | campaign days (lines)");
+            foreach (var m in months)
+                Console.WriteLine($"{m.Month} | {m.NormalGp:N0} ({m.NormalLines:N0}) | {m.CampaignGp:N0} ({m.CampaignLines:N0})");
+        }
+        if (args.Contains("--json")) Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         return 0;
     }
 

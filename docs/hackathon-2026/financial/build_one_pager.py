@@ -93,8 +93,8 @@ estimated, every lever on the calculator's era, Aug–Sep 2026), short of the {k
 net-benefit band needs with these costs. Most of it comes from automation (the loss block, cost reaction, daily checked
 prices, MK/AL coverage), not from the model's own floor choices, which the backtest scores at {eur(v('E2', 'central'))}
 a month (E2); the holdout categories, about {holdout:.0%} of the changed prices, are left out of the benefit. Framing B adds the rollout of the calculator's test phase: {eur(e20['low'])} a month
-measured with a same-weeks control (one run on one layer), {eur(e20['mid'])} before/after and {eur(e20['high'])}
-season-adjusted, neither controlled (E20); it is the non-AI calculator's effect, which the registration did not claim as
+measured with a same-weeks control (one controlled run per layer), {eur(e20['mid'])} before/after and {eur(e20['high'])}
+season-adjusted, neither controlled (E20; the low and mid cases recomputed from this repo's data); it is the non-AI calculator's effect, which the registration did not claim as
 past benefit, and B counts only the next 12 months of the automated system. The year ramps up: built in month 1, a
 {pilot:g}-month pilot at {share:.0%} of the benefit, then full scope ({months:g} full-benefit months). Costs:
 {eur(one_time)} one-time (hackathon hours at €50, {build_hours:g} hours to production including code review, the build

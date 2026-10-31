@@ -12,15 +12,15 @@ measured; elasticity cases −0.5 / −1.0 / −2.0 (assumed), the low case (−
 
 | # | Lever | GjirafaMall KS: central (low / high) | Gjirafa50 KS: central (low / high) | Basis |
 |---|---|---|---|---|
-| 1 | Loss-sale block | 78 | 120 | measured loss, estimated catch |
+| 1 | Loss-sale block | 77 | 120 | measured loss, estimated catch |
 | 2 | Per-category floors | 0 | 4 (2 / 4) | estimated; Alpha's 8 rules, Gj50 only; in-sample |
-| 3 | Cost reaction | 1,320 (134 / 1,488) | 212 (193 / 229) | measured lag, estimated recovery; the low case is September only |
-| 4 | Coverage MK / AL | — | — | the four MK/AL layers: 1,353 (509 / 1,654), estimated: the calculator's Kosovo rate on months without a push |
+| 3 | Cost reaction | 1,334 (134 / 1,504) | 212 (193 / 229) | measured lag, estimated recovery; the low case is September only |
+| 4 | Coverage MK / AL | — | — | the four MK/AL layers: 1,325 (560 / 1,654), estimated: the calculator's Kosovo rate on months without a push |
 | 5 | Cadence | 396 (260 / 474) | 0 | measured run → push gaps only |
 | 6 | Learning | 0 | — | as built; the plan's plain rule: −614 |
 | 7 | Campaign planning | 578 | 205 | estimated, 12 months of campaigns; uplift curve leave-one-out (low: half its slope, high: twice) |
 
-**With lever 4 (MK/AL): about €4.3k a month central, €2.0k low, €5.8k high (E8).** Against the €10k bar for band 5
+**With lever 4 (MK/AL): about €4.3k a month central, €2.0k low, €5.8k high (E8: €4,251 / €2,049 / €5,806; snapshot #3 of 31 Oct, E20 recomputed).** Against the €10k bar for band 5
 this is far short; the levers add to the rollout of the calculator's tested effect (framing B), they don't replace it.
 The financial sheet then leaves out the holdout categories' share (about 11 % of the changed prices), which the backtest
 doesn't. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
@@ -35,9 +35,9 @@ answers the one-event point instead.
   today's rate): €16.4k / €25.7k / €20.2k in Jul / Aug / Sep on the months without a push. A month counts as pushed when
   a public, all-platform discount set of 50,000+ products started in it (`hk.PushDatesMkAl`): Gj50 AL in July, Mall AL
   in September, all four in October (21 Oct). The calculator's measured Kosovo gain as a share of Kosovo's gross profit
-  (€180.4k a month, Aug–Sep): low €4.0k = 2.2 % (same-weeks control, one run on one layer), mid €10.6k = 5.9 %
-  (before/after), high €13.0k = 7.2 % (season-adjusted). The plan's "≈ 10 %" is above all three measurements.
-  `backtest-coverage`.
+  (€180.4k a month, Aug–Sep): low €4.4k = 2.4 % (same-weeks control, one run per KS layer), mid €10.4k = 5.8 %
+  (before/after), high €13.0k = 7.2 % (season-adjusted; quoted from the main repo). Low and mid are recomputed from this
+  repo's data (`evidence/e20-test-phase.sql`). The plan's "≈ 10 %" is above all three measurements. `backtest-coverage`.
 - **Lever 1.** Cross-dock lines on normal days sold under their booked cost, e.g. €394 / €2,671 / €250 a month on
   Mall (Aug / Sep / Oct 1–15), €402 / €539 / €175 on Gj50 (measured). Counted only where the cost the SKU last
   sold at was already above the price, i.e. the tool knew: 4–37 % of the loss in Aug–Sep (18–81 % on Mall in

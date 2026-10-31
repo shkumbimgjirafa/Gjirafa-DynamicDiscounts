@@ -97,14 +97,14 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 | ID | Lever | € a month, central (low / high) |
 |---|---|---|
-| E1 | Loss-sale block | 198 (198 / 198) |
+| E1 | Loss-sale block | 197 (197 / 197) |
 | E2 | Per-category floors | 4 (2 / 4) |
-| E3 | Cost reaction | 1,532 (327 / 1,717); the low case leaves out August, one cost event |
-| E4 | Coverage MK/AL | 1,353 (509 / 1,654), at the calculator's Kosovo rate (E20) |
+| E3 | Cost reaction | 1,546 (327 / 1,733); the low case leaves out August, one cost event |
+| E4 | Coverage MK/AL | 1,325 (560 / 1,654), at the calculator's Kosovo rate (E20) |
 | E5 | Cadence | 396 (260 / 474) |
 | E6 | Learning, as built | 0 (the plan's plain rule would have cost €1.0–1.3k in September) |
 | E7 | Campaign planning (12 months of campaigns) | 783 (703 / 1,744: the uplift curve at half and twice its slope) |
-| **E8** | **Total** | **4,266 (1,999 / 5,791)** |
+| **E8** | **Total** | **4,251 (2,049 / 5,806)** |
 
 Walk-forward on booked sales lines, each line counted by one lever, elasticity −1 central, −2 low, −0.5 high (assumed),
 every lever on the calculator's era, Aug–Sep 2026: framing A's baseline is today's process. (A 12-month window, tried
@@ -112,11 +112,13 @@ after dry run 1, scored levers 1 and 3 against months before the calculator; dry
 out the holdout categories' share (about 11 % of the changed prices): the agents never change them.
 Method per lever: [`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md); the Backtest tab
 shows the stored run and its CSV. **This is far short of the €10k bar on its own.** Framing B (the rollout of the
-calculator's test phase, E20: €4.0k a month measured in a test phase with a control (changed vs unchanged products in the
-same weeks, one run on one layer, so a floor); €10.6k and €13.0k measured before/after, not controlled) is a separate
-case, not added into these figures, with one dependency: lever 4 takes E20's rate (as a share of Kosovo's gross profit)
-for the MK/AL months without a push, so framing A's mid and high cases rest partly on E20's uncontrolled cases; with the
-controlled rate only, E4 is €509.
+calculator's test phase, E20: €4.4k a month measured with a same-weeks control (changed vs unchanged products in the
+same weeks, one controlled run per KS layer); €10.4k measured before/after and €13.0k season-adjusted, neither
+controlled) is a separate case, not added into these figures, with one dependency: lever 4 takes E20's rate (as a share
+of Kosovo's gross profit) for the MK/AL months without a push, so framing A's mid and high cases rest partly on E20's
+uncontrolled cases; with the controlled rate only, E4 is €560. E20's low and mid cases are recomputed from this repo's
+data ([`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql), run by `build-numbers.ps1`);
+the high case's 2025 season adjustment is quoted from the main repo.
 
 **Where the money comes from.** Most of framing A is automation, not the model's own choices: the loss block and the
 cost reaction (levers 1 and 3: rules in code and the cost watcher), daily checked prices (5: the cycle writes them every
@@ -161,8 +163,9 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
 - **Known limitations** (several found by our own AI-judge dry runs, `docs/hackathon-2026/ai-judge/dry-run-1.md` and
   `dry-run-2.md`):
-  - E20 and E21 were measured in the main repo before the hackathon; no script here reruns them. Framing B's B0 is the
-    non-AI calculator's effect: the declaration did not claim its past result, and whether its forward rate counts is
+  - E20's high case (its 2025 season adjustment) is quoted from the main repo; its low and mid cases and E21 are
+    recomputed here (`evidence/e20-test-phase.sql`, `PricingTool.AgentTools backtest-below-floor`). E20's controlled
+    low case is one run per KS layer, not a randomized test. Framing B's B0 is the non-AI calculator's effect: the declaration did not claim its past result, and whether its forward rate counts is
     the organisers' call.
   - E18 rests on the Claude Code session transcripts, which are not in the repo (they hold the whole build conversation).
   - Lever 1 assumes a blocked loss sale costs nothing else (no lost basket); levers 2, 5 and 6 rest on two months.

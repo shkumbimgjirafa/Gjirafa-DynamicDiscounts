@@ -5,8 +5,8 @@
 # database (the Për ty reproduction) or hours.md. To refresh after new data:
 #   PricingTool.AgentTools backtest-snapshot        (about a minute: every lever)
 #   powershell -ExecutionPolicy Bypass -File docs\hackathon-2026\evidence\build-numbers.ps1
-# The calculator's own results (E20, E21) were measured before the hackathon in the main repo; they are quoted with that
-# label and source, not recomputed here.
+# The calculator's test phase (E20) is recomputed from this repo's copy of its approvals (e20-test-phase.sql); only its
+# high case and E21 are quoted from the main repo, with that label and source.
 
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
@@ -20,6 +20,14 @@ function Query($db, $sql) {
         $t = New-Object System.Data.DataTable; $t.Load($cmd.ExecuteReader()); return ,$t
     } finally { $cn.Close() }
 }
+function QuerySets($db, $sql) {
+    $cn = New-Object System.Data.SqlClient.SqlConnection "Server=(localdb)\mssqllocaldb;Database=$db;Integrated Security=true;TrustServerCertificate=true"
+    $cn.Open()
+    try {
+        $cmd = $cn.CreateCommand(); $cmd.CommandText = $sql; $cmd.CommandTimeout = 300
+        $ds = New-Object System.Data.DataSet; [void](New-Object System.Data.SqlClient.SqlDataAdapter $cmd).Fill($ds); return ,$ds.Tables
+    } finally { $cn.Close() }
+}
 function Round0($v) { [math]::Round([decimal]$v, 0) }
 $figures = New-Object System.Collections.ArrayList
 function Add($id, $name, $value, $unit, $label, $method, $source, $script) {
@@ -30,6 +38,9 @@ function Add($id, $name, $value, $unit, $label, $method, $source, $script) {
 $snapRow = (Query 'PricingToolHackathon' 'SELECT TOP 1 Id, CreatedUtc, Json FROM ai.BacktestSnapshot ORDER BY Id DESC').Rows[0]
 $snap = $snapRow.Json | ConvertFrom-Json
 $snapRef = "ai.BacktestSnapshot #$($snapRow.Id) ($(([datetime]$snapRow.CreatedUtc).ToString('yyyy-MM-dd HH:mm')) UTC)"
+# The stored run itself, committed beside numbers.json (aggregates and campaign names only: no SKU, order or person).
+$snapOut = [ordered]@{ snapshot = $snapRef; note = 'Every lever per layer, month and elasticity case; the campaign replays; lever 4''s months and effects. Estimated except the measured inputs each section names (backtest-results.md).'; data = $snap }
+[System.IO.File]::WriteAllText((Join-Path $here 'backtest-snapshot.json'), ($snapOut | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding $false))
 $leverScript = 'PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV'
 $names = @{ 1 = 'Loss-sale block'; 2 = 'Per-category floors'; 3 = 'Cost reaction'; 5 = 'Cadence'; 6 = 'Learning (as built)' }
 $test = @('2026-08', '2026-09')
@@ -165,12 +176,29 @@ Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; u
 $testsLine = 'dotnet test PricingTool.sln: 918 passed, 1 skipped (the opt-in real headless call), 31 Oct about 01:30'
 Add 'E17' 'Automated tests' ([ordered]@{ passed = 918; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
-# --- The calculator's own results, measured before the hackathon (quoted, not recomputed here) -------------------------
-Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10632; high = 13000 }) 'EUR/month' `
-    ([ordered]@{ low = 'measured (same-weeks control)'; mid = 'measured before/after, not controlled'; high = 'estimated: before/after season-adjusted with 2025, not controlled' }) `
-    'Low: changed vs unchanged products in the same weeks (a test phase with a control: one run on one layer, so a floor); mid: before/after on the approvals (Aug 11,184, Sep 10,079; their average); high: the same, season-adjusted with 2025. The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)' `
-    'Main repo analysis before the hackathon (kickoff-plan.md sections 8 and 10)' 'not in this repo'
-Add 'E21' 'Below-floor GP forgone, Kosovo (the June/July analysis)' ([ordered]@{ jun = 24400; jul = 15100 }) 'EUR/month' 'measured' 'Lines priced under the hand-set floor, lifted to it, booked COGS' 'Main repo analysis before the hackathon (kickoff-plan.md section 5, lever 2)' 'not in this repo'
+# --- The calculator's own results ----------------------------------------------------------------------------------------
+# E20 low and mid recomputed from PricingToolHackathon (the deployed tool's approvals and the booked sales lines); the
+# high case's 2025 season adjustment is quoted from the main repo.
+$e20File = Join-Path $here 'e20-test-phase.sql'
+$e20Sets = QuerySets 'PricingToolHackathon' (Get-Content -Raw -Encoding UTF8 $e20File)
+$byMonth = @{}; foreach ($r in $e20Sets[0].Rows) { $byMonth[$r.Month] = $r }
+$ctl = @{}; foreach ($r in $e20Sets[1].Rows) { if ($r.Grp -eq 'Changed total') { $ctl[[int]$r.ApprovalId] = $r } }
+$mallKept = Round0 $ctl[25].VsKeptPerMonth; $mallNotIn = Round0 $ctl[25].VsNotInApprovalPerMonth; $gj50NotIn = Round0 $ctl[1].VsNotInApprovalPerMonth
+$aug = Round0 $byMonth['2026-08'].Total; $sep = Round0 $byMonth['2026-09'].Total
+Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = $mallKept + $gj50NotIn; mid = Round0 $byMonth['Aug-Sep average'].Total; high = 13000 }) 'EUR/month' `
+    ([ordered]@{ low = 'measured, same-weeks control, one run per layer, the stricter control on Mall'; mid = 'measured before/after, not controlled'; high = 'estimated: before/after season-adjusted with 2025, not controlled; quoted from the main repo' }) `
+    "Low: changed vs unchanged products in the same weeks, one run per KS layer: Mall #25 (3 Sep) vs the products it kept $mallKept + Gj50 #1 (21 Jul; it changed every product it held) vs products not in the approval $gj50NotIn (with Mall's other control, vs not in the approval, $mallNotIn + $gj50NotIn = $($mallNotIn + $gj50NotIn)); mid: before/after on the approvals, SKU-deduplicated spans (Aug $aug, Sep $sep; their average); high: the same, season-adjusted with 2025 (main repo, 27 Oct, not recomputed). The layer-level year-over-year check does not support the uncontrolled two on GP (margin up about 2 pt, revenue lagging 2025''s seasonal growth)" `
+    'PricingTool.Approvals / ApprovalItems (copied from the deployed tool DB) and hk.SalesLines, booked COGS' 'docs/hackathon-2026/evidence/e20-test-phase.sql (two result sets; this script runs it)'
+$tools = Join-Path $repo 'PricingTool.AgentTools\bin\Debug\net8.0\PricingTool.AgentTools.exe'
+$e21 = (& $tools backtest-below-floor 1 4 --from 2026-06-01 --to 2026-11-01 --json 2>$null | Select-Object -Last 1) | ConvertFrom-Json
+$e21Months = [ordered]@{}
+foreach ($m in ($e21 | ForEach-Object { $_.months } | Group-Object month | Sort-Object Name)) {
+    $e21Months[$m.Name] = [ordered]@{ normalDays = Round0 ($m.Group | Measure-Object normalGp -Sum).Sum; campaignDays = Round0 ($m.Group | Measure-Object campaignGp -Sum).Sum }
+}
+$e21Layers = ($e21 | ForEach-Object { $l = $_.layerId; "layer ${l}: " + (($_.months | ForEach-Object { "$($_.month) $([math]::Round($_.normalGp)) + $([math]::Round($_.campaignGp)) campaign" }) -join ', ') }) -join '; '
+Add 'E21' 'Below-floor GP forgone, Kosovo, by month (Jun-Oct 2026)' $e21Months 'EUR/month' 'measured (October provisional: late cancellations post for two weeks)' `
+    "Each booked line whose margin on booked COGS is under its band's hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units; campaign days apart; both KS layers. Tool scope (no outlet, Apple, Starlink): the June/July analysis in the main repo (Jun 24,400, Jul 15,100) included them. $e21Layers" `
+    'agent.SalesLines, PricingTool.AuditLog, PricingTool band config' 'PricingTool.AgentTools backtest-below-floor 1 4 [--json]'
 
 $out = [ordered]@{
     generated = (Get-Date).ToString('yyyy-MM-dd HH:mm'); generator = 'docs/hackathon-2026/evidence/build-numbers.ps1'

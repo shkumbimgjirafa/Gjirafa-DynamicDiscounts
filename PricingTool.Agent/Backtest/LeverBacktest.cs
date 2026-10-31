@@ -18,6 +18,9 @@ public sealed record LeverContext(string Month, decimal CrossDockLoss, int Cross
 
 public sealed record LeverBacktestResult(int LayerId, DateOnly From, DateOnly To, IReadOnlyList<LeverGain> Gains, IReadOnlyList<LeverContext> Context);
 
+/// <summary>E21 for one month: GP forgone below the hand-set floor, on normal and on campaign days, with the lines behind it.</summary>
+public sealed record BelowFloorMonth(string Month, decimal NormalGp, int NormalLines, decimal CampaignGp, int CampaignLines);
+
 /// <summary>Lever 5's input: the price live and the one the engine had already computed, for a SKU on a day.</summary>
 public delegate (decimal Old, decimal New)? Pending(string sku, DateOnly day);
 
@@ -191,6 +194,27 @@ public static class LeverBacktest
             }
         }
         return result.Select(kv => (kv.Key, Math.Round(kv.Value.Gain, 0), kv.Value.Lines, kv.Value.Units)).OrderByDescending(x => x.Key).ToList();
+    }
+
+    /// <summary>
+    /// E21: gross profit forgone below the hand-set floor, per month. Each line whose margin on its booked cost is under its
+    /// band's floor of that day is lifted to the floor at the same units (the June/July analysis's method: no elasticity, no
+    /// ceiling). Normal and campaign days apart; a line without a band or a booked cost isn't counted.
+    /// </summary>
+    public static IReadOnlyList<BelowFloorMonth> BelowFloor(IEnumerable<BacktestLine> lines, DateOnly from, DateOnly to, Func<int, DateOnly, decimal?> handFloorPct)
+    {
+        var months = new SortedDictionary<string, BelowFloorMonth>(StringComparer.Ordinal);
+        foreach (var l in lines.Where(l => l.Qty > 0 && l.Cogs > 0 && l.Day >= from && l.Day < to))
+        {
+            if (l.BandId is not { } band || handFloorPct(band, l.Day) is not { } f || f >= 100m) continue;
+            var floorNet = l.UnitCogs / (1 - f / 100m);
+            if (l.UnitNet >= floorNet) continue;
+            var forgone = (floorNet - l.UnitNet) * l.Qty;
+            var m = months.GetValueOrDefault(Month(l.Day)) ?? new BelowFloorMonth(Month(l.Day), 0m, 0, 0m, 0);
+            months[m.Month] = l.CampaignDay ? m with { CampaignGp = m.CampaignGp + forgone, CampaignLines = m.CampaignLines + 1 }
+                                            : m with { NormalGp = m.NormalGp + forgone, NormalLines = m.NormalLines + 1 };
+        }
+        return months.Values.Select(m => m with { NormalGp = Math.Round(m.NormalGp, 0), CampaignGp = Math.Round(m.CampaignGp, 0) }).ToList();
     }
 
     /// <summary>The line's gross profit at another VAT-inclusive unit price, units scaled by the elasticity.</summary>

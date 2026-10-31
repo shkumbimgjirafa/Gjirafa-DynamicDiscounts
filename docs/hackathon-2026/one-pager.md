@@ -28,13 +28,13 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 aren't calibrated yet (E10); the Monday email and the start-up task aren't live; the money ledger has measured nothing yet.
 
 **Money (12 months, both framings kept apart).** Framing A counts only what this build adds, backtested walk-forward on
-booked sales lines: €1,999 / €4,266 / €5,791 a month at full scope (E8,
+booked sales lines: €2,049 / €4,251 / €5,806 a month at full scope (E8,
 estimated, every lever on the calculator's era, Aug–Sep 2026), short of the €12.2k a month that the top
 net-benefit band needs with these costs. Most of it comes from automation (the loss block, cost reaction, daily checked
 prices, MK/AL coverage), not from the model's own floor choices, which the backtest scores at €4
-a month (E2); the holdout categories, about 11% of the changed prices, are left out of the benefit. Framing B adds the rollout of the calculator's test phase: €4,000 a month
-measured with a same-weeks control (one run on one layer), €10,632 before/after and €13,000
-season-adjusted, neither controlled (E20); it is the non-AI calculator's effect, which the registration did not claim as
+a month (E2); the holdout categories, about 11% of the changed prices, are left out of the benefit. Framing B adds the rollout of the calculator's test phase: €4,402 a month
+measured with a same-weeks control (one controlled run per layer), €10,409 before/after and €13,000
+season-adjusted, neither controlled (E20; the low and mid cases recomputed from this repo's data); it is the non-AI calculator's effect, which the registration did not claim as
 past benefit, and B counts only the next 12 months of the automated system. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months). Costs:
 €8,918 one-time (hackathon hours at €50, 160 hours to production including code review, the build
@@ -44,10 +44,10 @@ Which framing counts is the organisers' call.
 
 | Year 1 | A · Low | A · Mid | A · High | B · Low | B · Mid | B · High |
 |---|---|---|---|---|---|---|
-| Extra gross profit a month at full scope | €1,779 | €3,797 | €5,154 | €5,339 | €13,259 | €16,724 |
-| Net benefit (9.5 full-benefit months − all costs) | €1,079 | €20,247 | €33,141 | €34,899 | €110,140 | €143,056 |
-| ROI | 7% | 128% | 209% | 221% | 696% | 904% |
-| Payback (months) | 11.1 | 5.7 | 4.8 | 4.7 | 3.3 | 3.1 |
+| Extra gross profit a month at full scope | €1,824 | €3,783 | €5,167 | €5,741 | €13,047 | €16,737 |
+| Net benefit (9.5 full-benefit months − all costs) | €1,502 | €20,120 | €33,268 | €38,721 | €108,128 | €143,183 |
+| ROI | 9% | 127% | 210% | 245% | 683% | 905% |
+| Payback (months) | 10.8 | 5.7 | 4.8 | 4.5 | 3.3 | 3.1 |
 | Track A score (/100; Evidence and Works are our own ratings) | 40 | 66 | 68 | 68 | 84 | 84 |
 
 **Biggest unproven assumptions.** That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices, and

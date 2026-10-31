@@ -283,13 +283,15 @@ put(wi, f"F{R['holdout']}", "The agents never change the holdout categories, so 
 header(wi, R["b0Head"], ["Framing B: the calculator's test phase (B0), three cases", "Value", "Unit", "Label", "Source / note", "", "ID"])
 b0 = [
     ("b0Low", "Same-weeks control (changed vs unchanged products)", "low",
-     "GjirafaMall KS run of 3 Sep only: +€115–141/day ≈ €3.5–4.3k/month. A test phase with a control, not a randomized "
-     "test; one run on one of the two KS layers, so a floor for the whole tool. Measured in the main repo, not recomputed here"),
+     "One run per KS layer: GjirafaMall's of 3 Sep vs the products it kept (€3,263) + Gjirafa50's of 21 Jul vs products "
+     "not in it (€1,139; it changed every product it held). With Mall's other control (not in the approval) €5.2k. A test "
+     "phase with a control, not a randomized test. Recomputed here: evidence/e20-test-phase.sql"),
     ("b0Mid", "Before/after on the approvals, KS, Aug–Sep average", "mid",
-     "Aug €11,184 · Sep €10,079 (Approvals' 30-day profit windows, SKU-deduped, booked COGS). Not controlled; main repo"),
+     "Aug €11,068 · Sep €9,749 (Approvals' 30-day profit windows, SKU-deduped, booked COGS; 27 Oct in the main repo: "
+     "€11,184 · €10,079, before late cancellations). Not controlled. Recomputed here: evidence/e20-test-phase.sql"),
     ("b0High", "Same, season-adjusted with 2025's same weeks", "high",
      "Aug €11.9k · Sep €13.8k. Not controlled; layer-level GP growth did not beat 2025's seasonality, so this is the top "
-     "of the range; main repo"),
+     "of the range. Quoted from the main repo (the 2025 adjustment isn't recomputed here)"),
 ]
 for key, lab, case, src in b0:
     r = R[key]
@@ -306,7 +308,7 @@ for col, key in zip("BCD", ("b0Low", "b0Mid", "b0High")):
     c.border = BOX
     c.fill = TOTAL
 put(wi, f"E{R['b0Used']}", "formula")
-put(wi, f"F{R['b0Used']}", "Low = the controlled floor · Mid = the before/after result · High = the season-adjusted result", NOTE)
+put(wi, f"F{R['b0Used']}", "Low = the controlled result · Mid = the before/after result · High = the season-adjusted result", NOTE)
 
 header(wi, R["judgeHead"], ["Judgment ratings (one per row; they don't depend on the money case)", "Rating", "", "", "Label", "Why"])
 judgments = [
@@ -315,8 +317,9 @@ judgments = [
      "lines with booked COGS, rerunnable from the Backtest page and numbers.json. Not more: the elasticities are assumed, "
      "lever 4 borrows the test phase's rate, and nothing has been measured live yet"),
     ("evB", "Evidence rating, framing B (0–5)", 3,
-     "B0 was measured on the real shop with real sales (the low case with a same-weeks control), but before the hackathon, "
-     "in the main repo; this build doesn't recompute it, and the mid and high cases are before/after, not controlled"),
+     "B0 was measured on the real shop with real sales (the low case with a same-weeks control on each KS layer), before "
+     "the hackathon; this build recomputes the low and mid cases from its own data, but they are one run per layer, and "
+     "the mid and high cases are before/after, not controlled"),
     ("works", "Works rating (0–5)", 4,
      "The daily cycle ran end to end on real data (engine runs, run checks, checked exports, sandbox publishes) and the "
      "failure cases in failure-cases.md pass; not 5: the Për ty reproduction test fails by one point, the money ledger "
@@ -478,7 +481,7 @@ for i, f in enumerate(order):
         c = put(we, f"{'ABCDEFGH'[j]}{r}", val, NOTE if j in (5, 6, 7) else BOLD if j == 0 else BLACK, None, None, wrap=True)
         c.border = BOX
 r0 = 4 + len(order) + 2
-put(we, f"A{r0}", "Measured before the hackathon in the main repo (quoted, not recomputed by this build)", BOLD)
+put(we, f"A{r0}", "Measured before the hackathon in the main repo, as first measured (E20 and E21 above recompute the test phase's low and mid cases and the below-floor loss from this repo's data)", BOLD)
 header(we, r0 + 1, ["", "Fact", "Value", "", "Label", "Method / source", "Measured on"])
 facts = [
     ("Test phase (calculator v0.5), before/after on approvals, KS", "Aug €11,184 · Sep €10,079", "measured, not controlled",
@@ -492,7 +495,8 @@ facts = [
     ("Year-over-year margin, Kosovo (Mall + Gj50)", "+4–5 pp vs 2025 since the tool; +1–4 pp before", "measured",
      "Sales lines monthly, tool scope (Aug 15.8% vs 11.7%; Sep 15.2% vs 10.2%)", "2026-10-27"),
     ("Profit forgone below the margin floor", "Jun €24.4k · Jul €15.1k", "measured",
-     "Sales lines vs per-band floors, booked COGS; reconciled with the Power BI model (E21)", "2026-07-31"),
+     "Sales lines vs per-band floors, booked COGS; reconciled with the Power BI model. Wider scope than E21 (Apple, "
+     "Starlink in); E21 on tool scope gives Jun €15.8k · Jul €10.9k", "2026-07-31"),
 ]
 for i, row in enumerate(facts):
     r = r0 + 2 + i

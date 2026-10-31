@@ -55,6 +55,25 @@ public class LeverBacktestTests
     }
 
     [Fact]
+    public void Below_floor_lifts_each_line_to_its_bands_floor_of_that_day_campaign_days_apart()
+    {
+        var lines = new List<BacktestLine>
+        {
+            L("A", 2, 2, 105m, 100m, band: 1),                     // 4.8 % under a 10 % floor: lifted to 111.11 net, 2 units
+            L("A", 20, 2, 105m, 100m, band: 1),                    // the floor was cut to 4 % on day 15: not below
+            L("B", 3, 1, 90m, 100m, band: 1, campaign: true),      // a campaign day: counted apart
+            L("C", 4, 1, 105m, 100m),                              // no band: not counted
+            L("D", 5, 1, 150m, 100m, band: 1),                     // above the floor
+        };
+        var months = LeverBacktest.BelowFloor(lines, From, To, (band, day) => band == 1 ? (day < From.AddDays(15) ? 10m : 4m) : null);
+
+        var m = Assert.Single(months);
+        Assert.Equal(("2026-08", 1, 1), (m.Month, m.NormalLines, m.CampaignLines));
+        Assert.Equal(Math.Round((100m / 0.9m - 105m) * 2, 0), m.NormalGp);
+        Assert.Equal(Math.Round(100m / 0.9m - 90m, 0), m.CampaignGp);
+    }
+
+    [Fact]
     public void Cadence_prices_the_days_a_computed_price_waited_and_learning_undoes_a_raise()
     {
         var lines = new List<BacktestLine>

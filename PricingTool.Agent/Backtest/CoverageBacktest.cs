@@ -19,6 +19,16 @@ public static class CoverageBacktest
 {
     public const int PushMinDiscounts = 50_000;
 
+    /// <summary>The calculator's (v0.5) test-phase gain in Kosovo, EUR a month (E20). Low and mid recomputed from this repo's
+    /// data by docs/hackathon-2026/evidence/e20-test-phase.sql (31 Oct 2026); high quoted from the main repo (the 2025
+    /// season adjustment isn't recomputed here).</summary>
+    public static readonly IReadOnlyList<(string Case, decimal GainPerMonth, string Source)> TestPhase = new[]
+    {
+        ("low", 4_402m, "same-weeks control, one run per layer (Mall #25 vs kept 3,263; Gj50 #1 vs not in the approval 1,139)"),
+        ("mid", 10_409m, "measured before/after, Aug-Sep 2026"),
+        ("high", 13_000m, "before/after, season-adjusted with 2025 (main repo)"),
+    };
+
     public static IReadOnlyList<(string Month, decimal Base, decimal Gain)> Gains(IEnumerable<CoverageMonth> months, CoverageEffect effect) =>
         months.Where(m => !m.Pushed).GroupBy(m => m.Month).OrderBy(g => g.Key)
             .Select(g => (g.Key, Math.Round(g.Sum(m => m.GrossProfitEur), 0), Math.Round(g.Sum(m => m.GrossProfitEur) * effect.Ratio, 0))).ToList();

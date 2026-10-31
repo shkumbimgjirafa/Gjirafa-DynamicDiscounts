@@ -58,23 +58,32 @@ public sealed class LeverBacktester
                                                && raises.TryGetValue(sku, out var r) ? r : null;
         }
         var lines = await _reader.GetBacktestLinesAsync(layerId, from.AddDays(-LeverBacktest.CeilingDays), to, ct);
-        var edits = (await _reader.GetBandFloorEditsAsync(layerId, ct))
-            .Select(e => (e.Utc, e.BandId, Old: Floor(e.OldJson), New: Floor(e.NewJson))).Where(e => e.New is not null).OrderBy(e => e.Utc).ToList();
-        var today = (await _reader.GetBandConfigAsync(layerId, ct)).ToDictionary(b => b.BandId, b => b.MarginFloorPct);
+        var hand = await HandFloorsAsync(layerId, ct);
         var rules = (await _reader.GetCategoryRulesAsync(layerId, ct)).Where(r => r.MarginFloorPct is not null)
             .ToDictionary(r => (r.BandId, r.Category), r => r.MarginFloorPct!.Value);
 
-        decimal? Hand(int band, DateOnly day)
+        return LeverBacktest.Run(layerId, lines, from, to, hand, (band, category) => rules.TryGetValue((band, category), out var f) ? f : null, trace,
+            (sku, day) => pending.TryGetValue((sku, day), out var p) ? p : null, rollback);
+    }
+
+    /// <summary>E21 on a layer: GP forgone below the hand-set floor of each day, per month (<see cref="LeverBacktest.BelowFloor"/>).</summary>
+    public async Task<IReadOnlyList<BelowFloorMonth>> BelowFloorAsync(int layerId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        LeverBacktest.BelowFloor(await _reader.GetBacktestLinesAsync(layerId, from, to, ct), from, to, await HandFloorsAsync(layerId, ct));
+
+    /// <summary>The hand-set floor of a band on a day, rebuilt from the band edits in the audit log.</summary>
+    private async Task<Func<int, DateOnly, decimal?>> HandFloorsAsync(int layerId, CancellationToken ct)
+    {
+        var edits = (await _reader.GetBandFloorEditsAsync(layerId, ct))
+            .Select(e => (e.Utc, e.BandId, Old: Floor(e.OldJson), New: Floor(e.NewJson))).Where(e => e.New is not null).OrderBy(e => e.Utc).ToList();
+        var today = (await _reader.GetBandConfigAsync(layerId, ct)).ToDictionary(b => b.BandId, b => b.MarginFloorPct);
+        return (band, day) =>
         {
             var dayStart = day.ToDateTime(TimeOnly.MinValue);
             var last = edits.LastOrDefault(e => e.BandId == band && e.Utc < dayStart);
             if (last.New is not null) return last.New;
             var next = edits.FirstOrDefault(e => e.BandId == band && e.Utc >= dayStart);
             return next.Old ?? (today.TryGetValue(band, out var f) ? f : null);
-        }
-
-        return LeverBacktest.Run(layerId, lines, from, to, Hand, (band, category) => rules.TryGetValue((band, category), out var f) ? f : null, trace,
-            (sku, day) => pending.TryGetValue((sku, day), out var p) ? p : null, rollback);
+        };
     }
 
     private static decimal? Floor(string? json)
