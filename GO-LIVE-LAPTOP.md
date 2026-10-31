@@ -110,6 +110,17 @@ interrupted batch by itself. Two things would lower the chance:
   calculator's engine (imported, unchanged) holds the whole run in memory; the publish after it is small (the engine host
   peaked at 228 MB publishing 134,834 prices). The daily cycle runs the same engine run in the engine host at 07:00, so
   that is the hour to leave the laptop alone.
+- **Stop the web app by its process id, never by killing its process tree:**
+  `Stop-Process -Id (Get-Process PricingTool.Web).Id`. LocalDB stopped a second time on 31 Oct (07:32), when a tree kill
+  of the web app's background task took `sqlservr` with it: after LocalDB's idle stop, `sqlservr` becomes a child of
+  whichever process connects first, so killing that process's tree takes the database down mid-write. The host scripts
+  now start the instance first (`sqllocaldb start MSSQLLocalDB`), so its parent is the short-lived `sqllocaldb.exe`;
+  start it the same way before running the web app or a command by hand.
+- **Optionally keep the instance up between the engine host's 15-minute ticks.** LocalDB stops its instance a few
+  minutes after the last connection closes (`user instance timeout`, 5 minutes by default; on 31 Oct it restarted 7
+  times between 05:18 and 07:32). A longer timeout means fewer cold starts:
+  `sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'user instance timeout', 60; RECONFIGURE;"`
+  (undo with 5). Instance-wide too, so yours to decide; not changed for you.
 
 ## Where things are
 
