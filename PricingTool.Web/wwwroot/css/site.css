@@ -59,3 +59,34 @@ ul.value-list {
   font-size: 1.35rem;
   font-weight: 500;
 }
+/* The Campaigns tab's calendar: one grid per week, campaigns as bars on lanes. Gjirafa50 blue, GjirafaMall purple. */
+.cal { overflow: hidden; }
+.cal-head, .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-head > div { font-size: 0.75rem; color: #6c757d; padding: 0.15rem 0.35rem; border-bottom: 1px solid #dee2e6; }
+.cal-week { border-bottom: 1px solid #dee2e6; column-gap: 0; }
+.cal-week:last-child { border-bottom: 0; }
+.cal-day { border-right: 1px solid #f1f3f5; padding: 0.1rem 0.35rem; }
+.cal-day:nth-child(7) { border-right: 0; }
+.cal-day.past { background: #fafafa; }
+.cal-day.today { background: #fff8e1; }
+.cal-date { font-size: 0.75rem; color: #6c757d; }
+.cal-day.today .cal-date { color: #000; font-weight: 600; }
+.cal-bar {
+  --c: #0d6efd; --c-soft: #e7f0ff;
+  z-index: 1; margin: 0.1rem 0.2rem; padding: 0 0.4rem; border-radius: 0.3rem; font-size: 0.75rem; line-height: 1.35rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none;
+  background: var(--c); color: #fff; border: 1px solid var(--c);
+}
+.cal-bar:hover { filter: brightness(0.92); color: #fff; }
+.layer-1 { --c: #6f42c1; --c-soft: #f1ebfa; }
+.cal-bar.state-briefed, .cal-bar.state-new, .cal-bar.state-accepted, .cal-bar.state-stopped { background: var(--c-soft); color: #212529; border-style: dashed; }
+.cal-bar.state-stopped { border-color: #adb5bd; color: #6c757d; text-decoration: line-through; }
+.cal-bar.state-waits { background: var(--c-soft); color: #212529; border: 2px solid #fd7e14; line-height: 1.25rem; }
+.cal-bar.state-done { opacity: 0.5; }
+.cal-bar.cont-before { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
+.cal-bar.cont-after { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
+.cal-bar.selected { box-shadow: 0 0 0 2px #212529; }
+.cal-key { display: inline-block; padding: 0 0.4rem; border-radius: 0.3rem; font-size: 0.75rem; background: var(--c, #0d6efd); color: #fff; border: 1px solid var(--c, #0d6efd); }
+.cal-key.layer-4 { --c: #0d6efd; --c-soft: #e7f0ff; }
+.cal-key.state-briefed { background: var(--c-soft); color: #212529; border-style: dashed; }
+.cal-key.state-waits { background: var(--c-soft); color: #212529; border: 2px solid #fd7e14; }

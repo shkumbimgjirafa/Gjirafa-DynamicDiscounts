@@ -20,6 +20,9 @@ public interface ICampaignPublisher
     /// <summary>Time-boxed ai-campaign discounts for the plan's lines: (batch, status).</summary>
     Task<(long BatchId, string Status)> PublishAsync(int layerId, long campaignKey, DateTime startUtc, DateTime endUtc,
         IReadOnlyList<(string Sku, decimal Price, decimal Shelf)> lines, CancellationToken ct);
+
+    /// <summary>Restores what a campaign publish changed (its discounts end before they start): the number of rows restored.</summary>
+    Task<int> RollbackAsync(long batchId, CancellationToken ct);
 }
 
 public sealed record PlanningResult(long BriefId, string Status, IReadOnlyList<CampaignPlan> Plans, string? Error)
@@ -270,6 +273,24 @@ public sealed class CampaignPlanning
         }
         var lines = await _db.CampaignPlanLines.AsNoTracking().Where(l => l.PlanId == plan.Id).ToListAsync(ct);
         var (start, end) = Window(brief, brief.LayerId);
+        // A re-plan (from the Campaigns tab) replaces the campaign's earlier publish: that one is rolled back first, so the new plan
+        // starts from the shelf without the campaign and a Stop of the new one leaves no campaign at all.
+        if (brief.CalendarId is { } calendarId)
+        {
+            var briefIds = _db.CampaignBriefs.Where(b => b.CalendarId == calendarId).Select(b => b.Id);
+            var earlier = await _db.CampaignPlans.Where(p => briefIds.Contains(p.BriefId) && p.Id != plan.Id && p.Status == PlanStatus.Published && p.PublishBatchId != null)
+                .ToListAsync(ct);
+            foreach (var old in earlier)
+            {
+                var batch = await _db.PublishBatches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == old.PublishBatchId, ct);
+                if (batch is not null && batch.RolledBackUtc is null)
+                {
+                    var restored = await _publisher.RollbackAsync(batch.Id, ct);
+                    await SayAsync(brief, plan.Id, plan.Round, "code", $"Plan #{old.Id}'s publish (batch #{batch.Id}) rolled back ({restored:N0} rows restored): plan #{plan.Id} replaces it.", null, ct);
+                }
+                old.Status = PlanStatus.Superseded;
+            }
+        }
         var (batchId, status) = await _publisher.PublishAsync(brief.LayerId, brief.CalendarId ?? brief.Id, start, end,
             lines.Select(l => (l.Sku, l.CampaignPrice, l.RegularPrice)).ToList(), ct);
         plan.PublishBatchId = batchId;

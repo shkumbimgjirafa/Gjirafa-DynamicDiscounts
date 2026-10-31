@@ -90,8 +90,9 @@ public class AgentController : Controller
     public async Task<IActionResult> Chat(long? conversationId, string text, [FromServices] Services.ChatTurnLauncher launcher)
     {
         if (string.IsNullOrWhiteSpace(text)) return RedirectToAction(nameof(ChatController.Index), "Chat");
-        // One continuous thread: a message continues the newest conversation unless the page says otherwise.
-        var conversation = conversationId is > 0 ? conversationId : await _ai.ChatMessages.MaxAsync(m => (long?)m.ConversationId);
+        // One continuous thread: a message continues the newest conversation unless the page says otherwise (the Campaigns tab's
+        // conversations about one campaign have a topic and stay there).
+        var conversation = conversationId is > 0 ? conversationId : await _ai.ChatMessages.Where(m => m.Topic == null).MaxAsync(m => (long?)m.ConversationId);
         if (!launcher.TryStart(conversation, text, Who))
             TempData["Error"] = "The agents are still answering the last message: send this one when that answer lands.";
         return RedirectToAction(nameof(ChatController.Index), "Chat", null, "bottom");
@@ -268,11 +269,11 @@ public class AgentController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ApprovePlan(long planId)
     {
-        // The web app has no publisher: a held plan is approved here and published from the engine host (approve-plan --publish).
-        var r = await HttpContext.RequestServices.GetRequiredService<PricingTool.Agent.Campaigns.CampaignPlanning>().ApproveAsync(planId, Who, publish: false);
+        // Approved and published like a plan the chat planned: time-boxed, to the sandbox, stoppable on the Campaigns tab until it starts.
+        var r = await HttpContext.RequestServices.GetRequiredService<PricingTool.Agent.Campaigns.CampaignPlanning>().ApproveAsync(planId, Who, publish: true);
         if (r.Error is not null) TempData["Error"] = r.Error;
         else TempData["Message"] = $"Campaign plan #{planId} approved ({r.Status})." +
-                                   (r.Status == "accepted" ? $" Publish it from the engine host: PricingTool.AgentTools approve-plan {planId} --publish." : "");
+                                   (r.Status == PricingTool.Agent.Storage.PlanStatus.Published ? " Published to the sandbox; you can stop it on the Campaigns tab until it starts." : "");
         return Back();
     }
 

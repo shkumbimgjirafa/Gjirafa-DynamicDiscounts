@@ -202,7 +202,7 @@
                 {
                     <div class="mb-1">
                         <span class="text-muted">@c.Entry.StartDate.ToString("ddd d MMM")</span>
-                        <a asp-controller="Campaigns" asp-action="Detail" asp-route-id="@c.Entry.Id">@c.Entry.Name</a>
+                        <a asp-controller="Campaigns" asp-action="Index" asp-route-id="@c.Entry.Id">@c.Entry.Name</a>
                         <span class="text-muted">@Model.LayerName(c.Entry.LayerId)</span>:
                         @(c.Plan is { } pl ? $"{pl.Status}{(string.IsNullOrEmpty(pl.GoalVerdict) ? "" : ", " + pl.GoalVerdict)}" : c.Brief is { } b ? $"brief {b.Status}" : "no brief yet")
                         @if (c.CanStop(today)) { <span class="text-warning-emphasis">(goes live unless you stop it)</span> }

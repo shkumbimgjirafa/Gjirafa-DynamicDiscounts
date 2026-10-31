@@ -20,4 +20,6 @@ public sealed class CampaignPublisher : ICampaignPublisher
         }, ct);
         return (outcome.BatchId, outcome.Status);
     }
+
+    public Task<int> RollbackAsync(long batchId, CancellationToken ct) => _writer.RollbackAsync(batchId, ct);
 }

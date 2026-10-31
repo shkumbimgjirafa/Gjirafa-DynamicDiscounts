@@ -36,8 +36,9 @@
                 <div class="navbar-collapse collapse d-lg-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
                         <li class="nav-item"><a class="nav-link@(On(At("Run")))" asp-controller="Run" asp-action="Index">Run</a></li>
-                        <li class="nav-item"><a class="nav-link@(On(At("Chat") || At("Agent") || At("Campaigns")))" asp-controller="Chat" asp-action="Index">Chat
+                        <li class="nav-item"><a class="nav-link@(On(At("Chat") || At("Agent")))" asp-controller="Chat" asp-action="Index">Chat
                             @if (User.Identity?.IsAuthenticated == true) { @await Component.InvokeAsync("WaitingBadge") }</a></li>
+                        <li class="nav-item"><a class="nav-link@(On(At("Campaigns")))" asp-controller="Campaigns" asp-action="Index">Campaigns</a></li>
                         <li class="nav-item"><a class="nav-link@(On(At("Proposals") || At("Sku")))" asp-controller="Proposals" asp-action="Index">Proposals</a></li>
                     </ul>
                     <ul class="navbar-nav">

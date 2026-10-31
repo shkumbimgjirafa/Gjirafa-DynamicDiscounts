@@ -16,6 +16,25 @@ public class ChatMessage
     public long? BriefId { get; set; }
     /// <summary>The rule this message created, if any.</summary>
     public long? RuleId { get; set; }
+    /// <summary>Where the conversation lives: null = the Chat tab; <see cref="ChatTopics"/> for the Campaigns tab.</summary>
+    public string? Topic { get; set; }
+}
+
+/// <summary>
+/// The Campaigns tab's conversations with Nova: one per campaign ("campaign:&lt;calendar id&gt;"), and one for planning a new
+/// campaign ("campaign:new"), which moves to the campaign it creates. The Chat tab shows only messages without a topic.
+/// </summary>
+public static class ChatTopics
+{
+    public const string NewCampaign = "campaign:new";
+    private const string CampaignPrefix = "campaign:";
+
+    public static string Campaign(long calendarId) => CampaignPrefix + calendarId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The calendar id a topic is about, or null (the Chat tab, or a new campaign).</summary>
+    public static long? CalendarIdOf(string? topic) =>
+        topic is not null && topic.StartsWith(CampaignPrefix, StringComparison.Ordinal)
+        && long.TryParse(topic.AsSpan(CampaignPrefix.Length), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? id : null;
 }
 
 /// <summary>

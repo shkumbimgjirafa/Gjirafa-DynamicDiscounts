@@ -3,90 +3,258 @@
 @{
     ViewData["Title"] = "Campaigns";
     var isManager = User.IsInRole(PricingTool.Data.Services.PricingRoles.Manager);
-    string Goal(string? type, decimal? value) => type is null ? "no goal" : type == "margin" ? $"margin {value:0.0}%" : $"{type} {value:N0}";
-    string PlanBadge(string? s) => s switch
+    var today = Model.Today;
+    var sel = Model.Selected;
+    var end = Model.From.AddDays(Model.Weeks.Count * 7 - 1);
+    string Goal(string? type, decimal? value) => type is null ? "no goal" : type == "margin" ? $"margin {value:0.0}%" : type == "units" ? $"{value:N0} units" : $"€{value:N0} gross profit";
+    string WhoBadge(string who) => who switch
     {
-        PlanStatus.Published => "bg-success", PlanStatus.Held => "bg-warning text-dark", PlanStatus.Stopped => "bg-secondary",
-        PlanStatus.Accepted => "bg-primary", _ => "bg-light text-dark",
+        "Nova" => "bg-info text-dark", "Alpha" => "bg-primary", "code" => "bg-secondary", _ => "bg-warning text-dark",
     };
+    string WhoName(string who) => who == "code" ? "Code" : who;
+    DateTime Local(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime();
+    string StateWord(string state) => state switch
+    {
+        "done" => "over", "live" => "live", "published" => "published", "waits" => "waits for you", "stopped" => "stopped",
+        "accepted" => "accepted", "briefed" => "briefed", _ => "no brief",
+    };
+    string StateBadge(string state) => state switch
+    {
+        "live" or "published" => "bg-success", "waits" => "bg-warning text-dark", "done" or "stopped" => "bg-secondary", _ => "bg-light text-dark border",
+    };
+    string[] prompts = sel is null
+        ? new[] { "Plan a 3-day laptops campaign next week on Gjirafa50, €4k profit", "Which mini-campaign would you suggest for the next two weeks?" }
+        : sel.State(today) switch
+        {
+            "done" => new[] { "What did we learn from it?", "Did it beat the holdout?" },
+            "published" or "live" => new[] { "What does it do to margin?", "Which categories carry it?", "How does it compare with last year?" },
+            _ when sel.Plan is { Feasible: false } || sel.Waits => new[] { "Why is it short of the goal?", "What would it take to reach the goal?", "What if we go 5 points deeper?" },
+            _ => new[] { "What would you plan for it?", "How did it do last year?" },
+        };
 }
 
-<h1 class="h3">Campaigns</h1>
-<p class="page-sub">Nova (campaign agent) writes the brief, Alpha (pricing agent) plans it, code checks it, and the publisher writes it as time-boxed discounts. You can stop a campaign until it starts.</p>
-<details class="how"><summary>How this works</summary>
-    Nova writes a brief for each calendar campaign and proposes mini-campaigns; Alpha answers with a plan code computed; an accepted plan is
-    published as time-boxed discounts (the sandbox during the hackathon). A campaign published ahead of its start can be stopped until it goes
-    live. Every expected figure is an estimate; measured results appear once a campaign has ended.
-</details>
-@if (isManager)
-{
-    <form method="post" asp-controller="Agent" asp-action="Chat" class="card card-body mb-3"
-          onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').innerText = 'Nova is reading the data…';">
-        <label class="form-label h6">Plan a campaign</label>
-        <div class="input-group">
-            <input name="text" class="form-control" maxlength="2000" required placeholder="e.g. Plan a 3-day laptops campaign next week on Gjirafa50, €4k profit" />
-            <button type="submit" class="btn btn-primary">Ask Nova</button>
+<div class="d-flex flex-wrap align-items-baseline gap-3">
+    <h1 class="h3 mb-1">Campaigns</h1>
+    <div class="small text-muted d-flex flex-wrap gap-2 align-items-center">
+        <span class="cal-key layer-4 state-published">Gjirafa50</span>
+        <span class="cal-key layer-1 state-published">GjirafaMall</span>
+        <span>solid: published or live · <span class="cal-key layer-4 state-waits">!</span> waits for you · <span class="cal-key layer-4 state-briefed">dashed</span>: not published yet · faded: over</span>
+    </div>
+</div>
+<p class="page-sub">Pick a campaign to see where it stands and talk it through with Nova (campaign agent). A change you agree on is planned again by Alpha (pricing agent), checked by code and published to the sandbox, where you can stop it until it starts.</p>
+
+<div class="row g-3">
+    <div class="col-xl-7">
+        <div class="d-flex justify-content-between align-items-center mb-1 small">
+            <a asp-action="Index" asp-route-from="@Model.From.AddDays(-28).ToString("yyyy-MM-dd")" asp-route-id="@sel?.Entry.Id">&lsaquo; Earlier</a>
+            <span><strong>@Model.From.ToString("dd MMM") – @end.ToString("dd MMM yyyy")</strong>
+                · <a asp-action="Index" asp-route-id="@sel?.Entry.Id" asp-route-from="@today.ToString("yyyy-MM-dd")">this week</a></span>
+            <a asp-action="Index" asp-route-from="@Model.From.AddDays(28).ToString("yyyy-MM-dd")" asp-route-id="@sel?.Entry.Id">Later &rsaquo;</a>
         </div>
-        <div class="form-text">Sends it to Nova on the Chat tab. Code checks the brief against the limits; an accepted plan publishes to the sandbox and can be stopped until it starts.</div>
-    </form>
-}
+        <div class="cal border rounded">
+            <div class="cal-head">
+                @foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }) { <div>@d</div> }
+            </div>
+            @foreach (var w in Model.Weeks)
+            {
+                var lanes = Math.Max(w.Lanes, 2);
+                <div class="cal-week" style="grid-template-rows: 1.5rem repeat(@lanes, 1.6rem) 0.35rem">
+                    @for (var i = 0; i < 7; i++)
+                    {
+                        var d = w.Monday.AddDays(i);
+                        <div class="cal-day@(d == today ? " today" : "")@(d < today ? " past" : "")" style="grid-column: @(i + 1); grid-row: 1 / @(lanes + 3)">
+                            <span class="cal-date">@(d.Day == 1 || d == Model.From ? d.ToString("d MMM") : d.Day.ToString())</span>
+                        </div>
+                    }
+                    @foreach (var b in w.Bars)
+                    {
+                        var e = b.Row.Entry;
+                        var state = b.Row.State(today);
+                        <a class="cal-bar layer-@e.LayerId state-@state@(b.ContinuesBefore ? " cont-before" : "")@(b.ContinuesAfter ? " cont-after" : "")@(sel?.Entry.Id == e.Id ? " selected" : "")"
+                           style="grid-column: @b.StartColumn / span @b.Span; grid-row: @(b.Lane + 2)"
+                           asp-action="Index" asp-all-route-data="@(new Dictionary<string, string> { ["id"] = e.Id.ToString(), ["from"] = Model.From.ToString("yyyy-MM-dd") })" asp-fragment="nova"
+                           title="@e.Name · @Model.LayerName(e.LayerId) · @e.StartDate.ToString("ddd dd MMM")–@e.EndDate.ToString("ddd dd MMM") · @StateWord(state)">
+                            @(state == "waits" ? "! " : "")@CampaignsViewModel.LayerShort(e.LayerId) · @e.Name
+                        </a>
+                    }
+                </div>
+            }
+        </div>
 
-@foreach (var (title, rows, hint) in new[]
-{
-    ("Live", Model.Live, "Running today."),
-    ("Coming up", Model.ComingUp, "Published campaigns can be stopped until their first day."),
-    ("Done (last 120 days)", Model.Done, "Measured on the booked sales lines; the last two weeks still lose lines to cancellations."),
-})
-{
-    <h2 class="h5 mt-4">@title (@rows.Count)</h2>
-    <p class="small text-muted">@hint</p>
-    <table class="table table-sm align-middle">
-        <thead><tr><th>Campaign</th><th>Layer</th><th>Dates</th><th>Type</th><th>Goal</th><th>Plan</th><th>Expected</th><th>Result</th><th></th></tr></thead>
-        <tbody>
-        @foreach (var r in rows)
+        @foreach (var (title, rows) in new[] { ("Live", Model.Live), ("Coming up", Model.ComingUp), ("Done (last 120 days)", Model.Done) })
         {
-            <tr>
-                <td>
-                    <a asp-action="Detail" asp-route-id="@r.Entry.Id">@r.Entry.Name</a>
-                    @if (r.Entry.GoalSetBy is not null) { <span class="badge bg-info text-dark" title="@r.Entry.GoalSetBy">goal set by a person</span> }
-                    @if (!r.Entry.Representative) { <span class="badge bg-light text-dark" title="@r.Entry.Context">not representative</span> }
-                </td>
-                <td>@Model.LayerName(r.Entry.LayerId)</td>
-                <td class="text-nowrap">@r.Entry.StartDate.ToString("dd MMM")–@r.Entry.EndDate.ToString("dd MMM yyyy")</td>
-                <td>@r.Entry.Type</td>
-                <td>@Goal(r.Brief?.GoalType ?? r.Entry.GoalType, r.Brief?.GoalValue ?? r.Entry.GoalValue)</td>
-                <td>
-                    @if (r.Plan is { } p)
-                    {
-                        <span class="badge @PlanBadge(p.Status)">@p.Status</span>
-                        @if (!string.IsNullOrEmpty(p.GoalVerdict)) { <span class="small">@p.GoalVerdict</span> }
-                        @if (r.Batch?.RolledBackUtc is not null) { <span class="small text-muted">rolled back</span> }
-                    }
-                    else if (r.Brief is { } b) { <span class="small">brief @b.Status</span> }
-                    else { <span class="small text-muted">no brief yet</span> }
-                </td>
-                <td class="small">
-                    @if (r.Plan is { } p2)
-                    {
-                        <span>@p2.DiscountedSkus.ToString("N0") SKUs at @p2.AverageDepthPct.ToString("0.0")%, GP @p2.ExpectedGrossProfit.ToString("N0"), margin @p2.ExpectedMarginPct.ToString("0.0")%</span>
-                    }
-                </td>
-                <td class="small">@(r.Result is { } res ? (res.Provisional ? "measured, provisional" : "measured") : "")</td>
-                <td>
-                    @if (isManager && r.CanStop(Model.Today))
-                    {
-                        <form method="post" asp-action="Stop" onsubmit="return confirm('Stop @r.Entry.Name before it goes live? Its publish is rolled back.');">
-                            <input type="hidden" name="planId" value="@r.Plan!.Id" />
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Goes live @r.Entry.StartDate.ToString("ddd dd MMM") unless you stop it">Stop</button>
-                        </form>
-                    }
-                </td>
-            </tr>
+            <h2 class="h6 mt-3 mb-1">@title (@rows.Count)</h2>
+            <table class="table table-sm table-hover align-middle small mb-1">
+                <tbody>
+                @foreach (var r in rows)
+                {
+                    var state = r.State(today);
+                    <tr class="@(sel?.Entry.Id == r.Entry.Id ? "table-active" : "")">
+                        <td><a asp-action="Index" asp-route-id="@r.Entry.Id" asp-route-from="@Model.From.ToString("yyyy-MM-dd")" asp-fragment="nova">@r.Entry.Name</a></td>
+                        <td>@Model.LayerName(r.Entry.LayerId)</td>
+                        <td class="text-nowrap">@r.Entry.StartDate.ToString("dd MMM")–@r.Entry.EndDate.ToString("dd MMM")</td>
+                        <td>@Goal(r.Brief?.GoalType ?? r.Entry.GoalType, r.Brief?.GoalValue ?? r.Entry.GoalValue)</td>
+                        <td><span class="badge @StateBadge(state)">@StateWord(state)</span></td>
+                        <td class="text-end text-nowrap">@(r.Plan is { } p ? $"GP €{p.ExpectedGrossProfit:N0} (est.)" : "")</td>
+                    </tr>
+                }
+                @if (rows.Count == 0) { <tr><td class="text-muted">None.</td></tr> }
+                </tbody>
+            </table>
         }
-        @if (rows.Count == 0)
+    </div>
+
+    <div class="col-xl-5" id="nova">
+        @if (sel is not null)
         {
-            <tr><td colspan="9" class="text-muted">None.</td></tr>
+            var e = sel.Entry;
+            var state = sel.State(today);
+            var plan = sel.Plan;
+            var days = e.EndDate.DayNumber - e.StartDate.DayNumber + 1;
+            <div class="card mb-2 @(state == "waits" ? "border-warning" : "")">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-baseline gap-2">
+                        <h2 class="h5 mb-0">@e.Name</h2>
+                        <span class="small text-nowrap"><a asp-action="Detail" asp-route-id="@e.Id">full record</a> · <a asp-action="Index" asp-route-from="@Model.From.ToString("yyyy-MM-dd")">close</a></span>
+                    </div>
+                    <div class="small text-muted">
+                        @Model.LayerName(e.LayerId) · @e.StartDate.ToString("ddd dd MMM") – @e.EndDate.ToString("ddd dd MMM") (@days day@(days == 1 ? "" : "s")) · @e.Type ·
+                        @(e.ScopeKind == "all" ? "the whole shop" : $"{e.ScopeKind} {e.ScopeValue}") · goal @Goal(e.GoalType, e.GoalValue)
+                        @if (e.GoalSetBy is not null) { <span class="badge bg-info text-dark" title="@e.GoalSetBy">set by a person</span> }
+                    </div>
+                    <div class="alert @(state == "waits" ? "alert-warning" : state is "live" or "published" ? "alert-success" : "alert-light border") py-1 px-2 small my-2">@sel.StateText(today)</div>
+                    @if (plan is not null)
+                    {
+                        <div class="row g-2 small mb-2">
+                            <div class="col-4"><div class="tile"><div class="text-muted">Discounted</div><div class="tile-value">@plan.DiscountedSkus.ToString("N0")</div>
+                                <div class="text-muted">of @plan.SkusInScope.ToString("N0") SKUs, @plan.AverageDepthPct.ToString("0.0")% off on average</div></div></div>
+                            <div class="col-4"><div class="tile"><div class="text-muted">Gross profit, its SKUs</div><div class="tile-value">€@plan.ExpectedGrossProfit.ToString("N0")</div>
+                                <div class="text-muted">estimated; €@plan.GrossProfitWithoutDiscounts.ToString("N0") with no discount</div></div></div>
+                            <div class="col-4"><div class="tile"><div class="text-muted">Margin</div><div class="tile-value">@plan.ExpectedMarginPct.ToString("0.0")%</div>
+                                <div class="text-muted">estimated; @plan.ExpectedUnits.ToString("N0") units</div></div></div>
+                        </div>
+                        <p class="small mb-2"><strong>Plan #@plan.Id (@plan.Strategy)@(string.IsNullOrEmpty(plan.GoalVerdict) ? "" : $", {plan.GoalVerdict}"):</strong> @plan.Feasibility</p>
+                    }
+                    @if (isManager && (sel.Waits || sel.CanPublish || sel.CanStop(today)))
+                    {
+                        <div class="d-flex gap-2 mb-2">
+                            @if (sel.Waits && plan is not null)
+                            {
+                                <form asp-controller="Agent" asp-action="ApprovePlan" method="post"
+                                      onsubmit="return confirm('Approve plan #@plan.Id as it is? @(plan.Status == PlanStatus.Held ? "It publishes to the sandbox, and you can stop it here until it starts." : "It stays as published.")');">
+                                    <input type="hidden" name="planId" value="@plan.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-success">Approve plan #@plan.Id as it is</button>
+                                </form>
+                            }
+                            @if (sel.CanPublish && plan is not null)
+                            {
+                                <form asp-controller="Agent" asp-action="ApprovePlan" method="post"
+                                      onsubmit="return confirm('Publish plan #@plan.Id to the sandbox? @plan.DiscountedSkus.ToString("N0") time-boxed discounts, live @e.StartDate.ToString("ddd dd MMM")–@e.EndDate.ToString("ddd dd MMM"); you can stop it here until it starts.');">
+                                    <input type="hidden" name="planId" value="@plan.Id" />
+                                    <button type="submit" class="btn btn-sm btn-success">Publish plan #@plan.Id to the sandbox</button>
+                                </form>
+                            }
+                            @if (sel.CanStop(today))
+                            {
+                                <form method="post" asp-action="Stop" onsubmit="return confirm('Stop @e.Name before it goes live? Its publish is rolled back.');">
+                                    <input type="hidden" name="planId" value="@plan!.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Stop before @e.StartDate.ToString("ddd dd MMM")</button>
+                                </form>
+                            }
+                        </div>
+                    }
+                    @if (sel.Result is { } result)
+                    {
+                        <p class="small mb-1"><strong>Nova's lesson@(result.Provisional ? " (provisional)" : ""):</strong> @(result.Lesson ?? "none written")</p>
+                        <details class="how"><summary>What code measured</summary><pre class="small bg-light p-2 text-wrap mb-0">@result.Measured</pre></details>
+                    }
+                    @if (Model.PlanningThread.Count > 0)
+                    {
+                        <details class="how mb-0"><summary>How Nova and Alpha planned it (the last @Model.PlanningThread.Count messages)</summary>
+                            @foreach (var m in Model.PlanningThread)
+                            {
+                                <div class="mb-1">
+                                    <span class="badge @WhoBadge(m.From)">@WhoName(m.From)</span>
+                                    <span class="text-muted">round @m.Round@(m.PlanId is { } pid ? $" · plan #{pid}" : "") · @Local(m.CreatedUtc).ToString("dd MMM HH:mm")</span>
+                                    <div class="text-body" style="white-space: pre-wrap">@m.Text</div>
+                                </div>
+                            }
+                        </details>
+                    }
+                </div>
+            </div>
         }
-        </tbody>
-    </table>
+
+        <div class="card">
+            <div class="card-header py-2">
+                <strong>@(sel is null ? "Plan a new campaign with Nova" : $"Talk to Nova about {sel.Entry.Name}")</strong>
+                @if (sel is null) { <div class="small text-muted">Or pick a campaign on the calendar to talk about it.</div> }
+            </div>
+            <div id="conversation" class="card-body p-2" style="height: @(sel is null ? "52vh" : "38vh"); overflow-y: auto">
+                @foreach (var m in Model.Conversation)
+                {
+                    var mine = m.From == "user";
+                    <div class="d-flex @(mine ? "justify-content-end" : "") mb-2">
+                        <div class="rounded p-2 small @(mine ? "bg-primary-subtle" : m.From == "code" ? "bg-body-tertiary border border-secondary-subtle" : "bg-light border")" style="max-width: 88%">
+                            <div class="mb-1">
+                                <span class="badge @(mine ? "bg-light text-dark border" : WhoBadge(m.From))">@(mine ? m.Author ?? "you" : WhoName(m.From))</span>
+                                <span class="text-muted">@Local(m.CreatedUtc).ToString("ddd HH:mm")</span>
+                            </div>
+                            <div style="white-space: pre-wrap">@m.Text</div>
+                        </div>
+                    </div>
+                }
+                @if (Model.Conversation.Count == 0 && !Model.TurnRunning)
+                {
+                    <p class="text-muted small mb-0">@(sel is null
+                        ? "Ask Nova for a campaign: it writes a brief, code checks it against the limits, Alpha plans it, and it lands on the calendar."
+                        : "Nothing said about this campaign yet. Nova sees its briefs, plans, the planning thread and past results, and can read the data.")</p>
+                }
+                @if (Model.TurnRunning)
+                {
+                    <div class="small text-muted"><span class="spinner-border spinner-border-sm"></span> @(Model.Answering ?? "Nova") is reading the data… (a re-plan takes a few minutes more)</div>
+                }
+            </div>
+            @if (isManager)
+            {
+                <div class="card-footer p-2">
+                    <form method="post" asp-action="Talk">
+                        <input type="hidden" name="id" value="@sel?.Entry.Id" />
+                        <div class="input-group">
+                            <textarea id="talk-text" name="text" class="form-control" rows="2" maxlength="2000" required
+                                      placeholder="@(sel is null ? "Describe the campaign: what, when, which layer, the goal…" : "Ask Nova about it, or ask for a change…")"></textarea>
+                            <button type="submit" class="btn btn-primary" disabled="@(Model.TurnRunning || Model.OtherTurnRunning)">Send</button>
+                        </div>
+                    </form>
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                        @foreach (var p in prompts)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 talk-prompt">@p</button>
+                        }
+                    </div>
+                    <div class="small text-muted mt-1">
+                        @if (Model.OtherTurnRunning) { <span>The agents are answering another message right now; send when it lands. </span> }
+                        @if (sel is null) { <span>A mini-campaign runs @Model.MinDays–@Model.MaxMiniDays days on a category or a brand and starts at least @Model.LeadDays days out.</span> }
+                        else if (Model.CanReplan) { <span>Ask for a change (deeper, another goal, a brand left out) and Nova re-briefs it: Alpha plans it again, code checks it, and an accepted plan replaces the one published before.</span> }
+                        else { <span>It starts within @Model.LeadDays days, is live or is over: Nova can explain it, but code no longer re-plans it.</span> }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var c = document.getElementById('conversation');
+        if (c) c.scrollTop = c.scrollHeight;
+        var t = document.getElementById('talk-text');
+        document.querySelectorAll('.talk-prompt').forEach(function (b) {
+            b.addEventListener('click', function () { if (t) { t.value = b.textContent.trim(); t.focus(); } });
+        });
+    })();
+</script>
+@if (Model.TurnRunning)
+{
+    <script>setTimeout(function () { location.reload(); }, 4000);</script>
 }

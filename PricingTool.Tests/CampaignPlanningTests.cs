@@ -235,6 +235,13 @@ public class CampaignPlanningTests : IDisposable
             Calls.Add((campaignKey, startUtc, endUtc, lines.Count));
             return Task.FromResult((77L, "Published"));
         }
+
+        public List<long> RolledBack { get; } = new();
+        public Task<int> RollbackAsync(long batchId, CancellationToken ct)
+        {
+            RolledBack.Add(batchId);
+            return Task.FromResult(3);
+        }
     }
 
     private void Says(JsonObject structured) => _answers.Enqueue(new JsonObject
@@ -296,6 +303,37 @@ public class CampaignPlanningTests : IDisposable
         Assert.DoesNotContain(lines, l => l.Sku == "DEAD" || l.Category == "Sport");                         // dead stock and holdout left out
         var thread = await _db.CampaignMessages.OrderBy(m => m.Id).Select(m => m.From).ToListAsync();
         Assert.Equal(new[] { "code", "Alpha", "Nova", "code", "code", "Alpha", "Nova", "code" }, thread);
+    }
+
+    [Fact]
+    public async Task A_re_plan_rolls_back_the_campaigns_earlier_publish_before_it_publishes()
+    {
+        var (planning, publisher, brief) = Setup();
+        var earlier = new CampaignBrief
+        {
+            PassId = 1, LayerId = brief.LayerId, CalendarId = brief.CalendarId, Name = brief.Name, Kind = "calendar", ScopeKind = "all", StartDate = brief.StartDate,
+            EndDate = brief.EndDate, GoalType = "gross-profit", GoalValue = 500m, MinMarginPct = 5m, MaxDepthPct = 25m, Exclusions = "[]", Rationale = "earlier",
+            Status = BriefStatus.Planned, CreatedUtc = DateTime.UtcNow,
+        };
+        _db.CampaignBriefs.Add(earlier);
+        var onShelf = new PublishBatch { LayerId = brief.LayerId, Kind = "Campaign", Status = "Published", Target = "Sandbox", StartedUtc = DateTime.UtcNow };
+        var undone = new PublishBatch { LayerId = brief.LayerId, Kind = "Campaign", Status = "RolledBack", Target = "Sandbox", StartedUtc = DateTime.UtcNow, RolledBackUtc = DateTime.UtcNow };
+        _db.PublishBatches.AddRange(onShelf, undone);
+        await _db.SaveChangesAsync();
+        _db.CampaignPlans.AddRange(
+            new CampaignPlan { BriefId = earlier.Id, LayerId = brief.LayerId, Strategy = "visible", Status = PlanStatus.Published, PublishBatchId = onShelf.Id, CreatedUtc = DateTime.UtcNow },
+            new CampaignPlan { BriefId = earlier.Id, LayerId = brief.LayerId, Strategy = "visible", Status = PlanStatus.Published, PublishBatchId = undone.Id, CreatedUtc = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "visible", ["explanation"] = "Visible." });
+        Says(new JsonObject { ["decision"] = "accept", ["goalValue"] = null, ["maxDepthPct"] = null, ["minMarginPct"] = null, ["message"] = "Accepted." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: true);
+
+        Assert.Equal(PlanStatus.Published, r.Status);
+        Assert.Equal(new[] { onShelf.Id }, publisher.RolledBack);                                       // only the publish still on the shelf
+        Assert.Single(publisher.Calls);
+        Assert.All(await _db.CampaignPlans.Where(p => p.BriefId == earlier.Id).ToListAsync(), p => Assert.Equal(PlanStatus.Superseded, p.Status));
+        Assert.Contains(await _db.CampaignMessages.Select(m => m.Text).ToListAsync(), t => t.Contains($"(batch #{onShelf.Id}) rolled back (3 rows restored): plan #{r.Final!.Id} replaces it"));
     }
 
     [Fact]

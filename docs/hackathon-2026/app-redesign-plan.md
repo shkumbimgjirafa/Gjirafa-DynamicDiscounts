@@ -15,7 +15,7 @@ ledger, the v1 Impact dashboard) leave the live app; the figures stay in `docs/h
 
 ## Navigation
 
-**Run · Chat (badge) · Proposals**, plus on the right: layer picker, and an **Admin** menu (Daily cycle, Audit log, Time
+**Run · Chat (badge) · Campaigns · Proposals** (Campaigns added 31 Oct at the user's request), plus on the right: layer picker, and an **Admin** menu (Daily cycle, Audit log, Time
 sheet, Users). The strip under the navigation on every page: publishing target, kill switch state, data load time.
 Run week, the kill switch and the autonomy switches move to the Run tab's header.
 
@@ -144,6 +144,21 @@ Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
   shelf (batch #10164), **+€17,176 a month** (48,561 raises +€17,412, 653 cuts −€235; +€13,871 / +€10,865 at elasticity
   −1 / −2); Gjirafa50 #1109 25,390 of 26,604 (#10162), **+€8,984** (+€7,388 / +€5,934). Estimated, sandbox. Real team deals
   still hold 1,754 and 1,214 prices.
+
+- **Campaigns tab, 31 Oct (the user's request: "a campaign calendar tab with Nova there so we can discuss the campaign").**
+  Six weeks of the calendar (this week first; earlier / later by four weeks), each campaign a bar coloured by layer
+  (Gjirafa50 blue, GjirafaMall purple) and styled by where it stands (solid published or live, an orange border waits for
+  you, dashed not published, faded over); the live / coming up / done lists below. Picking one shows its card (dates, scope,
+  goal and who set it, the plan's SKUs, depth, gross profit and margin, estimated, the goal check; Approve, Publish an approved
+  plan, Stop) and a conversation with Nova about it. Each campaign has its own conversation (`ai.ChatMessage.Topic`
+  `campaign:<id>`, migration `ChatTopics`); with none picked, a "new campaign" conversation moves to the campaign it creates.
+  Nova sees the campaign's whole record (briefs, plans, the plan's biggest lines, the planning thread, the result, the same
+  campaign before); a `brief` there re-plans that campaign (code keeps its layer, name and window; a goal the person asks
+  for becomes theirs and binding); an accepted re-plan rolls back the campaign's earlier publish before it publishes, so Stop
+  still leaves no campaign. Approve on the web now publishes (the web app has had the campaign publisher since the chat
+  planning). The Chat tab no longer shows these conversations. Checked on :5058 with one real turn on GjirafaMall's Black
+  Friday ($0.12, 15 s, `ai.AiCallLog` #10069): Nova explained the €8,271 gap to the €57,456 goal from the record and did
+  not re-plan. Not checked live: a re-plan from the tab (it plans and publishes to the sandbox; tests cover it).
 
 ## Verification
 

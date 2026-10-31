@@ -43,8 +43,9 @@ public class ChatController : Controller
     public async Task<IActionResult> Index()
     {
         var since = DateTime.UtcNow.AddDays(-7);
-        var messages = await _ai.ChatMessages.AsNoTracking().Where(m => m.CreatedUtc >= since.AddDays(-7)).OrderByDescending(m => m.Id).Take(200).ToListAsync();
-        var activity = await _activity.FeedAsync(since, id => Url.Action("Detail", "Campaigns", new { id }), take: 150);
+        // The Campaigns tab's conversations (one per campaign) stay on that tab.
+        var messages = await _ai.ChatMessages.AsNoTracking().Where(m => m.CreatedUtc >= since.AddDays(-7) && m.Topic == null).OrderByDescending(m => m.Id).Take(200).ToListAsync();
+        var activity = await _activity.FeedAsync(since, id => Url.Action("Index", "Campaigns", new { id }), take: 150);
         var thread = messages.Select(m => new ThreadItem(m.CreatedUtc, m, null))
             .Concat(activity.Select(f => new ThreadItem(f.Utc, null, f)))
             .OrderBy(t => t.Utc).ToList();
@@ -55,8 +56,8 @@ public class ChatController : Controller
         return View(new ChatPageModel
         {
             Thread = thread,
-            ConversationId = await _ai.ChatMessages.MaxAsync(m => (long?)m.ConversationId),
-            TurnRunning = _launcher.IsRunning,
+            ConversationId = await _ai.ChatMessages.Where(m => m.Topic == null).MaxAsync(m => (long?)m.ConversationId),
+            TurnRunning = _launcher.IsRunning && _launcher.Topic is null,
             ProblemsRunning = _problems.IsRunning,
             Answering = _launcher.Answering,
             Inbox = inbox,

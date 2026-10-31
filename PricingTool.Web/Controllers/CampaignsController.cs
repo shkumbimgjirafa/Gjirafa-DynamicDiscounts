@@ -1,38 +1,54 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using PricingTool.Agent;
 using PricingTool.Agent.Alpha;
 using PricingTool.Agent.Campaigns;
 using PricingTool.Agent.Storage;
 using PricingTool.Data;
 using PricingTool.NopIntegration;
 using PricingTool.Web.Models;
+using PricingTool.Web.Services;
 
 namespace PricingTool.Web.Controllers;
 
 /// <summary>
-/// The Campaigns tab (plan section 5, Web): the calendar (live, coming up, done), one card per campaign with its brief, plan,
-/// the agent-to-agent thread and the result, and the veto window: a campaign published ahead of its start can be stopped
-/// (its publish rolled back) until it goes live. Anyone signed in can look; stopping is Manager-only and audited.
+/// The Campaigns tab (plan section 5, Web): six weeks of the calendar and the lists (live, coming up, done); beside them the campaign
+/// picked on the calendar, where it stands, and a conversation with Nova about it (a brief there re-plans it), or with none picked,
+/// a conversation for planning a new one. The veto window: a campaign published ahead of its start can be stopped (its publish
+/// rolled back) until it goes live. Anyone signed in can look; talking, approving and stopping are Manager-only and audited.
 /// </summary>
 [Authorize(Roles = "Analyst,Manager")]
 public class CampaignsController : Controller
 {
     private const int DoneDays = 120;
+    private const int CalendarWeeks = 6;
     private readonly PricingToolDbContext _db;
     private readonly AgentDbContext _ai;
+    private readonly ChatTurnLauncher _launcher;
+    private readonly AgentOptions _options;
 
-    public CampaignsController(PricingToolDbContext db, AgentDbContext ai)
+    public CampaignsController(PricingToolDbContext db, AgentDbContext ai, ChatTurnLauncher launcher, IOptions<AgentOptions> options)
     {
         _db = db;
         _ai = ai;
+        _launcher = launcher;
+        _options = options.Value;
     }
 
-    public async Task<IActionResult> Index()
+    /// <param name="id">The campaign picked on the calendar.</param>
+    /// <param name="from">The calendar's first week (any day in it); by default this week.</param>
+    public async Task<IActionResult> Index(long? id, DateOnly? from)
     {
+        // A new campaign planned here moves its conversation to the campaign: follow it there once the turn has landed.
+        if (id is null && from is null && _launcher.TakeMovedTo() is { } moved) return RedirectToAction(nameof(Index), null, new { id = moved }, "nova");
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var entries = await _ai.CampaignCalendar.AsNoTracking().Where(c => c.EndDate >= today.AddDays(-DoneDays))
-            .OrderBy(c => c.StartDate).ToListAsync();
+        static DateOnly Monday(DateOnly d) => d.AddDays(-(((int)d.DayOfWeek + 6) % 7));
+        var start = Monday(from ?? today);
+        var since = start < today.AddDays(-DoneDays) ? start : today.AddDays(-DoneDays);
+        var entries = await _ai.CampaignCalendar.AsNoTracking().Where(c => c.EndDate >= since || c.Id == id)
+            .OrderBy(c => c.StartDate).ThenBy(c => c.Id).ToListAsync();
         var ids = entries.Select(e => e.Id).ToList();
         var briefs = (await _ai.CampaignBriefs.AsNoTracking().Where(b => b.CalendarId != null && ids.Contains(b.CalendarId.Value) && !b.IsTest
                           && b.Status != BriefStatus.Superseded && b.Status != BriefStatus.Rejected).ToListAsync())
@@ -52,14 +68,74 @@ public class CampaignsController : Controller
             var batch = plan?.PublishBatchId is { } id ? batches.GetValueOrDefault(id) : null;
             return new CampaignRow(e, brief, plan, batch, results.GetValueOrDefault(e.Id));
         }
+        var rows = entries.Select(Row).ToList();
+
+        // Each week of the calendar: the campaigns on it as bars, each on the first lane free from its first day in the week.
+        var weeks = new List<CalendarWeek>();
+        for (var w = 0; w < CalendarWeeks; w++)
+        {
+            var monday = start.AddDays(7 * w);
+            var sunday = monday.AddDays(6);
+            var laneEnds = new List<int>();
+            var bars = new List<CalendarBar>();
+            foreach (var r in rows.Where(r => r.Entry.StartDate <= sunday && r.Entry.EndDate >= monday))
+            {
+                var first = r.Entry.StartDate < monday ? 0 : r.Entry.StartDate.DayNumber - monday.DayNumber;
+                var last = r.Entry.EndDate > sunday ? 6 : r.Entry.EndDate.DayNumber - monday.DayNumber;
+                var lane = laneEnds.FindIndex(end => end < first);
+                if (lane < 0) { lane = laneEnds.Count; laneEnds.Add(last); } else laneEnds[lane] = last;
+                bars.Add(new CalendarBar(r, first + 1, last - first + 1, lane, r.Entry.StartDate < monday, r.Entry.EndDate > sunday));
+            }
+            weeks.Add(new CalendarWeek(monday, bars));
+        }
+
+        var selected = id is { } sid ? rows.FirstOrDefault(r => r.Entry.Id == sid) : null;
+        if (id is not null && selected is null) TempData["Error"] = $"Campaign #{id} isn't on the calendar.";
+        var topic = selected is null ? ChatTopics.NewCampaign : ChatTopics.Campaign(selected.Entry.Id);
+        var conversation = await _ai.ChatMessages.Where(m => m.Topic == topic).MaxAsync(m => (long?)m.ConversationId);
+        var planningThread = new List<CampaignMessage>();
+        if (selected is not null)
+        {
+            var selectedBriefs = _ai.CampaignBriefs.Where(b => b.CalendarId == selected.Entry.Id && !b.IsTest).Select(b => b.Id);
+            planningThread = (await _ai.CampaignMessages.AsNoTracking().Where(m => selectedBriefs.Contains(m.BriefId)).OrderByDescending(m => m.Id).Take(12).ToListAsync())
+                .OrderBy(m => m.Id).ToList();
+        }
         return View(new CampaignsViewModel
         {
             Today = today,
-            Live = entries.Where(e => e.StartDate <= today && e.EndDate >= today).Select(Row).ToList(),
-            ComingUp = entries.Where(e => e.StartDate > today).Select(Row).ToList(),
-            Done = entries.Where(e => e.EndDate < today).OrderByDescending(e => e.StartDate).Select(Row).ToList(),
+            From = start,
+            Weeks = weeks,
+            Live = rows.Where(r => r.Entry.StartDate <= today && r.Entry.EndDate >= today).ToList(),
+            ComingUp = rows.Where(r => r.Entry.StartDate > today).ToList(),
+            Done = rows.Where(r => r.Entry.EndDate < today && r.Entry.EndDate >= today.AddDays(-DoneDays)).OrderByDescending(r => r.Entry.StartDate).ToList(),
             LayerNames = await _db.Layers.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.DisplayName),
+            Selected = selected,
+            PlanningThread = planningThread,
+            LeadDays = _options.Campaigns.LeadDays,
+            MinDays = _options.Campaigns.MinDays,
+            MaxMiniDays = _options.Campaigns.MaxMiniDays,
+            CanReplan = selected is not null && selected.Entry.StartDate >= today.AddDays(_options.Campaigns.LeadDays),
+            Conversation = conversation is null ? Array.Empty<ChatMessage>()
+                : await _ai.ChatMessages.AsNoTracking().Where(m => m.Topic == topic && m.ConversationId == conversation).OrderBy(m => m.Id).ToListAsync(),
+            TurnRunning = _launcher.IsRunning && _launcher.Topic == topic,
+            OtherTurnRunning = _launcher.IsRunning && _launcher.Topic != topic,
+            Answering = _launcher.Answering,
         });
+    }
+
+    /// <summary>A message to Nova on this tab: about the campaign picked (a brief re-plans it), or about a new campaign. The turn
+    /// runs in the background, continuing that campaign's conversation; the page refreshes until the answer lands.</summary>
+    [HttpPost]
+    [Authorize(Roles = "Manager")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Talk(long? id, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return RedirectToAction(nameof(Index), new { id });
+        var topic = id is { } cid ? ChatTopics.Campaign(cid) : ChatTopics.NewCampaign;
+        var conversation = await _ai.ChatMessages.Where(m => m.Topic == topic).MaxAsync(m => (long?)m.ConversationId);
+        if (!_launcher.TryStart(conversation, text, Who, topic))
+            TempData["Error"] = "The agents are still answering another message (here, on another campaign or on the Chat tab): send this one when that answer lands.";
+        return RedirectToAction(nameof(Index), null, new { id }, "nova");
     }
 
     public async Task<IActionResult> Detail(long id)
@@ -122,7 +198,7 @@ public class CampaignsController : Controller
         });
         await _db.SaveChangesAsync();
         TempData["Message"] = $"{brief.Name}: stopped before going live; publish batch #{batch.Id} rolled back ({restored} rows restored).";
-        return RedirectToAction(nameof(Detail), new { id = brief.CalendarId ?? 0 });
+        return RedirectToAction(nameof(Index), new { id = brief.CalendarId });
     }
 
     private string Who => User.Identity?.Name ?? "unknown";

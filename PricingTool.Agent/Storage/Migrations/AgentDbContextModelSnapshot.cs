@@ -1234,9 +1234,15 @@ namespace PricingTool.Agent.Storage.Migrations
                         .HasMaxLength(8000)
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Topic")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConversationId");
+
+                    b.HasIndex("Topic");
 
                     b.ToTable("ChatMessage", "ai");
                 });

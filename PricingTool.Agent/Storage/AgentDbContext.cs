@@ -296,7 +296,9 @@ public class AgentDbContext : DbContext
             e.ToTable("ChatMessage");
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.ConversationId);
+            e.HasIndex(x => x.Topic);
             e.Property(x => x.From).HasMaxLength(20);
+            e.Property(x => x.Topic).HasMaxLength(40);
             e.Property(x => x.Author).HasMaxLength(256);
             e.Property(x => x.Text).HasMaxLength(8000);
         });

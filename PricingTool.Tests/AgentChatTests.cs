@@ -209,6 +209,85 @@ public class AgentChatTests : IDisposable
         Assert.Single(_planned);                                                                       // not planned
     }
 
+    private async Task<CampaignCalendarEntry> BlackFridayAsync(DateOnly start)
+    {
+        var entry = new CampaignCalendarEntry { LayerId = 1, Name = "Black Friday 2026", Type = "main", StartDate = start, EndDate = start.AddDays(3),
+            Status = CampaignStatus.Planned, GoalType = "gross-profit", GoalValue = 57456m, GoalSetBy = "user, 2026-10-30", CreatedBy = "test", CreatedUtc = Now };
+        _db.CampaignCalendar.Add(entry);
+        await _db.SaveChangesAsync();
+        var brief = new CampaignBrief { PassId = 1, LayerId = 1, CalendarId = entry.Id, Name = entry.Name, Kind = "calendar", GoalType = "gross-profit", GoalValue = 57456m,
+            StartDate = entry.StartDate, EndDate = entry.EndDate, Status = BriefStatus.Planned, Exclusions = "[]", Rationale = "Same as Për ty.", CreatedUtc = Now };
+        _db.CampaignBriefs.Add(brief);
+        await _db.SaveChangesAsync();
+        var plan = new CampaignPlan { BriefId = brief.Id, LayerId = 1, Strategy = "visible", Status = PlanStatus.Held, GoalVerdict = GoalVerdicts.NotReachable,
+            ExpectedGrossProfit = 49828m, Feasibility = "57,456 EUR gross profit is not reachable on the arithmetic.", CreatedUtc = Now };
+        _db.CampaignPlans.Add(plan);
+        await _db.SaveChangesAsync();
+        _db.CampaignMessages.Add(new CampaignMessage { BriefId = brief.Id, PlanId = plan.Id, Round = 2, From = "Nova", Text = "Short of the goal: deeper discounts would cost margin.", CreatedUtc = Now });
+        await _db.SaveChangesAsync();
+        return entry;
+    }
+
+    [Fact]
+    public async Task On_the_campaigns_tab_Nova_sees_the_whole_campaign_and_a_brief_re_plans_that_campaign()
+    {
+        var entry = await BlackFridayAsync(new DateOnly(2026, 11, 27));
+        var reBrief = Brief("2026-11-27", "2026-11-30");
+        (reBrief["layer"], reBrief["name"], reBrief["scopeKind"], reBrief["scopeValue"], reBrief["goalValue"], reBrief["maxDepthPct"]) = (4, "Something else", "all", null, 50000m, 30m);
+        Says("I'll plan it again at 50k, deeper.", brief: reBrief);
+
+        var t = await Chat().AskAsync(null, "Lower the goal to 50k and go deeper", "manager@test", topic: ChatTopics.Campaign(entry.Id));
+
+        Assert.Contains($"The campaign under discussion (the person is looking at it on the Campaigns tab): #{entry.Id} Black Friday 2026", _prompts[0]);
+        Assert.Contains("held (not-reachable)", _prompts[0]);
+        Assert.Contains("[Nova, round 2, plan #", _prompts[0]);                                       // the planning thread
+        Assert.Contains("re-plans THIS campaign", _prompts[0]);
+        var brief = await _db.CampaignBriefs.OrderBy(b => b.Id).LastAsync();
+        Assert.Equal((entry.Id, "calendar", 1, "Black Friday 2026"), (brief.CalendarId!.Value, brief.Kind, brief.LayerId, brief.Name));  // the campaign's own, whatever Nova wrote
+        Assert.Equal((25m, "max-depth"), (brief.MaxDepthPct, brief.Limit));                           // 30 % capped
+        Assert.Equal(new[] { brief.Id }, _planned);
+        Assert.Single(await _db.CampaignCalendar.ToListAsync());                                      // no new campaign
+        var e = await _db.CampaignCalendar.SingleAsync();
+        Assert.Equal((50000m, "manager@test on the Campaigns tab (conversation 1)"), (e.GoalValue!.Value, e.GoalSetBy));
+        Assert.Contains("set by manager@test in this conversation (binding)", t.Added[2].Text);
+        Assert.Contains("it replaces the earlier publish", t.Added[3].Text);
+        Assert.All(await _db.ChatMessages.ToListAsync(), m => Assert.Equal(ChatTopics.Campaign(entry.Id), m.Topic));
+    }
+
+    [Fact]
+    public async Task A_campaign_that_starts_within_the_lead_time_is_explained_but_not_re_planned()
+    {
+        var entry = await BlackFridayAsync(new DateOnly(2026, 11, 3));
+        Says("Planning it again.", brief: Brief("2026-11-03", "2026-11-06"));
+
+        var t = await Chat().AskAsync(null, "Go deeper", "manager@test", topic: ChatTopics.Campaign(entry.Id));
+
+        Assert.Contains("code no longer re-plans it", _prompts[0]);
+        Assert.Contains("rejected (lead-time)", t.Added[^1].Text);
+        Assert.Contains("Nothing was re-planned", t.Added[^1].Text);
+        Assert.Empty(_planned);
+        Assert.Equal(57456m, (await _db.CampaignCalendar.SingleAsync()).GoalValue);                  // the goal isn't touched
+    }
+
+    [Fact]
+    public async Task A_new_campaign_conversation_moves_to_the_campaign_it_creates_and_the_chat_tab_keeps_its_own()
+    {
+        Says("Noted.");
+        var chatTab = await Chat().AskAsync(null, "How was last week?", "manager@test");
+        Says("I'll brief a 3-day laptops campaign from 9 Nov.", brief: Brief("2026-11-09", "2026-11-11"));
+
+        var t = await Chat().AskAsync(null, "Plan a 3-day laptops campaign next week, 4k profit", "manager@test", topic: ChatTopics.NewCampaign);
+
+        Assert.Contains("planning a new campaign", _prompts[1]);
+        var entry = await _db.CampaignCalendar.SingleAsync();
+        Assert.NotEqual(chatTab.ConversationId, t.ConversationId);
+        Assert.All(await _db.ChatMessages.Where(m => m.ConversationId == t.ConversationId).ToListAsync(),
+            m => Assert.Equal(ChatTopics.Campaign(entry.Id), m.Topic));                               // the person's message too
+        Assert.Equal(entry.Id, ChatTopics.CalendarIdOf(t.Added[^1].Topic));
+        var posted = await Chat().PostAsync("Alpha", "Run report written.");
+        Assert.Equal((chatTab.ConversationId, (string?)null), (posted.ConversationId, posted.Topic)); // agents' own messages stay on the Chat tab
+    }
+
     [Fact]
     public async Task The_weekly_report_is_written_by_code_as_a_new_conversation()
     {
