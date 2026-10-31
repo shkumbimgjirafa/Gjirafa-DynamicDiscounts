@@ -427,6 +427,24 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public async Task A_strategy_that_was_not_computed_fails_the_planning_cleanly_and_publishes_nothing()
+    {
+        // A person's margin goal computes one plan (spend-to-margin); a choice of another strategy is an invalid answer.
+        var (planning, publisher, brief) = Setup();
+        var entry = await _db.CampaignCalendar.SingleAsync();
+        (entry.GoalType, entry.GoalValue, entry.GoalSetBy) = ("margin", 30m, "user in the chat");
+        (brief.GoalType, brief.GoalValue, brief.MinMarginPct, brief.MaxDepthPct) = ("margin", 30m, 5m, 60m);
+        await _db.SaveChangesAsync();
+        Says(new JsonObject { ["strategy"] = "max-gross-profit", ["explanation"] = "Most gross profit." });
+
+        var r = await planning.PlanAsync(brief.Id, publish: true);
+
+        Assert.Equal("Failed", r.Status);
+        Assert.Empty(r.Plans);
+        Assert.Empty(publisher.Calls);
+    }
+
+    [Fact]
     public async Task Cancelling_a_campaign_rolls_back_its_publish_and_closes_its_briefs_and_plans()
     {
         var (planning, publisher, brief) = Setup();

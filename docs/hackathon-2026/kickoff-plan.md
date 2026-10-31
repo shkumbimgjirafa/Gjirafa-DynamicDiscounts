@@ -17,7 +17,7 @@ were still headings only.
 |---|---|
 | No solution code before Fri 16:30; existing code allowed if declared | A **new repo, created at kickoff** in its own folder (section 5, "Repo setup"). Its history starts on Friday: the declared calculator comes in as one labelled import commit, and every commit after it is hackathon work. The existing calculator is declared (section 2). |
 | AI must do part of the work itself; "an ordinary app written with AI does not count" | The AI must **decide** things (floors, targets, pass/hold on prices), not only explain them. |
-| No live systems touched; data from the warehouse or company exports; say where each file comes from | Nothing connects to prod DBs or the NOP replica during the build. All data comes from labelled exports or the warehouse, loaded into a separate LocalDB. The discount publisher writes only to a local sandbox copy of the shop's discount tables; going live with it is the pilot, after the event. |
+| No live systems touched; data from the warehouse or company exports; say where each file comes from | Nothing writes to a prod DB or the NOP replica. *(Kickoff ruling, 30 Oct: we may read the replica with our own read-only connection; section 3.)* All data comes from labelled exports or the warehouse, loaded into a separate LocalDB. The discount publisher writes only to a local sandbox copy of the shop's discount tables; going live with it is the pilot, after the event. |
 | No customer personal data, no per-employee data | Sales lines carry SKU, date, qty, net and cost only. No order ids, emails, names or addresses. |
 | Show what is mocked or not yet working | A visible banner shows the data source and date, and every injected test case is labelled. |
 | No passwords or keys in code, slides or screenshots | The API key and warehouse credentials live in env vars or user-secrets. The new repo has no `k8s/` and no `.env` at all. Never screen-share the main repo's `k8s/*.yaml` or `.env`. |
@@ -699,8 +699,9 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
      (a few items, each with Alpha's note on who should act).
 3. **(60s) Nova and Alpha plan a campaign: the Campaigns tab.** Hand a juror the keyboard, no campaign picked: "Plan a
    3-day laptops campaign next week on Gjirafa50, €4k profit".
-   - Nova writes the brief; code checks it against the limits; Alpha plans it; Nova reviews; an accepted plan is
-     published to the sandbox, time-boxed, with its holdout. It appears on the calendar.
+   - Nova writes the brief; code checks it against the limits; Alpha plans it; Nova reviews. A goal the juror sets is
+     binding: a plan that reaches it is published to the sandbox, time-boxed, with its holdout; a plan short of it is held
+     for a person, and the card says why. Either way it appears on the calendar.
    - Open it: the card says where it stands (expected SKUs, depth, gross profit and margin, estimated; the goal check)
      with Stop until it starts. Ask Nova about it ("why is it short of the goal?"): it answers from the campaign's record.
    - Close with the replay of October's Për ty (E11, E12 in the evidence file): the agents' plan vs the hand plan vs what

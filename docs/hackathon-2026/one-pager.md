@@ -42,8 +42,8 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 aren't calibrated yet (E10); the Monday email isn't built and the start-up task is disabled; setting a price on the
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim: €12,965 a month at full scope, 84 points** (year 1: net benefit
-€107,021, ROI 663%, payback 3.4 months).
+**Money (12 months). The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit
+€107,011, ROI 662%, payback 3.4 months).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
@@ -76,15 +76,15 @@ month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no
 orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
 fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
-€9,216 one-time (hackathon hours at €50, 160 hours to production including code review, the build
-sessions' AI usage of $570.89 API-equivalent, E18) and €6,927 running (AI
-€69 a month from the measured cost per call, E19; maintenance and review hours), €16,143 in all.
+€9,226 one-time (hackathon hours at €50, 160 hours to production including code review, the build
+sessions' AI usage of $580.80 API-equivalent, E18) and €6,927 running (AI
+€69 a month from the measured cost per call, E19; maintenance and review hours), €16,153 in all.
 
 | Year 1 | The claim |
 |---|---|
 | Extra gross profit a month at full scope | €12,965 |
-| Net benefit (9.5 full-benefit months − all costs) | €107,021 |
-| ROI | 663% |
+| Net benefit (9.5 full-benefit months − all costs) | €107,011 |
+| ROI | 662% |
 | Payback (months) | 3.4 |
 | Track A score (/100; Evidence and Works are our own ratings) | 84 |
 

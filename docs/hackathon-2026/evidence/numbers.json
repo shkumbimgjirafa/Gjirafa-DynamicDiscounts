@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 18:40",
+    "generated":  "2026-10-31 18:53",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -429,8 +429,8 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  570.89,
-                                      "sinceKickoffResponses":  3316,
+                                      "sinceKickoffUsd":  580.8,
+                                      "sinceKickoffResponses":  3372,
                                       "unattendedBlocksUsd":  358.85,
                                       "unattendedBlocksResponses":  1765
                                   },
@@ -446,7 +446,7 @@
                         "value":  {
                                       "attendedHours":  3.9,
                                       "unattendedBlocks":  44,
-                                      "rows":  71
+                                      "rows":  73
                                   },
                         "unit":  "hours",
                         "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
@@ -458,12 +458,12 @@
                         "id":  "E17",
                         "name":  "Automated tests",
                         "value":  {
-                                      "passed":  1016,
+                                      "passed":  1017,
                                       "skipped":  1
                                   },
                         "unit":  "tests",
                         "label":  "measured",
-                        "method":  "dotnet test: 1016 passed, 1 skipped (the opt-in real headless call), 31 Oct 18:01",
+                        "method":  "dotnet test: 1017 passed, 1 skipped (the opt-in real headless call), 31 Oct 18:52",
                         "source":  "PricingTool.Tests",
                         "script":  "dotnet test PricingTool.sln"
                     },

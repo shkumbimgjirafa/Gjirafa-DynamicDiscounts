@@ -143,7 +143,7 @@ reproduction test fails by one point (expected margin {per_ty['expectedMarginPct
 aren't calibrated yet (E10); the Monday email isn't built and the start-up task is disabled; setting a price on the
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim: {eur(claim['month'])} a month at full scope, {score:.0f} points** (year 1: net benefit
+**Money (12 months). The claim: {eur(claim['month'])} a month at full scope, {score:.0f} points** (Evidence and Works are our own ratings; year 1: net benefit
 {eur(claim['net'])}, ROI {claim['roi']:.0%}, payback {claim['payback']:.1f} months).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = {eur(e20['mid'])} a month (GjirafaMall

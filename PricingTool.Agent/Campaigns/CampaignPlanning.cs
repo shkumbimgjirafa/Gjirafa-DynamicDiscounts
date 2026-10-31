@@ -446,7 +446,8 @@ public sealed class CampaignPlanning
             MaxBudgetUsd = _options.MaxBudgetUsdPerCall,
         }, ct);
         var a = call.Succeeded ? call.Deserialize<ChoiceDto>() : null;
-        return a is null || !CampaignPlanner.Strategies.Contains(a.Strategy) ? null
+        // Only a plan computed this round can be chosen: a person's margin goal computes one (spend-to-margin), not all four.
+        return a is null || !results.Any(r => r.Strategy == a.Strategy) ? null
             : (a.Strategy, a.Explanation, call.CallLogIds.Count > 0 ? call.CallLogIds[^1] : null);
     }
 
