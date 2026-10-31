@@ -106,12 +106,10 @@ put(ws, "A2", f"Built {built} by docs/hackathon-2026/financial/build_financial_s
               "judgment); every cell below is a formula.", NOTE, wrap=True)
 ws.merge_cells("A2:G2")
 ws.row_dimensions[2].height = 40
-put(ws, "A3", "The claim: the automated system's next 12 months at the calculator's measured rate (B0 = E20 mid, "
-              "measured before and after each approval; robustness checks: E20, E27) plus the levers this build adds (central "
-              "case), with the holdout categories' share left out. It claims no past euro: the registration said the calculator's "
-              "Aug–Sep result is not claimed, and the claim uses it as the rate. Payback is computed from the ramp on Inputs rows "
-              "15–18 (built in month 1, then the pilot), not tuned. B0's robustness checks are on Inputs and the Evidence sheet, "
-              "labelled.",
+put(ws, "A3", "The claim: the automated system's next 12 months: the price engine's measured gain (B0, E27: repriced vs "
+              "untouched products in the calculator's Aug–Sep test) plus what the AI agents' controlled pricing logic adds (the "
+              "levers, central case), with the holdout categories' share left out. The past months are not claimed; Aug–Sep is the "
+              "evidence for the rate. Payback is computed from the ramp on Inputs rows 15–18 (built in month 1, then the pilot).",
     NOTE, wrap=True)
 put(ws, "A4", '="The claim: "&TEXT(B6,"€#,##0")&" a month at full scope; year 1: net benefit "&TEXT(B7,"€#,##0")'
               '&", ROI "&TEXT(B10,"0%")&", payback "&TEXT(B13,"0.0")&" months, "&TEXT(B20,"0")&"/100"', BOLD)
@@ -282,41 +280,23 @@ put(wi, f"F{R['holdout']}", "The agents never change the holdout categories, so 
                             "changed prices in them in the 31 Oct exports (Gj50 6,759 of 51,391; Mall 16,874 of 169,081); "
                             "the backtest itself doesn't leave them out", NOTE)
 
-header(wi, R["b0Head"], ["B0, the calculator's measured rate (the claim uses Mid; Low and High are checks)", "Value", "Unit", "Label", "Source / note", "", "ID"])
-b0 = [
-    ("b0Low", "Same-weeks control (changed vs unchanged products): a robustness check of B0", "low",
-     "One run per KS layer: GjirafaMall's of 3 Sep vs the products it kept (€3,263) + Gjirafa50's of 21 Jul vs products "
-     "not in it (€1,139; it changed every product it held). With Mall's other control (not in the approval) €5.2k. A test "
-     "phase with a control, not a randomized test. Recomputed here: evidence/e20-test-phase.sql"),
-    ("b0Mid", "Before/after on the approvals, KS, Aug–Sep average: B0 in the claim", "mid",
-     "Aug €11,068 · Sep €9,749 (Approvals' 30-day profit windows, SKU-deduped, booked COGS; 27 Oct in the main repo: "
-     "€11,184 · €10,079, before late cancellations). Not controlled. Recomputed here: evidence/e20-test-phase.sql"),
-    ("b0High", "Same, season-adjusted with 2025's same weeks: sensitivity (quoted; not part of the claim)", "high",
-     "Aug €11.9k · Sep €13.8k. Not controlled; layer-level GP growth did not beat 2025's seasonality, so this is the top "
-     "of the range. Quoted from the main repo (the 2025 adjustment isn't recomputed here)"),
-]
-for key, lab, case, src in b0:
-    r = R[key]
-    put(wi, f"A{r}", lab)
-    put(wi, f"B{r}", v("E20", case), BLUE, EUR).border = BOX
-    put(wi, f"C{r}", "€/month")
-    put(wi, f"D{r}", label("E20", case))
-    put(wi, f"E{r}", src, NOTE)
-    put(wi, f"G{r}", "E20", BOLD)
-header(wi, R["b0UsedHead"], ["B0 used in the claim", "", "Mid (the claim)", "", "Label", "Why"])
+header(wi, R["b0Head"], ["B0, the price engine's measured gain", "Value", "Unit", "Label", "Source / note", "", "ID"])
+put(wi, f"A{R['b0Mid']}", "The calculator's Aug–Sep test: repriced products vs untouched products in the same shop, category and weeks")
+put(wi, f"B{R['b0Mid']}", v("E27", "total")["vsUntouchedWithSalesHistory"], BLUE, EUR).border = BOX
+put(wi, f"C{R['b0Mid']}", "€/month")
+put(wi, f"D{R['b0Mid']}", "measured")
+put(wi, f"E{R['b0Mid']}", "Booked sales lines and booked COGS, products with a sales history, campaign days out; a placebo before the "
+                          "calculator's first approval shows no such lift (E29). evidence/e20-aug-sep-comparison.sql", NOTE)
+put(wi, f"G{R['b0Mid']}", "E27", BOLD)
+header(wi, R["b0UsedHead"], ["B0 used in the claim", "", "€/month", "", "Label", ""])
 put(wi, f"A{R['b0Used']}", "B0 (€/month)", BOLD)
 c = put(wi, f"C{R['b0Used']}", f"=B{R['b0Mid']}", BLACK, EUR)
 c.border = BOX
 c.fill = TOTAL
 put(wi, f"E{R['b0Used']}", "formula")
-put(wi, f"F{R['b0Used']}", "The before/after result, B0 in the claim; the same-weeks control and the season-adjusted result above are "
-                          "checks, not used", NOTE)
-# The without-the-build line: an assumption, with the measured facts beside it (E28).
-put(wi, f"A{R['withoutBuild']}", "The August–October runs were a test, run by hand by one person: without the build, the test ends", BOLD)
+put(wi, f"A{R['withoutBuild']}", "The engine was a test, run by hand; the build makes it permanent and automatic", BOLD)
 put(wi, f"B{R['withoutBuild']}", "yes", BLUE, None, YELLOW).border = BOX
 put(wi, f"D{R['withoutBuild']}", "stated by the user, who ran it")
-put(wi, f"E{R['withoutBuild']}", "Facts (E28, measured): " + FIG["E28"]["method"], NOTE)
-put(wi, f"G{R['withoutBuild']}", "E28", BOLD)
 
 header(wi, R["judgeHead"], ["Judgment ratings (one per row; they don't depend on the money case)", "Rating", "", "", "Label", "Why"])
 judgments = [
@@ -408,8 +388,8 @@ wsb = wb.create_sheet("Benefit by source")
 put(wsb, "A1", "Where the claim's benefit comes from (€ a month at full scope)", TITLE)
 header(wsb, 3, ["Line", "€ a month", "Label", "Source", "ID"])
 src = [
-    ("The stream the build makes permanent: B0, the calculator's measured rate", f"=Inputs!C{R['b0Used']}",
-     "rate measured; 'the test ends without the build' stated by the user, who ran it", "E20 mid (GjirafaMall + Gjirafa50, Aug–Sep average); Inputs row " + str(R['withoutBuild']), "E20, E28"),
+    ("The price engine, measured against untouched products (B0)", f"=Inputs!C{R['b0Used']}",
+     "measured", "The calculator's Aug–Sep test, products with a sales history; placebo E29", "E27"),
     ("Recovered leakage: raises that reach the shelf (lever 8)", f"=Inputs!C{LEVROW['E24']}", "estimated", FIG["E24"]["name"], "E24"),
     ("Cadence: prices daily, not on a few manual dates (lever 5)", f"=Inputs!C{LEVROW['E5']}", "estimated", FIG["E5"]["name"], "E5"),
     ("The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7)",
@@ -525,31 +505,6 @@ for i, f in enumerate(order):
     for j, val in enumerate([f["id"], f["name"], text(f["value"]), f["unit"], text(f["label"]), f["method"], f["source"], f["script"]]):
         c = put(we, f"{'ABCDEFGH'[j]}{r}", val, NOTE if j in (5, 6, 7) else BOLD if j == 0 else BLACK, None, None, wrap=True)
         c.border = BOX
-r0 = 4 + len(order) + 2
-put(we, f"A{r0}", "Measured before the hackathon in the main repo, as first measured (E20 and E21 above recompute the test phase's low and mid cases and the below-floor loss from this repo's data)", BOLD)
-header(we, r0 + 1, ["", "Fact", "Value", "", "Label", "Method / source", "Measured on"])
-facts = [
-    ("Test phase (calculator v0.5), before/after on approvals, KS", "Aug €11,184 · Sep €10,079", "measured, not controlled",
-     "PricingTool.Approvals 30-day profit windows, SKU-deduped, booked COGS (sales lines)", "2026-10-27"),
-    ("Same, seasonally adjusted with 2025's same windows", "Aug €11.9k · Sep €13.8k · ≈ €13k/month", "estimated, not controlled",
-     "Each approval's 'before' scaled by 2025 GP/day over the same calendar windows; Aug gain carried into Sep", "2026-10-27"),
-    ("Same-weeks control: changed vs unchanged products, Sep run (GjirafaMall KS)", "+€115–141/day ≈ €3.5–4.3k/month", "measured",
-     "Approval items up/down/kept × daily GP, 30 days before vs after; price-up margin 18.4% → 24.5%", "2026-10-27"),
-    ("Same-weeks control, Aug run", "no clean result", "measured",
-     "Units rose 285% after price rises; 86–97% of changed groups' after-GP from SKUs that didn't sell before", "2026-10-27"),
-    ("Year-over-year margin, Kosovo (Mall + Gj50)", "+4–5 pp vs 2025 since the tool; +1–4 pp before", "measured",
-     "Sales lines monthly, tool scope (Aug 15.8% vs 11.7%; Sep 15.2% vs 10.2%). Superseded 31 Oct by E25: Nov 2025–Feb 2026 "
-     "ran +8.6 pp with no calculator, so this is not evidence for B0", "2026-10-27"),
-    ("Profit forgone below the margin floor", "Jun €24.4k · Jul €15.1k", "measured",
-     "Sales lines vs per-band floors, booked COGS; reconciled with the Power BI model. Wider scope than E21 (Apple, "
-     "Starlink in); E21 on tool scope gives Jun €12.8k · Jul €10.9k on normal days. Not one leak: in Aug–Sep €14.7k a "
-     "month, of which €3.0k is allowed or not a price (dead stock, vouchers), €4.2k GjirafaMall SKUs priced by Gjirafa50, "
-     "and the rest in the lanes of levers 1, 3 and 5 (E21 by cause)", "2026-07-31"),
-]
-for i, row in enumerate(facts):
-    r = r0 + 2 + i
-    for j, val in zip("BCEFG", row):
-        put(we, f"{j}{r}", val, NOTE if j == "F" else BLACK, None, None, wrap=True).border = BOX
 for col, w in zip("ABCDEFGH", (6, 40, 34, 14, 22, 60, 34, 34)):
     we.column_dimensions[col].width = w
 

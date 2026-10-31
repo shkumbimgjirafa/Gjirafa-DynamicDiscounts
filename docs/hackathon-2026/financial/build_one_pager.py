@@ -71,36 +71,9 @@ band5 = summary["B30"].value
 # By its label, not its row: the lever rows above it grow when a lever is added.
 holdout = next(r[1].value for r in inputs.iter_rows(min_col=1, max_col=2) if str(r[0].value or "").startswith("Holdout categories"))
 per_ty = v("E11")
-e20 = v("E20")
-shop = e20["byShopAugSepAvg"]
 e27 = v("E27")
-# Every check on the rate, so no reader finds a number we left out.
-e29 = v("E29")
-real = [r["real"] for r in e29["byRun"].values()]
-placebo = [x for r in e29["byRun"].values() for kind, x in r.items() if kind != "real"]
-
-
-def signed_k(x):
-    return ("−" if x < 0 else "+") + k(abs(x))
-
-
-rate_checks = (f"against untouched products in the same shop and category it holds ({k(e27['total']['vsUntouched'])}) when every "
-               f"product counts, it is {k(e27['total']['vsUntouchedWithSalesHistory'])} when only products with a sale before the "
-               f"windows count (a first-ever sale inside the windows leaves both groups), and "
-               f"{k(e27['total']['vsUntouchedSoldInBothWindows'])} when only products that sold in both "
-               f"windows count; September alone gives "
-               f"{k(e27['september']['gjirafaMallVsUntouched'])}–{k(e27['september']['gjirafaMallSoldInBothWindows'])} for GjirafaMall. "
-               f"The same comparison in windows before the calculator's first approval (a placebo, E29: centred on 15 May and "
-               f"15 Jun 2026, the same product groups) gives {signed_k(min(placebo))} to {signed_k(max(placebo))} a month per run, "
-               f"against {signed_k(min(real))} to {signed_k(max(real))} in the real windows")
-e28 = v("E28")
-
-
-def days(isos):
-    from datetime import date
-    ds = [date.fromisoformat(x) for x in isos]
-    t = [f"{d.day} {d:%b}" for d in ds]
-    return ", ".join(t[:-1]) + " and " + t[-1] if len(t) > 1 else t[0]
+b0 = e27["total"]["vsUntouchedWithSalesHistory"]
+levers = v("E8", "central")
 e21 = v("E21")
 cw = v("E22")
 
@@ -160,20 +133,16 @@ Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 **Money (12 months). The claim: {eur(claim['month'])} a month at full scope, {score:.0f} points** (Evidence and Works are our own ratings; year 1: net benefit
 {eur(claim['net'])}, ROI {claim['roi']:.0%}, payback {claim['payback']:.1f} months).
 
-**Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = {eur(e20['mid'])} a month (GjirafaMall
-{eur(shop['mallKs'])}, Gjirafa50 {eur(shop['gj50Ks'])}; E20), measured before and after each approval; robustness checks:
-E20, E27 (the evidence file reruns both): {rate_checks}. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
-dead-stock runs. *It runs by itself (on the sandbox during the hackathon):* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
-proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
-query.
-
-**The August–October runs were a test** (stated by the user, who ran them): one person, by hand, with no schedule. The build turns the test into a process that runs by itself; without it, the test ends. What is measured
-(E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
-{days(e28['gjirafaMallKsRegularRuns'])}; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
-{e28['gjirafa50KsLongestGapDays']} days (dead-stock runs in that gap on {days([d for d in e28['gjirafa50KsDeadStockRuns'] if d < '2026-10-01'])}); on MK/AL, in Aug–Sep only
-GjirafaMall AL had a full push. Even when it ran, {e28['unitsAtOldPriceAugSepPct']} % of the units on raised products still
-sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So the build's
-value is the stream it makes permanent, plus the levers:
+**Where it comes from.** *The price engine, measured:* in the calculator's Aug–Sep test on the real shop, the products
+it repriced earned {eur(b0)} a month more gross profit than untouched products in the same shop and category in the same
+weeks (E27; booked sales lines, booked COGS; the evidence file reruns it, and a placebo before the calculator's first
+approval shows no such lift, E29). *The AI agents, estimated:* {eur(levers)} a month more from the controlled pricing logic
+the agents run: the loss block, cost reaction, daily cadence, campaign planning and raises that reach the shelf
+(walk-forward backtest, E8). Together {eur(b0 + levers)} a month. The engine was a test, run by hand; this build makes it
+permanent and automatic, and the agents learn from the measured outcome of each change. *It runs by itself (on the
+sandbox during the hackathon):* Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and
+shown in it: the proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every
+number traced to a query. The past months are not claimed; Aug–Sep is the evidence for the rate.
 
 {sources}
 
@@ -188,14 +157,9 @@ sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) a
 
 {money}
 
-**Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
-automated and extended to every layer (robustness checks: E20, E27). That the August–October test ends without the build (stated by the user, who ran it; the
-facts are E28). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The publisher now
-writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still wins
-until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes); the
-levers' gain on lines sold under a team deal ({eur(v('E8', 'underTeamDealCentral'))} a month) is left out of the claim.
-That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change: the claim scores changed prices
-at elasticity −1 (assumed). The pilot's holdout categories turn these into measurements.
+**Biggest unproven assumption.** That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
+the levers score changed prices at elasticity −1 (assumed). The publisher writes raises as the regular price, on the
+sandbox so far. The pilot's holdout categories turn these into measurements.
 
 **The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,

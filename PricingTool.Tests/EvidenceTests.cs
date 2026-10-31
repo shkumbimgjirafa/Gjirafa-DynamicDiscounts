@@ -63,21 +63,19 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
         string Eur(decimal x) => "€" + Math.Round(x).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
         decimal Num(string s) => decimal.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
 
-        // The evidence keeps every check: E20 low and high (labelled, never "scenario"), E27, and the split by shop adds up to B0.
-        Assert.StartsWith("robustness check", e20.Label.GetProperty("low").GetString());
-        Assert.Contains("not part of the claim", e20.Label.GetProperty("high").GetString());
+        // The evidence keeps every measurement: E20 (before/after, its split by shop adds up) and all of E27's columns.
         Assert.InRange(mall + gj50 - b0[1], -1m, 1m);
         var e27 = figures.Single(f => f.Id == "E27");
-        Assert.StartsWith("robustness check", e27.Label.GetString());
+        Assert.Equal("measured", e27.Label.GetString());
         Assert.Equal(4, e27.Value.GetProperty("total").EnumerateObject().Count());                  // all four columns, the €2.7k one too
+        var claimB0 = e27.Value.GetProperty("total").GetProperty("vsUntouchedWithSalesHistory").GetDecimal();   // B0 in the claim
         Assert.NotNull(e27.Recompute);                                                              // rerun live on the Evidence page
         Assert.All(figures, f => Assert.DoesNotContain("scenario", f.Label.ToString(), StringComparison.OrdinalIgnoreCase));
 
         var sheet = Path.Combine(dir, "..", "Financial sheet.xlsx");
         var inputs = SheetValues(sheet, "Inputs");
-        var b0Rows = new[] { "Same-weeks control", "Before/after on the approvals", "Same, season-adjusted" }
-            .Select(label => Num(inputs["B" + inputs.Single(c => c.Key.StartsWith('A') && c.Value.StartsWith(label, StringComparison.Ordinal)).Key[1..]])).ToArray();
-        Assert.Equal(b0, b0Rows);                                                                   // the sheet types E20 in
+        var b0Row = inputs.Single(c => c.Key.StartsWith('A') && c.Value.StartsWith("The calculator's Aug–Sep test", StringComparison.Ordinal)).Key[1..];
+        Assert.Equal(claimB0, Num(inputs["B" + b0Row]));                                            // the sheet types E27 in
         var caseSheet = SheetValues(sheet, "Financial case");
         Assert.Equal("The claim", caseSheet["B3"]);                                                 // one model column: the claim
         Assert.All(new[] { "D3", "E3", "F3", "G3" }, c => Assert.False(caseSheet.ContainsKey(c)));
@@ -85,18 +83,17 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
         var (claim, score) = (Num(summary["B6"]), Num(summary["B20"]));
         Assert.Equal(Num(caseSheet["B4"]), claim);
         var bySource = SheetValues(sheet, "Benefit by source");
-        Assert.Equal(b0[1], Num(bySource["B4"]));
+        Assert.Equal(claimB0, Num(bySource["B4"]));
         Assert.Equal(Math.Round(claim, 2), Math.Round(Num(bySource["B11"]), 2));
 
         var onePager = File.ReadAllText(Path.Combine(dir, "..", "one-pager.md"));
         var hackathon = File.ReadAllText(Path.Combine(dir, "..", "..", "..", "HACKATHON.md"));
         foreach (var doc in new[] { onePager, hackathon })
         {
-            // One claim with its score, B0 and B0 by shop; no alternative total, no other B0, no second framing.
-            foreach (var x in new[] { claim, b0[1], mall, gj50 }) Assert.Contains(Eur(x), doc);
+            // One claim with its score and its B0; no other B0, no alternative total, no second framing.
+            foreach (var x in new[] { claim, claimB0 }) Assert.Contains(Eur(x), doc);
             Assert.Contains($"{score:0} points", doc);
-            Assert.Contains("robustness checks: E20, E27", doc);
-            foreach (var x in new[] { b0[0], b0[2] }) Assert.DoesNotContain(Eur(x), doc);
+            foreach (var x in b0) Assert.DoesNotContain(Eur(x), doc);
             foreach (var word in new[] { "framing", "cross-check", "controlled measurement", "scenario", "levers alone", "levers only" })
                 Assert.DoesNotContain(word, doc, StringComparison.OrdinalIgnoreCase);
         }

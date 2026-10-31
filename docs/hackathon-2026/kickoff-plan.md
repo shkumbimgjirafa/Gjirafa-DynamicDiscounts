@@ -37,10 +37,8 @@ were still headings only.
 - Every person-hour costs €50, including our hackathon hours.
 - Hours saved are capacity, not money.
 - Label every input as measured, estimated or assumed, with its source. Finance strikes out any line it can't trace.
-- **The claim** (the financial sheet, section 8): the full system, told as test phase → rollout.
-  - The calculator (v0.5, Jul–Oct 2026) **was the test phase**: prices it calculated went live by hand on a few dates in Kosovo, and the effect was measured (E20: €10.4k a month, before and after each approval, booked sales lines). v2 is the **rollout** of the tested approach, automated, weekly and on every layer. Name the design honestly: "a test phase measured before/after against the same weeks of 2025 [and changed vs unchanged SKUs in the same weeks, if that comparison is run]". Never call it a randomized A/B test; there was no random control group, and a reviewer will check.
-  - *(31 Oct: the record shows four October approvals and pushes on MK/AL in some months, so "only in KS" no longer holds.)*
-  - Background: the calculator is an unsupported prototype that only earns when one person pushes prices by hand, irregularly and only in KS. Without v2 nothing secures that profit. v2 turns it into a system that runs and improves on its own every week, on every layer. So the benefit is everything the automated system earns in the next 12 months, forecast from the measured rate.
+- **The claim** (the financial sheet, section 8): the automated system's next 12 months: the price engine's measured
+  gain (the calculator's Aug–Sep test against untouched products) plus what the AI agents' controlled pricing logic adds.
 
 ## 2. What is declared (submitted in the registration form)
 
@@ -132,20 +130,7 @@ aspirational and the engine is rules plus statistics.
   solution on Monday"; Mergca checks every row daily against the solution's own usage, and inflated or
   invented numbers remove the entry. Time BEFORE is the one number we set, once per task type,
   measured honestly. See "Time-sheet log" in section 5.
-- The baseline: no official ruling yet. **Mergca (Mergim's AI), 31 Oct evening, labelled "my reading of the rules, not an
-  official ruling"** (Mergim's official ruling was requested the same evening, for every entry built on declared code):
-  - The baseline is what would happen in the next 12 months without the weekend build: "adopt the automated system vs.
-    don't adopt it".
-  - "Today's process carries on" is right only if someone will keep running it by hand; then only what the build adds on
-    top counts. The full measured rate for 12 months is right only if the manual run would stop without the build, which
-    needs a source (a one-line confirmation from the e-commerce owner); without it, it is assumed.
-  - The measured version: without the build = the tested rate × how often the manual engine was actually live ×
-    pass-through; the benefit = the automated system's 12 months minus that line, plus the new levers. (Our note: the gap
-    between the manual engine as it ran and the automated one is already counted by levers 5 (cadence) and 8 (raises
-    that reach the shelf, from E23's pass-through); MK/AL coverage (lever 4) is not in the claim. B0 was measured on the manual process as it ran.)
-  - Past months stay unclaimed, as the registration says; Aug–Sep is only evidence for the rate.
-  - The claim stays the full system's next 12 months (the user's decision, 31 Oct), with "the August–October test ends
-    without the build" stated by the user, who ran it; the e-commerce owner's line or Mergim's ruling would add a second source.
+- The baseline: the claim is the automated system's next 12 months (the user's decision, 31 Oct).
 
 **The 10% bar (announced Fri 30 Oct; separate from the prizes, decided Wed 2 Dec).** A permanent
 10% raise and the "AI Pioneer" title for everyone who clears it; solo = 10%; no cap on how many.
@@ -632,7 +617,7 @@ for 30 days on real data, on its own.
   - **the same-weeks control (changed vs unchanged products, run 2026-10-27):**
     - It confirms the margin effect: products priced up went from 18.4% to 24.5% margin in the September run, losing about 6 points more volume than unchanged products, with gross profit up about 9 points relative to them.
     - It does **not** cleanly confirm the €13k/month. The September run's controlled gain is ≈ €3.5–4.3k/month. The August run gives no clean result: units of raised products rose 285% after the rise, and most of its after-window profit came from products that didn't sell before.
-    - So present the test phase's profit effect as a **range** (≈ €4k to €13k/month), and pitch v2's randomized holdout as what turns it into a clean A/B. *(31 Oct: the headline is the before/after mid, €10.4k a month, by the user's decision; the controlled figure is a robustness check and €13k is not claimed.)*
+    - So present the test phase's profit effect as a **range** (≈ €4k to €13k/month), and pitch v2's randomized holdout as what turns it into a clean A/B. *(31 Oct: the claim uses the comparison against untouched products, E27.)*
   - Për ty Oct 2026, if measured: hand plan vs agents' plan vs actual
   - cross-dock below-cost loss, last 12 months (~€2.85k/month)
   - below-floor GP forgone (Jun €24.4k / Jul €15.1k, booked COGS)
@@ -729,10 +714,9 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - The evidence file, written before the demo: "Recomputed now: 49 of 49 checks match", every figure with its label
      (measured, estimated, assumed), method, sources and where it is used. If there is time, run the command again in the
      terminal while talking (about 40 s).
-   - The claim: €11,785 a month at full scope, 86 points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a
-     month: GjirafaMall €8,006, Gjirafa50 €2,403; measured before and after each approval; robustness checks E20, E27),
-     and it runs by itself on the sandbox (this build: Run week, shown in step 2). The August–October runs were a test
-     (stated by the user, who ran it): without the build, the test ends (the facts are E28).
+   - The claim: €9,283 a month at full scope, 76 points: the price engine's measured gain, €7,597 a month against
+     untouched products (E27), plus €2,833 from the agents' controlled pricing logic (estimated); it runs by itself on
+     the sandbox (Run week, step 2).
    - The financial sheet's Summary and its "Benefit by source". Don't cite the year-over-year margin (E25): it doesn't
      separate the calculator. Say what's estimated and what's measured.
 6. **(25s) Ask.** A 6–8 week pilot on KS:
@@ -759,11 +743,9 @@ Have the backup video and screenshots ready in case the network or Claude fails 
     - B1: floor/target agent, extra GP from the backtest (estimated) × months live in year 1 (assume live from month 2 → 11/12, and say so).
     - B2: run checker, bad-price losses avoided. Count it only if the replay shows a real € figure; otherwise list it as unquantified.
     - B3: campaign planning (lever 7), the replayed gain per campaign day × the campaign days in the next 12 months' calendar. Count only the margin, never campaign revenue.
-    - **One claim, one number (the user's decision, 31 Oct):** B0, the rollout of what the test phase (v0.5) measured, as
-      the automated system's forecast run-rate, plus levers 1–8 on top. It's labelled "forecast from measured history". B0
-      is E20 mid, measured before/after, €10.4k a month; the same-weeks control (E20 low) and E27 are robustness checks in
-      the evidence, and the season-adjusted €13k is not claimed. The sheet rates Evidence 3; at the build's costs the
-      net-benefit band-5 line is about €12.2k a month at full scope.
+    - **One claim (the user's decision, 31 Oct):** the price engine's measured gain, B0 = €7,597 a month (E27: repriced
+      vs untouched products in the calculator's Aug–Sep test; placebo E29), plus the levers the AI agents run (€2,833 a
+      month, estimated, E8).
     - **Consistent with the registration:** the declaration said the calculator's *measured past result* (Aug–Sep) is not claimed. The claim takes no past euro. It claims the **next 12 months** of an automated system and uses the past as evidence for the rate. Say this in one line in `HACKATHON.md` and the one-pager.
     - Hours saved are never counted (capacity only).
     - All benefit is on own-retail SKUs, so margin counts in full. No marketplace seller sales are included.

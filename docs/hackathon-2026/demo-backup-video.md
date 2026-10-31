@@ -14,6 +14,6 @@ below are a budget, not yet measured on this version.
 | 5 | 20 | Terminal: `cost-watch --inject 4 <sku> <cost> --test` and the line it prints: what the watch would do (a test run publishes nothing; not shown in the app) | A cost rise under the floor is raised to the floor within one watch, with the reason; on 31 Oct the real refresh's 293 moves were read within 1–9 minutes |
 | 6 | 15 | Chat tab: "Waiting for you" (only what the agents couldn't settle); Run tab: kill switch and autonomy; the audit log | Code enforces the limits; a person can stop everything and roll any publish back |
 | 7 | 15 | The evidence file: "45 of 45 checks match", one figure's label, method and sources | Every figure carries its label and source, and the measured ones rerun against the database, read-only |
-| 8 | 10 | The financial sheet's Summary (the claim: €11,785 a month, 86 points) and its "Benefit by source" | The test proved the engine (B0 €10,409 a month); the build makes it permanent and adds the levers; then the pilot ask |
+| 8 | 10 | The financial sheet's Summary (the claim: €9,283 a month, 76 points) and its "Benefit by source" | The test proved the engine (B0 €10,409 a month); the build makes it permanent and adds the levers; then the pilot ask |
 
 Keep the screenshots of steps 2, 3 and 5 as stills too.

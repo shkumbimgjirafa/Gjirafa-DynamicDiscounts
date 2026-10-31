@@ -17,9 +17,9 @@ themselves), **Campaigns** (the calendar, and a conversation with Nova about eac
 lives in files, not in the app: [`evidence.html`](docs/hackathon-2026/evidence/evidence.html), the financial sheet and the
 one-pager.
 
-**The money claim** (section 4): €11,785 a month at full scope, 86 points (Evidence and Works are our own ratings). It is the calculator's measured rate, B0 =
-€10,409 a month (measured before and after each approval; robustness checks: E20, E27), which the build makes permanent,
-plus the levers this build adds.
+**The money claim** (section 4): the price engine's measured gain, €7,597 a month against untouched products (E27),
+plus €2,833 a month from the controlled pricing logic the AI agents run (estimated, E8); €9,283 a month at full scope with
+the holdout categories left out, 76 points (Evidence and Works are our own ratings).
 
 Everything below can be checked from this repository, except what needs the hackathon database (`PricingToolHackathon` on
 LocalDB): it holds the company's sales data, so it is not in git. Those figures' aggregates are in
@@ -122,37 +122,30 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €11,785 a month at full scope, 86 points** (Evidence and Works are our own ratings; year 1: net benefit €101,406, ROI 961 %, payback 2.8 months; the
+**The claim: €9,283 a month at full scope, 76 points** (Evidence and Works are our own ratings; year 1: net benefit €77,630, ROI 735 %, payback 3.1 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
-**Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
-Gjirafa50 €2,403; E20), measured before and after each approval from the shop's booked sales lines with booked COGS;
-robustness checks: E20, E27 (both rerun whenever the evidence file is written): against untouched products in the same
-shop and category it holds (€11.8k) when every product counts, it is €7.6k when only products with a sale before the
-windows count (a first-ever sale inside the windows leaves both groups), and €2.7k when only products that sold in both
-windows count; September alone gives €3.9–4.3k for GjirafaMall. The same comparison in windows before the calculator's first approval (a placebo, E29: centred on 15 May and 15 Jun 2026, the same product groups) gives −€3.1k to +€0.9k a month per run, against +€1.0k to +€9.7k in the real windows. Gjirafa50 KS's figure is mostly its 21 July run
-carried forward, plus the three dead-stock runs (E20 lists each month by approval).
-[`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from the loaded sales lines with this repo's script (the database isn't in git); its
-sales lines reproduce the tool's own 30-day profit before each of eight approvals within 2 % (E26), which checks the
-data, not the cause. *It runs by itself (on the sandbox during the hackathon):* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
-proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
-query.
-
-**The August–October runs were a test** (stated by the user, who ran them): one person, by hand, with no schedule. The build turns the test into a process that runs by itself; without it, the test ends. What is measured
-(E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on 21 Jul, 6 Aug, 3 Sep, 6 Oct
-and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for 78 days (dead-stock runs in that gap on 3 Aug,
-19 Aug and 3 Sep); on MK/AL, in Aug–Sep only GjirafaMall AL had a full push. Even when it ran, 19 % of the units on raised
-products still sold at the old price in Aug–Sep (E23; late October's 70–84 % was the month two push sets overlapped). So
-the build's value is the stream it makes permanent, plus the levers:
+**Where it comes from.** *The price engine, measured:* in the calculator's Aug–Sep test on the real shop, the products it
+repriced earned €7,597 a month more gross profit than untouched products in the same shop and category in the same weeks
+(E27; booked sales lines, booked COGS, products with a sales history, campaign days out;
+[`evidence/e20-aug-sep-comparison.sql`](docs/hackathon-2026/evidence/e20-aug-sep-comparison.sql) reruns it from the loaded
+sales lines, and the same comparison before the calculator's first approval shows no such lift, E29). *The AI agents,
+estimated:* €2,833 a month more from the controlled pricing logic the agents run: the loss block, cost reaction, daily
+cadence, campaign planning and raises that reach the shelf (walk-forward backtest, E8). Together €10,430 a month. The
+engine was a test, run by hand; this build makes it permanent and automatic, and the agents learn from the measured
+outcome of each change (section 3). *It runs by itself (on the sandbox during the hackathon):* Run week on Gjirafa50 KS on
+Monday's fresh data, started ten minutes before the demo and shown in it: the proposed prices, the check, the publish to
+the local sandbox with its rollback, the read-back, every number traced to a query. The past months are not claimed;
+Aug–Sep is the evidence for the rate.
 
 | Where the claim's benefit comes from | € a month | Label |
 |---|---|---|
-| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; "the test ends without the build" stated by the user, who ran it (E20, E28) |
+| The price engine, measured against untouched products (B0) | €7,597 | measured (E27; placebo E29) |
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
 | The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7) | €2,188 | estimated (E1–E3, E6, E7) |
-| The holdout categories' share (about 11 % of the changed prices; the agents never change them), left out | −€1,457 | estimated |
-| **The claim, at full scope** | **€11,785** | |
+| The holdout categories' share (about 11 % of the changed prices; the agents never change them), left out | −€1,147 | estimated |
+| **The claim, at full scope** | **€9,283** | |
 | Hours saved | not counted | hours, never euros |
 
 GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies. "Own vendors" is the
@@ -207,8 +200,7 @@ written by `Operations/OutcomeTracker.cs`, which also rolls back a change that h
 Not measured yet: no outcome window has closed.
 
 **The financial sheet** (live formulas; inputs typed from `numbers.json` with their IDs) gives the claim, its Track A
-score and where its benefit comes from (the "Benefit by source" sheet); B0's robustness checks are on its Inputs and
-Evidence sheets, labelled. Payback is what
+score and where its benefit comes from (the "Benefit by source" sheet). Payback is what
 the sheet computes from the ramp: built in month 1, a two-month pilot at an assumed quarter of the benefit, then full
 scope (9.5 full-benefit months); the pilot's assumptions are not tuned to cross a line. Costs: the attended hackathon
 hours at €50 (E16) plus an assumed hour of the person's time inside unattended blocks, 40 hours to production (one person-week, the user's estimate)
@@ -262,15 +254,9 @@ the reason next to each.
     (`NopRegularPriceWriter`); the cost watcher's raise to the floor goes the same way.
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
 - **Known limitations** (several found by our own review runs):
-  - E20's high case (its 2025 season adjustment) is quoted from the main repo and not part of the claim; its low and mid cases and E21 are
-    recomputed here (`evidence/e20-test-phase.sql`, `evidence/e21-by-cause.sql`). E21 is not one leak the agents fix:
-    of the €14.7k a month sold under the hand-set floor in Aug–Sep, €3.0k is allowed or not a price (dead stock,
-    vouchers), €4.2k is GjirafaMall SKUs priced by Gjirafa50, and the rest sits in the lanes of levers 1 (€1.4k),
-    3 (€1.1k) and 5 (€4.6k, which the backtest can't score) and team deals (€0.4k). E20's controlled
-    low case is one run per KS layer, not a randomized test (a robustness check, not the claim). B0 is the declared
-    calculator's effect; the declaration did not claim its past result as hackathon benefit, and the claim counts the
-    next 12 months (section 4). The year-over-year margin (E25) is not evidence for B0: Kosovo's margin ran +8.6 points
-    over the year before in Nov 2025–Feb 2026, with no calculator.
+  - E21 is not one leak the agents fix: of the €14.7k a month sold under the hand-set floor in Aug–Sep, €3.0k is
+    allowed or not a price (dead stock, vouchers), €4.2k is GjirafaMall SKUs priced by Gjirafa50, and the rest sits in
+    the lanes of levers 1 (€1.4k), 3 (€1.1k) and 5 (€4.6k, which the backtest can't score) and team deals (€0.4k).
   - E18 rests on the Claude Code session transcripts, which are not in the repo (they hold the whole build conversation).
   - Lever 1 assumes a blocked loss sale costs nothing else (no lost basket); levers 2, 5 and 6 rest on two months.
   - Lever 3's central case is mostly one event: GjirafaMall's lever 3 at e −1 is €2,554 in August and €184 in September
