@@ -171,12 +171,11 @@ foreach ($case in 'low', 'mid', 'high') {
     $l4[$case] = Round0 (($g | Measure-Object -Property gain -Sum).Sum / $test.Count)
 }
 $effects = ($snap.coverageEffects | ForEach-Object { "$($_.case) $([math]::Round(100 * [decimal]$_.gainPerMonth / [decimal]$_.ksGpPerMonth, 1)) %" }) -join ', '
-Add 'E4' 'Lever 4, coverage MK/AL: extra GP a month on months without a push' $l4 'EUR/month' 'estimated' `
+Add 'E4' 'Lever 4, coverage MK/AL: extra GP a month on months without a push (not in the claim)' $l4 'EUR/month' 'estimated' `
     "The calculator's measured Kosovo gain as a share of Kosovo GP ($effects) x MK/AL tool-scope GP (hk.SalesLinesMkAl, EUR at the load day's shop rate) on months with no push of their own (hk.PushDatesMkAl); Aug-Sep average" `
     $snapRef 'PricingTool.AgentTools backtest-coverage'
-$totals.high += $l4.high; $totals.central += $l4.mid; $totals.low += $l4.low
-Add 'E8' 'All levers together, extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low; high = $totals.high; underTeamDealCentral = $teamMoved.central }) 'EUR/month' 'estimated' `
-    ("E1 + E2 + E3 + E4 (mid / low / high) + E5 + E6 + E7 + E24 (lever 8); each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5), for lever 4 by the calculator test-phase case and for lever 8 by month (high = October's pace). " +
+Add 'E8' 'The levers in the claim together (1-3, 5-8), extra GP a month' ([ordered]@{ central = $totals.central; low = $totals.low; high = $totals.high; underTeamDealCentral = $teamMoved.central }) 'EUR/month' 'estimated' `
+    ("E1 + E2 + E3 + E5 + E6 + E7 + E24 (lever 8); lever 4 (E4, MK/AL coverage) is not in the claim; each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5) and for lever 8 by month (high = October's pace). " +
      "The raise levers' gain on lines sold under a team deal, $($teamMoved.central) a month of their central $($teamMoved.before) ($([math]::Round(100.0 * $teamMoved.central / [math]::Max(1, $teamMoved.before), 0)) %), is in high only.") $snapRef 'this script'
 
 # --- The planner's calibration and the Për ty reproduction -----------------------------------------------------------

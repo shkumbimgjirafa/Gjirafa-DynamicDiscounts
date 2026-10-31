@@ -141,8 +141,8 @@ aspirational and the engine is rules plus statistics.
     needs a source (a one-line confirmation from the e-commerce owner); without it, it is assumed.
   - The measured version: without the build = the tested rate × how often the manual engine was actually live ×
     pass-through; the benefit = the automated system's 12 months minus that line, plus the new levers. (Our note: the gap
-    between the manual engine as it ran and the automated one is already counted by levers 5, cadence; 8, raises that
-    reach the shelf, from E23's pass-through; and 4, MK/AL coverage. B0 was measured on the manual process as it ran.)
+    between the manual engine as it ran and the automated one is already counted by levers 5 (cadence) and 8 (raises
+    that reach the shelf, from E23's pass-through); MK/AL coverage (lever 4) is not in the claim. B0 was measured on the manual process as it ran.)
   - Past months stay unclaimed, as the registration says; Aug–Sep is only evidence for the rate.
   - The claim stays the full system's next 12 months (the user's decision, 31 Oct), with "the August–October test ends
     without the build" stated by the user, who ran it; the e-commerce owner's line or Mergim's ruling would add a second source.
@@ -729,7 +729,7 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - The evidence file, written before the demo: "Recomputed now: 49 of 49 checks match", every figure with its label
      (measured, estimated, assumed), method, sources and where it is used. If there is time, run the command again in the
      terminal while talking (about 40 s).
-   - The claim: €12,965 a month at full scope, 86 points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a
+   - The claim: €11,785 a month at full scope, 86 points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a
      month: GjirafaMall €8,006, Gjirafa50 €2,403; measured before and after each approval; robustness checks E20, E27),
      and it runs by itself on the sandbox (this build: Run week, shown in step 2). The August–October runs were a test
      (stated by the user, who ran it): without the build, the test ends (the facts are E28).

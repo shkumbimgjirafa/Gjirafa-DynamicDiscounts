@@ -83,7 +83,7 @@ def header(ws, row, labels, start_col=1):
 # Rows of the Inputs sheet, by name: every formula elsewhere refers to them through this map.
 R = dict(rate=5, hours=6, person=7, build=8, training=9, setup=10, ai=11, servers=12, maint=13, review=14,
          first=15, pilot=16, share=17, months=18, buildAi=19, fx=20,
-         levHead=22, base=23, catch=24, lev1=25, lev8=32, levSum=33, levCheck=34, holdout=35,
+         levHead=22, base=23, catch=24, lev1=25, lev8=31, levSum=33, levCheck=34, holdout=35,
          b0Head=36, b0Low=37, b0Mid=38, b0High=39, b0UsedHead=41, b0Used=42,
          withoutBuild=43, judgeHead=44, evB=46, works=47,
          aiHead=49, aiFirst=50, aiLast=54, aiSum=55)
@@ -246,23 +246,19 @@ put(wi, f"E{R['catch']}", "formula")
 put(wi, f"F{R['catch']}", "Lever 1 ÷ baseline: many losses come with a cost that jumped at that sale, which a known-cost rule can't see. "
                           "Lever 1 assumes a blocked loss sale costs nothing else (no lost basket)", NOTE)
 cases = {"B": "low", "C": "central", "D": "high"}
-lev = [("E1", "1. Loss-sale block"), ("E2", "2. Per-category floors"), ("E3", "3. Cost reaction"), ("E4", "4. MK/AL coverage"),
+lev = [("E1", "1. Loss-sale block"), ("E2", "2. Per-category floors"), ("E3", "3. Cost reaction"),
        ("E5", "5. Daily cadence"), ("E6", "6. Learning from past changes (as built)"), ("E7", "7. Campaign planning (campaign + pricing agents)"),
        ("E24", "8. Raises reach the shelf (the publisher)")]
+LEVROW = {fid: R["lev1"] + i for i, (fid, _) in enumerate(lev)}       # lever 4 (MK/AL coverage) is not in the claim
 for i, (fid, lab) in enumerate(lev):
     r = R["lev1"] + i
     put(wi, f"A{r}", lab)
     for col, case in cases.items():
-        key = "mid" if fid == "E4" and case == "central" else case
-        put(wi, f"{col}{r}", v(fid, key), BLUE, EUR).border = BOX
+        put(wi, f"{col}{r}", v(fid, case), BLUE, EUR).border = BOX
     put(wi, f"E{r}", label(fid))
-    note = FIG[fid]["method"]
-    if fid == "E4":
-        note = ("Uses the test phase's rate (E20: low controlled; mid and high before/after, not controlled) on MK/AL months "
-                "without a push. " + note)
-    put(wi, f"F{r}", note, NOTE)
+    put(wi, f"F{r}", FIG[fid]["method"], NOTE)
     put(wi, f"G{r}", fid, BOLD)
-put(wi, f"A{R['levSum']}", "The levers this build adds (sum of levers 1–8)", BOLD)
+put(wi, f"A{R['levSum']}", "The levers this build adds (levers 1–3 and 5–8)", BOLD)
 for col in "BCD":
     c = put(wi, f"{col}{R['levSum']}", f"=SUM({col}{R['lev1']}:{col}{R['lev8']})", BLACK, EUR)
     c.border = BOX
@@ -414,12 +410,10 @@ header(wsb, 3, ["Line", "€ a month", "Label", "Source", "ID"])
 src = [
     ("The stream the build makes permanent: B0, the calculator's measured rate", f"=Inputs!C{R['b0Used']}",
      "rate measured; 'the test ends without the build' stated by the user, who ran it", "E20 mid (GjirafaMall + Gjirafa50, Aug–Sep average); Inputs row " + str(R['withoutBuild']), "E20, E28"),
-    ("Recovered leakage: raises that reach the shelf (lever 8)", f"=Inputs!C{R['lev1'] + 7}", "estimated", FIG["E24"]["name"], "E24"),
-    ("Cadence: prices daily, not on a few manual dates (lever 5)", f"=Inputs!C{R['lev1'] + 4}", "estimated", FIG["E5"]["name"], "E5"),
-    ("MK/AL coverage at Kosovo's tested rate (lever 4)", f"=Inputs!C{R['lev1'] + 3}", "estimated",
-     f"€{v('E4', 'low'):,.0f} at E20's same-weeks rate; MK/AL had no two-month test of their own", "E4"),
+    ("Recovered leakage: raises that reach the shelf (lever 8)", f"=Inputs!C{LEVROW['E24']}", "estimated", FIG["E24"]["name"], "E24"),
+    ("Cadence: prices daily, not on a few manual dates (lever 5)", f"=Inputs!C{LEVROW['E5']}", "estimated", FIG["E5"]["name"], "E5"),
     ("The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7)",
-     f"=Inputs!C{R['lev1']}+Inputs!C{R['lev1'] + 1}+Inputs!C{R['lev1'] + 2}+Inputs!C{R['lev1'] + 5}+Inputs!C{R['lev1'] + 6}", "estimated",
+     "=" + "+".join(f"Inputs!C{LEVROW[f]}" for f in ("E1", "E2", "E3", "E6", "E7")), "estimated",
      "E1, E2, E3, E6, E7 (walk-forward backtest)", "E1–E3, E6, E7"),
 ]
 for i, (lab, f, lab2, source, fid) in enumerate(src):

@@ -43,8 +43,8 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 aren't calibrated yet (E10); the Monday email isn't built and the start-up task is disabled; setting a price on the
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim: €12,965 a month at full scope, 86 points** (Evidence and Works are our own ratings; year 1: net benefit
-€112,620, ROI 1068%, payback 2.6 months).
+**Money (12 months). The claim: €11,785 a month at full scope, 86 points** (Evidence and Works are our own ratings; year 1: net benefit
+€101,418, ROI 962%, payback 2.8 months).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
@@ -66,10 +66,9 @@ value is the stream it makes permanent, plus the levers:
 | The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; 'the test ends without the build' stated by the user, who ran it (E20, E28) |
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
-| MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |
 | The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7) | €2,188 | estimated (E1–E3, E6, E7) |
-| The holdout categories' share, left out | −€1,602 | estimated |
-| **The claim, at full scope** | **€12,965** | |
+| The holdout categories' share, left out | −€1,457 | estimated |
+| **The claim, at full scope** | **€11,785** | |
 | Hours saved | not counted | hours, never euros |
 
 The levers come mostly from automation, not from the model's own floor choices (lever 2, €2 a
@@ -83,10 +82,10 @@ sessions' AI usage of $621.23 API-equivalent, E18) and €6,927 running (AI
 
 | Year 1 | The claim |
 |---|---|
-| Extra gross profit a month at full scope | €12,965 |
-| Net benefit (9.5 full-benefit months − all costs) | €112,620 |
-| ROI | 1068% |
-| Payback (months) | 2.6 |
+| Extra gross profit a month at full scope | €11,785 |
+| Net benefit (9.5 full-benefit months − all costs) | €101,418 |
+| ROI | 962% |
+| Payback (months) | 2.8 |
 | Track A score (/100; Evidence and Works are our own ratings) | 86 |
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once

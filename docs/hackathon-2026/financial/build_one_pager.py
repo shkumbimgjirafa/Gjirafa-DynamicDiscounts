@@ -52,12 +52,11 @@ src_ws = wb["Benefit by source"]
 
 
 def src_row(r):
-    note = f"; {src_ws[f'D{r}'].value}" if src_ws[f'E{r}'].value == "E4" else ""
-    return f"| {src_ws[f'A{r}'].value} | {eur(src_ws[f'B{r}'].value)} | {src_ws[f'C{r}'].value} ({src_ws[f'E{r}'].value}{note}) |"
+    return f"| {src_ws[f'A{r}'].value} | {eur(src_ws[f'B{r}'].value)} | {src_ws[f'C{r}'].value} ({src_ws[f'E{r}'].value}) |"
 
 
 sources = "\n".join(["| Where the claim's benefit comes from | € a month | Label |", "|---|---|---|"]
-                    + [src_row(r) for r in range(4, 9)]
+                    + [src_row(r) for r in range(4, 8)]
                     + [f"| The holdout categories' share, left out | −{eur(-src_ws['B10'].value)} | estimated |",
                        f"| **The claim, at full scope** | **{eur(src_ws['B11'].value)}** | |",
                        "| Hours saved | not counted | hours, never euros |"])

@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 21:47",
+    "generated":  "2026-10-31 22:27",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -228,7 +228,7 @@
                     },
                     {
                         "id":  "E4",
-                        "name":  "Lever 4, coverage MK/AL: extra GP a month on months without a push",
+                        "name":  "Lever 4, coverage MK/AL: extra GP a month on months without a push (not in the claim)",
                         "value":  {
                                       "low":  560,
                                       "mid":  1325,
@@ -242,16 +242,16 @@
                     },
                     {
                         "id":  "E8",
-                        "name":  "All levers together, extra GP a month",
+                        "name":  "The levers in the claim together (1-3, 5-8), extra GP a month",
                         "value":  {
-                                      "central":  4158,
-                                      "low":  1996,
-                                      "high":  8675,
+                                      "central":  2833,
+                                      "low":  1436,
+                                      "high":  7021,
                                       "underTeamDealCentral":  378
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "E1 + E2 + E3 + E4 (mid / low / high) + E5 + E6 + E7 + E24 (lever 8); each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5), for lever 4 by the calculator test-phase case and for lever 8 by month (high = October\u0027s pace). The raise levers\u0027 gain on lines sold under a team deal, 378 a month of their central 2179 (17 %), is in high only.",
+                        "method":  "E1 + E2 + E3 + E5 + E6 + E7 + E24 (lever 8); lever 4 (E4, MK/AL coverage) is not in the claim; each line counted by one lever; the cases differ by elasticity (central e -1, low e -2, high e -0.5) and for lever 8 by month (high = October\u0027s pace). The raise levers\u0027 gain on lines sold under a team deal, 378 a month of their central 2179 (17 %), is in high only.",
                         "source":  "ai.BacktestSnapshot #5 (2026-10-31 08:10 UTC)",
                         "script":  "this script"
                     },
@@ -446,7 +446,7 @@
                         "value":  {
                                       "attendedHours":  10.9,
                                       "unattendedBlocks":  47,
-                                      "rows":  83
+                                      "rows":  85
                                   },
                         "unit":  "hours",
                         "label":  "measured (Friday, attended rows timed by block) and estimated (Saturday: the user\u0027s own estimate, about 7 h); the person\u0027s time inside unattended blocks is not timed",

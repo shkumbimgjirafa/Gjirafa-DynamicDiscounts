@@ -27,7 +27,7 @@ holds; a person may supersede it. That is €378 a month of the €2,179 central
 Gjirafa50 it is most of levers 1 and 3: in Aug–Sep 72 % of its lines sold under a discount the calculator never set
 (approval #1 listed only the prices it changed); on GjirafaMall 2 %.
 
-**With lever 4 (MK/AL): about €4.2k a month central, €2.0k low, €8.7k high (E8: €4,158 / €1,996 / €8,675; snapshot #5 of 31 Oct, E20 recomputed).** The high case is up from €5.8k mostly through lever 8's October pace. The levers add to the rollout
+**The levers in the claim (1–3 and 5–8): about €2.8k a month central, €1.4k low, €7.0k high (E8: €2,833 / €1,436 / €7,021; snapshot #5 of 31 Oct). Lever 4 (MK/AL coverage, E4) is computed below but is not in the claim.** The high case is up from €5.8k mostly through lever 8's October pace. The levers add to the rollout
 of the calculator's tested effect (B0) in the claim; they don't replace it.
 The financial sheet then leaves out the holdout categories' share (about 11 % of the changed prices), which the backtest
 doesn't. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
@@ -37,7 +37,7 @@ answers the one-event point instead.
 
 ## What each number rests on
 
-- **Lever 4.** MK/AL tool-scope gross profit per month (`hk.SalesLinesMkAl`, loaded by the data session: Mall own
+- **Lever 4 (not in the claim).** MK/AL tool-scope gross profit per month (`hk.SalesLinesMkAl`, loaded by the data session: Mall own
   vendors, no outlet, no Apple/Starlink, booked COGS, EUR at the shop's rate of the load day; MKD is pegged, ALL at
   today's rate): €16.4k / €25.7k / €20.2k in Jul / Aug / Sep on the months without a push. A month counts as pushed when
   a public, all-platform discount set of 50,000+ products started in it (`hk.PushDatesMkAl`): Gj50 AL in July, Mall AL

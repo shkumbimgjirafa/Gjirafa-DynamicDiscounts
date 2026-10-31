@@ -17,7 +17,7 @@ themselves), **Campaigns** (the calendar, and a conversation with Nova about eac
 lives in files, not in the app: [`evidence.html`](docs/hackathon-2026/evidence/evidence.html), the financial sheet and the
 one-pager.
 
-**The money claim** (section 4): €12,965 a month at full scope, 86 points (Evidence and Works are our own ratings). It is the calculator's measured rate, B0 =
+**The money claim** (section 4): €11,785 a month at full scope, 86 points (Evidence and Works are our own ratings). It is the calculator's measured rate, B0 =
 €10,409 a month (measured before and after each approval; robustness checks: E20, E27), which the build makes permanent,
 plus the levers this build adds.
 
@@ -122,7 +122,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €12,965 a month at full scope, 86 points** (Evidence and Works are our own ratings; year 1: net benefit €112,620, ROI 1,068 %, payback 2.6 months; the
+**The claim: €11,785 a month at full scope, 86 points** (Evidence and Works are our own ratings; year 1: net benefit €101,418, ROI 962 %, payback 2.8 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
@@ -150,10 +150,9 @@ the build's value is the stream it makes permanent, plus the levers:
 | The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; "the test ends without the build" stated by the user, who ran it (E20, E28) |
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
-| MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |
 | The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7) | €2,188 | estimated (E1–E3, E6, E7) |
-| The holdout categories' share (about 11 % of the changed prices; the agents never change them), left out | −€1,602 | estimated |
-| **The claim, at full scope** | **€12,965** | |
+| The holdout categories' share (about 11 % of the changed prices; the agents never change them), left out | −€1,457 | estimated |
+| **The claim, at full scope** | **€11,785** | |
 | Hours saved | not counted | hours, never euros |
 
 GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies. "Own vendors" is the
@@ -169,12 +168,11 @@ every lever on the calculator's era, Aug–Sep 2026):
 | E1 | Loss-sale block | 76 |
 | E2 | Per-category floors | 2 |
 | E3 | Cost reaction | 1,327 |
-| E4 | Coverage MK/AL, at the calculator's Kosovo rate (E20) | 1,325 |
 | E5 | Cadence | 396 |
 | E6 | Learning, as built | 0 (the plan's plain rule would have cost €1.0–1.3k in September) |
 | E7 | Campaign planning (12 months of campaigns) | 783 |
 | E24 | Raises reach the shelf (lever 8, the publisher) | 249 |
-| **E8** | **Total** | **4,158** |
+| **E8** | **Total** | **2,833** |
 
 Levers 1, 2, 3 and 5 raise prices, and v2 doesn't raise a price a team deal holds (the publisher leaves it to a person).
 Their gain on lines sold under a team deal (a product discount at a price no approval gave the SKU), €378 a month, most of
@@ -190,7 +188,8 @@ the Backtest tab shows the stored run and its CSV.
 
 **Where the levers come from.** Mostly automation, not the model's own choices: the loss block and the cost reaction
 (levers 1 and 3: rules in code and the cost watcher), daily checked prices (5: the cycle writes them every day, the team
-still pushes the file), raises that reach the shelf (8: the publisher) and coverage of every layer (4). Most of levers 1,
+still pushes the file) and raises that reach the shelf (8: the publisher). MK/AL coverage (lever 4, E4) is not in the
+claim: it would apply Kosovo's tested rate to MK/AL, which had no test of their own. Most of levers 1,
 3 and 5 are price raises; a discount can't make one, so since prompt 07 the publisher writes a raise as the store's
 regular price (`TierPrice`), built and tested on the sandbox, not live. On 31 Oct's Run weeks (Gjirafa50 #2 and
 GjirafaMall #3; the 98.3 % below is on later runs, #1109 and #1107) 99,197 of the two KS layers' 172,579 checked prices
