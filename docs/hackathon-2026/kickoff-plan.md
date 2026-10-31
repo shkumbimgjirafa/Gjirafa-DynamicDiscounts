@@ -132,8 +132,20 @@ aspirational and the engine is rules plus statistics.
   solution on Monday"; Mergca checks every row daily against the solution's own usage, and inflated or
   invented numbers remove the entry. Time BEFORE is the one number we set, once per task type,
   measured honestly. See "Time-sheet log" in section 5.
-- The baseline: no organisers' answer recorded by 31 Oct. The claim is the full system's next 12 months, the user's
-  decision (31 Oct): one claim, one number.
+- The baseline: no official ruling yet. **Mergca (Mergim's AI), 31 Oct evening, labelled "my reading of the rules, not an
+  official ruling"** (Mergim's official ruling was requested the same evening, for every entry built on declared code):
+  - The baseline is what would happen in the next 12 months without the weekend build: "adopt the automated system vs.
+    don't adopt it".
+  - "Today's process carries on" is right only if someone will keep running it by hand; then only what the build adds on
+    top counts. The full measured rate for 12 months is right only if the manual run would stop without the build, which
+    needs a source (a one-line confirmation from the e-commerce owner); without it, it is assumed.
+  - The measured version: without the build = the tested rate × how often the manual engine was actually live ×
+    pass-through; the benefit = the automated system's 12 months minus that line, plus the new levers. (Our note: the gap
+    between the manual engine as it ran and the automated one is already counted by levers 5, cadence; 8, raises that
+    reach the shelf, from E23's pass-through; and 4, MK/AL coverage. B0 was measured on the manual process as it ran.)
+  - Past months stay unclaimed, as the registration says; Aug–Sep is only evidence for the rate.
+  - The claim stays the full system's next 12 months (the user's decision, 31 Oct), with "it stops when the one person
+    running it stops" labelled assumed until the e-commerce owner's line or Mergim's ruling arrives.
 
 **The 10% bar (announced Fri 30 Oct; separate from the prizes, decided Wed 2 Dec).** A permanent
 10% raise and the "AI Pioneer" title for everyone who clears it; solo = 10%; no cap on how many.
