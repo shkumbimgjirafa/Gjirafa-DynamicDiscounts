@@ -31,3 +31,5 @@
 #done prompt 11 (the Evidence page, live recompute as a read-only user, E25 and E26) · 2026-10-31 10:07 · commits eba8188..eba8188 · not met: demo step 5's spoken part isn't timed aloud (measured: the tab opens in 2.0 s, E20's recompute 9.0 s); the YoY fingerprint (E25) doesn't bear out the plan's "1–4 points before": Mar–Jun 2026 +3.1 pt, but Nov 2025–Feb 2026 +8.6 pt with no calculator (said in its method); three full test runs in a row passed (966, 13–14 s), the earlier stall wasn't reproduced
 
 #done prompt 12 (framing B is the claim, A the cross-check; the objection answered; consistency test) · 2026-10-31 10:12 · commits e3ee26f..e3ee26f · not met: dry run 3's brief (score B, A as the cross-check) is written with Prompt 09 part C, next; the registration text and the plan's history keep their original framing (notes added where they cite the YoY margin)
+
+#done prompt 10 part D (LocalDB started first in the host scripts; GO-LIVE-LAPTOP.md notes) · 2026-10-31 10:14 · commits 1e3e356..981bbac · not met: none (the memory cap and the instance timeout are the user's instance-wide calls, documented, not changed)
