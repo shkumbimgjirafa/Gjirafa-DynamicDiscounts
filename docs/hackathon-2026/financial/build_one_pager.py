@@ -76,12 +76,24 @@ e20 = v("E20")
 shop = e20["byShopAugSepAvg"]
 e27 = v("E27")
 # Every check on the rate, so no reader finds a number we left out.
+e29 = v("E29")
+real = [r["real"] for r in e29["byRun"].values()]
+placebo = [x for r in e29["byRun"].values() for kind, x in r.items() if kind != "real"]
+
+
+def signed_k(x):
+    return ("−" if x < 0 else "+") + k(abs(x))
+
+
 rate_checks = (f"against untouched products in the same shop and category it holds ({k(e27['total']['vsUntouched'])}) when every "
                f"product counts, it is {k(e27['total']['vsUntouchedWithSalesHistory'])} when only products with a sale before the "
                f"windows count (a first-ever sale inside the windows leaves both groups), and "
                f"{k(e27['total']['vsUntouchedSoldInBothWindows'])} when only products that sold in both "
                f"windows count; September alone gives "
-               f"{k(e27['september']['gjirafaMallVsUntouched'])}–{k(e27['september']['gjirafaMallSoldInBothWindows'])} for GjirafaMall")
+               f"{k(e27['september']['gjirafaMallVsUntouched'])}–{k(e27['september']['gjirafaMallSoldInBothWindows'])} for GjirafaMall. "
+               f"The same comparison in windows before the calculator's first approval (a placebo, E29: centred on 15 May and "
+               f"15 Jun 2026, the same product groups) gives {signed_k(min(placebo))} to {signed_k(max(placebo))} a month per run, "
+               f"against {signed_k(min(real))} to {signed_k(max(real))} in the real windows")
 e28 = v("E28")
 
 

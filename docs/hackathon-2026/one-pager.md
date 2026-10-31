@@ -43,11 +43,11 @@ aren't calibrated yet (E10); the Monday email isn't built and the start-up task 
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
 **Money (12 months). The claim: €12,965 a month at full scope, 84 points** (Evidence and Works are our own ratings; year 1: net benefit
-€106,646, ROI 646%, payback 3.4 months).
+€106,634, ROI 645%, payback 3.4 months).
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
-E20, E27 (the evidence file reruns both): against untouched products in the same shop and category it holds (€11.8k) when every product counts, it is €7.6k when only products with a sale before the windows count (a first-ever sale inside the windows leaves both groups), and €2.7k when only products that sold in both windows count; September alone gives €3.9k–€4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
+E20, E27 (the evidence file reruns both): against untouched products in the same shop and category it holds (€11.8k) when every product counts, it is €7.6k when only products with a sale before the windows count (a first-ever sale inside the windows leaves both groups), and €2.7k when only products that sold in both windows count; September alone gives €3.9k–€4.3k for GjirafaMall. The same comparison in windows before the calculator's first approval (a placebo, E29: centred on 15 May and 15 Jun 2026, the same product groups) gives −€3.1k to +€0.9k a month per run, against +€1.0k to +€9.7k in the real windows. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
 dead-stock runs. *It runs by itself (on the sandbox during the hackathon):* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
@@ -76,15 +76,15 @@ month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no
 orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months), so payback can't
 fall much under three months at these rates (the pilot's assumptions are not tuned to cross a line). Costs:
-€9,590 one-time (hackathon hours at €50, 160 hours to production including code review, the build
-sessions' AI usage of $595.30 API-equivalent, E18) and €6,927 running (AI
-€69 a month from the measured cost per call, E19; maintenance and review hours), €16,518 in all.
+€9,603 one-time (hackathon hours at €50, 160 hours to production including code review, the build
+sessions' AI usage of $608.00 API-equivalent, E18) and €6,927 running (AI
+€69 a month from the measured cost per call, E19; maintenance and review hours), €16,530 in all.
 
 | Year 1 | The claim |
 |---|---|
 | Extra gross profit a month at full scope | €12,965 |
-| Net benefit (9.5 full-benefit months − all costs) | €106,646 |
-| ROI | 646% |
+| Net benefit (9.5 full-benefit months − all costs) | €106,634 |
+| ROI | 645% |
 | Payback (months) | 3.4 |
 | Track A score (/100; Evidence and Works are our own ratings) | 84 |
 

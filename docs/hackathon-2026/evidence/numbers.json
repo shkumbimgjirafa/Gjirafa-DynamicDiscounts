@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 20:12",
+    "generated":  "2026-10-31 20:27",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -429,10 +429,10 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  595.3,
-                                      "sinceKickoffResponses":  3430,
-                                      "unattendedBlocksUsd":  358.85,
-                                      "unattendedBlocksResponses":  1765
+                                      "sinceKickoffUsd":  608.0,
+                                      "sinceKickoffResponses":  3480,
+                                      "unattendedBlocksUsd":  370.26,
+                                      "unattendedBlocksResponses":  1805
                                   },
                         "unit":  "USD (API-equivalent)",
                         "label":  "measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)",
@@ -445,8 +445,8 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  10.9,
-                                      "unattendedBlocks":  44,
-                                      "rows":  77
+                                      "unattendedBlocks":  46,
+                                      "rows":  79
                                   },
                         "unit":  "hours",
                         "label":  "measured and stated (attended rows: Friday\u0027s timed by block, Saturday\u0027s the user\u0027s own estimate, about 7 h; the person\u0027s time inside unattended blocks is not timed)",
@@ -1176,6 +1176,77 @@
                                                                            "Month":  "2026-10"
                                                                        },
                                                              "value":  74703
+                                                         }
+                                                     ]
+                                      }
+                    },
+                    {
+                        "id":  "E29",
+                        "name":  "Placebo check of E27: the same comparison in windows before the calculator\u0027s first approval",
+                        "value":  {
+                                      "byRun":  {
+                                                    "#1 Gjirafa50 KS":  {
+                                                                            "real":  970,
+                                                                            "placebo 15 Jun":  -778,
+                                                                            "placebo 15 May":  -560
+                                                                        },
+                                                    "#2 GjirafaMall KS":  {
+                                                                              "real":  5015,
+                                                                              "placebo 15 Jun":  -906,
+                                                                              "placebo 15 May":  892
+                                                                          },
+                                                    "#12 GjirafaMall KS":  {
+                                                                               "real":  9696,
+                                                                               "placebo 15 Jun":  -3124,
+                                                                               "placebo 15 May":  776
+                                                                           },
+                                                    "#25 GjirafaMall KS":  {
+                                                                               "real":  2384,
+                                                                               "placebo 15 Jun":  -1217,
+                                                                               "placebo 15 May":  466
+                                                                           }
+                                                },
+                                      "sumReal":  18065,
+                                      "sumPlacebo15Jun":  -6025,
+                                      "sumPlacebo15May":  1574
+                                  },
+                        "unit":  "EUR/month",
+                        "label":  "robustness check: measured",
+                        "method":  "For the four main runs (GjirafaMall KS #2, #12, #25; Gjirafa50 KS #1): the SKUs each run repriced against the SKUs it left untouched in the same shop and category, SKUs with a sale before the 30-day \u0027before\u0027 window, campaign days out (E27\u0027s comparison with a sales history), a month. In the real windows, centred on each approval: 970 to 9696 per run, 18065 summed. In the same windows centred on 15 May and 15 Jun 2026, before the calculator\u0027s first approval (21 Jul): -3124 to 892 per run, 1574 and -6025 summed. Sums of single runs, not E20\u0027s month spans.",
+                        "source":  "PricingTool.Approvals / ApprovalItems, hk.SalesLines, hk.Products, hk.CampaignWindows",
+                        "script":  "docs/hackathon-2026/evidence/e29-placebo.sql (one result set; this script runs it)",
+                        "recompute":  {
+                                          "file":  "e29-placebo.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "Real windows, four runs summed",
+                                                             "set":  0,
+                                                             "column":  "VsUntouchedPerMonth",
+                                                             "where":  {
+                                                                           "Kind":  "real"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  18065
+                                                         },
+                                                         {
+                                                             "label":  "Placebo 15 Jun, four runs summed",
+                                                             "set":  0,
+                                                             "column":  "VsUntouchedPerMonth",
+                                                             "where":  {
+                                                                           "Kind":  "placebo 15 Jun"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  -6025
+                                                         },
+                                                         {
+                                                             "label":  "Placebo 15 May, four runs summed",
+                                                             "set":  0,
+                                                             "column":  "VsUntouchedPerMonth",
+                                                             "where":  {
+                                                                           "Kind":  "placebo 15 May"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  1574
                                                          }
                                                      ]
                                       }

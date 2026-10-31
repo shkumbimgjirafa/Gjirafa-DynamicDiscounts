@@ -714,7 +714,7 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - An out-of-range decision is rejected by code; the kill switch and autonomy on the Run tab; the holdout categories
      marked in the grid; the audit log under Admin; the AI calls with their cost (E15: 85 live calls, $10.29, measured).
 5. **(45s) Money: the evidence file and the sheet.**
-   - The evidence file, written before the demo: "Recomputed now: 46 of 46 checks match", every figure with its label
+   - The evidence file, written before the demo: "Recomputed now: 49 of 49 checks match", every figure with its label
      (measured, estimated, assumed), method, sources and where it is used. If there is time, run the command again in the
      terminal while talking (about 40 s).
    - The claim: €12,965 a month at full scope, 84 points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a
@@ -776,7 +776,7 @@ Have the backup video and screenshots ready in case the network or Claude fails 
 ## 9. Working rules for Claude during the event
 
 - Work only in the hackathon repo (`C:\Projects\Gjirafa Hackathon Pricing Agent`). Never commit to or push the main repo during the event: a push to its `main` deploys to prod.
-- Connect only to `PricingToolHackathon` on LocalDB. No prod, no replica, no `.env` source credentials, once the exports are done.
+- Connect only to `PricingToolHackathon` on LocalDB. No prod, no replica, no `.env` source credentials, once the exports are done. *(Kickoff ruling, 30 Oct: we may read the replica with our own read-only connection, section 3; the daily refresh and the cost watcher do. Nothing writes to it.)*
 - `Publisher:Target` stays `Sandbox` for the whole event, and no live shop write connection string is ever configured. "Go-live ready" means the live path is built, tested on the exact schema and documented, not used.
 - Match the repo's style: XML doc comments on public types, the same naming, tests in `PricingTool.Tests`.
 - The model never writes prices, bands or discounts directly. Every decision goes through `SafetyLimits` in code. Within limits it's applied automatically; outside them it's held for a person. During the hackathon the publisher writes only to `shop_sandbox`, never to the shop.

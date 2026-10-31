@@ -412,6 +412,28 @@ Recompute 'E28' 'e28-runs-by-hand.sql' $e28Sets @((C "Gjirafa50 KS: days from 21
     (C 'GjirafaMall AL: discounts pushed in Sep (the one full MK/AL push in Aug-Sep)' 2 'Discounts' @{ Layer = 'GjirafaMall AL'; Month = '2026-09' }),
     (C 'GjirafaMall MK: discounts in its first full push, Oct' 2 'Discounts' @{ Layer = 'GjirafaMall MK'; Month = '2026-10' }))
 
+# E29: a placebo check of E27's comparison: the same SKU groups and method, windows before the calculator's first approval.
+$e29Sets = RunFile 'e29-placebo.sql'
+$e29Runs = [ordered]@{}
+foreach ($r in $e29Sets[0].Rows) {
+    $key = "#$($r.ApprovalId) $($r.Shop)"
+    if (-not $e29Runs.Contains($key)) { $e29Runs[$key] = [ordered]@{} }
+    $e29Runs[$key][[string]$r.Kind] = [int]$r.VsUntouchedPerMonth
+}
+function E29Sum($kind) { ($e29Sets[0].Rows | Where-Object { $_.Kind -eq $kind } | ForEach-Object { [int]$_.VsUntouchedPerMonth } | Measure-Object -Sum).Sum }
+$e29Placebo = @($e29Sets[0].Rows | Where-Object { $_.Kind -ne 'real' } | ForEach-Object { [int]$_.VsUntouchedPerMonth } | Measure-Object -Minimum -Maximum)
+$e29Real = @($e29Sets[0].Rows | Where-Object { $_.Kind -eq 'real' } | ForEach-Object { [int]$_.VsUntouchedPerMonth } | Measure-Object -Minimum -Maximum)
+Add 'E29' "Placebo check of E27: the same comparison in windows before the calculator's first approval" ([ordered]@{
+        byRun = $e29Runs; sumReal = E29Sum 'real'; sumPlacebo15Jun = E29Sum 'placebo 15 Jun'; sumPlacebo15May = E29Sum 'placebo 15 May' }) 'EUR/month' 'robustness check: measured' `
+    ("For the four main runs (GjirafaMall KS #2, #12, #25; Gjirafa50 KS #1): the SKUs each run repriced against the SKUs it left untouched in the same shop and category, SKUs with a sale before the 30-day 'before' window, campaign days out (E27's comparison with a sales history), a month. " +
+     "In the real windows, centred on each approval: $($e29Real.Minimum) to $($e29Real.Maximum) per run, $(E29Sum 'real') summed. In the same windows centred on 15 May and 15 Jun 2026, before the calculator's first approval (21 Jul): $($e29Placebo.Minimum) to $($e29Placebo.Maximum) per run, $(E29Sum 'placebo 15 May') and $(E29Sum 'placebo 15 Jun') summed. " +
+     "Sums of single runs, not E20's month spans.") `
+    'PricingTool.Approvals / ApprovalItems, hk.SalesLines, hk.Products, hk.CampaignWindows' 'docs/hackathon-2026/evidence/e29-placebo.sql (one result set; this script runs it)'
+Recompute 'E29' 'e29-placebo.sql' $e29Sets @(
+    (C 'Real windows, four runs summed' 0 'VsUntouchedPerMonth' @{ Kind = 'real' } 'sum'),
+    (C 'Placebo 15 Jun, four runs summed' 0 'VsUntouchedPerMonth' @{ Kind = 'placebo 15 Jun' } 'sum'),
+    (C 'Placebo 15 May, four runs summed' 0 'VsUntouchedPerMonth' @{ Kind = 'placebo 15 May' } 'sum'))
+
 # Why the calculator's figure moved since the registration (the Evidence page shows it with E20).
 $e20 = $figures | Where-Object { $_.id -eq 'E20' }
 $e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) a month (E20 mid), the claim's rate. Its robustness checks are E20 low (a same-weeks control) and E27 (against untouched products in the same category and weeks); E20 high (season-adjusted, quoted from the main repo) is sensitivity, not part of the claim."
