@@ -17,3 +17,5 @@
 #done hardening after prompt 07 (five items) · 2026-10-31 08:18 · commits e2e9e75..2a2807d · not met: the 511k-SKU engine run still sits whole in memory (1,605 MB peak in the web app): it is the imported engine's, left unchanged; capping LocalDB's memory and closing the web app when idle are written up for the user, not done
 
 #done prompt 09 part A (the cost watcher's first real cost refresh) · 2026-10-31 08:24 · commits cf189b4..cf189b4 · not met: none (the watcher's rollback side stays unmeasured; nothing is live)
+
+#done prompt 09 part B (demo dry run 2, Gjirafa50) · 2026-10-31 08:37 · commits 6d5e93b..6d5e93b · not met: the declaration slide and the backup video are the user's (shot list in demo-backup-video.md); a live campaign brief wasn't re-run (74 s, 5 calls; unchanged since dry run 1)
