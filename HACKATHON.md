@@ -138,7 +138,7 @@ data, not the cause. *It runs by itself (on the sandbox during the hackathon):* 
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 
-**The August–October runs were tests** (stated by the user), run by hand by one person with no schedule; the build turns them into a process that runs by itself (that the tests end without it is assumed). What is measured
+**The August–October runs were a test** (stated by the user, who ran them): one person, by hand, with no schedule. The build turns the test into a process that runs by itself; without it, the test ends. What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on 21 Jul, 6 Aug, 3 Sep, 6 Oct
 and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for 78 days (dead-stock runs in that gap on 3 Aug,
 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only GjirafaMall AL had a full push. Even when it ran, 19 % of the units on raised
@@ -147,7 +147,7 @@ the build's value is the stream it makes permanent, plus the levers:
 
 | Where the claim's benefit comes from | € a month | Label |
 |---|---|---|
-| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; "the tests end without the build" assumed (E20, E28) |
+| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; "the test ends without the build" stated by the user, who ran it (E20, E28) |
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
 | MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |

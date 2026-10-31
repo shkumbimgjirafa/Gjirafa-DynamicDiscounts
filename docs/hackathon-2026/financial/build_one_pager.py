@@ -168,7 +168,7 @@ dead-stock runs. *It runs by itself (on the sandbox during the hackathon):* this
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 
-**The August–October runs were tests** (stated by the user), run by hand by one person with no schedule; the build turns them into a process that runs by itself (that the tests end without it is assumed). What is measured
+**The August–October runs were a test** (stated by the user, who ran them): one person, by hand, with no schedule. The build turns the test into a process that runs by itself; without it, the test ends. What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
 {days(e28['gjirafaMallKsRegularRuns'])}; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
 {e28['gjirafa50KsLongestGapDays']} days (dead-stock runs in that gap on {days([d for d in e28['gjirafa50KsDeadStockRuns'] if d < '2026-10-01'])}); on MK/AL, in Aug–Sep only
@@ -190,7 +190,7 @@ sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) a
 {money}
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
-automated and extended to every layer (robustness checks: E20, E27). That without the build the August–October tests end (assumed; the
+automated and extended to every layer (robustness checks: E20, E27). That the August–October test ends without the build (stated by the user, who ran it; the
 facts are E28). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The publisher now
 writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still wins
 until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes); the
