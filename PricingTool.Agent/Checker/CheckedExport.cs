@@ -21,9 +21,24 @@ public sealed record CheckedPrice(long ProposalId, string Sku, decimal OldPrice,
 
 /// <summary>A run's checked prices: <see cref="Check"/> is null when the run hasn't been checked, <see cref="Blocked"/>
 /// says why when the check blocked it (then there are no prices). <see cref="PausedRaisesLeftOut"/>: raises in a band ×
-/// category the outcome tracker paused.</summary>
+/// category the outcome tracker paused. <see cref="HeldBackTrimCutSkus"/>: the margin-trim cuts held back
+/// (<see cref="AgentOptions.HoldBackTrimCuts"/>; null when the switch is off).</summary>
 public sealed record CheckedSet(AgentRunCheck? Check, string? Blocked, IReadOnlyList<CheckedPrice> Prices, int HeldByCheck, int HoldoutLeftOut,
-    int PausedRaisesLeftOut = 0);
+    int PausedRaisesLeftOut = 0, IReadOnlyList<string>? HeldBackTrimCutSkus = null)
+{
+    public int TrimCutsHeldBack => HeldBackTrimCutSkus?.Count ?? 0;
+}
+
+/// <summary>The engine's reason code for a price moved toward the band's target margin.</summary>
+public static class TrimCuts
+{
+    public const string MarginTargetTrim = "MARGIN_TARGET_TRIM";
+
+    /// <summary>A cut the margin target trim made that no person set: held back when the switch is on.</summary>
+    public static bool IsTrimCut(decimal price, decimal currentPrice, string? reasonCodes, string? manualOverrideBy) =>
+        price < currentPrice && manualOverrideBy is null
+        && (reasonCodes ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Contains(MarginTargetTrim, StringComparer.Ordinal);
+}
 
 public sealed record ExportResult(bool Exported, string Reason, string? FilePath, int Rows, int LeftOut, long? CheckId)
 {
@@ -121,7 +136,7 @@ public sealed class CheckedExport
         var holdoutCategories = _options.Limits.Holdouts.TryGetValue(run.LayerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
         var holdout = await _holdouts.HoldoutProposalIdsAsync(runId, run.LayerId, holdoutCategories, ct);
         var proposals = await _tool.ProposedPrices.AsNoTracking().Where(p => p.PricingRunId == runId && p.HasChange)
-            .Select(p => new { p.Id, p.Sku, p.OldPrice, p.CurrentPrice, p.AnchorPrice, p.PriceBandId, p.ProposedPriceValue }).ToListAsync(ct);
+            .Select(p => new { p.Id, p.Sku, p.OldPrice, p.CurrentPrice, p.AnchorPrice, p.PriceBandId, p.ProposedPriceValue, p.ReasonCodes, p.ManualOverrideBy }).ToListAsync(ct);
         var prices = proposals.Where(p => !held.Contains(p.Id) && !holdout.Contains(p.Id))
             .Select(p => new CheckedPrice(p.Id, p.Sku, p.OldPrice, p.CurrentPrice, fixes.TryGetValue(p.Id, out var f) ? f : p.ProposedPriceValue, fixes.ContainsKey(p.Id),
                 p.AnchorPrice))
@@ -140,8 +155,18 @@ public sealed class CheckedExport
                 pausedRaises.Add(p.ProposalId);
         }
         prices = prices.Where(p => !pausedRaises.Contains(p.ProposalId)).ToList();
+
+        // The margin target trim's cuts are held back (the user's decision, 31 Oct): raises, dead-stock markdowns and a price a person set go.
+        List<string>? trimCuts = null;
+        if (_options.HoldBackTrimCuts)
+        {
+            var codes = proposals.ToDictionary(p => p.Id, p => (p.ReasonCodes, p.ManualOverrideBy));
+            var cuts = prices.Where(p => TrimCuts.IsTrimCut(p.Price, p.CurrentPrice, codes[p.ProposalId].ReasonCodes, codes[p.ProposalId].ManualOverrideBy)).ToList();
+            trimCuts = cuts.Select(p => p.Sku).ToList();
+            prices = prices.Except(cuts).ToList();
+        }
         return new CheckedSet(check, null, prices, proposals.Count(p => held.Contains(p.Id)), proposals.Count(p => holdout.Contains(p.Id) && !held.Contains(p.Id)),
-            pausedRaises.Count);
+            pausedRaises.Count, trimCuts);
     }
 
     public async Task<ExportResult> ExportAsync(long runId, string directory, CancellationToken ct = default)

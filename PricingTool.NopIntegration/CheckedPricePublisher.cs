@@ -34,13 +34,23 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
             RunCurrentPrice = p.CurrentPrice, RunOldPrice = p.OldPrice, Ceiling = p.Ceiling, ProposalId = p.ProposalId,
         }).ToList();
 
-    public static PublishRequest Request(int layerId, long runId, IReadOnlyList<PublishItem> items) =>
-        new(layerId, items) { EngineRunId = runId, RaiseRegularPrices = true };
+    public static PublishRequest Request(int layerId, long runId, IReadOnlyList<PublishItem> items, int? heldBackTrimCuts = null) =>
+        new(layerId, items) { EngineRunId = runId, RaiseRegularPrices = true, HeldBackTrimCuts = heldBackTrimCuts };
+
+    /// <summary>After a publish: our earlier discount on each held-back trim cut is ended, so the shop's own price applies (an
+    /// Expire batch, audited). A line for the step's detail.</summary>
+    public static async Task<string> EndHeldBackTrimCutsAsync(NopDiscountWriter writer, int layerId, IReadOnlyList<string>? skus, CancellationToken ct)
+    {
+        if (skus is not { Count: > 0 }) return "";
+        var batch = await writer.ExpireAsync(layerId, skus, ct);
+        return $"; {skus.Count:N0} margin-trim cuts held back (our earlier discount on them ended in expire batch #{batch})";
+    }
 
     /// <summary>The checked set in one line: how many go out and what was held or left out.</summary>
     public static string Chosen(CheckedSet set) =>
         $"{set.Prices.Count:N0} checked prices ({set.HeldByCheck:N0} held by check #{set.Check?.Id}, {set.HoldoutLeftOut:N0} holdout left out" +
-        (set.PausedRaisesLeftOut > 0 ? $", {set.PausedRaisesLeftOut:N0} raises in paused categories left out)" : ")");
+        (set.PausedRaisesLeftOut > 0 ? $", {set.PausedRaisesLeftOut:N0} raises in paused categories left out" : "") +
+        (set.HeldBackTrimCutSkus is not null ? $", {set.TrimCutsHeldBack:N0} margin-trim cuts held back)" : ")");
 
     /// <summary>A publish's counts in one line: discounts, regular prices, and what was left alone and why: the calculator's own
     /// earlier push (imported by the team) apart from a team deal, and app-only deals (noted, ours written for the web).</summary>
@@ -72,7 +82,8 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
         var items = Items(set);
         if (items.Count == 0) return (StepStatus.Skipped, $"nothing to publish: {Chosen(set)}");
 
-        var o = await _writer.PublishAsync(Request(layerId, runId, items), ct);
+        var o = await _writer.PublishAsync(Request(layerId, runId, items, set.HeldBackTrimCutSkus?.Count), ct);
+        var trimLine = o.Status == "Published" ? await EndHeldBackTrimCutsAsync(_writer, layerId, set.HeldBackTrimCutSkus, ct) : "";
         var status = o.Status switch
         {
             "Stopped" => StepStatus.Skipped,
@@ -83,6 +94,6 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
         // The sandbox follows the live shop (the mirror step before this one), so this is the day's shadow of the live shelf.
         return (status, $"on the shelf at our price: {o.RoundTripChecked - o.RoundTripMismatches:N0} of {items.Count:N0} checked prices; " +
                         $"sandbox batch #{o.BatchId} {o.Status} for run #{runId}: {Chosen(set)}; {Describe(o)}; " +
-                        $"round-trip {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0}");
+                        $"round-trip {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0}{trimLine}");
     }
 }

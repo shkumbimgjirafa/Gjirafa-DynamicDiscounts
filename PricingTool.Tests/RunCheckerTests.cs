@@ -289,6 +289,32 @@ public class RunCheckerTests : IDisposable
     }
 
     [Fact]
+    public async Task Margin_trim_cuts_are_held_back_and_raises_markdowns_and_a_persons_price_still_go()
+    {
+        Injected(1, "TRIM-CUT", 49.50m, 52.50m, 30m);
+        Injected(2, "TRIM-RAISE", 54.50m, 52.50m, 30m);
+        Injected(3, "MARKDOWN", 49.50m, 52.50m, 30m);
+        Injected(4, "OVERRIDE-CUT", 49.50m, 52.50m, 30m);
+        Injected(5, "SYNCED-TRIM-CUT", 49.50m, 52.50m, 30m);
+        foreach (var (id, codes) in new[] { (1L, "MARGIN_TARGET_TRIM"), (2L, "MARGIN_TARGET_TRIM"), (3L, "DEAD_STOCK_MARKDOWN"), (4L, "MARGIN_TARGET_TRIM"), (5L, "SYNCED_TO_GJ50,MARGIN_TARGET_TRIM") })
+            _tool.ProposedPrices.Find(id)!.ReasonCodes = codes;
+        _tool.ProposedPrices.Find(4L)!.ManualOverrideBy = "manager@test";
+        _tool.SaveChanges();
+        _db.AgentRunChecks.Add(new AgentRunCheck { RunId = Run, LayerId = 4, StartedUtc = DateTime.UtcNow, Status = "Succeeded", Verdict = Severity.Pass });   // a clean check
+        _db.SaveChanges();
+
+        var set = await Exporter().CheckedSetAsync(Run);
+
+        Assert.Equal(new[] { "MARKDOWN", "OVERRIDE-CUT", "TRIM-RAISE" }, set.Prices.Select(p => p.Sku).OrderBy(s => s));
+        Assert.Equal(new[] { "SYNCED-TRIM-CUT", "TRIM-CUT" }, set.HeldBackTrimCutSkus!.OrderBy(s => s));
+        Assert.Contains("2 margin-trim cuts held back", PricingTool.NopIntegration.CheckedPricePublisher.Chosen(set));
+
+        var off = await new CheckedExport(_tool, _db, _holdouts, Options.Create(new AgentOptions { HoldBackTrimCuts = false })).CheckedSetAsync(Run);
+        Assert.Equal(5, off.Prices.Count);                                                // the switch off: every checked price goes
+        Assert.Null(off.HeldBackTrimCutSkus);
+    }
+
+    [Fact]
     public async Task A_superseded_export_cannot_be_marked_pushed()
     {
         Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);

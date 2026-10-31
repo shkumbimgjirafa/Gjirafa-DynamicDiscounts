@@ -64,6 +64,12 @@ public class AgentOptions
     /// stays in the chat. The address is still to be confirmed by the user.</summary>
     public string? ReportEmail { get; set; }
 
+    /// <summary>A cut the engine's margin target trim made (the price lowered toward the band's target because its margin is
+    /// above it) is held back from the publish and the export, and our earlier discount on it is ended, so the shop's own price
+    /// applies. Raises, dead-stock markdowns and a price a person set go out as before. The user's decision of 31 Oct: cheaper
+    /// team deals block most raises while every cut lands, so publishing the cuts alone gave margin away.</summary>
+    public bool HoldBackTrimCuts { get; set; } = true;
+
     /// <summary>Who can fix what the agents can't, by role: Alpha's problem pass names one of these for each item it reports.
     /// The names behind the roles are the user's to fill in (configuration <c>Agent:Owners</c>); until then the role is shown.</summary>
     public Dictionary<string, string> Owners { get; set; } = new()

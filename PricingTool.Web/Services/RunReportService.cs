@@ -50,7 +50,7 @@ public class RunReport
     public bool IsHoldout(string category) => Holdouts.Any(h => string.Equals(h.Trim(), category.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Prices a shopper now pays at our price: written, or already at it.</summary>
-    public int OnShelf => Batch is null ? 0 : Batch.Created + Batch.Updated + Batch.Unchanged + Batch.TierRaised + Batch.TierInserted;
+    public int OnShelf => Batch?.OnShelf ?? 0;
 
     public (decimal? Floor, decimal? Target, bool ByAlpha) FloorTarget(string category, int bandId)
     {

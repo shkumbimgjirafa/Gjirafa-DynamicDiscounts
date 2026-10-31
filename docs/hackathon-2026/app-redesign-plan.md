@@ -134,6 +134,13 @@ Each step: tests for the new logic, `dotnet test` green, a commit, an hours row.
   and the Chat tab's Goals card (Remove there); Nova's and Alpha's weekly inputs and the chat context list the goals.
   Not checked with a live chat turn: no goal is set yet (the values are the user's).
 
+- **Decision, 31 Oct (the user): hold back the margin target trim's cuts.** The Run tab's estimate showed the shelf was
+  mostly cuts (GjirafaMall: 83,144 cuts, 2,418 raises, −€7,624 a month), because cheaper deals block most raises while every
+  cut lands. `Agent:HoldBackTrimCuts` (on): the checked set leaves out a cut the trim made (not a raise, a dead-stock markdown
+  or a price a person set), the export too; after a publish our earlier discount on those SKUs is ended. Republished: Gjirafa50
+  #1109 +€1,608 a month (11,714 cuts held back), GjirafaMall #1107 +€6,321 (84,800 held back). Most raises are now held by
+  the calculator's own earlier pushes (33,901 and 24,223), which the existing `SupersedeTeamRegularDiscounts` switch ends.
+
 ## Verification
 
 - `dotnet test` (968 today) plus new tests: the current-run rule, the grid totals against `ProposedPrices`, the re-check

@@ -72,8 +72,9 @@ public sealed class SqlRunFacts : IRunFacts
             DECLARE @Date date = (SELECT CAST(StartedUtc AS date) FROM PricingTool.PricingRuns WHERE Id = @Run);
             DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM PricingTool.Layers WHERE Id = @L);
             DECLARE @Check bigint = (SELECT MAX(Id) FROM ai.AgentRunCheck WHERE RunId = @Run AND IsTest = 0 AND Status <> 'Running');
+            DECLARE @HoldTrim bit = (SELECT CASE WHEN HeldBackTrimCuts IS NULL THEN 0 ELSE 1 END FROM ai.PublishBatch WHERE Id = @Batch);
             WITH ch AS (
-                SELECT pp.CurrentPrice AS Cur, pp.Pptcv AS Cost, ISNULL(s.Qty30, 0) AS U,
+                SELECT pp.CurrentPrice AS Cur, pp.Pptcv AS Cost, ISNULL(s.Qty30, 0) AS U, pp.ReasonCodes, pp.ManualOverrideBy,
                        COALESCE(CASE WHEN f.FinalSeverity = 'fixed' THEN f.FixPrice END, pp.ProposedPriceValue) AS NewP
                 FROM PricingTool.ProposedPrices pp
                 OUTER APPLY (SELECT TOP 1 p.MainGroup, p.CategoryL1 FROM hk.ProductForProposal(pp.LayerId, pp.ProductId, pp.Sku) p) c
@@ -91,7 +92,10 @@ public sealed class SqlRunFacts : IRunFacts
                             ELSE U * POWER(CAST(NewP / Cur AS float), -1.0) * (NewP - Cost) / @Vat - U * (Cur - Cost) / @Vat END AS Gp1,
                        CASE WHEN Cost IS NULL THEN (NewP - Cur) / @Vat * U
                             ELSE U * POWER(CAST(NewP / Cur AS float), -2.0) * (NewP - Cost) / @Vat - U * (Cur - Cost) / @Vat END AS Gp2
-                FROM ch)
+                FROM ch
+                -- A margin-trim cut the publish held back is not on the shelf (AgentOptions.HoldBackTrimCuts).
+                WHERE NOT (@HoldTrim = 1 AND NewP < Cur AND ManualOverrideBy IS NULL
+                           AND ',' + REPLACE(ISNULL(ReasonCodes, ''), ' ', '') + ',' LIKE '%,MARGIN_TARGET_TRIM,%'))
             SELECT COUNT(*), SUM(CASE WHEN U > 0 THEN 1 ELSE 0 END), ISNULL(SUM(U), 0),
                    SUM(CASE WHEN NewP > Cur THEN 1 ELSE 0 END), ISNULL(SUM(CASE WHEN NewP > Cur THEN Gp0 END), 0),
                    SUM(CASE WHEN NewP < Cur THEN 1 ELSE 0 END), ISNULL(SUM(CASE WHEN NewP < Cur THEN Gp0 END), 0),
@@ -229,7 +233,7 @@ public sealed class RunReportWriter
             HoldoutChanged = cells.Where(c => Holdout(c.Category)).Sum(c => c.Changed),
             HeldByCheck = check?.Warns ?? 0,
             Requested = batch.Requested,
-            OnShelf = batch.Created + batch.Updated + batch.Unchanged + batch.TierRaised + batch.TierInserted,
+            OnShelf = batch.OnShelf,
             LeftOut = batch.Skipped,
             LeftOutByKind = leftOut.Count == 0 ? null : Truncate(JsonSerializer.Serialize(leftOut, Json), 2000),
             ExpectedGp30Eur = effect?.GrossProfit, ExpectedSkus = effect?.Skus ?? 0, ExpectedSoldSkus = effect?.SoldSkus ?? 0,
@@ -318,6 +322,9 @@ public sealed class RunReportWriter
             changedInHoldoutCategories = report.HoldoutChanged,
             holdoutCategories = _options.Limits.Holdouts.TryGetValue(report.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture), out var h) ? h : new List<string>(),
             heldBackByTheRunChecker = report.HeldByCheck,
+            marginTrimCutsHeldBack = await _db.PublishBatches.AsNoTracking().Where(b => b.Id == report.BatchId).Select(b => b.HeldBackTrimCuts).SingleAsync(ct),
+            marginTrimCutsPolicy = "the pricing manager's decision (31 Oct): a cut the margin target trim made is not published and our earlier discount on it is ended, " +
+                                   "because cheaper team deals block most raises while every cut lands; raises, dead-stock markdowns and prices a person set still go",
             publishGiven = report.Requested,
             onTheShelfAtOurPrice = report.OnShelf,
             leftOutByReason = report.LeftOutByKind is { } j ? JsonSerializer.Deserialize<Dictionary<string, int>>(j) : new Dictionary<string, int>(),

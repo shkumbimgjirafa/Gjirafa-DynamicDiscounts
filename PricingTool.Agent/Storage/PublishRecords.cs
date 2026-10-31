@@ -40,6 +40,12 @@ public class PublishBatch
     public int TierRaised { get; set; }
     public int TierInserted { get; set; }
     public int RaisedUnderTeamDeal { get; set; }
+    /// <summary>Prices a shopper now pays at ours: the writer's read-back after the publish (written, already ours, or already the
+    /// regular price); the written counts when nothing was read back.</summary>
+    public int OnShelf => RoundTripChecked > 0 ? RoundTripChecked - RoundTripMismatches : Created + Updated + Unchanged + TierRaised + TierInserted;
+
+    /// <summary>Margin-trim cuts the checked set held back from this publish (their earlier discount ended); null when the switch was off.</summary>
+    public int? HeldBackTrimCuts { get; set; }
     public int ChangedSinceRun { get; set; }
     public int DiscountsEnded { get; set; }
     public string? Note { get; set; }

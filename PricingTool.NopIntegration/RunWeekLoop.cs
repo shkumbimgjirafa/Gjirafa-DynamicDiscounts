@@ -198,6 +198,8 @@ public sealed class RunWeekLoop
 public sealed class RunWeekSteps : IRunWeekSteps
 {
     private readonly IServiceProvider _sp;
+    /// <summary>The margin-trim cuts the checked set held back, from <see cref="CheckedPricesAsync"/> to <see cref="PublishAsync"/>.</summary>
+    private IReadOnlyList<string>? _heldBackTrimCuts;
 
     public RunWeekSteps(IServiceProvider sp) => _sp = sp;
 
@@ -253,13 +255,17 @@ public sealed class RunWeekSteps : IRunWeekSteps
         var set = await scope.ServiceProvider.GetRequiredService<CheckedExport>().CheckedSetAsync(runId, ct);
         if (set.Check is null) return (Array.Empty<PublishItem>(), $"run #{runId} has no check");
         if (set.Blocked is { } why) return (Array.Empty<PublishItem>(), $"check #{set.Check.Id} blocked it: {why}");
+        _heldBackTrimCuts = set.HeldBackTrimCutSkus;
         return (CheckedPricePublisher.Items(set), CheckedPricePublisher.Chosen(set));
     }
 
     public async Task<PublishOutcome> PublishAsync(int layerId, long runId, IReadOnlyList<PublishItem> items, CancellationToken ct)
     {
         using var scope = _sp.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<NopDiscountWriter>().PublishAsync(CheckedPricePublisher.Request(layerId, runId, items), ct);
+        var writer = scope.ServiceProvider.GetRequiredService<NopDiscountWriter>();
+        var o = await writer.PublishAsync(CheckedPricePublisher.Request(layerId, runId, items, _heldBackTrimCuts?.Count), ct);
+        if (o.Status == "Published") await CheckedPricePublisher.EndHeldBackTrimCutsAsync(writer, layerId, _heldBackTrimCuts, ct);
+        return o;
     }
 
     public async Task<RunWeekStepResult> ReportAsync(long batchId, CancellationToken ct)

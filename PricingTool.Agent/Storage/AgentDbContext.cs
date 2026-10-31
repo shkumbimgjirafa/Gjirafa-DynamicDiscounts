@@ -440,6 +440,7 @@ public class AgentDbContext : DbContext
         {
             e.ToTable("PublishBatch");
             e.HasKey(x => x.Id);
+            e.Ignore(x => x.OnShelf);
             e.Property(x => x.Db).HasMaxLength(50);
             e.Property(x => x.Target).HasMaxLength(20);
             e.Property(x => x.ShopSchema).HasMaxLength(128);

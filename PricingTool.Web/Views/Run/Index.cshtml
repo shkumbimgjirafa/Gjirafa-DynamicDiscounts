@@ -244,8 +244,11 @@
                 <tr><td>@label</td><td class="text-end">@a.ToString("N0")</td><td class="text-end text-muted">@(b?.ToString("N0") ?? "–")</td></tr>
             }
             <tr><td>held back by the run checker</td><td class="text-end">@(r.Check?.Warns.ToString("N0") ?? "–")</td><td class="text-end text-muted">–</td></tr>
+            <tr><td title="Cuts the margin target trim made are not published (your decision, 31 Oct): cheaper team deals block most raises while every cut lands">margin-trim cuts held back (the shop's price stays)</td>
+                <td class="text-end">@(r.Batch.HeldBackTrimCuts?.ToString("N0") ?? "not held back then")</td>
+                <td class="text-end text-muted">@(r.PreviousBatch?.HeldBackTrimCuts?.ToString("N0") ?? "–")</td></tr>
             <tr><td>on the shelf at our price</td><td class="text-end">@r.OnShelf.ToString("N0")</td>
-                <td class="text-end text-muted">@(r.PreviousBatch is { } p2 ? (p2.Created + p2.Updated + p2.Unchanged + p2.TierRaised + p2.TierInserted).ToString("N0") : "–")</td></tr>
+                <td class="text-end text-muted">@(r.PreviousBatch?.OnShelf.ToString("N0") ?? "–")</td></tr>
             </tbody>
         </table>
         @if (r.PreviousBatch is null)

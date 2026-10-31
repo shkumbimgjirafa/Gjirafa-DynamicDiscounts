@@ -1695,6 +1695,9 @@ namespace PricingTool.Agent.Storage.Migrations
                     b.Property<DateTime?>("FinishedUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("HeldBackTrimCuts")
+                        .HasColumnType("int");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(20)

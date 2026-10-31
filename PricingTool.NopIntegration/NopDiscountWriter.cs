@@ -44,6 +44,8 @@ public sealed record PublishRequest(int LayerId, IReadOnlyList<PublishItem> Item
     public long? EngineRunId { get; init; }
     /// <summary>DiscountPlatformTypeId 2 (app only) instead of 0 (web and app).</summary>
     public bool AppOnly { get; init; }
+    /// <summary>Recorded on the batch: the margin-trim cuts the checked set held back (null: the switch was off).</summary>
+    public int? HeldBackTrimCuts { get; init; }
     /// <summary>Regular publishes: end a cheaper deal we didn't create that covers only this product (audited, rolled back
     /// with the batch), so our price applies; the user's decision of 31 Oct for prices under the floor. A deal matching one of
     /// <see cref="ProtectedDealPatterns"/> is left and reported as "protected-deal"; a deal covering several products is never ended.</summary>
@@ -150,7 +152,7 @@ public sealed class NopDiscountWriter
         {
             LayerId = request.LayerId, Db = layer.Db, StoreId = layer.StoreId, Target = _options.Target, ShopSchema = shop.Schema,
             Kind = request.Kind, CampaignKey = request.CampaignKey, EngineRunId = request.EngineRunId, Status = "Running",
-            StartedUtc = now, Requested = request.Items.Count,
+            StartedUtc = now, Requested = request.Items.Count, HeldBackTrimCuts = request.HeldBackTrimCuts,
         };
         _db.PublishBatches.Add(batch);
         await _db.SaveChangesAsync(ct);
@@ -717,7 +719,7 @@ public sealed class NopDiscountWriter
             JOIN [{shop.Schema}].[Discount_AppliedToProducts] dap ON dap.Product_Id = p.Id
             JOIN [{shop.Schema}].[Discount] d ON d.Id = dap.Discount_Id
             WHERE d.Name = r.Name AND d.StoreId = @Store AND ISNULL(d.EndDateUtc, '2999-01-01') > @Now
-            """, conn))
+            """, conn) { CommandTimeout = 600 })
         {
             cmd.Parameters.AddWithValue("@Store", layer.StoreId);
             cmd.Parameters.Add("@Now", SqlDbType.DateTime2).Value = now;
@@ -734,13 +736,15 @@ public sealed class NopDiscountWriter
         _db.PublishAudits.AddRange(targets);
         await _db.SaveChangesAsync(ct);
 
-        if (targets.Count > 0)
+        // In chunks: a held-back set can run to tens of thousands of discounts, too many for one statement's IN list.
+        foreach (var chunk in targets.Chunk(2000))
         {
             await using var cmd = new SqlCommand(
-                $"UPDATE [{shop.Schema}].[Discount] SET EndDateUtc = @Now WHERE Id IN ({string.Join(",", targets.Select(t => t.DiscountId!.Value))})", conn);
+                $"UPDATE [{shop.Schema}].[Discount] SET EndDateUtc = @Now WHERE Id IN ({string.Join(",", chunk.Select(t => t.DiscountId!.Value))})", conn) { CommandTimeout = 300 };
             cmd.Parameters.Add("@Now", SqlDbType.DateTime2).Value = Expired(now);
             await cmd.ExecuteNonQueryAsync(ct);
-            foreach (var t in targets) t.Applied = true;
+            foreach (var t in chunk) t.Applied = true;
+            await _db.SaveChangesAsync(CancellationToken.None);
         }
         batch.Updated = targets.Count;
         batch.Status = "Published";
