@@ -92,4 +92,33 @@ public class ExceptionsInboxTests : IDisposable
         Assert.Equal(2 + 1 + 2 + 1, inbox.WaitingCount);                    // decisions + blocked run + stopped/rolled back + failed step
         Assert.Equal("Gjirafa50 KS", inbox.LayerName(4));
     }
+
+    [Fact]
+    public async Task The_same_left_out_SKUs_every_day_count_once_with_the_days_they_were_seen()
+    {
+        var now = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc);
+        DateTime d2 = now.AddDays(-2), d1 = now.AddDays(-1).AddHours(-2), d0 = now.AddHours(-1);
+        PublishBatch At(DateTime started) { var b = Batch("Published"); b.StartedUtc = started; return b; }
+        PublishException Ex(PublishBatch b, string sku, DateTime at, string kind = "cheaper-deal") =>
+            new() { BatchId = b.Id, Sku = sku, Kind = kind, Detail = $"{kind} on {sku} at {at:MM-dd}", CreatedUtc = at };
+        var (b2, b1, b0, old) = (At(d2), At(d1), At(d0), At(now.AddDays(-9)));
+        _ai.PublishBatches.AddRange(b2, b1, b0, old);
+        _ai.SaveChanges();
+        _ai.PublishExceptions.AddRange(
+            Ex(b2, "SKU-A", d2), Ex(b1, "SKU-A", d1), Ex(b0, "SKU-A", d0),            // held by a team deal every day
+            Ex(b1, "SKU-B", d1), Ex(b0, "SKU-B", d0),
+            Ex(b0, "SKU-C", d0),                                                        // new in the last day
+            Ex(b0, "SKU-D", d0, "raised-under-team-deal"),
+            Ex(old, "SKU-OLD", now.AddDays(-9)));                                       // outside the window
+        _ai.SaveChanges();
+
+        var groups = await ExceptionsInbox.PublishSkusAsync(_ai, now.AddDays(-7), now, 2);
+
+        var deals = groups.Single(g => g.Kind == "cheaper-deal");
+        Assert.Equal((4, 3, 1, 3), (deals.LayerId, deals.Skus, deals.NewInLastDay, deals.MostDays));
+        Assert.Equal(new[] { ("SKU-A", 3), ("SKU-B", 2) }, deals.Latest.Select(l => (l.Sku, l.Days)));
+        Assert.Equal($"cheaper-deal on SKU-A at {d0:MM-dd}", deals.Latest[0].Detail);              // the latest reason
+        Assert.Equal(1, groups.Single(g => g.Kind == "raised-under-team-deal").Skus);
+        Assert.DoesNotContain(groups.SelectMany(g => g.Latest), l => l.Sku == "SKU-OLD");
+    }
 }

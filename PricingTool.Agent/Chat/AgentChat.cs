@@ -93,7 +93,12 @@ public sealed class AgentChat
         sb.AppendLine($"- Changes: {decisions.Count(d => d.Status == DecisionStatus.Applied)} applied within the limits, {decisions.Count(d => d.Status == DecisionStatus.Held)} held for a person " +
                       $"({string.Join(", ", decisions.GroupBy(d => d.Source).Select(g => $"{g.Key} {g.Count()}"))}).");
         sb.AppendLine($"- Publishes: {batches.Count(b => b.Status == "Published" && b.RolledBackUtc == null)} live, {batches.Count(b => b.RolledBackUtc != null)} rolled back " +
-                      $"({batches.Where(b => b.RolledBackUtc == null).Sum(b => b.Created + b.Updated):N0} discounts written to {(batches.FirstOrDefault()?.Target ?? "the sandbox")}).");
+                      $"({batches.Where(b => b.RolledBackUtc == null).Sum(b => b.Created + b.Updated):N0} discounts and {batches.Where(b => b.RolledBackUtc == null).Sum(b => b.TierRaised + b.TierInserted):N0} " +
+                      $"regular prices written to {(batches.FirstOrDefault()?.Target ?? "the sandbox")}).");
+        var leftOut = await Operations.ExceptionsInbox.PublishSkusAsync(_db, since, now, 0, ct);
+        if (leftOut.Count > 0)
+            sb.AppendLine("- Left out by the publisher, once per SKU: " + string.Join("; ", leftOut.Select(g =>
+                $"layer {g.LayerId} {g.Kind} {g.Skus:N0} SKUs ({g.NewInLastDay:N0} new in the last day, up to {g.MostDays} days)")) + ".");
         sb.AppendLine(ledger.Count > 0
             ? $"- Results vs the holdout: {ledger.Sum(m => m.Measured30Eur!.Value):N0} EUR gross profit over 30 days across {ledger.Count} measured changes (measured)."
             : "- Results vs the holdout: nothing measured yet (no pushed change has completed its window).");

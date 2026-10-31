@@ -102,6 +102,26 @@
     </tbody>
 </table>
 
+<h3 class="h6 mt-3">SKUs the publisher left out, once per SKU (last 7 days, listed only)</h3>
+<p class="small text-muted">The same SKUs come back every day (mostly a cheaper team deal on the shelf, which a person supersedes or not), so they are counted once, with the days they were seen.</p>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Layer</th><th>Why</th><th class="text-end">SKUs</th><th class="text-end">New in the last day</th><th class="text-end">Most days seen</th><th>Latest</th></tr></thead>
+    <tbody>
+    @foreach (var g in Model.PublishSkus)
+    {
+        <tr>
+            <td>@Model.LayerName(g.LayerId)</td><td>@g.Kind</td><td class="text-end">@g.Skus.ToString("N0")</td>
+            <td class="text-end">@g.NewInLastDay.ToString("N0")</td><td class="text-end">@g.MostDays</td>
+            <td class="small text-break">@foreach (var l in g.Latest) { <div><code>@l.Sku</code> (@l.Days d): @l.Detail</div> }</td>
+        </tr>
+    }
+    @if (Model.PublishSkus.Count == 0)
+    {
+        <tr><td colspan="6" class="text-muted">None.</td></tr>
+    }
+    </tbody>
+</table>
+
 <h2 class="h5 mt-4">Prices the checker held back (@Model.RunsWithHeldPrices.Count runs, listed only)</h2>
 <p class="small text-muted">Runs whose latest check was a warn: the warned prices were left out of the export and the rest went ahead. Normal operation; review the rows if a number looks off.</p>
 <table class="table table-sm align-middle">

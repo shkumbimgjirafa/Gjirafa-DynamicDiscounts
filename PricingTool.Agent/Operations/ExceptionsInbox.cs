@@ -19,6 +19,14 @@ public sealed record PublishProblem(PublishBatch Batch, IReadOnlyList<(string Ki
     public bool NeedsAPerson => Batch.Status is "Stopped" or "Failed" || Batch.Status == "RolledBack" && Batch.RoundTripMismatches > 0;
 }
 
+/// <summary>One SKU the publisher left out or flagged, once over the recent days: on how many days, when last, and why.</summary>
+public sealed record PublishSkuLine(string Sku, int Days, DateTime LastUtc, string Detail);
+
+/// <summary>A layer's publish exceptions of one kind counted once per SKU (the same cheaper-team-deal SKUs come back every
+/// day, about 73k rows a day on both KS layers): how many SKUs, how many first seen in the last day, the most days any was
+/// seen, and the latest few with their reason.</summary>
+public sealed record PublishSkuGroup(int LayerId, string Kind, int Skus, int NewInLastDay, int MostDays, IReadOnlyList<PublishSkuLine> Latest);
+
 /// <summary>What the exceptions inbox shows: only what needs a person (plan section 5, "Exceptions inbox").</summary>
 public sealed class InboxSnapshot
 {
@@ -32,6 +40,9 @@ public sealed class InboxSnapshot
     public IReadOnlyList<AgentRunCheck> RunsWithHeldPrices { get; init; } = Array.Empty<AgentRunCheck>();
 
     public IReadOnlyList<PublishProblem> Publishes { get; init; } = Array.Empty<PublishProblem>();
+
+    /// <summary>The recent publishes' left-out SKUs, once per layer, kind and SKU: listed, not counted as waiting.</summary>
+    public IReadOnlyList<PublishSkuGroup> PublishSkus { get; init; } = Array.Empty<PublishSkuGroup>();
 
     /// <summary>Daily-cycle steps that failed and haven't succeeded since on the same day.</summary>
     public IReadOnlyList<DailyCycleStep> FailedSteps { get; init; } = Array.Empty<DailyCycleStep>();
@@ -112,6 +123,7 @@ public sealed class ExceptionsInbox
                 .Select(b => new PublishProblem(b, exceptionCounts[b.Id].OrderByDescending(x => x.Count).Select(x => (x.Kind, x.Count)).ToList()))
                 .Where(p => p.NeedsAPerson || p.Exceptions.Count > 0)
                 .ToList(),
+            PublishSkus = await PublishSkusAsync(_ai, since, now, 5, ct),
             FailedSteps = failed,
             Pauses = await _ai.CategoryPauses.AsNoTracking().Where(p => p.ReleasedUtc == null).OrderByDescending(p => p.Id).ToListAsync(ct),
             CostHolds = await _ai.AgentDecisions.AsNoTracking()
@@ -127,5 +139,30 @@ public sealed class ExceptionsInbox
                                    select new PlanWaiting(p, b.Name, b.GoalType, b.GoalValue)).ToListAsync(ct),
             LayerNames = await _tool.Layers.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.DisplayName, ct),
         };
+    }
+
+    /// <summary>The publish exceptions since <paramref name="since"/>, once per layer, kind and SKU (counted in the database),
+    /// with the <paramref name="sample"/> latest SKUs of each group and their latest reason. Shared with the weekly report.</summary>
+    public static async Task<IReadOnlyList<PublishSkuGroup>> PublishSkusAsync(AgentDbContext ai, DateTime since, DateTime now, int sample, CancellationToken ct = default)
+    {
+        var skus = await (from e in ai.PublishExceptions
+                          join b in ai.PublishBatches on e.BatchId equals b.Id
+                          where b.StartedUtc >= since
+                          group e by new { b.LayerId, e.Kind, e.Sku } into g
+                          select new
+                          {
+                              g.Key.LayerId, g.Key.Kind, g.Key.Sku, First = g.Min(x => x.CreatedUtc), Last = g.Max(x => x.CreatedUtc), LastId = g.Max(x => x.Id),
+                              Days = g.Select(x => x.CreatedUtc.Date).Distinct().Count(),
+                          }).ToListAsync(ct);
+        var groups = skus.GroupBy(s => (s.LayerId, s.Kind))
+            .Select(g => (g.Key, Skus: g.Count(), New: g.Count(s => s.First >= now.AddDays(-1)), Most: g.Max(s => s.Days),
+                Top: g.OrderByDescending(s => s.Last).ThenBy(s => s.Sku, StringComparer.Ordinal).Take(sample).ToList()))
+            .ToList();
+        var ids = groups.SelectMany(g => g.Top.Select(t => t.LastId)).ToList();
+        var details = await ai.PublishExceptions.AsNoTracking().Where(e => ids.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.Detail, ct);
+        return groups.OrderBy(g => g.Key.LayerId).ThenByDescending(g => g.Skus)
+            .Select(g => new PublishSkuGroup(g.Key.LayerId, g.Key.Kind, g.Skus, g.New, g.Most,
+                g.Top.Select(t => new PublishSkuLine(t.Sku, t.Days, t.Last, details.GetValueOrDefault(t.LastId, ""))).ToList()))
+            .ToList();
     }
 }
