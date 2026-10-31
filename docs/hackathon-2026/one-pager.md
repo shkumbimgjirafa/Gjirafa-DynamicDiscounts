@@ -36,16 +36,16 @@ measured with a same-weeks control (one run on one layer), €10,632 before/afte
 season-adjusted, neither controlled (E20); it is the non-AI calculator's effect, which the registration did not claim as
 past benefit, and B counts only the next 12 months of the automated system. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months). Costs:
-€8,896 one-time (hackathon hours at €50, 160 hours to production including code review, the build
-sessions' AI usage of $250.93 API-equivalent, E18) and €6,905 running (AI
-€67 a month from the measured cost per call, E19; maintenance and review hours), €15,801 in all.
+€8,908 one-time (hackathon hours at €50, 160 hours to production including code review, the build
+sessions' AI usage of $262.81 API-equivalent, E18) and €6,905 running (AI
+€67 a month from the measured cost per call, E19; maintenance and review hours), €15,812 in all.
 Which framing counts is the organisers' call.
 
 | Year 1 | A · Low | A · Mid | A · High | B · Low | B · Mid | B · High |
 |---|---|---|---|---|---|---|
 | Extra gross profit a month at full scope | €2,944 | €4,186 | €5,630 | €6,944 | €14,818 | €18,630 |
-| Net benefit (9.5 full-benefit months − all costs) | €12,167 | €23,966 | €37,684 | €50,167 | €124,970 | €161,184 |
-| ROI | 77% | 152% | 238% | 317% | 791% | 1020% |
+| Net benefit (9.5 full-benefit months − all costs) | €12,156 | €23,955 | €37,673 | €50,156 | €124,959 | €161,173 |
+| ROI | 77% | 151% | 238% | 317% | 790% | 1019% |
 | Payback (months) | 6.9 | 5.4 | 4.5 | 4.1 | 3.2 | 3.1 |
 | Track A score (/100; Evidence and Works are our own ratings) | 54 | 66 | 68 | 76 | 84 | 84 |
 

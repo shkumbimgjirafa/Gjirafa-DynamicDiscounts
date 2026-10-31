@@ -47,7 +47,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (912 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (917 passed, 1 skipped: the opt-in real headless call; E17).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
    engine refuse to start in any other environment)
    (Agent, Campaigns, Backtest, Exceptions tabs).
@@ -71,8 +71,8 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 | **Publisher** | nothing | with `Publisher:Target` = Sandbox (every config in this repo) the writer refuses any schema but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly | `NopIntegration/PublisherOptions.cs:58` |
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
-`ai.AgentQueryLog`. The agents' runtime Claude calls: 45 calls, $5.08 in the live database and 5 calls, $1.03 in the test
-database (E15). The two Claude Code sessions that built this used $250.93 since kickoff (the AI-judge dry run included), $175.86 of it in the unattended
+`ai.AgentQueryLog`. The agents' runtime Claude calls: 47 calls, $5.72 in the live database and 5 calls, $1.03 in the test
+database (E15). The two Claude Code sessions that built this used $262.81 since kickoff (the AI-judge dry run included), $187.85 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -179,11 +179,11 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 | No live system written | The replica and a one-time read-only copy of the tool database are read, both allowed at the kickoff. On 31 Oct a web start with the wrong launch profile (Development) migrated and seeded the main repo's *local* development database `PricingTool` on this laptop. Five minutes later, after a backup, its schema changes were reverted (every object created at 00:20:58–59 dropped). The demo data it seeded is still there (one demo run #40010 with its 360 proposals, one day of snapshots and KPIs, and 360 updated dead-stock states): the backup was taken after the start, so the updated rows' earlier values can't be restored, and removing only the inserted rows would leave that database inconsistent; the user decides (`docs/hackathon-2026/ai-judge/dry-run-1.md`). The web app and the engine now refuse to start in any environment but Hackathon |
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours and 22 unattended blocks (E16); unattended blocks count as AI cost only, $175.86 API-equivalent (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 3.9 attended hours and 23 unattended blocks (E16); unattended blocks count as AI cost only, $187.85 API-equivalent (E18) |
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 912 passed, 1 skipped (31 Oct 00:59). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 917 passed, 1 skipped (31 Oct 01:14). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).
