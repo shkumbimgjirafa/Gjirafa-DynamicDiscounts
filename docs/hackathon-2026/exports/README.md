@@ -17,6 +17,9 @@ user-secrets store, the tool DB's is passed in at run time.
 | `agent.*` views | — | `agent_views.sql` | The curated views behind `query_data` |
 | `hk.SalesLinesMkAl` | NOP replica (Sales Report lines) | `sales_lines_mkal.sql` | MK/AL layers 2, 3, 5, 6 from 2026-07-01 for backtest lever 4; same scope rules as KS; money in local currency (MKD/ALL) plus `*Eur` columns at the shop's `Currency.Rate` on the extraction day (`EurRate` per row); no `StockClass`. Kept apart from `hk.SalesLines`, which is EUR-only and reloaded daily |
 | `hk.PushDatesMkAl` | NOP replica | `push_dates_mkal.sql` | Discount sets of 200+ rows on the MK/AL stores (StoreId 1 = MK, 3 = AL, both shop DBs) from 2026-06-15, by name prefix, apply type, platform type (0 = all, 2 = app only) and start day |
+| `hk.LivePriceSchema` | NOP replica, metadata only | `live_price_schema.sql` | Columns, indexes and triggers of `TierPrice` (the shelf price per store) and the price columns of `Product`; both shop DBs |
+| `hk.TierPriceConventions`, `hk.TierPriceMarginProbe` | NOP replica, aggregates only | `tier_price_conventions.sql`, `tier_price_margin_probe.sql` | How tier rows are used per shop and store (one row per product, updated in place); what `ProfitMargin` holds (a legacy value, not a margin) |
+| `hk.TierPricesKs` | NOP replica | `tier_prices_ks.sql` | Today's newest KS (StoreId 2) tier row per product, both shops: seeds the regular-price publisher's sandbox |
 
 Generic runner: `Copy-ReplicaQuery.ps1 -SqlFile … -DestTable … -CreateSql …`.
 
