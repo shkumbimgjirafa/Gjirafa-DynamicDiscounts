@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 01:15",
+    "generated":  "2026-10-31 01:31",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. Framing A = the measured levers (E8). Framing B = the rollout of the test phase (E20) plus the levers; the two are never blended.",
     "figures":  [
@@ -7,13 +7,13 @@
                         "id":  "E1",
                         "name":  "Lever 1, Loss-sale block: extra GP a month, both KS layers",
                         "value":  {
-                                      "central":  880,
-                                      "low":  880,
-                                      "high":  880
+                                      "central":  198,
+                                      "low":  198,
+                                      "high":  198
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Walk-forward on booked sales lines, monthly average over the 12 months Oct 2025 - Sep 2026; central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 458 (458 / 458); layer 4: 422 (422 / 422)",
+                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 78 (78 / 78); layer 4: 120 (120 / 120)",
                         "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
@@ -27,7 +27,7 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (needs the hand-set floors and approvals of that period); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 0 (0 / 0); layer 4: 4 (2 / 4)",
+                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 0 (0 / 0); layer 4: 4 (2 / 4)",
                         "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
@@ -35,13 +35,13 @@
                         "id":  "E3",
                         "name":  "Lever 3, Cost reaction: extra GP a month, both KS layers",
                         "value":  {
-                                      "central":  770,
-                                      "low":  590,
-                                      "high":  874
+                                      "central":  1532,
+                                      "low":  327,
+                                      "high":  1717
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Walk-forward on booked sales lines, monthly average over the 12 months Oct 2025 - Sep 2026; central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 514 (392 / 585); layer 4: 256 (198 / 289)",
+                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); the low case September only (August was one cost event); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 1320 (134 / 1488); layer 4: 212 (193 / 229)",
                         "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
@@ -55,7 +55,7 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (needs the hand-set floors and approvals of that period); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 396 (260 / 474); layer 4: 0 (0 / 0)",
+                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 396 (260 / 474); layer 4: 0 (0 / 0)",
                         "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
@@ -69,7 +69,7 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (needs the hand-set floors and approvals of that period); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 0 (0 / 0); layer 4: 0 (0 / 0)",
+                        "method":  "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator\u0027s era); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) layer 1: 0 (0 / 0); layer 4: 0 (0 / 0)",
                         "source":  "ai.BacktestSnapshot #2 (2026-10-30 23:35 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
@@ -105,9 +105,9 @@
                         "id":  "E8",
                         "name":  "Framing A: all levers together, extra GP a month",
                         "value":  {
-                                      "central":  4186,
-                                      "low":  2944,
-                                      "high":  5630
+                                      "central":  4266,
+                                      "low":  1999,
+                                      "high":  5791
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
@@ -250,10 +250,10 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  262.81,
-                                      "sinceKickoffResponses":  1698,
-                                      "unattendedBlocksUsd":  187.85,
-                                      "unattendedBlocksResponses":  1250
+                                      "sinceKickoffUsd":  272.7,
+                                      "sinceKickoffResponses":  1734,
+                                      "unattendedBlocksUsd":  197.36,
+                                      "unattendedBlocksResponses":  1284
                                   },
                         "unit":  "USD (API-equivalent)",
                         "label":  "measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)",
@@ -266,11 +266,11 @@
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
                                       "attendedHours":  3.9,
-                                      "unattendedBlocks":  23,
-                                      "rows":  33
+                                      "unattendedBlocks":  24,
+                                      "rows":  34
                                   },
                         "unit":  "hours",
-                        "label":  "measured",
+                        "label":  "measured (attended rows only; the person\u0027s time inside unattended blocks is not timed)",
                         "method":  "Attended rows: their hours; unattended rows (\"0 (unattended, AI)\") count as AI cost only (E18)",
                         "source":  "docs/hackathon-2026/hours.md",
                         "script":  "this script"
@@ -279,12 +279,12 @@
                         "id":  "E17",
                         "name":  "Automated tests",
                         "value":  {
-                                      "passed":  917,
+                                      "passed":  918,
                                       "skipped":  1
                                   },
                         "unit":  "tests",
                         "label":  "measured",
-                        "method":  "dotnet test PricingTool.sln: 917 passed, 1 skipped (the opt-in real headless call), 31 Oct 01:14",
+                        "method":  "dotnet test PricingTool.sln: 918 passed, 1 skipped (the opt-in real headless call), 31 Oct about 01:30",
                         "source":  "PricingTool.Tests",
                         "script":  "dotnet test PricingTool.sln"
                     },

@@ -83,7 +83,7 @@ def header(ws, row, labels, start_col=1):
 # Rows of the Inputs sheet, by name: every formula elsewhere refers to them through this map.
 R = dict(rate=5, hours=6, person=7, build=8, training=9, setup=10, ai=11, servers=12, maint=13, review=14,
          first=15, pilot=16, share=17, months=18, buildAi=19, fx=20,
-         levHead=22, base=23, catch=24, lev1=25, lev7=31, levSum=32, levCheck=33,
+         levHead=22, base=23, catch=24, lev1=25, lev7=31, levSum=32, levCheck=33, holdout=34,
          b0Head=35, b0Low=36, b0Mid=37, b0High=38, b0UsedHead=40, b0Used=41,
          judgeHead=43, evA=44, evB=45, works=46,
          aiHead=48, aiFirst=49, aiLast=53, aiSum=54)
@@ -265,13 +265,20 @@ for col in "BCD":
     c.fill = TOTAL
     c.font = Font(name=ARIAL, size=10, bold=True)
 put(wi, f"E{R['levSum']}", "formula")
-put(wi, f"F{R['levSum']}", "Low = elasticity −2, Mid = −1, High = −0.5 (assumed); each sales line counted by one lever; levers 1 "
-                           "and 3 averaged over 12 months, the others over Aug–Sep", NOTE)
+put(wi, f"F{R['levSum']}", "Low = elasticity −2, Mid = −1, High = −0.5 (assumed); each sales line counted by one lever; every lever "
+                           "on the calculator's era, Aug–Sep 2026 (lever 3's low case September only: August was one cost event)", NOTE)
 put(wi, f"A{R['levCheck']}", "Check: the same total in numbers.json")
 for col, case in cases.items():
     put(wi, f"{col}{R['levCheck']}", v("E8", case), BLUE, EUR).border = BOX
 put(wi, f"E{R['levCheck']}", f'=IF(AND(B{R["levSum"]}=B{R["levCheck"]},C{R["levSum"]}=C{R["levCheck"]},D{R["levSum"]}=D{R["levCheck"]}),"matches","DIFFERS")', BLACK)
 put(wi, f"G{R['levCheck']}", "E8", BOLD)
+put(wi, f"A{R['holdout']}", "Holdout categories (the control): share left out")
+for col in "BCD":
+    put(wi, f"{col}{R['holdout']}", 0.11, BLUE, PCT, YELLOW).border = BOX
+put(wi, f"E{R['holdout']}", "estimated")
+put(wi, f"F{R['holdout']}", "The agents never change the holdout categories, so their part of every lever is not benefit. Share of the "
+                            "changed prices in them in the 31 Oct exports (Gj50 6,759 of 51,391; Mall 16,874 of 169,081); "
+                            "the backtest itself doesn't leave them out", NOTE)
 
 header(wi, R["b0Head"], ["Framing B: the calculator's test phase (B0), three cases", "Value", "Unit", "Label", "Source / note", "", "ID"])
 b0 = [
@@ -360,10 +367,12 @@ wf = wb.create_sheet("Financial case")
 put(wf, "A1", "Financial case: the Track A money formula", TITLE)
 header(wf, 3, ["Line", "A · Low", "A · Mid", "A · High", "B · Low", "B · Mid", "B · High", "How it's calculated"])
 s, b = R["levSum"], R["b0Used"]
-benefit = {"B": f"=Inputs!B{s}", "C": f"=Inputs!C{s}", "D": f"=Inputs!D{s}",
-           "E": f"=Inputs!B{s}+Inputs!B{b}", "F": f"=Inputs!C{s}+Inputs!C{b}", "G": f"=Inputs!D{s}+Inputs!D{b}"}
+ho = R["holdout"]
+benefit = {"B": f"=Inputs!B{s}*(1-Inputs!B{ho})", "C": f"=Inputs!C{s}*(1-Inputs!C{ho})", "D": f"=Inputs!D{s}*(1-Inputs!D{ho})",
+           "E": f"=(Inputs!B{s}+Inputs!B{b})*(1-Inputs!B{ho})", "F": f"=(Inputs!C{s}+Inputs!C{b})*(1-Inputs!C{ho})",
+           "G": f"=(Inputs!D{s}+Inputs!D{b})*(1-Inputs!D{ho})"}
 lines = [
-    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "Framing A: levers 1–7 · Framing B: + B0 (the test phase's rate)"),
+    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "Framing A: levers 1–7 · Framing B: + B0 (the test phase's rate); the holdout share left out"),
     (5, "Months of full benefit in year 1", f"={I['months']}", NUM1, GREEN, "After the build month: the pilot at its share, then full scope"),
     (6, "First-year benefit", "={c}4*{c}5", EUR, BLACK, "Extra margin in the first 12 months"),
     (7, "One-time cost", f"=({I['hours']}+{I['person']}+{I['build']}+{I['training']})*{I['rate']}+{I['setup']}+{I['buildAi']}*{I['fx']}", EUR, GREEN,

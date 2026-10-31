@@ -1,30 +1,32 @@
-# Backtest results (30 Oct 2026, build session; levers 1 and 3 widened to 12 months on 31 Oct)
+# Backtest results (30 Oct 2026, build session; windows settled on 31 Oct after the AI-judge dry runs)
 
 What v2 would have added on Kosovo's two layers, lever by lever, on booked sales lines (booked COGS, EUR VAT
-excluded). **Levers 1 and 3** need only sales lines and costs, so they are averaged over the 12 complete months
-Oct 2025 – Sep 2026. **Levers 2, 5 and 6** need the hand-set floors and approvals of the calculator's era, so their
-window is Aug 1 – Sep 30 2026 (monthly average below), with Oct 1–15 as an out-of-sample check. Commands:
-`PricingTool.AgentTools backtest-snapshot` (the stored run, `ai.BacktestSnapshot`, shown on the Backtest page with a CSV
-download), or `backtest-levers 1 4 [--from --to] [--detail]` and
-`backtest-campaigns 1 4`. All gains are **estimated** unless marked measured; elasticity cases −0.5 / −1.0 / −2.0
-(assumed), the low case (−2.0) is Finance's.
+excluded). **Every lever on the calculator's era, Aug 1 – Sep 30 2026** (monthly average below), with Oct 1–15 as an
+out-of-sample check: framing A's baseline is today's process, the calculator with its pushes. Lever 3's low case leaves
+out August (one cost event, below). Commands: `PricingTool.AgentTools backtest-snapshot` (the stored run,
+`ai.BacktestSnapshot`, shown on the Backtest page with a CSV download; it goes back to Oct 2025 for context), or
+`backtest-levers 1 4 [--from --to] [--detail]` and `backtest-campaigns 1 4`. All gains are **estimated** unless marked
+measured; elasticity cases −0.5 / −1.0 / −2.0 (assumed), the low case (−2.0) is Finance's.
 
-## Monthly gain (EUR a month)
+## Monthly gain, Aug–Sep average (EUR a month)
 
-| # | Lever | Window | GjirafaMall KS: central (low / high) | Gjirafa50 KS: central (low / high) | Basis |
-|---|---|---|---|---|---|
-| 1 | Loss-sale block | 12 months | 458 | 422 | measured loss, estimated catch |
-| 2 | Per-category floors | Aug–Sep | 0 | 4 (2 / 4) | estimated; Alpha's 8 rules, Gj50 only; in-sample |
-| 3 | Cost reaction | 12 months | 514 (392 / 585) | 256 (198 / 289) | measured lag, estimated recovery |
-| 4 | Coverage MK / AL | Aug–Sep | — | — | the four MK/AL layers: 1,353 (509 / 1,654), estimated: the calculator's Kosovo rate on months without a push |
-| 5 | Cadence | Aug–Sep | 396 (260 / 474) | 0 | measured run → push gaps only |
-| 6 | Learning | Aug–Sep | 0 | — | as built; the plan's plain rule: −614 |
-| 7 | Campaign planning | 12 months of campaigns | 578 | 205 | estimated; uplift curve leave-one-out (low: half its slope, high: twice) |
+| # | Lever | GjirafaMall KS: central (low / high) | Gjirafa50 KS: central (low / high) | Basis |
+|---|---|---|---|---|
+| 1 | Loss-sale block | 78 | 120 | measured loss, estimated catch |
+| 2 | Per-category floors | 0 | 4 (2 / 4) | estimated; Alpha's 8 rules, Gj50 only; in-sample |
+| 3 | Cost reaction | 1,320 (134 / 1,488) | 212 (193 / 229) | measured lag, estimated recovery; the low case is September only |
+| 4 | Coverage MK / AL | — | — | the four MK/AL layers: 1,353 (509 / 1,654), estimated: the calculator's Kosovo rate on months without a push |
+| 5 | Cadence | 396 (260 / 474) | 0 | measured run → push gaps only |
+| 6 | Learning | 0 | — | as built; the plan's plain rule: −614 |
+| 7 | Campaign planning | 578 | 205 | estimated, 12 months of campaigns; uplift curve leave-one-out (low: half its slope, high: twice) |
 
-**With lever 4 (MK/AL): about €4.2k a month central, €2.9k low, €5.6k high (E8).** Against the €10k bar for band 5
+**With lever 4 (MK/AL): about €4.3k a month central, €2.0k low, €5.8k high (E8).** Against the €10k bar for band 5
 this is far short; the levers add to the rollout of the calculator's tested effect (framing B), they don't replace it.
-The first pass (Aug–Sep only for every lever) gave €4.3k central: lever 3 was €1.5k there because of one cost event
-in August, and lever 1 €0.2k; over 12 months lever 3 is €0.8k and lever 1 €0.9k.
+The financial sheet then leaves out the holdout categories' share (about 11 % of the changed prices), which the backtest
+doesn't. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
+2026) to stop August's one event counting every month; dry run 2 showed that scored them against months before the
+calculator, a baseline that no longer exists (lever 1 rose from €0.2k to €0.9k on those months). The low case now
+answers the one-event point instead.
 
 ## What each number rests on
 
@@ -38,8 +40,8 @@ in August, and lever 1 €0.2k; over 12 months lever 3 is €0.8k and lever 1 �
   `backtest-coverage`.
 - **Lever 1.** Cross-dock lines on normal days sold under their booked cost, e.g. €394 / €2,671 / €250 a month on
   Mall (Aug / Sep / Oct 1–15), €402 / €539 / €175 on Gj50 (measured). Counted only where the cost the SKU last
-  sold at was already above the price, i.e. the tool knew: 18–81 % of Mall's loss a month in Nov–Jul (4–37 %
-  in Aug–Sep). It assumes a blocked loss sale costs nothing else (no lost basket). Most of the loss arrives with a
+  sold at was already above the price, i.e. the tool knew: 4–37 % of the loss in Aug–Sep (18–81 % on Mall in
+  Nov–Jul, before the calculator lifted most of the known-cost losses). It assumes a blocked loss sale costs nothing else (no lost basket). Most of the loss arrives with a
   cost that rose at that very sale; whether CostWatcher sees it first depends on how fast the replica's cost
   refreshes (a go-live question).
 - **Lever 2.** Where the agent's per-category floor is above the hand-set floor of that day (rebuilt from the
@@ -51,8 +53,8 @@ in August, and lever 1 €0.2k; over 12 months lever 3 is €0.8k and lever 1 �
   than 1 %, priced back to its prior margin from the day after the jump was seen. **August is one event**,
   checked: in the week of 3 August a third of Mall's lines carried a booked cost more than 5 % above July
   (673 lines against about 180 in a normal week) and prices followed about two weeks later (e.g. SKU 892712lt,
-  cost €17.44 → €21.81 on 4–5 Aug, sold at €22.03 net until 19 Aug). That is why lever 3 is averaged over 12
-  months: Mall €93–736 a month in Nov–Jul at e −1, €2,467 in August.
+  cost €17.44 → €21.81 on 4–5 Aug, sold at €22.03 net until 19 Aug). So the low case is September only.
+  For context, before the calculator Mall's lever 3 ran €93–736 a month at e −1 (Nov–Jul), €2,467 in August.
 - **Lever 5.** Sales on full days between a run finishing and its approval going live, at the price the engine
   had already computed. Lags were 0–3 days per push. What the engine would have proposed *between* pushes
   can't be scored: those proposals weren't kept. Gj50's October gap was mostly markdowns (−€123 to −€218).

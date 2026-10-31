@@ -1,51 +1,59 @@
 {
-  "generated": "2026-10-31 01:15",
+  "generated": "2026-10-31 01:31",
   "label": "measured tokens; API-equivalent cost at list prices (the actual spend is the flat Claude subscription)",
   "prices": "USD per million tokens from the claude-api skill (cached 2026-10-06): claude-opus-5-5 4.0/20.0, cache read 0.2; claude-sonnet-5-5 2.0/10.0, cache read 0.2; claude-opus-5 5.0/25.0, cache read 0.5; claude-opus-4-8 5.0/25.0, cache read 0.5; claude-fable-5-1 10.0/50.0, cache read 0.25; claude-haiku-5-5 0.1/0.5, cache read 0.01; cache writes 1.25x input (5 min), 2x (1 h)",
   "sources": [
     {
       "transcript": "d7071225-5a98-43c3-bcf8-a901f206caf9.jsonl",
       "from": "start",
-      "responses": 1349
+      "responses": 1379
     },
     {
       "transcript": "a425eebb-0dd7-4bef-956a-a9675e0cc8c0.jsonl",
       "from": "2026-10-30T15:30:00",
-      "responses": 353
+      "responses": 359
     }
   ],
   "unpricedModels": [
     "<synthetic>"
   ],
   "sinceKickoff": {
-    "responses": 1698,
+    "responses": 1734,
     "tokens": {
-      "input": 3528,
-      "output": 2406755,
-      "cacheWrite": 5162315,
-      "cacheRead": 840627057
+      "input": 3606,
+      "output": 2451523,
+      "cacheWrite": 5235059,
+      "cacheRead": 863549870
     },
-    "usdApiEquivalent": 262.81,
+    "usdApiEquivalent": 272.7,
     "extras": [
       {
         "label": "ai-judge dry run 1",
         "usd": 3.6177
+      },
+      {
+        "label": "ai-judge dry run 2",
+        "usd": 3.8371
       }
     ]
   },
   "unattendedBlocks": {
-    "responses": 1250,
+    "responses": 1284,
     "tokens": {
-      "input": 2608,
-      "output": 1641274,
-      "cacheWrite": 2957455,
-      "cacheRead": 638697179
+      "input": 2682,
+      "output": 1682833,
+      "cacheWrite": 3024176,
+      "cacheRead": 660257941
     },
-    "usdApiEquivalent": 187.85,
+    "usdApiEquivalent": 197.36,
     "extras": [
       {
         "label": "ai-judge dry run 1",
         "usd": 3.6177
+      },
+      {
+        "label": "ai-judge dry run 2",
+        "usd": 3.8371
       }
     ]
   },
@@ -517,6 +525,26 @@
         "cacheRead": 46438281
       },
       "usdApiEquivalent": 12.0
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "01:16",
+      "to": "01:31",
+      "unattended": true,
+      "responses": 34,
+      "tokens": {
+        "input": 74,
+        "output": 41559,
+        "cacheWrite": 66721,
+        "cacheRead": 21560762
+      },
+      "usdApiEquivalent": 9.52,
+      "extras": [
+        {
+          "label": "ai-judge dry run 2",
+          "usd": 3.8371
+        }
+      ]
     }
   ]
 }

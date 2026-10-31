@@ -18,6 +18,10 @@ This repository is the Gjirafa AI Hackathon 2026 build (Track A): two AI agents 
 calculator below. What's new, how to run it in five steps, where the AI's output becomes a decision, what is mocked or
 unfinished, and how every figure reproduces: [`HACKATHON.md`](HACKATHON.md).
 
+The rest of this README is the calculator's own, as imported. Three files it links to belong to the main repo and
+were not copied here: `scripts/usp_GetDailyPricingDataset.sql`, `docs/algorithms/cross-dock.md` and
+`k8s/web-deployment.yaml` (this repo has no `k8s/`, `.env` or pipeline by rule).
+
 ## Layers (multi-store)
 
 The tool is **multi-layer**: a *layer* is a Brand × Country combination, and everything — the

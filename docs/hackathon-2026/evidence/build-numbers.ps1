@@ -33,12 +33,12 @@ $snapRef = "ai.BacktestSnapshot #$($snapRow.Id) ($(([datetime]$snapRow.CreatedUt
 $leverScript = 'PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV'
 $names = @{ 1 = 'Loss-sale block'; 2 = 'Per-category floors'; 3 = 'Cost reaction'; 5 = 'Cadence'; 6 = 'Learning (as built)' }
 $test = @('2026-08', '2026-09')
-# Levers 1 and 3 need only sales lines and costs: averaged over the 12 complete months Oct 2025 - Sep 2026. Levers 2, 5 and 6
-# need the calculator era's hand-set floors and approvals: Aug-Sep 2026.
-$year = 0..11 | ForEach-Object { (Get-Date -Year 2025 -Month 10 -Day 1).AddMonths($_).ToString('yyyy-MM') }
-function MonthsFor($lever) { if ($lever -in 1, 3) { return $year } else { return $test } }
-function LeverMonthly($layerResult, $lever, $e) {
-    $months = MonthsFor $lever
+# Every lever on the calculator's era, Aug-Sep 2026: framing A's baseline is today's process, the calculator with its pushes
+# (a 12-month window tried on 31 Oct scored levers 1 and 3 against months before the calculator, a baseline that no longer
+# exists). Lever 3's low case leaves out August, one cost event (backtest-results.md), so it isn't counted every month.
+function MonthsFor($lever, $case) { if ($lever -eq 3 -and $case -eq 'low') { return @('2026-09') } else { return $test } }
+function LeverMonthly($layerResult, $lever, $e, $case) {
+    $months = MonthsFor $lever $case
     $g = @($layerResult.gains | Where-Object { $_.lever -eq $lever -and [decimal]$_.elasticity -eq $e -and $months -contains $_.month })
     if ($g.Count -eq 0) { return 0 }
     return Round0 (($g | Measure-Object -Property gain -Sum).Sum / $months.Count)
@@ -48,12 +48,12 @@ $totals = @{ high = 0; central = 0; low = 0 }
 foreach ($lever in 1, 2, 3, 5, 6) {
     $high = 0; $central = 0; $low = 0; $parts = @()
     foreach ($r in $snap.levers) {
-        $h = LeverMonthly $r $lever -0.5; $c = LeverMonthly $r $lever -1.0; $l = LeverMonthly $r $lever -2.0
+        $h = LeverMonthly $r $lever -0.5 'high'; $c = LeverMonthly $r $lever -1.0 'central'; $l = LeverMonthly $r $lever -2.0 'low'
         $high += $h; $central += $c; $low += $l; $parts += "layer $($r.layerId): $c ($l / $h)"
     }
     $totals.high += $high; $totals.central += $central; $totals.low += $low
     Add $ids[$lever] "Lever $lever, $($names[$lever]): extra GP a month, both KS layers" ([ordered]@{ central = $central; low = $low; high = $high }) 'EUR/month' 'estimated' `
-        "Walk-forward on booked sales lines, monthly average over $(if ($lever -in 1, 3) { 'the 12 months Oct 2025 - Sep 2026' } else { 'Aug-Sep 2026 (needs the hand-set floors and approvals of that period)' }); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) $($parts -join '; ')" $snapRef $leverScript
+        "Walk-forward on booked sales lines, monthly average over Aug-Sep 2026 (the calculator's era)$(if ($lever -eq 3) { '; the low case September only (August was one cost event)' }); central e -1.0, low e -2.0, high e -0.5 (elasticity assumed); central (low / high) $($parts -join '; ')" $snapRef $leverScript
 }
 
 # Lever 7: the median gain per campaign day (reallocate) x the campaign days of the last 12 months; the uplift curve as fitted
@@ -160,10 +160,10 @@ Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that 
     'measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)' `
     "Usage fields of the session transcripts, each response once, priced per model at list prices ($($usage.prices)); blocks in CET, transcripts in UTC" `
     'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
-Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured' `
+Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured (attended rows only; the person''s time inside unattended blocks is not timed)' `
     'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
-$testsLine = 'dotnet test PricingTool.sln: 917 passed, 1 skipped (the opt-in real headless call), 31 Oct 01:14'
-Add 'E17' 'Automated tests' ([ordered]@{ passed = 917; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
+$testsLine = 'dotnet test PricingTool.sln: 918 passed, 1 skipped (the opt-in real headless call), 31 Oct about 01:30'
+Add 'E17' 'Automated tests' ([ordered]@{ passed = 918; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results, measured before the hackathon (quoted, not recomputed here) -------------------------
 Add 'E20' "Calculator v0.5's test phase, Kosovo, extra GP a month (framing B's B0)" ([ordered]@{ low = 4000; mid = 10632; high = 13000 }) 'EUR/month' `
