@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-31 19:48",
+  "generated": "2026-10-31 20:03",
   "label": "measured tokens; API-equivalent cost at list prices (the actual spend is the flat Claude subscription)",
   "prices": "USD per million tokens from the claude-api skill (cached 2026-10-06): claude-opus-5-5 4.0/20.0, cache read 0.2; claude-sonnet-5-5 2.0/10.0, cache read 0.2; claude-opus-5 5.0/25.0, cache read 0.5; claude-opus-4-8 5.0/25.0, cache read 0.5; claude-fable-5-1 10.0/50.0, cache read 0.25; claude-haiku-5-5 0.1/0.5, cache read 0.01; cache writes 1.25x input (5 min), 2x (1 h)",
   "sources": [
@@ -16,7 +16,12 @@
     {
       "transcript": "ca16b95f-eea9-432e-905a-90b2780b8d8b.jsonl",
       "from": "start",
-      "responses": 802
+      "responses": 811
+    },
+    {
+      "transcript": "agent-a1e96aa8152dcc7d1.jsonl",
+      "from": "start",
+      "responses": 103
     },
     {
       "transcript": "agent-a754ddfa71544fa35.jsonl",
@@ -32,11 +37,6 @@
       "transcript": "agent-aa4f81b0507bcc5fb.jsonl",
       "from": "start",
       "responses": 61
-    },
-    {
-      "transcript": "agent-a1e96aa8152dcc7d1.jsonl",
-      "from": "start",
-      "responses": 103
     },
     {
       "transcript": "agent-a754ddfa71544fa35.jsonl",
@@ -58,14 +58,14 @@
     "<synthetic>"
   ],
   "sinceKickoff": {
-    "responses": 3421,
+    "responses": 3430,
     "tokens": {
-      "input": 7098,
-      "output": 4282820,
-      "cacheWrite": 8808308,
-      "cacheRead": 1649108081
+      "input": 7118,
+      "output": 4292141,
+      "cacheWrite": 8821962,
+      "cacheRead": 1653490383
     },
-    "usdApiEquivalent": 594.13,
+    "usdApiEquivalent": 595.3,
     "extras": [
       {
         "label": "data session a425eebb (transcript released; its share as counted at 31 Oct 10:23)",
@@ -1261,14 +1261,28 @@
       "from": "19:45",
       "to": "20:00",
       "unattended": false,
-      "responses": 6,
+      "responses": 11,
       "tokens": {
-        "input": 14,
-        "output": 5724,
-        "cacheWrite": 12112,
-        "cacheRead": 2847822
+        "input": 24,
+        "output": 9061,
+        "cacheWrite": 17797,
+        "cacheRead": 5270532
       },
-      "usdApiEquivalent": 0.78
+      "usdApiEquivalent": 1.38
+    },
+    {
+      "day": "Sat 31 Oct",
+      "from": "20:00",
+      "to": "20:05",
+      "unattended": false,
+      "responses": 4,
+      "tokens": {
+        "input": 10,
+        "output": 5984,
+        "cacheWrite": 7969,
+        "cacheRead": 1959592
+      },
+      "usdApiEquivalent": 0.58
     }
   ]
 }
