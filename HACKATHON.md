@@ -2,15 +2,16 @@
 
 Two AI agents on top of the existing pricing calculator (v0.5). **Alpha**, the pricing agent, sets each price band's
 floor and target per main category. **Nova**, the campaign agent, writes campaign briefs, and Alpha turns each one into a
-plan that code computes. A publisher writes the shop's NOP discounts itself (only to the `shop_sandbox_*` schemas during
-the hackathon), and a cost watcher reacts to cost rises within 15 minutes. **The AI decides; code enforces:** no model
+plan that code computes. A publisher writes the shop's prices itself, cuts as NOP discounts and raises as the store's
+regular price (only to the `shop_sandbox_*` schemas during the hackathon), and a cost watcher checks costs every 15 minutes. **The AI decides; code enforces:** no model
 output changes a price, a band or a discount without passing limits written in C#.
 
 Everything below can be checked from this repository, except what needs the hackathon database (`PricingToolHackathon` on
 LocalDB): it holds the company's sales data, so it is not in git. Those figures' aggregates are in
 `docs/hackathon-2026/evidence/numbers.json` and `docs/hackathon-2026/backtest-results.md`, each with the script that
-reruns it against the database (the stored backtest run's full monthly table is the Backtest page's CSV download;
-`*.csv` stays out of git by rule). Figures carry an ID from [`docs/hackathon-2026/evidence/numbers.json`](docs/hackathon-2026/evidence/numbers.json), each with
+reruns it against the database (the stored backtest run itself is committed as
+[`evidence/backtest-snapshot.json`](docs/hackathon-2026/evidence/backtest-snapshot.json), aggregates only; `*.csv` stays
+out of git by rule). Figures carry an ID from [`docs/hackathon-2026/evidence/numbers.json`](docs/hackathon-2026/evidence/numbers.json), each with
 its label (measured / estimated / assumed), method, source and the script that reruns it. The
 [one-page summary](docs/hackathon-2026/one-pager.md) and the [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx)
 are generated from the same file (`docs/hackathon-2026/financial/build_financial_sheet.py`, `build_one_pager.py`).
@@ -68,7 +69,7 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 | **Run checker** | pass / hold / fix per flagged row of an engine run | `RunCheckRules` judge every row in code; a rule's block stays a block whatever the model says, anything the model escalates becomes a block, a fix is judged by the same rules | `Checker/RunChecker.cs:79`, `:132` |
 | **Chat** | a reply, a brief, or a rule | briefs go through `CampaignLimits` and the planning loop; rules only tighten (exclude a brand or category, raise a campaign's minimum margin) and campaign planning enforces them; what-if figures come from code (`what_if_floor`) | `Chat/AgentChat.cs:228` |
 | **Cost watcher** | nothing: no model | raises to the floor, holds a data-error jump, ends a discount above the shelf, judges a live campaign on its own minimum margin | `NopIntegration/CostWatch/CostWatcher.cs` |
-| **Publisher** | nothing | with `Publisher:Target` = Sandbox (every config in this repo) the writer refuses any schema but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly | `NopIntegration/PublisherOptions.cs:58` |
+| **Publisher** | nothing | with `Publisher:Target` = Sandbox (every config in this repo) the writer refuses any schema but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly; a raise above the run's max(anchor, current) is refused again here, and a regular price someone changed since the run is never overwritten | `NopIntegration/PublisherOptions.cs:58`, `NopRegularPriceWriter.Decide` |
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
 `ai.AgentQueryLog`. The agents' runtime Claude calls: 47 calls, $5.72 in the live database and 5 calls, $1.03 in the test
@@ -122,8 +123,12 @@ the high case's 2025 season adjustment is quoted from the main repo.
 
 **Where the money comes from.** Most of framing A is automation, not the model's own choices: the loss block and the
 cost reaction (levers 1 and 3: rules in code and the cost watcher), daily checked prices (5: the cycle writes them every
-day, the team still pushes the file) and coverage of every layer (4). Most of levers 1, 3 and 5 are price raises, which
-a discount can't make: they reach the shelf through the regular-price push until writing regular prices back is built. The model's own decisions are the per-category floors (lever 2: €4 a month in the backtest, because
+day, the team still pushes the file) and coverage of every layer (4). Most of levers 1, 3 and 5 are price raises; a
+discount can't make one, so since prompt 07 the publisher writes a raise as the store's regular price (`TierPrice`), built
+and tested on the sandbox, not live. On 31 Oct's Run weeks 99,197 of the two KS layers' 172,579 checked prices reached the
+sandbox shelf at our price (57 %), 909 of them raises (1,167 raises were written; 258 sit under a cheaper team deal); what
+didn't was almost all a cheaper team deal (73,379, which a person supersedes or not), and 3 prices someone changed after
+the run. The model's own decisions are the per-category floors (lever 2: €4 a month in the backtest, because
 Alpha's rules move a floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which
 code computes; the model chooses among the strategies). What the agents add so far is running the whole loop every day,
 on every layer, without a person; how much their own judgment is worth is what the pilot's holdout measures. Framing B claims no past euro: the declaration said the calculator's measured past result is not claimed, and
@@ -141,8 +146,10 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 ## 5. What is mocked, injected or not finished
 
 - **Publishing is to the sandbox only.** `Publisher:Target` is Sandbox in every `appsettings.Hackathon.json`; the writer
-  then refuses any schema outside `shop_sandbox_*`. Nothing writes to a shop database. Going live is configuration
-  (`GO-LIVE.md`); the live path is built and tested against a sandbox with the live schema, never run against the shop.
+  then refuses any schema outside `shop_sandbox_*`. Nothing writes to a shop database. The sandbox holds the shop's
+  discount tables and its regular prices (`TierPrice`, seeded from the 31 Oct KS copy), each with the live DDL. Going live
+  is configuration plus a DBA's grant (`GO-LIVE.md`); the live path is built and tested against the sandbox, never run
+  against the shop.
 - **Injected test cases** run against a separate database, `PricingToolHackathonTest`, and are tagged `[INJECTED-TEST]`
   in data, logs and UI. The live database holds no mock data; `PricingEngine:UseDemoData` is false.
 - **Not finished:**
@@ -156,10 +163,11 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
   - **Minutes saved per task** are not set, so the time sheet exports no rows yet.
   - **The Evidence page** isn't a separate page: the Backtest tab and `numbers.json` carry the figures.
   - **Campaign what-ifs** go through a brief and the planning loop; only the floor what-if has its own tool.
-  - **The daily cycle doesn't publish regular prices:** it ends in a checked export file for the push. The whole loop
-    with a publish is **Run week** on the Agent tab (Alpha → engine → run checker → the checked prices to the shop
-    sandbox → read-back; `RunWeekLoop`), which writes no export. A discount can only lower a price, so a run's raises
-    go out with the regular-price push file, not as discounts.
+  - **To the live shop, the checked push file is still the path.** The daily cycle writes it, and since prompt 07 also
+    publishes the same checked prices to the sandbox (`publish-L<layer>`, from the 1 Nov cycle on the restarted host). The
+    whole loop on demand is **Run week** on the Agent tab (Alpha → engine → run checker → the checked prices to the
+    sandbox → read-back; `RunWeekLoop`). Cuts go out as discounts, raises as the store's regular price
+    (`NopRegularPriceWriter`); the cost watcher still writes discounts only.
   - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
 - **Known limitations** (several found by our own AI-judge dry runs, `docs/hackathon-2026/ai-judge/dry-run-1.md` and
   `dry-run-2.md`):
@@ -174,8 +182,10 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
     them checkable.
   - A goal typed in the chat is the person's, binding on Nova, but the number stored is Nova's reading of the message,
     not one code parsed (`ai-judge/code-review-1.md`, finding 3).
-  - The publisher can only lower a price (a discount). Raises go out with the regular-price push file, so levers 1, 3
-    and 5 depend on that push until writing regular prices back is built (part of the 160 hours to production).
+  - Raises are written as the regular price on the sandbox only; going live needs the `TierPrice` grant and the shop's
+    answer on its price cache and the `OldPrice` convention (`GO-LIVE.md`). A cheaper team deal still wins over our price
+    (raise or cut) until a person supersedes it: on 31 Oct that held 43 % of the checked prices off the sandbox shelf.
+    The cost watcher writes no regular prices yet.
   - With `Publisher:Target` = Sandbox the guard is on the schema name (`shop_sandbox_*`), not the server.
   - The hackathon's 8,000-request bar: the agents make about 290 calls a month by design (one per run or pass, never
     one per product), and no call is made to raise a count.
@@ -185,7 +195,7 @@ The Evidence (3) and Works (4) ratings in it are our own judgment, with the reas
 | Rule | Proof |
 |---|---|
 | Read-only data access; no shop writes | The replica connection exists only in user-secrets (`ConnectionStrings:SourceReadOnly`); the agents' `query_data` runs SELECT-only on `agent.*` views with a 30 s timeout and 500-row cap (`QuerySqlGuard`, tested); the publisher writes only `shop_sandbox_*` |
-| Every copied dataset is logged | `hk.DataSources`: 32 rows (source, time, row count, the SQL file in `docs/hackathon-2026/exports/`) |
+| Every copied dataset is logged | `hk.DataSources`: 37 rows (source, time, row count, the SQL file in `docs/hackathon-2026/exports/`) |
 | No personal data | Sales lines carry no order, customer, email, name or address; the AI call log redacts emails. The imported calculator's default admin was an employee's work email: removed from this tree on 31 Oct (it remains in the import commit) |
 | No live system written | The replica and a one-time read-only copy of the tool database are read, both allowed at the kickoff. On 31 Oct a web start with the wrong launch profile (Development) migrated and seeded the main repo's *local* development database `PricingTool` on this laptop. Five minutes later, after a backup, its schema changes were reverted (every object created at 00:20:58–59 dropped). The demo data it seeded is still there (one demo run #40010 with its 360 proposals, one day of snapshots and KPIs, and 360 updated dead-stock states): the backup was taken after the start, so the updated rows' earlier values can't be restored, and removing only the inserted rows would leave that database inconsistent; the user decides (`docs/hackathon-2026/ai-judge/dry-run-1.md`). The web app and the engine now refuse to start in any environment but Hackathon |
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |

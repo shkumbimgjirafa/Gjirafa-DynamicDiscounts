@@ -16,8 +16,9 @@ rule's block; a cost watcher checks costs every 15 minutes; an outcome tracker m
 back what hurts; a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
 whole loop for a layer with one press; a backtest; a chat. **The AI decides, code enforces:** no model output changes a
 price, band or discount without passing limits written in C#. During the hackathon the publisher writes only to a
-sandbox copy of the shop's discount tables; going live with discounts is configuration (`GO-LIVE.md`), never yet run
-against the live shop. A discount can only lower a price: raises still go out with the regular-price push file.
+sandbox copy of the shop's price tables; going live is configuration and a DBA's grant (`GO-LIVE.md`), never yet run
+against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
+Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); a cheaper team deal held the rest.
 
 **What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
 SKUs; run checks; checked exports with the holdout left out); Alpha's weekly pass #2 changed 8 band × category rules,
@@ -50,9 +51,9 @@ Which framing counts is the organisers' call.
 | Payback (months) | 10.8 | 5.7 | 4.8 | 4.5 | 3.3 | 3.1 |
 | Track A score (/100; Evidence and Works are our own ratings) | 40 | 66 | 68 | 68 | 84 | 84 |
 
-**Biggest unproven assumptions.** That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices, and
-a discount can't raise one, so those go out with the regular-price push (manual today; writing regular prices back is
-part of the remaining build). That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
+**Biggest unproven assumptions.** That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The
+publisher now writes raises as the regular price, but only on the sandbox so far, and a cheaper team deal still wins
+until a person supersedes it (43 % of the checked prices on 31 Oct). That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
 the backtest scores changed prices at elasticity −2 / −1 / −0.5 (low / mid / high). Framing B also assumes the test
 phase's rate holds once automated and extended to every layer. The pilot's holdout categories turn these into
 measurements.

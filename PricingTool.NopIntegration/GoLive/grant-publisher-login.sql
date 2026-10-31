@@ -15,9 +15,16 @@ GRANT SELECT, INSERT, UPDATE ON dbo.Discount TO [pricing_publisher];
 -- Apply a discount to a product (the module's "Applied to products"); rows are only ever added.
 GRANT SELECT, INSERT ON dbo.Discount_AppliedToProducts TO [pricing_publisher];
 
--- Find products by SKU and set their discount flags: these columns only.
-GRANT SELECT (Id, Sku, Deleted, HasDiscountsApplied, HasDiscountsAppliedStoreIds) ON dbo.Product TO [pricing_publisher];
-GRANT UPDATE (HasDiscountsApplied, HasDiscountsAppliedStoreIds) ON dbo.Product TO [pricing_publisher];
+-- Find products by SKU and set their discount flags and the tier-price flag: these columns only.
+GRANT SELECT (Id, Sku, Deleted, HasDiscountsApplied, HasDiscountsAppliedStoreIds, HasTierPrices) ON dbo.Product TO [pricing_publisher];
+GRANT UPDATE (HasDiscountsApplied, HasDiscountsAppliedStoreIds, HasTierPrices) ON dbo.Product TO [pricing_publisher];
+
+-- The store's regular price (raises; prompt 07): update Price and OldPrice in place, insert a row where the store has
+-- none. Never ProfitMargin, never Product.Price. DELETE only so that rolling back a batch can remove a row the publisher
+-- itself inserted (the audit holds its id); every other row is restored by UPDATE.
+GRANT SELECT ON dbo.TierPrice TO [pricing_publisher];
+GRANT UPDATE (Price, OldPrice) ON dbo.TierPrice TO [pricing_publisher];
+GRANT INSERT, DELETE ON dbo.TierPrice TO [pricing_publisher];
 
 -- Never delete: order history and DiscountUsageHistory refer to discount ids.
 DENY DELETE ON dbo.Discount TO [pricing_publisher];
@@ -30,4 +37,5 @@ DENY DELETE ON dbo.Product TO [pricing_publisher];
 -- EXECUTE AS USER = 'pricing_publisher';
 -- SELECT * FROM fn_my_permissions('dbo.Discount', 'OBJECT');
 -- SELECT * FROM fn_my_permissions('dbo.Product', 'OBJECT');
+-- SELECT * FROM fn_my_permissions('dbo.TierPrice', 'OBJECT');
 -- REVERT;
