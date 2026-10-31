@@ -6,6 +6,8 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\restart-laptop-host.ps1
 
 $ErrorActionPreference = 'Stop'
+# LocalDB's instance first, so its sqlservr belongs to sqllocaldb.exe, not to a process tree that may be stopped.
+& sqllocaldb start MSSQLLocalDB | Out-Null
 $hostDir = Join-Path $env:LOCALAPPDATA 'PricingToolAgent\host'
 $running = Get-Process PricingTool.Engine -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$hostDir\*" }
 foreach ($p in $running) {

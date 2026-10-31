@@ -36,6 +36,11 @@ foreach ($name in $builds.Keys) {
     if ($LASTEXITCODE -ge 8) { Log "copying the $name build failed (robocopy $LASTEXITCODE)"; exit 1 }
 }
 
+# Start LocalDB's instance first: its sqlservr is then a child of the short-lived sqllocaldb.exe, never of this host's process
+# tree (on 31 Oct a tree kill of a process that had started it took the database down mid-write).
+& sqllocaldb start MSSQLLocalDB | Out-Null
+Log "LocalDB instance MSSQLLocalDB started (exit $LASTEXITCODE)"
+
 $env:DOTNET_ENVIRONMENT = 'Hackathon'
 # The data tools Claude Code starts for Alpha's pass: the copied AgentTools, not the repo's build.
 $env:Agent__ToolsExecutable = Join-Path $hostDir 'tools\PricingTool.AgentTools.exe'
