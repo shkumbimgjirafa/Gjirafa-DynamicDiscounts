@@ -77,7 +77,9 @@ shop = e20["byShopAugSepAvg"]
 e27 = v("E27")
 # Every check on the rate, so no reader finds a number we left out.
 rate_checks = (f"against untouched products in the same shop and category it holds ({k(e27['total']['vsUntouched'])}) when every "
-               f"product counts, and it is {k(e27['total']['vsUntouchedSoldInBothWindows'])} when only products that sold in both "
+               f"product counts, it is {k(e27['total']['vsUntouchedWithSalesHistory'])} when only products with a sale before the "
+               f"windows count (a first-ever sale inside the windows leaves both groups), and "
+               f"{k(e27['total']['vsUntouchedSoldInBothWindows'])} when only products that sold in both "
                f"windows count; September alone gives "
                f"{k(e27['september']['gjirafaMallVsUntouched'])}–{k(e27['september']['gjirafaMallSoldInBothWindows'])} for GjirafaMall")
 e28 = v("E28")
@@ -149,11 +151,11 @@ Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = {eur(e20['mid'])} a month (GjirafaMall
 {eur(shop['mallKs'])}, Gjirafa50 {eur(shop['gj50Ks'])}; E20), measured before and after each approval; robustness checks:
 E20, E27 (the evidence file reruns both): {rate_checks}. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
-dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
+dead-stock runs. *It runs by itself (on the sandbox during the hackathon):* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 
-**Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
+**Without the build, the engine runs only while one person runs it by hand** (assumed: that it stops when they stop). What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
 {days(e28['gjirafaMallKsRegularRuns'])}; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
 {e28['gjirafa50KsLongestGapDays']} days (dead-stock runs in that gap on {days([d for d in e28['gjirafa50KsDeadStockRuns'] if d < '2026-10-01'])}); on MK/AL, in Aug–Sep only
@@ -175,7 +177,7 @@ sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) a
 {money}
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
-automated and extended to every layer (robustness checks: E20, E27). That without the build the test ends (assumed; the
+automated and extended to every layer (robustness checks: E20, E27). That without the build it stops when the one person running it by hand stops (assumed; the
 facts are E28). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The publisher now
 writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still wins
 until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes); the

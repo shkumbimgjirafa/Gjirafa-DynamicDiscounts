@@ -714,13 +714,13 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - An out-of-range decision is rejected by code; the kill switch and autonomy on the Run tab; the holdout categories
      marked in the grid; the audit log under Admin; the AI calls with their cost (E15: 85 live calls, $10.29, measured).
 5. **(45s) Money: the evidence file and the sheet.**
-   - The evidence file, written before the demo: "Recomputed now: 45 of 45 checks match", every figure with its label
+   - The evidence file, written before the demo: "Recomputed now: 46 of 46 checks match", every figure with its label
      (measured, estimated, assumed), method, sources and where it is used. If there is time, run the command again in the
      terminal while talking (about 40 s).
    - The claim: €12,965 a month at full scope, 84 points. Two proofs: the engine works (the Aug–Sep test, B0 = €10,409 a
      month: GjirafaMall €8,006, Gjirafa50 €2,403; measured before and after each approval; robustness checks E20, E27),
-     and it runs by itself (this build: Run week, shown in step 2). Without the build the test ends (assumed; the facts
-     are E28).
+     and it runs by itself on the sandbox (this build: Run week, shown in step 2). Without the build it runs only while one
+     person runs it by hand (assumed: that it stops when they stop; the facts are E28).
    - The financial sheet's Summary and its "Benefit by source". Don't cite the year-over-year margin (E25): it doesn't
      separate the calculator. Say what's estimated and what's measured.
 6. **(25s) Ask.** A 6–8 week pilot on KS:

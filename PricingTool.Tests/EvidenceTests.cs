@@ -69,7 +69,7 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
         Assert.InRange(mall + gj50 - b0[1], -1m, 1m);
         var e27 = figures.Single(f => f.Id == "E27");
         Assert.StartsWith("robustness check", e27.Label.GetString());
-        Assert.Equal(3, e27.Value.GetProperty("total").EnumerateObject().Count());                  // all three columns, the €2.7k one too
+        Assert.Equal(4, e27.Value.GetProperty("total").EnumerateObject().Count());                  // all four columns, the €2.7k one too
         Assert.NotNull(e27.Recompute);                                                              // rerun live on the Evidence page
         Assert.All(figures, f => Assert.DoesNotContain("scenario", f.Label.ToString(), StringComparison.OrdinalIgnoreCase));
 

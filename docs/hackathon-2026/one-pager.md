@@ -47,12 +47,12 @@ Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall
 €8,006, Gjirafa50 €2,403; E20), measured before and after each approval; robustness checks:
-E20, E27 (the evidence file reruns both): against untouched products in the same shop and category it holds (€11.8k) when every product counts, and it is €2.7k when only products that sold in both windows count; September alone gives €3.9k–€4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
-dead-stock runs. *It runs by itself:* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
+E20, E27 (the evidence file reruns both): against untouched products in the same shop and category it holds (€11.8k) when every product counts, it is €7.6k when only products with a sale before the windows count (a first-ever sale inside the windows leaves both groups), and €2.7k when only products that sold in both windows count; September alone gives €3.9k–€4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run carried forward, plus the three
+dead-stock runs. *It runs by itself (on the sandbox during the hackathon):* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 
-**Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
+**Without the build, the engine runs only while one person runs it by hand** (assumed: that it stops when they stop). What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on
 21 Jul, 6 Aug, 3 Sep, 6 Oct and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for
 78 days (dead-stock runs in that gap on 3 Aug, 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only
@@ -62,7 +62,7 @@ value is the stream it makes permanent, plus the levers:
 
 | Where the claim's benefit comes from | € a month | Label |
 |---|---|---|
-| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; 'ends without the build' assumed (E20, E28) |
+| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; 'stops when the one person running it stops' assumed (E20, E28) |
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
 | MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |
@@ -89,7 +89,7 @@ sessions' AI usage of $595.30 API-equivalent, E18) and €6,927 running (AI
 | Track A score (/100; Evidence and Works are our own ratings) | 84 |
 
 **Biggest unproven assumptions.** That the before/after rate (E20 mid) is the calculator's effect and holds once
-automated and extended to every layer (robustness checks: E20, E27). That without the build the test ends (assumed; the
+automated and extended to every layer (robustness checks: E20, E27). That without the build it stops when the one person running it by hand stops (assumed; the
 facts are E28). That the prices reach the shelf: levers 1, 3 and 5 earn mostly by raising prices. The publisher now
 writes raises as the regular price, but only on the sandbox so far, and a cheaper discount it didn't write still wins
 until a person supersedes it (43 % of the checked prices on 31 Oct, almost all the calculator's own earlier pushes); the

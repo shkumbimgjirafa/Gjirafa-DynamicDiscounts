@@ -1,5 +1,5 @@
 {
-    "generated":  "2026-10-31 20:04",
+    "generated":  "2026-10-31 20:12",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
     "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
@@ -1002,17 +1002,20 @@
                                                      "GjirafaMall KS":  {
                                                                             "beforeAfter":  10308,
                                                                             "vsUntouched":  10596,
+                                                                            "vsUntouchedWithSalesHistory":  6404,
                                                                             "vsUntouchedSoldInBothWindows":  2611
                                                                         },
                                                      "Gjirafa50 KS":  {
                                                                           "beforeAfter":  2219,
                                                                           "vsUntouched":  1222,
+                                                                          "vsUntouchedWithSalesHistory":  1193,
                                                                           "vsUntouchedSoldInBothWindows":  138
                                                                       }
                                                  },
                                       "total":  {
                                                     "beforeAfter":  12527,
                                                     "vsUntouched":  11818,
+                                                    "vsUntouchedWithSalesHistory":  7597,
                                                     "vsUntouchedSoldInBothWindows":  2749
                                                 },
                                       "september":  {
@@ -1021,6 +1024,7 @@
                                                     },
                                       "run12":  {
                                                     "repricedSkusSoldInEitherWindow":  1244,
+                                                    "withSalesHistory":  494,
                                                     "soldInBothWindows":  45
                                                 },
                                       "run25SoldInBothWindows":  {
@@ -1034,7 +1038,7 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  "robustness check: measured",
-                        "method":  "The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced 12527; against untouched SKUs of the same shop and category in the same weeks 11818 when every SKU that sold in either window counts, and 2749 when only SKUs that sold in both windows count (#12 repriced 1244 SKUs that sold in either window, 45 in both). September alone gives GjirafaMall KS 3881 against untouched SKUs and 4303 on SKUs that sold in both windows. On run #25\u0027s SKUs that sold in both windows, gross profit per unit rose 34 % with units -8 %, against 16 % and -18 % on untouched SKUs. GjirafaMall lines are Gjirafa\u0027s own vendors only, at booked cost; returns after delivery are not netted out.",
+                        "method":  "The approvals and live spans of E20, 30 days before vs after each, campaign days out of both windows, per shop, Aug-Sep average: before/after on the SKUs each run repriced 12527; against untouched SKUs of the same shop and category in the same weeks 11818 when every SKU that sold in either window counts, 7597 when only SKUs with a sale before the windows count (a SKU whose first-ever sale in the data, which starts Oct 2024, falls inside the windows drops out of both groups), and 2749 when only SKUs that sold in both windows count (#12 repriced 1244 SKUs that sold in either window, 494 of them with a sale before, 45 in both). September alone gives GjirafaMall KS 3881 against untouched SKUs and 4303 on SKUs that sold in both windows. On run #25\u0027s SKUs that sold in both windows, gross profit per unit rose 34 % with units -8 %, against 16 % and -18 % on untouched SKUs. GjirafaMall lines are Gjirafa\u0027s own vendors only, at booked cost; returns after delivery are not netted out.",
                         "source":  "PricingTool.Approvals / ApprovalItems, hk.SalesLines, hk.Products, hk.CampaignWindows",
                         "script":  "docs/hackathon-2026/evidence/e20-aug-sep-comparison.sql (three result sets; this script runs it)",
                         "recompute":  {
@@ -1059,6 +1063,16 @@
                                                                        },
                                                              "agg":  "sum",
                                                              "value":  11818
+                                                         },
+                                                         {
+                                                             "label":  "Aug-Sep, vs untouched, SKUs with a sale before the windows",
+                                                             "set":  0,
+                                                             "column":  "VsUntouchedHistory",
+                                                             "where":  {
+                                                                           "Month":  "Aug-Sep avg"
+                                                                       },
+                                                             "agg":  "sum",
+                                                             "value":  7597
                                                          },
                                                          {
                                                              "label":  "Aug-Sep, vs untouched, SKUs that sold in both windows",

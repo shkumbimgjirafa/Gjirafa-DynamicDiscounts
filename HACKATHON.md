@@ -71,8 +71,8 @@ schedule, audit log) and its tests (692 at import, all still passing).
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
    method, sources (and when each was loaded) and where it is used (the one-pager, the financial sheet's cells, this file),
    and the figures whose script is a SQL file (11 files: E12–E14, E20–E23, E25–E28) rerun as it is written, as
-   `evidence_reader`, a database user that can only read, each cell compared with the stored value (31 Oct 16:3x: 45 of
-   45 matched, 34 s).
+   `evidence_reader`, a database user that can only read, each cell compared with the stored value (31 Oct 20:1x: 46 of
+   46 matched, 35 s).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
    engine refuse to start in any other environment)
    (Run, Chat, Campaigns, Proposals; an Admin menu for the daily cycle, the audit log, the time sheet and users).
@@ -126,16 +126,17 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 **Two proofs.** *The engine works:* the Aug–Sep test on the real shop, B0 = €10,409 a month (GjirafaMall €8,006,
 Gjirafa50 €2,403; E20), measured before and after each approval from the shop's booked sales lines with booked COGS;
 robustness checks: E20, E27 (both rerun whenever the evidence file is written): against untouched products in the same
-shop and category it holds (€11.8k) when every product counts, and it is €2.7k when only products that sold in both windows
-count; September alone gives €3.9–4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run
+shop and category it holds (€11.8k) when every product counts, it is €7.6k when only products with a sale before the
+windows count (a first-ever sale inside the windows leaves both groups), and €2.7k when only products that sold in both
+windows count; September alone gives €3.9–4.3k for GjirafaMall. Gjirafa50 KS's figure is mostly its 21 July run
 carried forward, plus the three dead-stock runs (E20 lists each month by approval).
 [`evidence/e20-test-phase.sql`](docs/hackathon-2026/evidence/e20-test-phase.sql) recomputes it from this repo's data; its
 sales lines reproduce the tool's own 30-day profit before each of eight approvals within 2 % (E26), which checks the
-data, not the cause. *It runs by itself:* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
+data, not the cause. *It runs by itself (on the sandbox during the hackathon):* this build. Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and shown in it: the
 proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every number traced to a
 query.
 
-**Without the build, the test ends** (assumed): no one runs the engine by hand as a permanent process. What is measured
+**Without the build, the engine runs only while one person runs it by hand** (assumed: that it stops when they stop). What is measured
 (E28): one person has run it by hand since 21 Jul, with no schedule. GjirafaMall KS ran on 21 Jul, 6 Aug, 3 Sep, 6 Oct
 and 19 Oct; Gjirafa50 KS's regular prices were set on 21 Jul and not refreshed for 78 days (dead-stock runs in that gap on 3 Aug,
 19 Aug and 3 Sep); on MK/AL, in Aug–Sep only GjirafaMall AL had a full push. Even when it ran, 19 % of the units on raised
@@ -144,7 +145,7 @@ the build's value is the stream it makes permanent, plus the levers:
 
 | Where the claim's benefit comes from | € a month | Label |
 |---|---|---|
-| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; "ends without the build" assumed (E20, E28) |
+| The stream the build makes permanent: B0, the calculator's measured rate | €10,409 | rate measured; "stops when the one person running it stops" assumed (E20, E28) |
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
 | MK/AL coverage at Kosovo's tested rate (lever 4) | €1,325 | estimated (E4; €560 at E20's same-weeks rate; MK/AL had no two-month test of their own) |
