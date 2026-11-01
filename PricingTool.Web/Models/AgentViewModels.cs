@@ -28,6 +28,8 @@ public class RunPageModel
     public bool CanRunWeek { get; init; }
     public bool RunWeekRunning { get; init; }
     public WeekNumbers Week { get; init; } = new(0, 0, 0, 0, 0, 0, null, 0);
+    /// <summary>The Run week whose price list (CSV) this run left, for the download button; null when it has none.</summary>
+    public long? PriceListRunWeekId { get; init; }
 }
 
 /// <summary>One line of the Chat tab's thread: a chat message, or something an agent did (folded with its reasons).</summary>

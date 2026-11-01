@@ -44,9 +44,11 @@ public class RunController : Controller
     {
         var layerId = await _layers.RequireCurrentIdAsync();
         var holdouts = _agent.Limits.Holdouts.TryGetValue(layerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
+        var report = await _reports.BuildAsync(layerId, holdouts, HttpContext.RequestAborted);
         return View(new RunPageModel
         {
-            Report = await _reports.BuildAsync(layerId, holdouts, HttpContext.RequestAborted),
+            Report = report,
+            PriceListRunWeekId = report.Week is { } w && RunWeekPriceList.FindFile(_agent.Cycle.ExportDir(), w.Id) is not null ? w.Id : null,
             KillSwitch = await _killSwitch.GetAsync(),
             Mode = await _modes.GetAsync(layerId),
             Publisher = _publisher,

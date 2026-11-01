@@ -132,6 +132,10 @@
             <button type="submit" class="btn btn-outline-success"
                 formaction="@Url.Action("Export")" formmethod="get"
                 onclick="document.getElementById('maxAbs').value='@Model.ConfirmationThresholdPct.ToString("0.##", inv)';">Export normal (≤@(Model.ConfirmationThresholdPct)%)</button>
+            @if (Model.PriceListRunWeekId is { } priceList)
+            {
+                <a class="btn btn-success" href="/Run/PriceList/@priceList" title="This run's prices on the sandbox shelf: Sku, ProposedPrice, StartDate, EndDate, AlgorithmUsed, NewMargin">Price list (CSV)</a>
+            }
         </div>
     </div>
 </form>

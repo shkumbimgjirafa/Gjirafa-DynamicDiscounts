@@ -105,6 +105,16 @@
                 </div>
             </div>
         }
+        @if (Model.PriceListRunWeekId is { } priceList)
+        {
+            <div class="ctl-row">
+                <span class="ctl-name">Price list</span>
+                <div>
+                    <a class="btn btn-sm btn-success" href="/Run/PriceList/@priceList">Download price list (CSV)</a>
+                    <div class="text-muted mt-1">This run's prices on the sandbox shelf: Sku, ProposedPrice, StartDate, EndDate, AlgorithmUsed, NewMargin</div>
+                </div>
+            </div>
+        }
         <div class="ctl-row">
             <span class="ctl-name">AI this week</span>
             <span>$@Model.Week.AiCostUsd.ToString("0.00"), @Model.Week.AiCalls calls <span class="badge bg-success">measured</span></span>

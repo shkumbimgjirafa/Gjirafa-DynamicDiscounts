@@ -73,6 +73,14 @@ public class ProposalsController : Controller
         if (run is null) return View(model);
         model.Run = run;
         model.Filter.RunId = run.Id;
+        // The price list a Run week left for this run (the download button), when there is one.
+        if (HttpContext?.RequestServices is { } services && services.GetService<PricingTool.Agent.Storage.AgentDbContext>() is { } ai
+            && services.GetService<IOptions<PricingTool.Agent.AgentOptions>>() is { } agentOptions)
+        {
+            var weekId = await ai.RunWeeks.AsNoTracking().Where(w => w.EngineRunId == run.Id).OrderByDescending(w => w.Id).Select(w => (long?)w.Id).FirstOrDefaultAsync();
+            if (weekId is { } id && PricingTool.NopIntegration.RunWeekPriceList.FindFile(agentOptions.Value.Cycle.ExportDir(), id) is not null)
+                model.PriceListRunWeekId = id;
+        }
 
         // Distinct suppliers captured on this run's proposals (index-backed on (PricingRunId, SupplierId)).
         var supplierRows = await _db.ProposedPrices
