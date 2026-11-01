@@ -355,7 +355,7 @@ public sealed class AgentChat
             var batch = p.PublishBatchId is { } bid ? batches.GetValueOrDefault(bid) : null;
             sb.AppendLine($"- Plan #{p.Id} (brief #{p.BriefId}, round {p.Round}) {p.Strategy} {p.Status}{(string.IsNullOrEmpty(p.GoalVerdict) ? "" : $" ({p.GoalVerdict})")}" +
                           $"{(p.WaitsForPerson ? ", waiting for a person" : "")}: {p.DiscountedSkus:N0} of {p.SkusInScope:N0} SKUs at {p.AverageDepthPct:0.0}% on average, " +
-                          $"{p.HoldoutSkus:N0} holdout; expected {p.ExpectedUnits:N0} units, net revenue {p.ExpectedNetRevenue:N0}, gross profit {p.ExpectedGrossProfit:N0} " +
+                          (p.HoldoutSkus > 0 ? $"{p.HoldoutSkus:N0} holdout; " : "") + $"expected {p.ExpectedUnits:N0} units, net revenue {p.ExpectedNetRevenue:N0}, gross profit {p.ExpectedGrossProfit:N0} " +
                           $"(without any discount {p.GrossProfitWithoutDiscounts:N0}), margin {p.ExpectedMarginPct:0.0}% (code's estimates). Goal check: {p.Feasibility}" +
                           (batch is null ? "" : $" Publish batch #{batch.Id}: {batch.Status}{(batch.RolledBackUtc is null ? "" : ", rolled back")}."));
         }

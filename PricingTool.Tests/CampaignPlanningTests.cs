@@ -17,7 +17,7 @@ namespace PricingTool.Tests;
 
 /// <summary>
 /// Campaign planning: code computes the plans (never below cost, never at or above today's price, within the depth cap,
-/// a fixed campaign holdout, the minimum margin), Alpha chooses and explains, Nova accepts or adjusts within two rounds,
+/// no campaign holdout, the minimum margin), Alpha chooses and explains, Nova accepts or adjusts within two rounds,
 /// the thread is stored and an accepted plan is published as time-boxed discounts.
 /// </summary>
 public class CampaignPlanningTests : IDisposable
@@ -45,10 +45,7 @@ public class CampaignPlanningTests : IDisposable
                 Assert.True(l.DepthPct <= 20m, $"{strategy} {l.Sku} past the depth cap");
             });
             Assert.DoesNotContain(r.Lines, l => l.Sku == "THIN" && l.CampaignPrice is not null);   // 5 % off (95) is under cost 96
-            var holdout = r.Lines.Count(l => l.CampaignHoldout);
-            Assert.InRange(holdout, 10, 35);                                                        // about 10 % of 202
-            Assert.Equal(r.Lines.Where(l => l.CampaignHoldout).Select(l => l.Sku).OrderBy(s => s),
-                candidates.Where(c => CampaignPlanner.IsHoldout(1, c.Sku)).Select(c => c.Sku).OrderBy(s => s));
+            Assert.DoesNotContain(r.Lines, l => l.CampaignHoldout);                                // no campaign holdout (the user's decision, 1 Nov)
             Assert.Equal(202, r.Totals.InScope);                                                   // totals cover every SKU in scope
         }
     }

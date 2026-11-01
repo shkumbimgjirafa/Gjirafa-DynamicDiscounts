@@ -425,7 +425,7 @@ round-trip check, least-privilege login, caps, audit and rollback). `HACKATHON.m
   - the top contributors
   - SKUs left out and why
   - **feasibility**: "€X is reachable" or "the best achievable is €Y without breaking limits"
-- **Campaign holdout:** a random ~10% of eligible SKUs stay out of each campaign. That's a real A/B test of every campaign's lift, measured in `CampaignResult`.
+- **Campaign holdout:** a random ~10% of eligible SKUs stay out of each campaign. That's a real A/B test of every campaign's lift, measured in `CampaignResult`. *(1 Nov, the user: no campaign holdout; every eligible SKU is in the campaign.)*
 
 *Publishing and safety for campaigns:*
 - Campaign discounts are **time-boxed**: the publisher writes start and end dates with an `ai-campaign-<id>` name prefix, and they expire on their own. Regular prices resume after the end date.
@@ -720,7 +720,7 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - The financial sheet's Summary and its "Benefit by source". Don't cite the year-over-year margin (E25): it doesn't
      separate the calculator. Say what's estimated and what's measured.
 6. **(25s) Ask.** A 6–8 week pilot on KS:
-   - **Black Friday (27 Nov) planned by the two agents**, with a campaign holdout
+   - **Black Friday (27 Nov) planned by the two agents** *(no campaign holdout since 1 Nov)*
    - the publisher switched from sandbox to the shop for a few categories in autonomous mode
    - ~~a **holdout** on hand-set floors~~ *(1 Nov, the user: every category priced)*
 

@@ -29,7 +29,7 @@
             <h2 class="h6">Plan #@latest.Id: @latest.Strategy, <span class="badge bg-light text-dark">@latest.Status</span>
                 @if (!string.IsNullOrEmpty(latest.GoalVerdict)) { <span class="badge bg-light text-dark">@latest.GoalVerdict</span> }</h2>
             <p class="mb-1">@latest.DiscountedSkus.ToString("N0") of @latest.SkusInScope.ToString("N0") SKUs discounted at @latest.AverageDepthPct.ToString("0.0")% on average;
-                @latest.HoldoutSkus.ToString("N0") SKUs are the campaign holdout. Expected: @latest.ExpectedUnits.ToString("N0") units,
+                @if (latest.HoldoutSkus > 0) { <text>@latest.HoldoutSkus.ToString("N0") SKUs are the campaign holdout.</text> } Expected: @latest.ExpectedUnits.ToString("N0") units,
                 net revenue @latest.ExpectedNetRevenue.ToString("N0"), gross profit @latest.ExpectedGrossProfit.ToString("N0")
                 (without any discount @latest.GrossProfitWithoutDiscounts.ToString("N0")), margin @latest.ExpectedMarginPct.ToString("0.0")% <span class="text-muted">(estimated)</span>.</p>
             <p class="small mb-1"><strong>Goal:</strong> @latest.Feasibility</p>

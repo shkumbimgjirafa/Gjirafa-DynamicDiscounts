@@ -73,14 +73,15 @@ public sealed record PlanSpec(long CampaignKey, int Days, string GoalType, decim
 /// long as the blended margin stays at the brief's minimum: a margin floor spent on volume, as the hand-set Për ty plan did.</item>
 /// </list>
 /// Then the brief's minimum blended margin is enforced (the SKUs costing the most margin per euro of profit are made
-/// shallower first), the cap on discounted SKUs keeps the biggest contributors, and a fixed ~10 % of eligible SKUs stay
-/// out of every campaign as its holdout (the A/B test of its lift).
+/// shallower first), and the cap on discounted SKUs keeps the biggest contributors. A campaign holdout (a fixed share of
+/// eligible SKUs kept out as the A/B test of its lift) is built in but off: every eligible SKU is in the campaign.
 /// </summary>
 public static class CampaignPlanner
 {
     public static readonly string[] Strategies = { "max-gross-profit", "volume-at-no-loss", "visible", "spend-to-margin" };
     private static readonly RoundingService Rounding = new();
-    public const int HoldoutPercent = 10;
+    /// <summary>The share of eligible SKUs kept out of each campaign: 0, the user's decision of 1 Nov (it was 10).</summary>
+    public const int HoldoutPercent = 0;
 
     public static PlanResult Plan(string strategy, PlanSpec spec, IReadOnlyList<CampaignCandidate> candidates, DepthEffect depth,
         IReadOnlyDictionary<int, PriceBandConfig> bands, int maxSkus, IReadOnlyDictionary<string, int> leftOutBefore)
@@ -235,7 +236,8 @@ public static class CampaignPlanner
         }
     }
 
-    /// <summary>A fixed ~10 % of SKUs per campaign (by a stable hash of the campaign and the SKU), so a re-plan keeps the same holdout.</summary>
+    /// <summary>A fixed <see cref="HoldoutPercent"/> % of SKUs per campaign (by a stable hash of the campaign and the SKU), so a
+    /// re-plan keeps the same holdout; none while the share is 0.</summary>
     public static bool IsHoldout(long campaignKey, string sku)
     {
         unchecked

@@ -464,6 +464,7 @@ public sealed class CampaignPlanning
     private async Task<(bool Accept, decimal? Goal, decimal? MaxDepth, decimal? MinMargin, string Message, long? CallLogId)?> AskNovaAsync(CampaignBrief brief,
         CampaignPlan plan, int round, string? personGoal, CancellationToken ct)
     {
+        var holdoutNote = plan.HoldoutSkus > 0 ? $"{plan.HoldoutSkus:N0} SKUs are the campaign holdout. " : "";
         var prompt = $"""
             Review of the pricing agent's plan for your brief #{brief.Id} "{brief.Name}" (round {round} of at most {MaxRounds}).
             Your brief: {brief.ScopeKind} {brief.ScopeValue}, {brief.StartDate:yyyy-MM-dd}..{brief.EndDate:yyyy-MM-dd}, goal {brief.GoalType} {GoalText(brief)},
@@ -471,7 +472,7 @@ public sealed class CampaignPlanning
             The plan ({plan.Strategy}): {plan.DiscountedSkus:N0} of {plan.SkusInScope:N0} SKUs discounted at {plan.AverageDepthPct:0.#}% on average,
             expected units {plan.ExpectedUnits:N0}, net revenue {plan.ExpectedNetRevenue:N0}, gross profit {plan.ExpectedGrossProfit:N0}
             (without any discount {plan.GrossProfitWithoutDiscounts:N0}), margin {plan.ExpectedMarginPct:0.0}%. {plan.Feasibility}
-            {plan.HoldoutSkus:N0} SKUs are the campaign holdout. Basis: {plan.Basis}
+            {holdoutNote}Basis: {plan.Basis}
             The pricing agent says: {plan.Explanation}
 
             Accept the plan, or adjust your brief (a new goal value, maximum depth or minimum margin; null keeps a value) and say why.

@@ -229,7 +229,7 @@ public sealed partial class AgentDataTools
                     marginPct = R1(seg.Campaign.MarginPct), depthPct = R1(seg.Campaign.DepthPct), gpPerDay = R0(seg.Campaign.GpPerDay),
                 },
                 vsBefore = new { uplift = R2(e.Uplift), rawUplift = R2(e.RawUplift), gpPerDayBefore = R0(e.GpPerDayBefore), marginBeforePct = R1(e.MarginBeforePct) },
-                campaignHoldout = "None: a campaign holdout exists only for campaigns the tool plans (10 % of eligible SKUs kept out).",
+                campaignHoldout = "None: campaigns keep no holdout SKUs (every eligible SKU is in the campaign).",
                 basis = "Booked COGS, EUR VAT excl.; before = the 28 days before the campaign without other campaign days.",
             }, 1);
         }, ct);
