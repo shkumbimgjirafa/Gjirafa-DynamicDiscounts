@@ -1,7 +1,7 @@
 # Submission checklist
 
 Deadline: **Mon 2 Nov, 08:00** (freeze from 06:00, plan section 6). Kept up to date as items are done; the plan's own
-list is section 8. Last updated Sun 1 Nov, 15:10.
+list is section 8. Last updated Sun 1 Nov, 15:01.
 
 ## The deliverables
 
