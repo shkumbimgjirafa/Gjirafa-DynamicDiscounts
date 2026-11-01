@@ -37,6 +37,8 @@ builder.Services.AddSingleton<RunLauncher>();
 // "Run week" on the Run tab: the whole loop for one layer, publishing only to the shop sandbox.
 builder.Services.AddScoped<PricingTool.NopIntegration.IRunWeekSteps, PricingTool.NopIntegration.RunWeekSteps>();
 builder.Services.AddScoped<PricingTool.NopIntegration.RunWeekPriceList>();
+// The Proposals tab's Sandbox column: what a run's publish put on the sandbox shelf.
+builder.Services.AddScoped<SandboxShelfLookup>();
 builder.Services.AddScoped<PricingTool.NopIntegration.RunWeekLoop>();
 builder.Services.AddSingleton<RunWeekLauncher>();
 // The Run and Chat tabs: the current run's report, the agents' activity, and chat turns run in the background.

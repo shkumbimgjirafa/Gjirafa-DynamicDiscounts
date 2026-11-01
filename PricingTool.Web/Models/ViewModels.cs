@@ -349,6 +349,8 @@ public class ProposalsViewModel
     /// screen, keyed by SKU, from the run's snapshot day. Missing key = no snapshot row for that SKU
     /// (rendered as "–").</summary>
     public Dictionary<string, (int Qty7, int Qty30, int LocalStock)> Sales { get; set; } = new();
+    /// <summary>The sandbox shelf for the SKUs on screen after the run's publish (Sandbox column), keyed by SKU.</summary>
+    public IReadOnlyDictionary<string, PricingTool.Web.Services.SandboxShelf> Sandbox { get; set; } = new Dictionary<string, PricingTool.Web.Services.SandboxShelf>();
     public List<PriceBand> Bands { get; set; } = new();
     public List<string> AlgorithmCodes { get; set; } = new();
     /// <summary>Distinct suppliers captured on the selected run's proposals (empty for pre-supplier runs).</summary>

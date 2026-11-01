@@ -133,6 +133,10 @@ public class ProposalsController : Controller
                 .ToDictionary(g => g.Key, g => (g.First().Qty7, g.First().Qty30, g.First().LocalWarehouseStock));
         }
 
+        // What the run's publish put on the shop sandbox's shelf, for the SKUs on screen (the Sandbox column).
+        if (model.Proposals.Count > 0 && HttpContext?.RequestServices.GetService<SandboxShelfLookup>() is { } sandbox)
+            model.Sandbox = await sandbox.ForRunAsync(run.Id, layerId, model.Proposals.Select(p => p.Sku).Distinct().ToList(), HttpContext.RequestAborted);
+
         model.Kpis = await BuildWindowKpisAsync(model.Filter, layerId);
         return View(model);
     }

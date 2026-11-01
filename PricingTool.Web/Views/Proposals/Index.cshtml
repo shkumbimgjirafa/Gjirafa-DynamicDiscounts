@@ -168,6 +168,7 @@
                 @{ SortHead("anchor", $"Anchor {cur}", "text-end"); }
                 @{ SortHead("current", $"Current {cur}", "text-end"); }
                 @{ SortHead("proposed", $"Proposed {cur}", "text-end"); }
+                <th class="text-end" title="What the run's publish put on the shop sandbox's shelf: our discount and its dates, a raised regular price, or why it isn't there">Sandbox @cur</th>
                 @{ SortHead("prevmargin", "Prev margin", "text-end", "(current − cost) ÷ current"); }
                 @{ SortHead("newmargin", "New margin", "text-end", "(proposed − cost) ÷ proposed"); }
                 @{ SortHead("abschange", "Δ%", "text-end", "Sorts by |Δ%| — magnitude of the change"); }
@@ -233,6 +234,7 @@
                 <th class="text-end">@{ Range("AnchorMin", f.AnchorMin, "AnchorMax", f.AnchorMax); }</th>
                 <th class="text-end">@{ Range("CurrentMin", f.CurrentMin, "CurrentMax", f.CurrentMax); }</th>
                 <th class="text-end">@{ Range("ProposedMin", f.ProposedMin, "ProposedMax", f.ProposedMax); }</th>
+                <th></th>
                 <th class="text-end">@{ Range("PrevMarginMin", f.PrevMarginMin, "PrevMarginMax", f.PrevMarginMax); }</th>
                 <th class="text-end">@{ Range("NewMarginMin", f.NewMarginMin, "NewMarginMax", f.NewMarginMax); }</th>
                 <th class="text-end">
@@ -331,6 +333,8 @@
                               title="Manually overridden by @p.ManualOverrideBy@(p.EngineProposedPrice.HasValue ? $" (engine: {p.EngineProposedPrice.Value.ToString("0.00", inv)})" : "")">✎</span>
                     }
                 </td>
+                @{ var shelf = Model.Sandbox.GetValueOrDefault(p.Sku); }
+                <td class="text-end text-nowrap small @(shelf?.Css ?? "text-muted")" title="@(shelf?.Title ?? "Not read.")">@(shelf?.Text ?? "–")</td>
                 <td class="text-end text-muted">@(prevMargin.HasValue ? (prevMargin.Value * 100).ToString("0.0") + "%" : "–")</td>
                 <td class="text-end newmargin-cell @(newMargin.HasValue && prevMargin.HasValue ? (newMargin.Value >= prevMargin.Value ? "text-success" : "text-danger") : "")">@(newMargin.HasValue ? (newMargin.Value * 100).ToString("0.0") + "%" : "–")</td>
                 <td class="text-end delta-cell @(p.ChangePct > 0 ? "text-success" : p.ChangePct < 0 ? "text-danger" : "text-muted")">
@@ -380,7 +384,7 @@
         }
         @if (!Model.Proposals.Any())
         {
-            <tr><td colspan="21" class="text-muted">Nothing matches the current filter.</td></tr>
+            <tr><td colspan="22" class="text-muted">Nothing matches the current filter.</td></tr>
         }
         </tbody>
     </table>
