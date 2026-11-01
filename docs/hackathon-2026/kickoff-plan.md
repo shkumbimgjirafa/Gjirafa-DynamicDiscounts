@@ -732,7 +732,7 @@ Timing: 20 + 60 + 60 + 30 + 45 + 25 = 240 seconds. Not timed yet on this version
 tab; start with `@alpha` for pricing). The agent writes its own `query_data` query and answers from it.
 
 Have the backup video and screenshots ready in case the network or Claude fails during the demo (shot list:
-`docs/hackathon-2026/demo-backup-video.md`).
+`docs/hackathon-2026/demo-backup-video.md`, which since 1 Nov describes the recorded 1:54 video).
 
 ## 8. Submission checklist
 

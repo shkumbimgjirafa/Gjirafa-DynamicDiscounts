@@ -31,8 +31,9 @@ sandbox copy of the shop's price tables; going live is configuration, a DBA's gr
 against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
 Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); the rest were held by cheaper discounts,
 96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). The user then
-switched on superseding only those, and held back the margin trim's cuts: 49,214 of 50,969 GjirafaMall and 25,390 of 26,604
-Gjirafa50 checked prices are on the sandbox shelf.
+switched on superseding only those, and on 31 Oct held back the margin trim's cuts (49,214 of 50,969 GjirafaMall and 25,390 of
+26,604 Gjirafa50 checked prices then on the sandbox shelf). On 1 Nov the user let the cuts go out again: that day's Run weeks put
+133,957 of 135,255 GjirafaMall and 32,225 of 33,219 Gjirafa50 checked prices on the sandbox shelf, all read back as written.
 
 **What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
 SKUs; run checks; checked exports with the holdout left out); Alpha's weekly pass #2 changed 8 band × category rules,
