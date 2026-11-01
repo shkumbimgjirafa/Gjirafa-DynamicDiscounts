@@ -67,7 +67,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1031 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1039 passed, 1 skipped: the opt-in real headless call; E17).
    The evidence is a file:
    `dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
@@ -330,7 +330,7 @@ the reason next to each.
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 1031 passed, 1 skipped (1 Nov, 12:30). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 1039 passed, 1 skipped (1 Nov, 18:05). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).
