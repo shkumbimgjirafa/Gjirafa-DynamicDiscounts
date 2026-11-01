@@ -24,6 +24,7 @@ public static class EvidenceHtml
         ("Për ty Oct 2026: the agents' plan vs the hand plan's forecast vs what it made", new[] { "E11", "E12" }),
         ("Cross-dock lines sold under booked cost, last 12 months", new[] { "E14" }),
         ("Below-floor gross profit forgone, by cause", new[] { "E21" }),
+        ("Sales under the floor: their share of revenue and of gross profit", new[] { "E30" }),
         ("The Kosovo gross-profit base", new[] { "E13" }),
         ("The backtest result (the levers in the claim)", new[] { "E8", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E24" }),
         ("The Sales Report tie-out (each approval's 30 days before: the tool vs the exported lines)", new[] { "E26" }),

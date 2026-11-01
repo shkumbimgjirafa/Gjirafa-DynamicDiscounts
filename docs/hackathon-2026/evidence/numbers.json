@@ -1250,6 +1250,73 @@
                                                          }
                                                      ]
                                       }
+                    },
+                    {
+                        "id":  "E30",
+                        "name":  "Sales under the hand-set margin floor: their share of revenue and of gross profit, Kosovo, Aug-Sep 2026",
+                        "value":  {
+                                      "GjirafaMall KS":  {
+                                                             "netRevenue":  602426,
+                                                             "gp":  113605,
+                                                             "underFloorRevenue":  107325,
+                                                             "underFloorGp":  4502,
+                                                             "revenueSharePct":  17.8,
+                                                             "gpSharePct":  4.0
+                                                         },
+                                      "Gjirafa50 KS":  {
+                                                           "netRevenue":  563988,
+                                                           "gp":  66807,
+                                                           "underFloorRevenue":  169223,
+                                                           "underFloorGp":  6449,
+                                                           "revenueSharePct":  30.0,
+                                                           "gpSharePct":  9.7
+                                                       },
+                                      "Both":  {
+                                                   "netRevenue":  1166414,
+                                                   "gp":  180412,
+                                                   "underFloorRevenue":  276548,
+                                                   "underFloorGp":  10951,
+                                                   "revenueSharePct":  23.7,
+                                                   "gpSharePct":  6.1
+                                               }
+                                  },
+                        "unit":  "EUR/month and percent",
+                        "label":  "measured",
+                        "method":  "Booked sales lines whose margin on booked COGS is under their band\u0027s hand-set floor of that day (the floors, banding and scope of E21: floors rebuilt from the band edits in the audit log, net price against unit cost / (1 - floor)), against all lines, both KS layers, Aug-Sep 2026, a month. Both layers: 23.7 % of net revenue and 6.1 % of gross profit; the gross profit of all lines ties to E13.",
+                        "source":  "hk.SalesLines, PricingTool.AuditLog, band config",
+                        "script":  "docs/hackathon-2026/evidence/e30-under-floor-share.sql (one result set; this script runs it)",
+                        "recompute":  {
+                                          "file":  "e30-under-floor-share.sql",
+                                          "checks":  [
+                                                         {
+                                                             "label":  "Both layers: share of net revenue under the floor (%)",
+                                                             "set":  0,
+                                                             "column":  "RevenueSharePct",
+                                                             "where":  {
+                                                                           "Shop":  "Both"
+                                                                       },
+                                                             "value":  23.7
+                                                         },
+                                                         {
+                                                             "label":  "Both layers: share of gross profit under the floor (%)",
+                                                             "set":  0,
+                                                             "column":  "GpSharePct",
+                                                             "where":  {
+                                                                           "Shop":  "Both"
+                                                                       },
+                                                             "value":  6.1
+                                                         },
+                                                         {
+                                                             "label":  "Gjirafa50 KS: share of net revenue under the floor (%)",
+                                                             "set":  0,
+                                                             "column":  "RevenueSharePct",
+                                                             "where":  {
+                                                                           "Shop":  "Gjirafa50 KS"
+                                                                       },
+                                                             "value":  30.0
+                                                         }
+                                                     ]
+                                      }
                     }
                 ]
 }

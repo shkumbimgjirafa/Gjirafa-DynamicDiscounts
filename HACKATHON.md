@@ -72,9 +72,10 @@ schedule, audit log) and its tests (692 at import, all still passing).
    `dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
    method, sources (and when each was loaded) and where it is used (the one-pager, the financial sheet's cells, this file),
-   and the figures whose script is a SQL file (12 files: E12–E14, E20–E23, E25–E29) rerun as it is written, as
-   `evidence_reader`, a database user that can only read, each cell compared with the stored value (31 Oct 20:3x: 49 of
-   49 matched, 56 s).
+   and the figures whose script is a SQL file (13 files: E12–E14, E20–E23, E25–E30) rerun as it is written, as
+   `evidence_reader`, a database user that can only read, each cell compared with the stored value (1 Nov 17:44: 50 of
+   52 matched, 40 s; the two that differ, E23's #37 and E25's October, rerun on October sales lines that changed after
+   `numbers.json` was built on 31 Oct).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
    engine refuse to start in any other environment)
    (Run, Chat, Campaigns, Proposals; an Admin menu for the daily cycle, the audit log, the time sheet and users).

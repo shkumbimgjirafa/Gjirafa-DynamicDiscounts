@@ -433,6 +433,21 @@ Recompute 'E29' 'e29-placebo.sql' $e29Sets @(
     (C 'Placebo 15 Jun, four runs summed' 0 'VsUntouchedPerMonth' @{ Kind = 'placebo 15 Jun' } 'sum'),
     (C 'Placebo 15 May, four runs summed' 0 'VsUntouchedPerMonth' @{ Kind = 'placebo 15 May' } 'sum'))
 
+# E30: the share of revenue and of gross profit on lines sold under the hand-set floor, Aug-Sep 2026 (E21's floors and scope).
+$e30Sets = RunFile 'e30-under-floor-share.sql'
+$e30Shops = [ordered]@{}
+foreach ($r in $e30Sets[0].Rows) {
+    $e30Shops[[string]$r.Shop] = [ordered]@{ netRevenue = Round0 $r.NetRevenuePerMonth; gp = Round0 $r.GpPerMonth; underFloorRevenue = Round0 $r.UnderFloorRevenuePerMonth
+        underFloorGp = Round0 $r.UnderFloorGpPerMonth; revenueSharePct = [decimal]$r.RevenueSharePct; gpSharePct = [decimal]$r.GpSharePct }
+}
+Add 'E30' 'Sales under the hand-set margin floor: their share of revenue and of gross profit, Kosovo, Aug-Sep 2026' $e30Shops 'EUR/month and percent' 'measured' `
+    "Booked sales lines whose margin on booked COGS is under their band's hand-set floor of that day (the floors, banding and scope of E21: floors rebuilt from the band edits in the audit log, net price against unit cost / (1 - floor)), against all lines, both KS layers, Aug-Sep 2026, a month. Both layers: $($e30Shops['Both'].revenueSharePct) % of net revenue and $($e30Shops['Both'].gpSharePct) % of gross profit; the gross profit of all lines ties to E13." `
+    'hk.SalesLines, PricingTool.AuditLog, band config' 'docs/hackathon-2026/evidence/e30-under-floor-share.sql (one result set; this script runs it)'
+Recompute 'E30' 'e30-under-floor-share.sql' $e30Sets @(
+    (C 'Both layers: share of net revenue under the floor (%)' 0 'RevenueSharePct' @{ Shop = 'Both' }),
+    (C 'Both layers: share of gross profit under the floor (%)' 0 'GpSharePct' @{ Shop = 'Both' }),
+    (C 'Gjirafa50 KS: share of net revenue under the floor (%)' 0 'RevenueSharePct' @{ Shop = 'Gjirafa50 KS' }))
+
 # Why the calculator's figure moved since the registration (the Evidence page shows it with E20).
 $e20 = $figures | Where-Object { $_.id -eq 'E20' }
 $e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) a month (E20 mid), the claim's rate. Its robustness checks are E20 low (a same-weeks control) and E27 (against untouched products in the same category and weeks); E20 high (season-adjusted, quoted from the main repo) is sensitivity, not part of the claim."
