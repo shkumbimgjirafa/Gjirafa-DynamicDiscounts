@@ -180,7 +180,7 @@ public sealed partial class AgentDataTools
             }).ToList();
 
             var run = await _reader.GetLatestRunAsync(layer, ct);
-            var stock = run is null ? new List<StockAggregate>() : await _reader.GetStockAsync(layer, run, null, category, ct);
+            var stock = run is null ? new List<StockAggregate>() : await _reader.GetStockAsync(layer, run, null, category, ct: ct);
             decimal stockValue = stock.Sum(s => s.StockValue), dead = stock.Sum(s => s.DeadStockValue);
             return (new
             {

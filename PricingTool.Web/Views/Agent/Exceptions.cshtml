@@ -159,8 +159,8 @@
 
 @if (Model.BlockedRuns.Count > 0)
 {
-    <h2 class="h5 mt-4" id="blocked">Runs the checker blocked (@Model.BlockedRuns.Count)</h2>
-    <p class="small text-muted">The latest check of each run in the last 7 days. A blocked run is not exported or published. A check skipped by the kill switch also leaves its run blocked.</p>
+    <h2 class="h5 mt-4" id="blocked">Runs with prices the checker blocked (@Model.BlockedRuns.Count)</h2>
+    <p class="small text-muted">The latest check of each run in the last 7 days. The blocked prices are held and the rest of the run goes out (since 1 Nov); a check that didn't finish, or one skipped by the kill switch, still stops its whole run.</p>
     <table class="table table-sm align-middle">
         <thead><tr><th>Check</th><th>Run</th><th>Layer</th><th>Status</th><th class="text-end">Flagged</th><th class="text-end">Blocks</th><th>Notes</th></tr></thead>
         <tbody>

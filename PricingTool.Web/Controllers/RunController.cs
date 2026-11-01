@@ -55,4 +55,12 @@ public class RunController : Controller
             Week = await _activity.WeekAsync(DateTime.UtcNow.AddDays(-7)),
         });
     }
+    /// <summary>A Run week's price list (<see cref="RunWeekPriceList"/>): the CSV its last step wrote to the exports folder.</summary>
+    [HttpGet("/Run/PriceList/{id:long}")]
+    public IActionResult PriceList(long id)
+    {
+        var path = RunWeekPriceList.FindFile(_agent.Cycle.ExportDir(), id);
+        return path is null ? NotFound($"Run week #{id} has no price list (it writes one only after a publish that went through).")
+            : PhysicalFile(path, "text/csv", Path.GetFileName(path));
+    }
 }

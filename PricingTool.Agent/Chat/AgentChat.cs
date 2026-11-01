@@ -476,7 +476,8 @@ public sealed class AgentChat
                                                      ChatRuleKinds.ProtectDiscount => "The publisher never ends a team discount whose name matches it, even under the floor",
                                                      ChatRuleKinds.MarginTarget => $"Each of those days, before the 07:00 publish, code raises the products under the lowest margin that brings " +
                                                                                    $"the shop's effective margin (gross profit / net revenue) to {rule.Value}%, never above a regular price, and says " +
-                                                                                   "in this thread what it did",
+                                                                                   "in this thread what it did. Alpha reads it in its band × category review of floors and targets (Run week on " +
+                                                                                   "the Run tab, or its Monday pass), with where the shop stands",
                                                      _ => "Campaign planning enforces it",
                                                  }) + "; it's listed on the Chat tab.",
                 null, added, ct);

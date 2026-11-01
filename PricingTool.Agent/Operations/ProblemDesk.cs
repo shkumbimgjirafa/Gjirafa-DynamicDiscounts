@@ -175,7 +175,7 @@ public sealed class ProblemDesk
         foreach (var b in inbox.HeldBriefs)
             items.Add(new { key = $"brief:{b.Id}", kind = "campaign brief over a cap", layer = inbox.LayerName(b.LayerId), b.Name, b.LimitDetail });
         foreach (var c in inbox.BlockedRuns)
-            items.Add(new { key = $"run:{c.RunId}", kind = "run blocked by the run checker", layer = inbox.LayerName(c.LayerId), c.Notes, c.Error });
+            items.Add(new { key = $"run:{c.RunId}", kind = "prices the run checker blocked (held; the rest of the run went out)", layer = inbox.LayerName(c.LayerId), c.Notes, c.Error });
         foreach (var p in inbox.Publishes.Where(p => p.NeedsAPerson))
             items.Add(new { key = $"batch:{p.Batch.Id}", kind = "publish stopped, failed or rolled back", layer = inbox.LayerName(p.Batch.LayerId), p.Batch.Status, p.Batch.Note,
                 exceptions = p.Exceptions.Select(e => $"{e.Kind} x{e.Count}") });

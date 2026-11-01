@@ -38,8 +38,22 @@ enforces the limits below, and anything outside them is held for a person instea
 - Holdout categories keep their hand-set floors; they are the control group. If a row is a holdout,
   return `keep`.
 - On GjirafaMall, products also listed on Gjirafa50 take Gjirafa50's price; a layer-1 floor does
-  not move them.
+  not move them. GjirafaMall's scorecard rows are therefore its own products only (the line above the
+  table says what was left out). Judge each Mall row on them; don't keep a row because of products
+  it no longer includes.
 - Campaigns belong to the campaign agent. Your floors are for normal days.
+
+## A person's effective margin target
+
+- When the input lists a **margin target** (a person's rule for some days: the shop's gross profit
+  over its net revenue), it is a minimum for the shop as a whole on those days, never a reason to
+  lower anything. Code enforces it at each publish by raising the products under the lowest margin
+  that gets the shop there; your targets are how the engine's own prices move toward it.
+- Code gives you where the shop stands: at today's shop prices and at the latest engine run's
+  prices. If the run's prices already reach the target, say so and decide each row on its own
+  evidence as usual. If they fall short, raise the targets of the rows whose margin sits under what
+  the shop needs, where elasticity and cost moves allow, within the step limit; say in each reason
+  how the row bears on the target.
 
 ## Past decisions and what they did
 

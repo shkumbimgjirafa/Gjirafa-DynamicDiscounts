@@ -54,6 +54,14 @@ public class RunWeekTests
             return Task.FromResult(new PublishOutcome(55, "Published", 2, 0, 0, 0, 2, 0, false, Array.Empty<PublishException>()));
         }
 
+        public Task<RunWeekStepResult> PriceListAsync(long runWeekId, int layerId, long batchId, IReadOnlyList<PublishItem> onShelf, CancellationToken ct)
+        {
+            Calls.Add("price-list");
+            Assert.Equal(55, batchId);
+            Assert.Equal(new[] { "S1", "S2" }, onShelf.Select(i => i.Sku));                      // nothing was left to a cheaper deal
+            return Task.FromResult(new RunWeekStepResult(StepStatus.Succeeded, $"2 prices: {RunWeekSteps.PriceListPath(runWeekId)}"));
+        }
+
         public Task<RunWeekStepResult> ReportAsync(long batchId, CancellationToken ct)
         {
             Calls.Add("report");
@@ -88,12 +96,13 @@ public class RunWeekTests
 
         var (week, rows) = await RunAsync(db, steps, new Switch());
 
-        Assert.Equal(new[] { "size", "alpha", "engine", "check", "prices", "publish", "report" }, steps.Calls);
-        Assert.Equal(new[] { "size-check", "alpha", "engine", "check", "publish", "verify", "report" }, rows.Select(r => r.Step));
+        Assert.Equal(new[] { "size", "alpha", "engine", "check", "prices", "publish", "report", "price-list" }, steps.Calls);
+        Assert.Equal(new[] { "size-check", "alpha", "engine", "check", "publish", "verify", "report", "price-list" }, rows.Select(r => r.Step));
         Assert.All(rows, r => Assert.Equal(StepStatus.Succeeded, r.Status));
         Assert.Equal(("Succeeded", 7L, 1200L, 9L, 55L), (week.Status, week.PassId!.Value, week.EngineRunId!.Value, week.CheckId!.Value, week.PublishBatchId!.Value));
         Assert.Contains("2 of 2 read back", rows.Single(r => r.Step == "verify").Detail);
-        Assert.Equal(("report #3", "Two prices on the shelf."), (rows[^1].Detail, rows[^1].Why));  // the run's report, last
+        Assert.Equal(("report #3", "Two prices on the shelf."), (rows[^2].Detail, rows[^2].Why));  // the run's report, then...
+        Assert.Equal($"2 prices: /Run/PriceList/{week.Id}", rows[^1].Detail);                      // ...its price list, last
         Assert.Contains("Aksesorë", rows[1].Why);                                                  // the reasons are kept with the step
     }
 

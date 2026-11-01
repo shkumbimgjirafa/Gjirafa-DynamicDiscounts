@@ -114,7 +114,7 @@ public class RunCheckerTests : IDisposable
     private Task<ExportResult> Export() => Exporter().ExportAsync(Run, Path.Combine(_dir, "exports"));
 
     [Fact]
-    public async Task Injected_bad_rows_block_the_run_and_the_block_stops_the_export()
+    public async Task Injected_bad_rows_are_blocked_and_held_and_the_rest_of_the_run_is_exported()
     {
         InjectTheFourBadRows();
         void ModelBlocks() => ModelSays("block",
@@ -142,12 +142,31 @@ public class RunCheckerTests : IDisposable
         Assert.Contains("has not been checked", export.Reason);
 
         ModelBlocks();
-        var real = await Checker().CheckAsync(Run);                                  // the same rows in a real check block it
+        var real = await Checker().CheckAsync(Run);                                  // the same rows in a real check are blocked...
         Assert.Equal(Severity.Block, real.Verdict);
+        var set = await Exporter().CheckedSetAsync(Run);
+        Assert.Null(set.Blocked);                                                    // ...held, and the rest goes out (the user's decision, 1 Nov)
+        Assert.Equal(new[] { "INJ-BELOWCOST", "INJ-COST62", "INJ-X10" }, set.BlockedSkus.Order());
+        Assert.Equal(new[] { "INJ-OK", "INJ-UNCHARMED" }, set.Prices.Select(p => p.Sku).Order());
+        Assert.Equal(49.50m, set.Prices.Single(p => p.Sku == "INJ-UNCHARMED").Price);
         export = await Export();
-        Assert.False(export.Exported);
-        Assert.Contains("blocked by check", export.Reason);
-        Assert.False(Directory.Exists(Path.Combine(_dir, "exports")) && Directory.EnumerateFiles(Path.Combine(_dir, "exports")).Any());
+        Assert.True(export.Exported);
+        Assert.Equal(2, export.Rows);
+        var lines = await File.ReadAllLinesAsync(export.FilePath!);
+        Assert.DoesNotContain(lines, l => l.StartsWith("INJ-X10") || l.StartsWith("INJ-COST62") || l.StartsWith("INJ-BELOWCOST"));
+    }
+
+    [Fact]
+    public async Task A_check_that_did_not_finish_still_stops_the_whole_run()
+    {
+        InjectTheFourBadRows();
+        _db.AgentRunChecks.Add(new AgentRunCheck { RunId = Run, LayerId = 4, Verdict = Severity.Block, Status = "Failed", Error = "the model call failed twice" });
+        await _db.SaveChangesAsync();
+
+        var set = await Exporter().CheckedSetAsync(Run);
+        Assert.Equal("the model call failed twice", set.Blocked);
+        Assert.Empty(set.Prices);
+        Assert.False((await Export()).Exported);
     }
 
     [Fact]

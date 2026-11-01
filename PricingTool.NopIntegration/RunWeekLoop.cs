@@ -27,6 +27,8 @@ public interface IRunWeekSteps
     Task<PublishOutcome> PublishAsync(int layerId, long runId, IReadOnlyList<PublishItem> items, CancellationToken ct);
     /// <summary>The published run's report: its numbers, and Alpha's account of it.</summary>
     Task<RunWeekStepResult> ReportAsync(long batchId, CancellationToken ct);
+    /// <summary>The price list of what the publish wrote (<see cref="RunWeekPriceList"/>), as a file in the exports folder.</summary>
+    Task<RunWeekStepResult> PriceListAsync(long runWeekId, int layerId, long batchId, IReadOnlyList<PublishItem> onShelf, CancellationToken ct);
 }
 
 /// <summary>
@@ -36,7 +38,7 @@ public interface IRunWeekSteps
 /// sandbox through <see cref="CheckedPricePublisher"/> (cuts as discounts, raises as the regular price) → the writer's
 /// round-trip check. Each step is a
 /// <see cref="RunWeekStep"/> row with its counts and reasons. A pulled kill switch stops it before Alpha (and before
-/// any later step); a failed step or a blocked check stops the steps after it; the publish refuses unless
+/// any later step); a failed step or a check that didn't finish stops the steps after it (blocked rows are held, the rest goes on); the publish refuses unless
 /// <c>Publisher:Target</c> is Sandbox. It writes no export file: the daily push file stays the cycle's.
 /// </summary>
 public sealed class RunWeekLoop
@@ -156,7 +158,11 @@ public sealed class RunWeekLoop
             $"round-trip: {o.RoundTripChecked - o.RoundTripMismatches:N0} of {o.RoundTripChecked:N0} read back as written" + (o.RolledBack ? "; the batch was rolled back" : ""),
             ok ? null : "The writer reads the winning deal back after each publish; too many mismatches roll the batch back (the exceptions inbox lists it).", o.BatchId), ct);
         // The run's report and Alpha's account of it; a failed report doesn't undo the publish.
-        if (!o.RolledBack) await StepAsync(week, "report", () => _steps.ReportAsync(o.BatchId, ct), ct);
+        if (!o.RolledBack)
+        {
+            await StepAsync(week, "report", () => _steps.ReportAsync(o.BatchId, ct), ct);
+            await StepAsync(week, RunWeekPriceList.Step, () => _steps.PriceListAsync(week.Id, week.LayerId, o.BatchId, RunWeekPriceList.OnShelf(items, o), ct), ct);
+        }
         week.Status = "Succeeded";
         return $"Done: published to the sandbox in batch #{o.BatchId}" + (ok ? "." : ", with read-back mismatches.");
     }
@@ -243,9 +249,10 @@ public sealed class RunWeekSteps : IRunWeekSteps
             ? (await db.AgentRunCheckRows.AsNoTracking().Where(x => x.CheckId == id).Select(x => x.Flags).ToListAsync(ct))
                 .SelectMany(f => f.Split(',', StringSplitOptions.RemoveEmptyEntries)).GroupBy(f => f).OrderByDescending(g => g.Count()).Select(g => $"{g.Key} {g.Count():N0}")
             : Enumerable.Empty<string>();
-        var blocked = r.Status != "Succeeded" || r.Verdict == Severity.Block;
-        return new RunWeekStepResult(blocked ? StepStatus.Failed : StepStatus.Succeeded,
-            $"check #{r.CheckId}: verdict {r.Verdict}, {r.Flagged:N0} flagged, {r.Sent} judged by the model; {r.Blocks} block, {r.Warns:N0} warn (held), {r.Fixed} fixed {r.Error}".Trim(),
+        // A check that didn't finish stops the run; blocked rows are held with the warned ones and the rest goes on (the user's decision, 1 Nov).
+        var failed = r.Status != "Succeeded";
+        return new RunWeekStepResult(failed ? StepStatus.Failed : r.Verdict == Severity.Block ? StepStatus.Warning : StepStatus.Succeeded,
+            $"check #{r.CheckId}: verdict {r.Verdict}, {r.Flagged:N0} flagged, {r.Sent} judged by the model; {r.Blocks} block, {r.Warns:N0} warn (both held), {r.Fixed} fixed {r.Error}".Trim(),
             "Flags: " + string.Join(", ", flags), r.CheckId);
     }
 
@@ -277,4 +284,17 @@ public sealed class RunWeekSteps : IRunWeekSteps
             $"report #{r.Id}: {r.OnShelf:N0} of {r.Requested:N0} prices on the shelf, {r.Changed:N0} changed ({r.Raised:N0} up, {r.Lowered:N0} down), " +
             $"expected {(r.ExpectedGp30Eur is { } e ? $"€{e:N0}" : "–")} a month (estimated); Alpha's account {r.AlphaStatus}", r.Headline, r.Id);
     }
+
+    public async Task<RunWeekStepResult> PriceListAsync(long runWeekId, int layerId, long batchId, IReadOnlyList<PublishItem> onShelf, CancellationToken ct)
+    {
+        using var scope = _sp.CreateScope();
+        var (path, lines) = await scope.ServiceProvider.GetRequiredService<RunWeekPriceList>().WriteAsync(runWeekId, layerId, batchId, onShelf, ct);
+        var withRule = lines.Count(l => l.AlgorithmUsed.Contains("Alpha's", StringComparison.Ordinal));
+        return new RunWeekStepResult(StepStatus.Succeeded,
+            $"{lines.Count:N0} of the run's prices on the sandbox shelf at our price, {withRule:N0} of them under one of Alpha's band × category rules: {PriceListPath(runWeekId)}",
+            $"File: {path}. Columns: {RunWeekPriceList.Header}. Dates are local time; a raise is the store's regular price, so it has no end date.");
+    }
+
+    /// <summary>Where the web app serves a Run week's price list.</summary>
+    public static string PriceListPath(long runWeekId) => $"/Run/PriceList/{runWeekId}";
 }

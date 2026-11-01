@@ -48,8 +48,9 @@ public sealed partial class AgentDataTools
             var info = await _reader.GetLayerAsync(layer, ct);
             var window = DateWindow.Ending(Today(), days, _scorecard.LagDays);
             var bands = await _reader.GetBandConfigAsync(layer, ct);
+            var own = OwnOnly(ctx);
             var sales = await _reader.GetSalesAsync(layer, window, DateWindow.Empty, _scorecard.FloorTolerancePp,
-                _scorecard.AtFloorBandPp, band, category, ct);
+                _scorecard.AtFloorBandPp, band, category, own, ct);
             var campaigns = await _reader.GetCampaignWindowsAsync(layer, window.From, window.To, ct);
             var card = AlphaScorecard.Build(info, window, DateWindow.Empty, _scorecard, bands, sales,
                 Array.Empty<StockAggregate>(), Array.Empty<CostChangeRow>(), campaigns, null);
@@ -63,7 +64,8 @@ public sealed partial class AgentDataTools
             return (new
             {
                 layer = info.LayerName, categoryLevel = info.CategoryLevel, window = window.ToString(), lagDays = _scorecard.LagDays,
-                note = "Normal days only (campaign days excluded, their revenue in campaignDayNetRevenue). EUR, VAT excl., booked cost.",
+                note = "Normal days only (campaign days excluded, their revenue in campaignDayNetRevenue). EUR, VAT excl., booked cost." +
+                       (own && info.Brand == "GjirafaMall" ? " " + OwnOnlyNote : ""),
                 campaignsExcluded = campaigns.Select(c => $"{c.Name} {c.StartDate:yyyy-MM-dd}..{c.EndDate:yyyy-MM-dd}"),
                 rows = card.Rows.Select(Row),
                 total = Row(card.Total),
@@ -77,12 +79,12 @@ public sealed partial class AgentDataTools
         LoggedAsync(ctx, AgentToolNames.GetCostChanges, new { layer, band, category, minChangePct }, async () =>
         {
             var threshold = Math.Max(0m, minChangePct) / 100m;
-            var all = await _reader.GetCostChangesAsync(layer, band, category, ct);
+            var all = await _reader.GetCostChangesAsync(layer, band, category, OwnOnly(ctx), ct);
             var moved = all.Where(c => Math.Abs(c.ChangePct) > threshold).OrderByDescending(c => Math.Abs(c.ChangePct)).ToList();
             return (new
             {
                 basis = "Booked unit cost (VAT excl.), last 30 days vs the 60 before; only SKUs that sold in both windows. " +
-                        "Band = the band the recent cost incl. VAT falls in.",
+                        "Band = the band the recent cost incl. VAT falls in." + (OwnOnly(ctx) ? " " + OwnOnlyNote : ""),
                 skusWithCostData = all.Count,
                 skusUp = moved.Count(c => c.ChangePct > 0),
                 skusDown = moved.Count(c => c.ChangePct < 0),
@@ -100,7 +102,7 @@ public sealed partial class AgentDataTools
         {
             var run = await _reader.GetLatestRunAsync(layer, ct);
             if (run is null) return (new { note = "No engine run with a snapshot yet for this layer." }, 0);
-            var stock = await _reader.GetStockAsync(layer, run, band, category, ct);
+            var stock = await _reader.GetStockAsync(layer, run, band, category, OwnOnly(ctx), ct);
             var bands = (await _reader.GetBandConfigAsync(layer, ct)).ToDictionary(b => b.BandId, b => b.BandName);
             decimal total = stock.Sum(s => s.StockValue), dead = stock.Sum(s => s.DeadStockValue);
             return (new
@@ -108,7 +110,7 @@ public sealed partial class AgentDataTools
                 engineRun = run.RunId, snapshotDate = run.SnapshotDate.ToString("yyyy-MM-dd"),
                 basis = "Local-warehouse units x PPTCV (cost incl. VAT). Dead = what the engine stages as dead stock. " +
                         "maxDeadObservedDays stands in for the oldest-unit age (WMS age is not in the snapshot). " +
-                        "GjirafaMall and Gjirafa50 KS share one warehouse: never add their stock.",
+                        "GjirafaMall and Gjirafa50 KS share one warehouse: never add their stock." + (OwnOnly(ctx) ? " " + OwnOnlyNote : ""),
                 rows = stock.OrderByDescending(s => s.StockValue).Select(s => new
                 {
                     s.BandId, band = s.BandId is { } id ? bands.GetValueOrDefault(id) : null, s.Category, s.SkusInStock,
@@ -264,6 +266,11 @@ public sealed partial class AgentDataTools
             return new { error = ex.Message };
         }
     }
+
+    /// <summary>Alpha sets floors and targets: on GjirafaMall it sees only the products a Mall floor moves (as its scorecard does).</summary>
+    private static bool OwnOnly(AgentToolContext ctx) => ctx.Agent == AgentRole.Alpha;
+    private const string OwnOnlyNote = "On GjirafaMall (layer 1) these are its own products only: a product also listed on Gjirafa50 takes " +
+                                       "Gjirafa50's price, so a Mall floor or target never moves it.";
 
     private DateOnly Today() => DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
     private static decimal R0(decimal v) => Math.Round(v, 0, MidpointRounding.AwayFromZero);

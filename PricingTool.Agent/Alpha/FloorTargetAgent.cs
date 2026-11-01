@@ -97,8 +97,13 @@ public sealed class FloorTargetAgent
         var paused = (await _db.CategoryPauses.AsNoTracking().Where(p => p.LayerId == layerId && p.ReleasedUtc == null).ToListAsync(ct))
             .Select(p => Key(p.BandId, p.Category)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var targets = (await _db.ChatRules.AsNoTracking()
+                .Where(r => r.Kind == ChatRuleKinds.MarginTarget && r.RemovedUtc == null && r.LayerId == layerId).ToListAsync(ct))
+            .Where(r => r.ActiveOn(today, today.AddDays(MarginTargetDaysAhead))).ToList();
         var prompt = BuildPrompt(effective, rows, mode, recent) + Environment.NewLine +
-                     await Operations.Goals.BlockAsync(_db, DateOnly.FromDateTime(_clock.GetLocalNow().DateTime), layerId, ct);
+                     await Operations.Goals.BlockAsync(_db, today, layerId, ct) +
+                     MarginTargetBlock(targets, card.ShopMargin, card.Layer.Brand == "GjirafaMall");
         if (injectedTestNote is not null) prompt += $"\n[INJECTED-TEST] {injectedTestNote}\n";
         var call = await _client.CallAsync(new AgentCallRequest(AgentRole.Alpha,
             isTest ? $"[INJECTED-TEST] floor-target L{layerId}" : $"floor-target L{layerId}",
@@ -360,6 +365,37 @@ public sealed class FloorTargetAgent
                 string.Join("; ", recent.Select(r => $"{r.Key}: floor {r.Value.Floor:+0.##;-0.##} pt, target {r.Value.Target:+0.##;-0.##} pt")));
         sb.AppendLine();
         sb.Append(card.ToPromptTable());
+        return sb.ToString();
+    }
+
+    /// <summary>A pass reads the margin-target rules in force from today through this many days ahead (its decisions last a week).</summary>
+    public const int MarginTargetDaysAhead = 7;
+
+    /// <summary>A person's effective margin targets for the coming days (margin-target rules) and where the shop stands, estimated by
+    /// code; empty when there is none.</summary>
+    internal static string MarginTargetBlock(IReadOnlyList<ChatRule> rules, ShopMarginEstimate? shop, bool mall)
+    {
+        if (rules.Count == 0) return "";
+        static string P(decimal? v) => v is { } x ? x.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "-";
+        var sb = new StringBuilder();
+        sb.AppendLine("Effective margin targets a person set for this shop (margin-target rules; effective margin = gross profit / net revenue, " +
+                      "both VAT excluded, over what the shop sells):");
+        foreach (var r in rules.OrderBy(r => r.FromDate).ThenByDescending(r => ChatRuleKinds.Percent(r.Value)))
+            sb.AppendLine($"- {r.FromDate:yyyy-MM-dd} to {r.ToDate:yyyy-MM-dd}: {ChatRuleKinds.Percent(r.Value)?.ToString("0.#", CultureInfo.InvariantCulture)}% " +
+                          $"(rule #{r.Id}, set by {r.CreatedBy}: \"{Truncate(r.Instruction, 200)}\")");
+        if (shop is null)
+            sb.AppendLine("Where the shop stands: no engine run to estimate it on yet.");
+        else
+        {
+            sb.AppendLine($"Where the shop stands (estimated by code on the units each product of engine run #{shop.RunId} sold on normal days " +
+                          $"{shop.From:yyyy-MM-dd} to {shop.To.AddDays(-1):yyyy-MM-dd}, volume unchanged): {P(shop.NowPct)} at today's shop prices, " +
+                          $"{P(shop.RunPct)} at the run's proposed prices.");
+            if (mall)
+                sb.AppendLine($"Of that, GjirafaMall's own products ({P(shop.OwnSharePct)} of the revenue; the only ones your targets move): {P(shop.OwnNowPct)} now, " +
+                              $"{P(shop.OwnRunPct)} at the run's prices. The rest take Gjirafa50's price.");
+        }
+        sb.AppendLine("Code enforces each target on its days: before the publish it raises the products under the lowest margin that gets the shop " +
+                      "there, never above a regular price. Your targets are how the engine's own prices move toward it (rules: \"A person's effective margin target\").");
         return sb.ToString();
     }
 

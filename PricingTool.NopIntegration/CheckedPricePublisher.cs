@@ -51,7 +51,9 @@ public sealed class CheckedPricePublisher : ICheckedPricePublisher
 
     /// <summary>The checked set in one line: how many go out and what was held or left out.</summary>
     public static string Chosen(CheckedSet set) =>
-        $"{set.Prices.Count:N0} checked prices ({set.HeldByCheck:N0} held by check #{set.Check?.Id}, {set.HoldoutLeftOut:N0} holdout left out" +
+        $"{set.Prices.Count:N0} checked prices ({set.HeldByCheck:N0} held by check #{set.Check?.Id}" +
+        (set.BlockedSkus.Count > 0 ? $", of them {set.BlockedSkus.Count:N0} blocked, e.g. {string.Join(", ", set.BlockedSkus.Take(3))}" : "") +
+        $", {set.HoldoutLeftOut:N0} holdout left out" +
         (set.PausedRaisesLeftOut > 0 ? $", {set.PausedRaisesLeftOut:N0} raises in paused categories left out" : "") +
         (set.HeldBackTrimCutSkus is not null ? $", {set.TrimCutsHeldBack:N0} margin-trim cuts held back)" : ")");
 

@@ -36,6 +36,9 @@ public sealed record CheckedSet(AgentRunCheck? Check, string? Blocked, IReadOnly
 
     /// <summary>The prices the margin target raised (SKU → price), so GjirafaMall's products that take Gjirafa50's price follow.</summary>
     public IReadOnlyDictionary<string, decimal>? MarginTargetRaised { get; init; }
+
+    /// <summary>The rows the check blocked: held (counted in <see cref="HeldByCheck"/>), for a person to look at; the rest goes out.</summary>
+    public IReadOnlyList<string> BlockedSkus { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>The engine's reason code for a price moved toward the band's target margin.</summary>
@@ -126,7 +129,7 @@ public sealed class CheckedExport
     /// The prices of a run that may go out, by the run's latest real check (the same set for the push file and for
     /// Run week's and the daily cycle's publish): warn and block rows held, a fixed row at the checker's price, the
     /// holdout categories left out, and no raise in a band × category the outcome tracker paused (its cuts still go).
-    /// Nothing when the run hasn't been checked or the check blocked it.
+    /// Nothing when the run hasn't been checked or its check didn't finish; rows the check blocked are held like warned ones.
     /// </summary>
     public async Task<CheckedSet> CheckedSetAsync(long runId, CancellationToken ct = default)
     {
@@ -137,12 +140,10 @@ public sealed class CheckedExport
             return new CheckedSet(null, null, Array.Empty<CheckedPrice>(), 0, 0);
 
         var rows = await _db.AgentRunCheckRows.AsNoTracking().Where(r => r.CheckId == check.Id).ToListAsync(ct);
-        if (check.Verdict == Severity.Block)
-        {
-            var examples = rows.Where(r => r.FinalSeverity == Severity.Block).Take(3).Select(r => $"{r.Sku} ({r.Flags})");
-            var why = check.Status != "Succeeded" ? check.Error : $"{check.Blocks} blocking row(s), e.g. {string.Join(", ", examples)}";
-            return new CheckedSet(check, why ?? "blocked", Array.Empty<CheckedPrice>(), 0, 0);
-        }
+        // A check that didn't finish gates the whole run. Blocking rows are held like warned ones and the rest goes out (the user's
+        // decision, 1 Nov: "flag the wrong ones and continue"); they wait for a person in the exceptions inbox.
+        if (check.Verdict == Severity.Block && check.Status != "Succeeded")
+            return new CheckedSet(check, check.Error ?? "blocked", Array.Empty<CheckedPrice>(), 0, 0);
 
         var run = await _tool.PricingRuns.AsNoTracking().SingleAsync(r => r.Id == runId, ct);
         var held = rows.Where(r => r.FinalSeverity is Severity.Warn or Severity.Block).Select(r => r.ProposalId).ToHashSet();
@@ -194,7 +195,11 @@ public sealed class CheckedExport
             (prices, targetNote, targetRaised) = await MarginTargetAsync(run, prices, notRaised, ct);
         }
         return new CheckedSet(check, null, prices, proposals.Count(p => held.Contains(p.Id)), proposals.Count(p => holdout.Contains(p.Id) && !held.Contains(p.Id)),
-            pausedRaises.Count, trimCuts) { MarginTargetNote = targetNote, MarginTargetRaised = targetRaised };
+            pausedRaises.Count, trimCuts)
+        {
+            MarginTargetNote = targetNote, MarginTargetRaised = targetRaised,
+            BlockedSkus = rows.Where(r => r.FinalSeverity == Severity.Block).Select(r => r.Sku).ToList(),
+        };
     }
 
     /// <summary>

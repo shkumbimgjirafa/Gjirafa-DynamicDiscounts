@@ -36,6 +36,7 @@ builder.Services.AddControllersWithViews(o => o.Filters.Add<LayerContextFilter>(
 builder.Services.AddSingleton<RunLauncher>();
 // "Run week" on the Run tab: the whole loop for one layer, publishing only to the shop sandbox.
 builder.Services.AddScoped<PricingTool.NopIntegration.IRunWeekSteps, PricingTool.NopIntegration.RunWeekSteps>();
+builder.Services.AddScoped<PricingTool.NopIntegration.RunWeekPriceList>();
 builder.Services.AddScoped<PricingTool.NopIntegration.RunWeekLoop>();
 builder.Services.AddSingleton<RunWeekLauncher>();
 // The Run and Chat tabs: the current run's report, the agents' activity, and chat turns run in the background.

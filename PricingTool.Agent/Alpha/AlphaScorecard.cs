@@ -49,6 +49,27 @@ public sealed record ScorecardRow
     public bool ThinData { get; init; }
 }
 
+/// <summary>
+/// A shop's effective margin (gross profit / net revenue; on the VAT-inclusive price and PPTCV it is the same ratio), estimated on the units
+/// each product of engine run <see cref="RunId"/> sold on normal days in [<see cref="From"/>, <see cref="To"/>), volume unchanged: at today's
+/// shop prices and at the run's proposed prices. Own = the products the run prices itself (on GjirafaMall, not the ones that take
+/// Gjirafa50's price); <see cref="OwnSharePct"/> is their share of that revenue today.
+/// </summary>
+public sealed record ShopMarginEstimate(long RunId, DateOnly From, DateOnly To, decimal? NowPct, decimal? RunPct, decimal? OwnNowPct, decimal? OwnRunPct,
+    decimal? OwnSharePct)
+{
+    public static ShopMarginEstimate Of(long runId, DateOnly from, DateOnly to,
+        IReadOnlyList<(bool TakesGj50Price, decimal NetNow, decimal GpNow, decimal NetRun, decimal GpRun)> rows)
+    {
+        static decimal? Ratio(decimal part, decimal whole) => whole > 0 ? Math.Round(100m * part / whole, 1) : null;
+        var own = rows.Where(r => !r.TakesGj50Price).ToList();
+        return new ShopMarginEstimate(runId, from, to,
+            Ratio(rows.Sum(r => r.GpNow), rows.Sum(r => r.NetNow)), Ratio(rows.Sum(r => r.GpRun), rows.Sum(r => r.NetRun)),
+            Ratio(own.Sum(r => r.GpNow), own.Sum(r => r.NetNow)), Ratio(own.Sum(r => r.GpRun), own.Sum(r => r.NetRun)),
+            Ratio(own.Sum(r => r.NetNow), rows.Sum(r => r.NetNow)));
+    }
+}
+
 /// <summary>What Alpha judges for one layer: one row per band × category, computed in code.</summary>
 public sealed record AlphaScorecard
 {
@@ -62,6 +83,10 @@ public sealed record AlphaScorecard
     public required IReadOnlyList<ScorecardRow> Rows { get; init; }
     public required ScorecardRow Total { get; init; }
     public required IReadOnlyList<string> Definitions { get; init; }
+    /// <summary>What the rows cover when it isn't the whole layer (GjirafaMall: its own products only), with what was left out.</summary>
+    public string? ScopeNote { get; init; }
+    /// <summary>The shop's effective margin now and at the latest run's prices (estimated by code), for a person's margin target.</summary>
+    public ShopMarginEstimate? ShopMargin { get; init; }
 
     /// <summary>
     /// Merges the aggregates into rows. Pure: everything the agent reads as a number is computed here.
@@ -132,6 +157,7 @@ public sealed record AlphaScorecard
         sb.AppendLine(StockRun is null
             ? "Stock: no engine run with a snapshot yet"
             : $"Stock: engine run #{StockRun.RunId}, snapshot {StockRun.SnapshotDate:yyyy-MM-dd}");
+        if (ScopeNote is not null) sb.AppendLine("Scope: " + ScopeNote);
         foreach (var d in Definitions) sb.AppendLine("- " + d);
         sb.AppendLine();
         sb.AppendLine("band_id|band|category|floor|target|units|net|gp|margin|ly_units|ly_net|ly_margin|below_floor|at_floor|xdock|camp_net|ly_camp_net|skus|elast_skus|elast_cov|cost_up5|cost_down5|stock|dead|thin");

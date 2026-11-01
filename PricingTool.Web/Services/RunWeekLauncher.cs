@@ -1,11 +1,12 @@
+using PricingTool.Agent.Storage;
 using PricingTool.NopIntegration;
 
 namespace PricingTool.Web.Services;
 
 /// <summary>
-/// Starts "Run week" (<see cref="RunWeekLoop"/>) in the background for one layer and returns at once; the Run tab shows
-/// its timeline as it goes. One at a time per process: the loop runs Alpha, the engine and the checker, so a second
-/// press waits for the first to finish.
+/// Starts "Run week" (<see cref="RunWeekLoop"/>) in the background for one layer, or several one after the other, and returns at
+/// once; the Run tab shows its timeline as it goes. One at a time per process: the loop runs Alpha, the engine and the checker, so a
+/// second press waits for the first to finish.
 /// </summary>
 public class RunWeekLauncher
 {
@@ -22,14 +23,22 @@ public class RunWeekLauncher
     public bool IsRunning => Volatile.Read(ref _running) == 1;
 
     /// <summary>The new <c>ai.RunWeek</c> id, or null when one is already running in this process.</summary>
-    public async Task<long?> TryStartAsync(int layerId, string by)
+    public Task<long?> TryStartAsync(int layerId, string by) => TryStartAsync(new[] { layerId }, by);
+
+    /// <summary>
+    /// Run week for each of <paramref name="layerIds"/> in turn (the next starts when the one before has finished, whatever its
+    /// outcome). Returns the first one's <c>ai.RunWeek</c> id, or null when one is already running in this process.
+    /// <paramref name="finished"/> is called after each, in its own scope.
+    /// </summary>
+    public async Task<long?> TryStartAsync(IReadOnlyList<int> layerIds, string by, Func<IServiceProvider, RunWeek, Task>? finished = null)
     {
+        if (layerIds.Count == 0) return null;
         if (Interlocked.CompareExchange(ref _running, 1, 0) != 0) return null;
-        long id;
+        long first;
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            id = await scope.ServiceProvider.GetRequiredService<RunWeekLoop>().StartAsync(layerId, by);
+            first = await scope.ServiceProvider.GetRequiredService<RunWeekLoop>().StartAsync(layerIds[0], by);
         }
         catch
         {
@@ -40,18 +49,28 @@ public class RunWeekLauncher
         {
             try
             {
-                using var scope = _scopeFactory.CreateScope();
-                await scope.ServiceProvider.GetRequiredService<RunWeekLoop>().RunAsync(id);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Run week #{Id} failed.", id);
+                for (var i = 0; i < layerIds.Count; i++)
+                {
+                    try
+                    {
+                        long id;
+                        using (var start = _scopeFactory.CreateScope())
+                            id = i == 0 ? first : await start.ServiceProvider.GetRequiredService<RunWeekLoop>().StartAsync(layerIds[i], by);
+                        using var scope = _scopeFactory.CreateScope();
+                        var week = await scope.ServiceProvider.GetRequiredService<RunWeekLoop>().RunAsync(id);
+                        if (finished is not null) await finished(scope.ServiceProvider, week);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Run week for layer {Layer} failed.", layerIds[i]);
+                    }
+                }
             }
             finally
             {
                 Volatile.Write(ref _running, 0);
             }
         });
-        return id;
+        return first;
     }
 }

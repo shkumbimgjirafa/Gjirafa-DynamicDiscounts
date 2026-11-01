@@ -67,7 +67,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1017 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1029 passed, 1 skipped: the opt-in real headless call; E17).
    The evidence is a file:
    `dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
@@ -242,6 +242,11 @@ the reason next to each.
     15 % on 1–3 Nov, the user's) is tested but first applies in the 1 Nov 07:00 cycle. At the prices going out that
     morning both shops are estimated above target (20.4 % and 19.9 %, volume unchanged), so it should raise nothing;
     Gjirafa50's booked margin is lower (12.3 % on the same products) because the live shop still charges its own prices.
+    Since 1 Nov (the user's request) Alpha also reads the rule in its band × category review, with where the shop stands at
+    today's prices and at the latest run's (estimated by code), and a margin target given on the Chat tab starts Run week for
+    those shops, one after the other; each ends in a price list (`Sku, ProposedPrice, StartDate, EndDate, AlgorithmUsed,
+    NewMargin`) linked in the thread. GjirafaMall's scorecard is now its own products only: a product also listed on
+    Gjirafa50 takes Gjirafa50's price, so a Mall floor never moves it (that mix is why pass #13 kept every Mall row on 31 Oct).
   - **A person's campaign terms** (no depth cap, every SKU in stock, the engine's discount optimization off on the
     campaign's days, a margin goal spent down to) are tested; Java e Portokalltë 2026 (4–9 Nov, both shops) is to be
     planned again with them, and the discount-optimization switch first flips on 4 Nov.
@@ -283,6 +288,9 @@ the reason next to each.
     estimate showed cuts landing while cheaper deals blocked most raises). Republished: 49,214 of 50,969 GjirafaMall prices
     (run #1107, batch #10164) and 25,390 of 26,604 Gjirafa50 prices (#1109, #10162) are on the sandbox shelf; real team
     deals still hold 1,754 and 1,214. Their expected effect is on the Run tab (estimated, the last 30 days' units).
+    **1 Nov, the user's decisions:** the trim cuts go out again (`HoldBackTrimCuts` off in the Engine, Web and AgentTools
+    configs), and a row the run checker blocks is held alone while the rest of the run goes out; only a check that didn't
+    finish still stops a whole run (the 1 Nov GjirafaMall cycle published nothing over 5 blocked SKUs).
     Today's process stacks its own pushes: approval #37's set was imported on 20 Oct while #32's stayed live to 31 Oct,
     and the shop applies the cheaper, so #37's raises didn't reach the shelf. That is why v2 keeps one discount per SKU,
     updated in place, and ends its own in the same transaction as a regular-price raise.
@@ -305,7 +313,7 @@ the reason next to each.
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 1017 passed, 1 skipped (31 Oct, 20:36). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 1029 passed, 1 skipped (1 Nov, 12:05). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

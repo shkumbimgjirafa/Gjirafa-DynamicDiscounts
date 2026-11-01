@@ -247,9 +247,9 @@ public sealed class CampaignAgent
     {
         var sc = _options.Scorecard;
         var window = DateWindow.Ending(today, 28, sc.LagDays);
-        var sales = await _reader.GetSalesAsync(layerId, window, window.SameWeeksLastYear(), sc.FloorTolerancePp, sc.AtFloorBandPp, null, null, ct);
+        var sales = await _reader.GetSalesAsync(layerId, window, window.SameWeeksLastYear(), sc.FloorTolerancePp, sc.AtFloorBandPp, null, null, ct: ct);
         var run = await _reader.GetLatestRunAsync(layerId, ct);
-        var stock = run is null ? new List<StockAggregate>() : await _reader.GetStockAsync(layerId, run, null, null, ct);
+        var stock = run is null ? new List<StockAggregate>() : await _reader.GetStockAsync(layerId, run, null, null, ct: ct);
         var sb = new StringBuilder();
         sb.AppendLine($"Category trends, normal days {window} (ends {sc.LagDays} days ago: late cancellations) vs the same weeks a year earlier; " +
                       "EUR VAT excl., booked COGS; stock = local warehouse at cost incl. VAT from the latest engine run" +

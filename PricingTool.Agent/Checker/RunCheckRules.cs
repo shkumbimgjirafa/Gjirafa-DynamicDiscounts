@@ -7,7 +7,8 @@ namespace PricingTool.Agent.Checker;
 /// <summary>Severity of a rule hit, a model verdict or a row's final outcome.</summary>
 public static class Severity
 {
-    /// <summary>Stops the whole run's export and publish.</summary>
+    /// <summary>The row is held, like a warned one, and listed for a person; the rest of the run goes ahead (since 1 Nov). Only a check
+    /// that didn't finish stops the whole run's export and publish.</summary>
     public const string Block = "block";
     /// <summary>The row is left out of the export; the rest goes ahead.</summary>
     public const string Warn = "warn";

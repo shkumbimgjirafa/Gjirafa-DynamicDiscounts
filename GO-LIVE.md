@@ -29,6 +29,8 @@ step that copies the live shop's other discounts and regular prices into the san
   **Decided 31 Oct by the user: on** (Engine, Web and AgentTools configs). Republished with the margin-trim cuts held back:
   Gjirafa50 #1109 25,390 of 26,604 checked prices on the sandbox shelf (batch #10162), GjirafaMall #1107 49,214 of 50,969
   (#10164); team deals still hold 1,214 and 1,754, never ended by this switch.
+  **1 Nov, the user:** the trim cuts go out again (`HoldBackTrimCuts` off, same three configs), and a price the run checker
+  blocks is held alone while the rest of the run goes out (only a check that didn't finish stops the whole run).
 - **Team deals under the floor after a cost rise (the user's decision, 31 Oct):** the cost watcher ends a cheaper team
   discount that keeps a price under its floor (`CostWatcher:EndTeamDeals`, on), when the discount covers only that product
   and no chat rule `protect-discount` matches its name; then the floor price applies. Audited like any supersede and

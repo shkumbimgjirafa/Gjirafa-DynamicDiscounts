@@ -46,9 +46,11 @@ public sealed class PricingDataReader
     /// <paramref name="comparison"/> (pass <see cref="DateWindow.Empty"/> for none). A line is below the floor
     /// when its booked margin is under today's band floor by more than <paramref name="tolerancePp"/>; at the
     /// floor when within that tolerance below and <paramref name="atFloorBandPp"/> above.
+    /// <paramref name="ownOnly"/>: on GjirafaMall, only its own products (not Gjirafa50-listed ones, which take Gjirafa50's price,
+    /// so a Mall floor never moves them); no effect on Gjirafa50.
     /// </summary>
     public Task<List<SalesAggregate>> GetSalesAsync(int layerId, DateWindow current, DateWindow comparison,
-        decimal tolerancePp, decimal atFloorBandPp, int? bandId = null, string? category = null, CancellationToken ct = default) =>
+        decimal tolerancePp, decimal atFloorBandPp, int? bandId = null, string? category = null, bool ownOnly = false, CancellationToken ct = default) =>
         QueryAsync("""
             DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
             WITH s AS (
@@ -61,6 +63,7 @@ public sealed class PricingDataReader
                   AND ((s.SaleDate >= @From0 AND s.SaleDate < @To0) OR (s.SaleDate >= @From1 AND s.SaleDate < @To1))
                   AND (@Band IS NULL OR s.BandId = @Band)
                   AND (@Category IS NULL OR (CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END) = @Category)
+                  AND (@Own = 0 OR @Mall = 0 OR ISNULL(s.IsGj50Listed, 0) = 0)
             )
             SELECT s.BandId, s.Category, s.Period, CAST(CASE WHEN c.CampaignId IS NULL THEN 0 ELSE 1 END AS bit) AS CampaignDay,
                    SUM(s.Qty), ISNULL(SUM(s.NetRevenue), 0), ISNULL(SUM(s.GrossProfit), 0),
@@ -86,6 +89,7 @@ public sealed class PricingDataReader
                 p.AddWithValue("@AtBand", atFloorBandPp);
                 p.AddWithValue("@Band", (object?)bandId ?? DBNull.Value);
                 p.Add("@Category", SqlDbType.NVarChar, 200).Value = (object?)category ?? DBNull.Value;
+                p.AddWithValue("@Own", ownOnly);
             },
             r => new SalesAggregate(
                 r.IsDBNull(0) ? null : Id(r, 0), r.IsDBNull(1) ? "Unknown" : r.GetString(1), r.GetInt32(2), r.GetBoolean(3),
@@ -107,9 +111,10 @@ public sealed class PricingDataReader
     }
 
     /// <summary>Local-warehouse stock at PPTCV per engine band × category, from the run's snapshot; dead
-    /// stock is what the engine itself staged as dead (<c>DeadStockStage</c> &gt; 0).</summary>
+    /// stock is what the engine itself staged as dead (<c>DeadStockStage</c> &gt; 0). <paramref name="ownOnly"/>: as in
+    /// <see cref="GetSalesAsync"/>.</summary>
     public Task<List<StockAggregate>> GetStockAsync(int layerId, EngineRunRef run, int? bandId = null, string? category = null,
-        CancellationToken ct = default) =>
+        bool ownOnly = false, CancellationToken ct = default) =>
         QueryAsync("""
             DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
             WITH x AS (
@@ -121,6 +126,7 @@ public sealed class PricingDataReader
                 OUTER APPLY hk.ProductForProposal(@L, pp.ProductId, pp.Sku) p
                 LEFT JOIN PricingTool.SkuDeadStockStates st ON st.LayerId = @L AND st.Sku = ds.Sku
                 WHERE ds.LayerId = @L AND ds.SnapshotDate = @Snap AND ds.LocalWarehouseStock > 0 AND ds.Pptcv > 0
+                  AND (@Own = 0 OR @Mall = 0 OR ISNULL(p.IsGj50Listed, 0) = 0)
             )
             SELECT BandId, Category, COUNT(*), SUM(Value), SUM(CASE WHEN DeadStockStage > 0 THEN Value ELSE 0 END),
                    MAX(CASE WHEN DeadStockStage > 0 THEN DeadObservedDays END)
@@ -135,14 +141,16 @@ public sealed class PricingDataReader
                 p.Add("@Snap", SqlDbType.Date).Value = run.SnapshotDate.ToDateTime(TimeOnly.MinValue);
                 p.AddWithValue("@Band", (object?)bandId ?? DBNull.Value);
                 p.Add("@Category", SqlDbType.NVarChar, 200).Value = (object?)category ?? DBNull.Value;
+                p.AddWithValue("@Own", ownOnly);
             },
             r => new StockAggregate(r.IsDBNull(0) ? null : Id(r, 0), r.GetString(1), r.GetInt32(2),
                 r.GetDecimal(3), r.GetDecimal(4), r.IsDBNull(5) ? null : r.GetInt32(5)), ct);
 
     /// <summary>Booked unit cost, last 30 days vs the 60 before (<c>agent.CostChanges</c>), per SKU, with the
-    /// band its recent cost incl. VAT falls in and its category from its own sales.</summary>
+    /// band its recent cost incl. VAT falls in and its category from its own sales. <paramref name="ownOnly"/>: as in
+    /// <see cref="GetSalesAsync"/>.</summary>
     public Task<List<CostChangeRow>> GetCostChangesAsync(int layerId, int? bandId = null, string? category = null,
-        CancellationToken ct = default) =>
+        bool ownOnly = false, CancellationToken ct = default) =>
         QueryAsync("""
             DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM agent.Layers WHERE LayerId = @L);
             DECLARE @Vat decimal(9,4) = (SELECT 1 + VatRatePct / 100 FROM PricingTool.Layers WHERE Id = @L);
@@ -150,6 +158,7 @@ public sealed class PricingDataReader
                 SELECT Sku, MAX(CASE WHEN @Mall = 1 THEN MainGroup ELSE CategoryL1 END) AS Category
                 FROM agent.SalesLines
                 WHERE LayerId = @L AND SaleDate >= DATEADD(day, -90, CAST(GETDATE() AS date))
+                  AND (@Own = 0 OR @Mall = 0 OR ISNULL(IsGj50Listed, 0) = 0)
                 GROUP BY Sku
             ), x AS (
                 SELECT cc.Sku, b.BandId, cat.Category, cc.UnitCostPrior60, cc.UnitCostLast30, cc.ChangePct
@@ -168,6 +177,7 @@ public sealed class PricingDataReader
                 p.AddWithValue("@L", layerId);
                 p.AddWithValue("@Band", (object?)bandId ?? DBNull.Value);
                 p.Add("@Category", SqlDbType.NVarChar, 200).Value = (object?)category ?? DBNull.Value;
+                p.AddWithValue("@Own", ownOnly);
             },
             r => new CostChangeRow(r.GetString(0), r.IsDBNull(1) ? null : Id(r, 1), r.IsDBNull(2) ? "Unknown" : r.GetString(2),
                 r.GetDecimal(3), r.GetDecimal(4), r.IsDBNull(5) ? 0m : r.GetDecimal(5)), ct);
@@ -534,6 +544,56 @@ public sealed class PricingDataReader
                 p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
             },
             r => (r.GetBoolean(0), r.GetDecimal(1), r.GetDecimal(2)), ct);
+
+    /// <summary>A window's normal days (campaign days left out), split by Gjirafa50-listed or not: units, net revenue (VAT excl.) and
+    /// booked gross profit.</summary>
+    public Task<List<(bool Gj50Listed, decimal Units, decimal Net, decimal Gp)>> GetNormalDaySplitAsync(int layerId, DateWindow window, CancellationToken ct = default) =>
+        QueryAsync("""
+            SELECT CAST(ISNULL(s.IsGj50Listed, 0) AS bit), ISNULL(SUM(s.Qty), 0), ISNULL(SUM(s.NetRevenue), 0), ISNULL(SUM(s.GrossProfit), 0)
+            FROM agent.SalesLines s
+            WHERE s.LayerId = @L AND s.SaleDate >= @From0 AND s.SaleDate < @To0
+              AND NOT EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND s.SaleDate BETWEEN c.StartDate AND c.EndDate)
+            GROUP BY CAST(ISNULL(s.IsGj50Listed, 0) AS bit)
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                AddWindow(p, 0, window);
+            },
+            r => (r.GetBoolean(0), Convert.ToDecimal(r.GetValue(1)), r.GetDecimal(2), r.GetDecimal(3)), ct);
+
+    /// <summary>
+    /// The shop's effective margin on the products a run priced that sold on normal days in [<paramref name="from"/>,
+    /// <paramref name="to"/>), each on the units it sold (the margin-target rule's basis): at today's shop price (the run's current
+    /// price) and at the run's proposed price, against PPTCV (VAT included, as the price, so the ratio is the VAT-excluded one).
+    /// Split by whether the run took Gjirafa50's price (GjirafaMall's shared products, reason SYNCED_TO_GJ50).
+    /// </summary>
+    public Task<List<(bool TakesGj50Price, decimal NetNow, decimal GpNow, decimal NetRun, decimal GpRun)>> GetShopMarginAsync(int layerId, long runId,
+        DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        QueryAsync("""
+            WITH s AS (
+                SELECT sl.Sku, SUM(sl.Qty) AS Units
+                FROM agent.SalesLines sl
+                WHERE sl.LayerId = @L AND sl.SaleDate >= @From AND sl.SaleDate < @To
+                  AND NOT EXISTS (SELECT 1 FROM agent.CampaignHistory c WHERE c.LayerId = @L AND sl.SaleDate BETWEEN c.StartDate AND c.EndDate)
+                GROUP BY sl.Sku
+                HAVING SUM(sl.Qty) > 0)
+            SELECT CAST(CASE WHEN pp.ReasonCodes LIKE '%SYNCED_TO_GJ50%' THEN 1 ELSE 0 END AS bit),
+                   SUM(s.Units * pp.CurrentPrice), SUM(s.Units * (pp.CurrentPrice - pp.Pptcv)),
+                   SUM(s.Units * pp.ProposedPriceValue), SUM(s.Units * (pp.ProposedPriceValue - pp.Pptcv))
+            FROM s
+            JOIN PricingTool.ProposedPrices pp ON pp.PricingRunId = @Run AND pp.Sku = s.Sku
+            WHERE pp.Pptcv > 0 AND pp.CurrentPrice > 0 AND pp.ProposedPriceValue > 0
+            GROUP BY CAST(CASE WHEN pp.ReasonCodes LIKE '%SYNCED_TO_GJ50%' THEN 1 ELSE 0 END AS bit)
+            """,
+            p =>
+            {
+                p.AddWithValue("@L", layerId);
+                p.AddWithValue("@Run", runId);
+                p.Add("@From", SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+                p.Add("@To", SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+            },
+            r => (r.GetBoolean(0), r.GetDecimal(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4)), ct);
 
     /// <summary>
     /// Backtest lever 4: the MK/AL layers' tool-scope gross profit per month in EUR (hk.SalesLinesMkAl, loaded by the data session,
