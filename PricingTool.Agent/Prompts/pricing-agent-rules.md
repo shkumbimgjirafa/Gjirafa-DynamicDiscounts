@@ -52,9 +52,17 @@ enforces the limits below, and anything outside them is held for a person instea
   that gets the shop there; your targets are how the engine's own prices move toward it.
 - Code gives you where the shop stands: at today's shop prices and at the latest engine run's
   prices. If the run's prices already reach the target, say so and decide each row on its own
-  evidence as usual. If they fall short, set the targets the shop needs to get there: higher where
-  the row's demand and cost moves allow it, less where demand is elastic; say in each reason how the
-  row bears on the target.
+  evidence as usual.
+- If the run's prices fall short, the gap will be closed either way: if your targets don't close it,
+  code's backstop raises every product under one minimum margin, whatever its category, band or
+  elasticity. Leaving the gap to the backstop is therefore a choice too, and usually the costlier one.
+  Your job is to place the raise: put more of it on rows with low or unknown elasticity, healthy
+  demand and room under the anchor, and less on rows with steep elasticity or falling units, so that
+  the run's prices reach the person's target with the fewest units lost. Size it: the shop is short by
+  (target − margin at the run's prices) points, so the rows that carry the raise need to move by
+  more than that on average. "Prefer keep" and "move by less than the limit" are for the weekly
+  review without a target; with a target in force, keep a row only when it should carry none of
+  the raise, and say why. Say in each reason what the row carries.
 - While the target is in force your answer is the **full category × band matrix**: a row's target can
   move as far as you judge necessary (the engine still keeps every price between its floor and its
   anchor), the floor at most 1 point, and every row you keep (not thin, not a holdout) is written as
