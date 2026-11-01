@@ -4,7 +4,7 @@ What v2 would have added on Kosovo's two layers, lever by lever, on booked sales
 excluded). **Every lever on the calculator's era, Aug 1 – Sep 30 2026** (monthly average below), with Oct 1–15 as an
 out-of-sample check: the baseline is today's process, the calculator with its pushes. Lever 3's low case leaves
 out August (one cost event, below). Commands: `PricingTool.AgentTools backtest-snapshot` (the stored run,
-`ai.BacktestSnapshot`, shown on the Backtest page with a CSV download; it goes back to Oct 2025 for context), or
+`ai.BacktestSnapshot`, shown on the Backtest page, `/Backtest`, not linked from the tabs, with a CSV download; it goes back to Oct 2025 for context), or
 `backtest-levers 1 4 [--from --to] [--detail]` and `backtest-campaigns 1 4`. All gains are **estimated** unless marked
 measured; elasticity cases −0.5 / −1.0 / −2.0 (assumed), the low case (−2.0) is Finance's.
 
@@ -64,13 +64,13 @@ answers the one-event point instead.
   For context, before the calculator Mall's lever 3 ran €93–736 a month at e −1 (Nov–Jul), €2,467 in August.
 - **Levers 1 and 3 on GjirafaMall** include its Gjirafa50-listed lines, whose price v2 moves on Gjirafa50 and the sync
   carries to Mall at the next daily run; they are a small part: €9 of lever 1's €76 and €10 of lever 3's €1,316 a month
-  (Aug–Sep, e −1; `backtest-levers 1 --from 2026-08-01 --to 2026-10-01 --gj50-split`, today's rerun of the stored €77 /
-  €1,334).
+  (Aug–Sep, e −1; `backtest-levers 1 --from 2026-08-01 --to 2026-10-01 --gj50-split`, rerun on 1 Nov; the stored snapshot #5
+  has €76 / €1,317 after the team-deal move, €78 / €1,369 before it).
 - **Lever 5.** Sales on full days between a run finishing and its approval going live, at the price the engine
   had already computed. Lags were 0–3 days per push. What the engine would have proposed *between* pushes
   can't be scored: those proposals weren't kept. Gj50's October gap was mostly markdowns (−€123 to −€218). That
   unscored part is E21's cause 5 (lines sold under the floor with no calculator price live that day: €4.6k a month in
-  Aug–Sep); as context only, about €1.6k a month of it is on SKUs today's engine raises (a proxy, since August's runs
+  Aug–Sep); as context only, about €1.5k a month of it is on SKUs today's engine raises (E21: €1,532; GjirafaMall €300, Gjirafa50 €1,232) (a proxy, since August's runs
   weren't kept), not counted in the sheet.
 - **Lever 6.** Approval 12 (Mall, 6 Aug) judged per category, GP/day 28 days after vs before, season-adjusted
   with 2025. The plan's plain rule ("roll back where the category didn't gain": Shtëpi ×0.81, Sport ×0.96)
@@ -135,7 +135,3 @@ pointed a margin goal at max-gross-profit. The planner now has spend-to-margin, 
 main calendar campaign a floor to spend. Gjirafa50-listed products were 32 % of Mall KS revenue at 14.1 % booked margin
 (6 Sep – 6 Oct; the 7 Oct notes: 37 % at 13.3 %), measured; planning leaves them out, as the hand plan did, but the
 agents didn't find this themselves (planning gives them no data tools), so the bonus isn't met.
-
-## Not done yet
-
-- A results page and CSV download (Agent tab block).

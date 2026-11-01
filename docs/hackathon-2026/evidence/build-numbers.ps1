@@ -252,8 +252,8 @@ Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that 
     'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
 Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured (Friday, attended rows timed by block) and estimated (Saturday about 7 h and Sunday 8 h: the user''s own estimates); the person''s time inside unattended blocks is not timed' `
     'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
-$testsLine = 'dotnet test: 1039 passed, 1 skipped (the opt-in real headless call), 1 Nov 18:05'
-Add 'E17' 'Automated tests' ([ordered]@{ passed = 1039; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
+$testsLine = 'dotnet test: 1040 passed, 1 skipped (the opt-in real headless call), 1 Nov 19:27'
+Add 'E17' 'Automated tests' ([ordered]@{ passed = 1040; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results ----------------------------------------------------------------------------------------
 # E20 low and mid recomputed from PricingToolHackathon (the deployed tool's approvals and the booked sales lines); the
@@ -450,7 +450,8 @@ Recompute 'E30' 'e30-under-floor-share.sql' $e30Sets @(
 
 # Why the calculator's figure moved since the registration (the Evidence page shows it with E20).
 $e20 = $figures | Where-Object { $_.id -eq 'E20' }
-$e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) a month (E20 mid), the claim's rate. Its robustness checks are E20 low (a same-weeks control) and E27 (against untouched products in the same category and weeks); E20 high (season-adjusted, quoted from the main repo) is sensitivity, not part of the claim."
+$e27b0 = ($figures | Where-Object { $_.id -eq 'E27' }).value.total.vsUntouchedWithSalesHistory
+$e20.sinceRegistration = "The registration gave the unadjusted before/after, about 10k EUR a month; recomputed from this repo's data it is $($e20.value.mid) a month (E20 mid). The claim's rate is B0, E27: against untouched products in the same shop, category and weeks, SKUs with a sales history, $e27b0 a month. E20 low (a same-weeks control) is a robustness check and E20 high (season-adjusted, quoted from the main repo) is sensitivity; neither is part of the claim."
 
 foreach ($f in $figures) { if ($recomputes.ContainsKey($f.id)) { $f.recompute = $recomputes[$f.id] } }
 

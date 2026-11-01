@@ -150,6 +150,11 @@ public static class PlanStatus
     public const string Published = "published";
     /// <summary>A person stopped it in the veto window, before it went live: its publish rolled back.</summary>
     public const string Stopped = "stopped";
+
+    /// <summary>The plan that stands for a brief: its latest plan that isn't superseded, else its latest. A re-plan nobody
+    /// took up (superseded) doesn't replace the plan a person published.</summary>
+    public static CampaignPlan? Standing(IEnumerable<CampaignPlan> plans) =>
+        plans.Where(p => p.Status != Superseded).MaxBy(p => p.Id) ?? plans.MaxBy(p => p.Id);
 }
 
 /// <summary>

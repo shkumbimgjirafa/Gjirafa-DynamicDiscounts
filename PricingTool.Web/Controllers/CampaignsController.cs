@@ -55,7 +55,7 @@ public class CampaignsController : Controller
             .GroupBy(b => b.CalendarId!.Value).ToDictionary(g => g.Key, g => g.MaxBy(b => b.Id)!);
         var briefIds = briefs.Values.Select(b => b.Id).ToList();
         var plans = (await _ai.CampaignPlans.AsNoTracking().Where(p => briefIds.Contains(p.BriefId) && !p.IsTest).ToListAsync())
-            .GroupBy(p => p.BriefId).ToDictionary(g => g.Key, g => g.MaxBy(p => p.Id)!);
+            .GroupBy(p => p.BriefId).ToDictionary(g => g.Key, g => PlanStatus.Standing(g)!);
         var batchIds = plans.Values.Where(p => p.PublishBatchId != null).Select(p => p.PublishBatchId!.Value).ToList();
         var batches = await _ai.PublishBatches.AsNoTracking().Where(b => batchIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id);
         var results = (await _ai.CampaignResults.AsNoTracking().Where(r => ids.Contains(r.CalendarId)).ToListAsync())
@@ -149,7 +149,7 @@ public class CampaignsController : Controller
         var briefIds = briefs.Select(b => b.Id).ToList();
         var plans = await _ai.CampaignPlans.AsNoTracking().Where(p => briefIds.Contains(p.BriefId) && !p.IsTest).OrderByDescending(p => p.Id).ToListAsync();
         var batchIds = plans.Where(p => p.PublishBatchId != null).Select(p => p.PublishBatchId!.Value).ToList();
-        var latest = plans.FirstOrDefault();
+        var latest = PlanStatus.Standing(plans);
         var type = CampaignMath.TypeOf(entry.Name);
         var past = (await _ai.CampaignCalendar.AsNoTracking().Where(c => c.LayerId == entry.LayerId && c.Id != id && c.EndDate < entry.StartDate).ToListAsync())
             .Where(c => CampaignMath.TypeOf(c.Name) == type).OrderByDescending(c => c.StartDate)

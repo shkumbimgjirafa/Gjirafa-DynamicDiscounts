@@ -17,9 +17,11 @@ Pushing approved prices to the platform is a separate, explicit, Manager-trigger
 This repository is the Gjirafa AI Hackathon 2026 build (Track A): two AI agents and a NOP discount publisher on top of the
 calculator below. What's new, how to run it in five steps, where the AI's output becomes a decision, what is mocked or
 unfinished, and how every figure reproduces: [`HACKATHON.md`](HACKATHON.md). The app's tabs are Run, Chat, Campaigns and
-Proposals; the evidence is a file, [`docs/hackathon-2026/evidence/evidence.html`](docs/hackathon-2026/evidence/evidence.html).
+Proposals (four screenshots in [`docs/hackathon-2026/screenshots/`](docs/hackathon-2026/screenshots/)); the evidence is a file,
+[`docs/hackathon-2026/evidence/evidence.html`](docs/hackathon-2026/evidence/evidence.html).
 
-The rest of this README is the calculator's own, as imported. Three files it links to belong to the main repo and
+The rest of this README is the calculator's own, as imported, with two lines changed: the initial admin's email is empty
+by default here, and the test count is the one measured at import. Three files it links to belong to the main repo and
 were not copied here: `scripts/usp_GetDailyPricingDataset.sql`, `docs/algorithms/cross-dock.md` and
 `k8s/web-deployment.yaml` (this repo has no `k8s/`, `.env` or pipeline by rule).
 
@@ -82,7 +84,7 @@ Mall runs. Non-Mall layers and single-brand countries sync nothing. Logic lives 
 | `PricingTool.Data` | EF Core (migrations, `PricingTool` schema), per-layer source dataset readers, run orchestrator, bulk writer, CSV push integration, audit |
 | `PricingTool.Engine` | Background worker — scheduled recalculation, looping active layers (schedule read per layer from DB, admin-editable live) |
 | `PricingTool.Web` | ASP.NET Core admin UI + impact dashboard, layer switcher (dev-shim auth, Analyst/Manager roles) |
-| `PricingTool.Tests` | xUnit suite (380 tests): every algorithm incl. 0-vs-NULL handling, guardrails (margin floor, age-tiered dead-stock tunnel, margin-target), dead-stock markdown pacing, cross-brand price sync, gross-margin & VAT math, profit/margin KPIs, rounding-never-violates-guardrails (all conventions), weighted scoring, orchestrator policies |
+| `PricingTool.Tests` | xUnit suite (692 tests at import): every algorithm incl. 0-vs-NULL handling, guardrails (margin floor, age-tiered dead-stock tunnel, margin-target), dead-stock markdown pacing, cross-brand price sync, gross-margin & VAT math, profit/margin KPIs, rounding-never-violates-guardrails (all conventions), weighted scoring, orchestrator policies |
 
 ## Quick start (demo mode — no source database needed)
 

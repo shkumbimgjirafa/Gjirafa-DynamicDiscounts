@@ -80,7 +80,6 @@ def days(isos):
 
 
 last_run = max(e28["gjirafaMallKsRegularRuns"] + e28["gjirafa50KsRegularRuns"] + e28["gjirafa50KsDeadStockRuns"])
-gj50_dead_in_test = [d for d in e28["gjirafa50KsDeadStockRuns"] if d < "2026-10-01"]
 levers = v("E8", "central")
 cw = v("E22")
 # The problem's numbers: sales under the floor (E30) and the calculator's runs by hand (E28).
@@ -184,7 +183,7 @@ number traced to a query. The past months are not claimed; Aug–Sep is the evid
 
 **The test, and why it counts.** The calculator (v0.5) ran only as a test, by hand, with no schedule (E28, measured from
 the tool's approvals and the pushed discount sets): GjirafaMall KS on {days(e28['gjirafaMallKsRegularRuns'])};
-Gjirafa50 KS on {days(e28['gjirafa50KsRegularRuns'])}, with dead-stock runs on {days(gj50_dead_in_test)}; North
+Gjirafa50 KS on {days(e28['gjirafa50KsRegularRuns'])}, with dead-stock runs on {days(e28['gjirafa50KsDeadStockRuns'])}; North
 Macedonia and Albania had full pushes in July (Gjirafa50 AL), September (GjirafaMall AL) and on 21 Oct (all four). The
 last run was {days([last_run])}; nothing has run since. Without this build it doesn't go live (assumed: stated by the
 user, who ran the tests). The rate above was measured in Aug–Sep 2026 on the runs live then: GjirafaMall KS's of 21 Jul,

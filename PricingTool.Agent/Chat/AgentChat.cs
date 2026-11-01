@@ -312,7 +312,7 @@ public sealed class AgentChat
         {
             var brief = await _db.CampaignBriefs.AsNoTracking().Where(b => b.CalendarId == e.Id && !b.IsTest && b.Status != BriefStatus.Superseded)
                 .OrderByDescending(b => b.Id).FirstOrDefaultAsync(ct);
-            var plan = brief is null ? null : await _db.CampaignPlans.AsNoTracking().Where(p => p.BriefId == brief.Id && !p.IsTest).OrderByDescending(p => p.Id).FirstOrDefaultAsync(ct);
+            var plan = brief is null ? null : PlanStatus.Standing(await _db.CampaignPlans.AsNoTracking().Where(p => p.BriefId == brief.Id && !p.IsTest).ToListAsync(ct));
             sb.Append($"- #{e.Id} {e.Name}, layer {e.LayerId}, {e.StartDate:yyyy-MM-dd}..{e.EndDate:yyyy-MM-dd}, {e.Status}");
             if (e.GoalType is not null) sb.Append($", goal {e.GoalType} {e.GoalValue:0.##}{(e.GoalSetBy is null ? "" : $" (set by a person: {e.GoalSetBy})")}");
             sb.Append(brief is null ? "; no brief yet" : $"; brief #{brief.Id} {brief.Status}");

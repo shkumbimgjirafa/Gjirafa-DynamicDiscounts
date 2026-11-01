@@ -51,6 +51,18 @@ public class CampaignPlanningTests : IDisposable
     }
 
     [Fact]
+    public void The_standing_plan_is_the_latest_not_superseded_one()
+    {
+        CampaignPlan P(long id, string status) => new() { Id = id, BriefId = 12, Status = status };
+
+        Assert.Equal(15, PlanStatus.Standing(new[] { P(14, PlanStatus.Superseded), P(15, PlanStatus.Published),
+            P(16, PlanStatus.Superseded), P(17, PlanStatus.Superseded) })!.Id);                   // a re-plan nobody took up
+        Assert.Equal(2, PlanStatus.Standing(new[] { P(1, PlanStatus.Superseded), P(2, PlanStatus.Held) })!.Id);   // rounds
+        Assert.Equal(9, PlanStatus.Standing(new[] { P(8, PlanStatus.Superseded), P(9, PlanStatus.Superseded) })!.Id);
+        Assert.Null(PlanStatus.Standing(Array.Empty<CampaignPlan>()));
+    }
+
+    [Fact]
     public void Campaign_prices_take_the_layers_charm_rounding()
     {
         var bands = new Dictionary<int, PriceBandConfig>

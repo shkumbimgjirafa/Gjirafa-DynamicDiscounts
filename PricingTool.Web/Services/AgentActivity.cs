@@ -144,7 +144,7 @@ public class AgentActivity
         {
             var brief = await _ai.CampaignBriefs.AsNoTracking().Where(b => b.CalendarId == e.Id && !b.IsTest && b.Status != BriefStatus.Superseded && b.Status != BriefStatus.Rejected)
                 .OrderByDescending(b => b.Id).FirstOrDefaultAsync();
-            var plan = brief is null ? null : await _ai.CampaignPlans.AsNoTracking().Where(p => p.BriefId == brief.Id).OrderByDescending(p => p.Id).FirstOrDefaultAsync();
+            var plan = brief is null ? null : PlanStatus.Standing(await _ai.CampaignPlans.AsNoTracking().Where(p => p.BriefId == brief.Id).ToListAsync());
             var batch = plan?.PublishBatchId is { } id ? await _ai.PublishBatches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == id) : null;
             rows.Add(new CampaignRow(e, brief, plan, batch, null));
         }

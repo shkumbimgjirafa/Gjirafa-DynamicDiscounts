@@ -67,15 +67,15 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1039 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1040 passed, 1 skipped: the opt-in real headless call; E17).
    The evidence is a file:
    `dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
    method, sources (and when each was loaded) and where it is used (the one-pager, the financial sheet's cells, this file),
    and the figures whose script is a SQL file (13 files: E12–E14, E20–E23, E25–E30) rerun as it is written, as
-   `evidence_reader`, a database user that can only read, each cell compared with the stored value (1 Nov 17:44: 50 of
-   52 matched, 40 s; the two that differ, E23's #37 and E25's October, rerun on October sales lines that changed after
-   `numbers.json` was built on 31 Oct).
+   `evidence_reader`, a database user that can only read, each cell compared with the stored value (1 Nov 19:30, on
+   `numbers.json` as rebuilt from that day's data at 19:30: 52 of 52 matched, 47 s; the page's header gives the result
+   of its own run).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
    engine refuse to start in any other environment)
    (Run, Chat, Campaigns, Proposals; an Admin menu for the daily cycle, the audit log, the time sheet and users).
@@ -101,17 +101,17 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 
 | Agent | The model proposes | Code decides | Where |
 |---|---|---|---|
-| **Alpha, weekly floors and targets** | keep / raise / lower per band × category, with reason and evidence | `SafetyLimits.Evaluate`: a step of at most 1 point a week counted from last week's value, the layer's hard minimum, target ≥ floor, thin data kept, paused categories held (holdout categories, if any are configured, untouched; none are since 1 Nov); then `AgentDecision` rows (applied / held / rejected) and, for applied ones, the `BandCategoryRule` the engine prices with | `PricingTool.Agent/Alpha/FloorTargetAgent.cs:150` → `Alpha/SafetyLimits.cs:37` → `FloorTargetAgent.cs:168` |
-| **Nova, weekly briefs** | campaign briefs (dates, scope, goal, depth, minimum margin) and lessons | `CampaignLimits.Evaluate`: lead time, calendar window, length, no overlap with a main campaign, holdout, two minis at once, depth cap 25 % (90 % for one campaign whose cap a person lifted in the chat, see Chat); a minimum margin never under 3 % (code raises it, also in review rounds); a goal a person set overrides Nova's | `Campaigns/CampaignAgent.cs:151` |
-| **Campaign planning** | Alpha chooses one of four strategies code computed; Nova accepts or adjusts | `CampaignPlanner` computes every price (charm-rounded, never under cost or at today's price, depth cap, minimum margin of at least 3 %; no campaign holdout since 1 Nov, the user's decision); only a listed strategy is accepted; a person's goal can't be changed by Nova; a plan short of it is held | `Campaigns/CampaignPlanning.cs:147`, `:450`, `:130` |
-| **Run checker** | pass / hold / fix per flagged row of an engine run | `RunCheckRules` judge every row in code; the model can't downgrade a rule's block to a pass or a warn: it can only replace the price with one that passes every rule again (then the row is "fixed" and that price is exported); anything the model escalates becomes a block | `Checker/RunChecker.cs:80`, `:133` |
+| **Alpha, weekly floors and targets** | keep / raise / lower per band × category, with reason and evidence | `SafetyLimits.Evaluate`: a step of at most 1 point a week counted from last week's value, the layer's hard minimum, target ≥ floor, thin data kept, paused categories held (holdout categories, if any are configured, untouched; none are since 1 Nov); then `AgentDecision` rows (applied / held / rejected) and, for applied ones, the `BandCategoryRule` the engine prices with | `PricingTool.Agent/Alpha/FloorTargetAgent.cs:137` → `Alpha/SafetyLimits.cs:40` → `FloorTargetAgent.cs:171` |
+| **Nova, weekly briefs** | campaign briefs (dates, scope, goal, depth, minimum margin) and lessons | `CampaignLimits.Evaluate`: lead time, calendar window, length, no overlap with a main campaign, holdout, two minis at once, depth cap 25 % (90 % for one campaign whose cap a person lifted in the chat, see Chat); a goal a person set overrides Nova's; campaign planning then raises a minimum margin under 3 % to 3 %, also in review rounds | `Campaigns/CampaignAgent.cs:151`, `Campaigns/CampaignPlanning.cs:128` |
+| **Campaign planning** | Alpha chooses one of four strategies code computed; Nova accepts or adjusts | `CampaignPlanner` computes every price (charm-rounded, never under cost or at today's price, depth cap, minimum margin of at least 3 %; no campaign holdout since 1 Nov, the user's decision); only a listed strategy is accepted; a person's goal can't be changed by Nova; a plan short of it is held | `Campaigns/CampaignPlanning.cs:156`, `:460`, `:139` |
+| **Run checker** | pass / hold / fix per flagged row of an engine run | `RunCheckRules` judge every row in code; the model can't downgrade a rule's block to a pass or a warn: it can only replace the price with one that passes every rule again (then the row is "fixed" and that price is exported); anything the model escalates becomes a block | `Checker/RunChecker.cs:97`, `:146` |
 | **Chat** | a reply, briefs, rules, a goal, campaigns to cancel | briefs go through `CampaignLimits` and the planning loop. Rules: `exclude-brand`, `exclude-category` and `min-campaign-margin` only tighten (campaign planning enforces them); `protect-discount` stops the agents from ending team discounts whose name matches a pattern, even under the floor (a bare `*` covers every team discount); `margin-target` raises a shop's prices to an effective margin on given days, never above a regular price. A person's campaign terms (no depth cap, up to 90 %; every SKU in stock; discount optimization off on the campaign's days), a binding goal and the rule values are the model's reading of the person's message: code checks their ranges and records them under the person's name, but doesn't parse the message itself. What-if figures come from code (`what_if_floor`) | `Chat/AgentChat.cs` |
 | **Cost watcher** | nothing: no model | raises to the floor, holds a data-error jump, ends a discount above the shelf, judges a live campaign on its own minimum margin | `NopIntegration/CostWatch/CostWatcher.cs` |
 | **Publisher** | nothing | with `Publisher:Target` = Sandbox (every config in this repo) the writer refuses any schema but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly; a raise above the run's max(anchor, current) is refused again here, and a regular price someone changed since the run is never overwritten | `NopIntegration/PublisherOptions.cs:58`, `NopRegularPriceWriter.Decide` |
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
 `ai.AgentQueryLog`. The agents' runtime Claude calls: 117 calls, $14.74 in the live database and 13 calls, $3.85 in the test
-database (E15). The Claude Code sessions that built this used $764.23 since kickoff (API-equivalent; the fourteen AI-judge dry runs and the released data session's share included), $375.49 of it in the unattended
+database (E15). The Claude Code sessions that built this used $764.23 from the kickoff to 1 Nov 18:49 (API-equivalent; the fourteen AI-judge dry runs and the released data session's share included), $375.49 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -152,7 +152,7 @@ Aug–Sep is the evidence for the rate.
 
 **The test, and why it counts.** The calculator (v0.5) ran only as a test, by hand, with no schedule (E28, measured from
 the tool's approvals and the pushed discount sets): GjirafaMall KS on 21 Jul, 6 Aug, 3 Sep, 6 Oct and 19 Oct; Gjirafa50
-KS on 21 Jul, 7 Oct and 21 Oct, with dead-stock runs on 3 Aug, 19 Aug and 3 Sep; North Macedonia and Albania had full
+KS on 21 Jul, 7 Oct and 21 Oct, with dead-stock runs on 3 Aug, 19 Aug, 3 Sep and 7 Oct; North Macedonia and Albania had full
 pushes in July (Gjirafa50 AL), September (GjirafaMall AL) and on 21 Oct (all four). The last run was 21 Oct; nothing
 has run since. Without this build it doesn't go live (assumed: stated by the user, who ran the tests). The rate above
 was measured in Aug–Sep 2026 on the runs live then: GjirafaMall KS's of 21 Jul, 6 Aug and 3 Sep (with smaller floor and
@@ -202,7 +202,7 @@ person, not counted). It is scored in the backtest after the other levers, so a 
 order moved lever 3 by €35 a month. (A 12-month window, tried after dry run 1, scored levers 1 and 3 against months before
 the calculator; dry run 2 caught it.) Each lever's sensitivity to other elasticities is in
 [`docs/hackathon-2026/backtest-results.md`](docs/hackathon-2026/backtest-results.md) and on the sheet's Inputs (Low / Mid / High per lever);
-the Backtest tab shows the stored run and its CSV.
+the Backtest page (`/Backtest`, not linked from the tabs) shows the stored run and its CSV.
 
 **Where the levers come from.** Mostly automation, not the model's own choices: the loss block and the cost reaction
 (levers 1 and 3: rules in code and the cost watcher), daily checked prices (5: the cycle writes them every day, the team
@@ -259,14 +259,14 @@ the reason next to each.
   - **The planner's campaign estimates aren't calibrated yet:** too few comparable past campaigns for a leave-one-out
     factor (E10); about 44 % of a Mall campaign's GP comes from SKUs with no recent sales (E9).
   - **The Monday report** is written in the chat; its email is not built (the address isn't confirmed).
-  - **The laptop start-up task** is registered but disabled (the user's step); the host is started by hand (restarted
-    31 Oct 16:04 on the current build), so a reboot stops the daily cycle until someone starts it.
+  - **The laptop start-up task** is registered but disabled (the user's step); the host is started by hand (last restarted
+    1 Nov on the current build), so a reboot stops the daily cycle until someone starts it.
   - **Setting a price on the Proposals tab doesn't publish it** (the app redesign's step 5): prices go out through the
     daily cycle, Run week or the checked push file.
-  - **A shop's effective margin for some days** (a `margin-target` rule given in the chat; GjirafaMall 19.5 % and Gjirafa50
-    15 % on 1–3 Nov, the user's) is tested but first applies in the 1 Nov 07:00 cycle. At the prices going out that
-    morning both shops are estimated above target (20.4 % and 19.9 %, volume unchanged), so it should raise nothing;
-    Gjirafa50's booked margin is lower (12.3 % on the same products) because the live shop still charges its own prices.
+  - **A shop's effective margin for some days** (a `margin-target` rule given in the chat; the ones in force, set at 13:24 on 1 Nov: Gjirafa50 15 % and GjirafaMall
+    19.5 % for 1–4 Nov) applies from each day's 07:00 cycle and in Run week; that day's Run weeks priced both shops with
+    it (screenshots 01 and 02). Gjirafa50's booked margin is lower than its estimate at our prices because the live shop still
+    charges its own prices.
     Since 1 Nov (the user's request) Alpha also reads the rule in its band × category review, with where the shop stands at
     today's prices and at the latest run's (estimated by code), and a margin target given on the Chat tab starts Run week for
     those shops, one after the other; each ends in a price list (`Sku, ProposedPrice, StartDate, EndDate, AlgorithmUsed,
@@ -276,8 +276,9 @@ the reason next to each.
     target has no weekly step (the floor keeps its 1 point; the engine still keeps every price between floor and anchor), and
     each row it keeps (not thin) is written as that category's own rule.
   - **A person's campaign terms** (no depth cap, every SKU in stock, the engine's discount optimization off on the
-    campaign's days, a margin goal spent down to) are tested; Java e Portokalltë 2026 (4–9 Nov, both shops) is to be
-    planned again with them, and the discount-optimization switch first flips on 4 Nov.
+    campaign's days, a margin goal spent down to) are tested; Java e Portokalltë 2026 (4–9 Nov, both shops) was
+    planned with them on 1 Nov and published to the sandbox (plans #13 and #15), and the discount-optimization switch
+    first flips on 4 Nov.
   - **Minutes saved per task** are set (the user's estimates, not timed: Alpha's review 240 a shop, a run check 120, a push
     30); the time sheet exports runs from 2 Nov, the organisers' period, so it holds none yet.
   - **Campaign what-ifs** go through a brief and the planning loop; only the floor what-if has its own tool.
@@ -338,11 +339,11 @@ the reason next to each.
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
 | The organisers' AI Pioneer meter (31 Oct, at Mergca's request; v3 on 1 Nov) | The build sessions report through Claude Code hooks in this project's `.claude/settings.local.json` (git-ignored). The agents' work goes through `HacktrackMeter` to the organisers' `hook.js` (v3, a verbatim copy in `PricingTool.Agent/ClaudeCode/`): each of the four core tasks on the team's task cards (`CoreTasks`: Alpha's floor and target review, the run check, the checked push, Nova's campaign planning) is one run event per run, with its model calls, requests and tokens inside it, one unit, the tables it read and the number of rows it worked through, and its input ids (hashed by `hook.js`, never sent); any other call (chat, Nova's weekly brief) is one event per attempt that reached the model. Test passes and labelled injected tests are not counted. The team token lives only in that ignored file and in the user's environment variables, never in a tracked file |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 18.9 attended hours (Friday's 3.9 timed by block, Saturday's 7 and Sunday's 8 the user's own estimates), the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $375.49 API-equivalent; $764.23 since the kickoff (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 18.9 attended hours (Friday's 3.9 timed by block, Saturday's 7 and Sunday's 8 the user's own estimates); the other rows are AI blocks at 0 person-hours: 47 unattended (E16 counts them; AI cost only, $375.49 API-equivalent) and the rest run at the user's request, whose person-time is in the day estimates; $764.23 since the kickoff (E18, to 1 Nov 18:49) |
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 1039 passed, 1 skipped (1 Nov, 18:05). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 1040 passed, 1 skipped (1 Nov, 19:27). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

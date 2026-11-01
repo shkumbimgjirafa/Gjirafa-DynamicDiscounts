@@ -24,8 +24,8 @@ it found both. So:
 
 ## Now (until the task is registered)
 
-The engine host is running inside the app, started from a Claude session on 30 Oct at 20:46. It waits for 07:00
-and then runs the day's cycle. **After any change the cycle uses, restart it** so it copies the newest build
+The engine host is running inside the app, started by hand from a Claude session (last on 1 Nov, on the current build).
+It waits for 07:00 and then runs the day's cycle. **After any change the cycle uses, restart it** so it copies the newest build
 (from a Claude session):
 
 ```powershell
@@ -92,7 +92,7 @@ hour, three times a day at most. Steps not built yet are logged as NotBuilt.
 2. The team pushes the file the way it does today.
 3. Click **Mark as pushed** on that export (or `PricingTool.AgentTools mark-pushed <export id>`). That records it as
    applied (an Approval) and starts its 7- and 30-day measurement against the shop's products the push didn't change.
-4. Look at the **Agent** page's "Waiting for you" (the exceptions inbox). On a normal day it is empty.
+4. Look at the **Chat** tab's "Waiting for you" (the exceptions inbox). On a normal day it is empty.
 
 ## Memory on this laptop (for you to decide; nothing here is changed for you)
 
@@ -135,13 +135,13 @@ instead of `%LOCALAPPDATA%\`.
 | Time-sheet files (xlsx, csv, json) | `%LOCALAPPDATA%\PricingToolAgent\timesheet` |
 | Database backups (7 kept) | `%LOCALAPPDATA%\PricingToolAgent\backups` |
 | The day's steps | page **Daily cycle**, or `PricingTool.AgentTools cycle-status` |
-| What waits for a person | page **Agent** → exceptions inbox |
+| What waits for a person | the **Chat** tab → "Waiting for you" (the exceptions inbox) |
 | Test and demo runs (never in the live DB) | database `PricingToolHackathonTest`: `PricingTool.AgentTools test-db` |
 
 ## Changing, pausing, stopping
 
 - **New build:** build as usual, then restart the host (from a Claude session):
   `powershell -ExecutionPolicy Bypass -File scripts\restart-laptop-host.ps1`.
-- **Stop every AI call and the publisher at once:** the **kill switch** on the Agent page (no restart; audited).
+- **Stop every AI call and the publisher at once:** the **kill switch** on the Run tab (no restart; audited).
   The engine runs still happen; run checks stop, so their runs stay blocked and nothing is exported unchecked.
 - **Remove the task:** `powershell -ExecutionPolicy Bypass -File scripts\register-laptop-task.ps1 -Unregister`.

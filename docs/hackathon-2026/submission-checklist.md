@@ -1,7 +1,7 @@
 # Submission checklist
 
 Deadline: **Mon 2 Nov, 08:00** (freeze from 06:00, plan section 6). Kept up to date as items are done; the plan's own
-list is section 8. Last updated Sun 1 Nov, 19:01.
+list is section 8. Last updated Sun 1 Nov, 19:26.
 
 ## The deliverables
 
@@ -15,11 +15,11 @@ list is section 8. Last updated Sun 1 Nov, 19:01.
   the repo). What it shows: `docs/hackathon-2026/demo-backup-video.md`.
 - [x] **What is mocked or unfinished:** `HACKATHON.md` section 5.
 - [x] **Evidence:** `docs/hackathon-2026/evidence/` (`numbers.json`, one script per figure, `evidence.html`). Regenerated 1 Nov
-  19:00 from today's data (the levers from the same stored backtest): 52 of 52 checks match.
+  19:25 from today's data (the levers from the same stored backtest): 52 of 52 checks match.
 - [x] **Screenshots:** four of the running app in `docs/hackathon-2026/screenshots/`, listed in `HACKATHON.md` section 2.
 - [x] **Hours for 1 Nov:** 8 h, the user's estimate, in `hours.md`, the sheet's costs and E16.
 - [x] **Go-live runbook:** `GO-LIVE.md`.
-- [x] **Tests green:** 1,039 passed, 1 skipped (1 Nov, 18:05), recorded in `HACKATHON.md`. Full runs that take minutes while LocalDB
+- [x] **Tests green:** 1,040 passed, 1 skipped (1 Nov, 19:27), recorded in `HACKATHON.md`. Full runs that take minutes while LocalDB
   is busy have failed a few database-backed tests (the discount writer, the sandbox contract); those pass alone and in fast runs.
 - [x] **No secrets in tracked files:** the `git grep` check finds only comments and code that handles a password; the meter's team
   token is in no tracked file and in no commit of the whole history (checked 1 Nov, 18:10).
@@ -43,7 +43,8 @@ list is section 8. Last updated Sun 1 Nov, 19:01.
 ## Before the push (1 Nov evening)
 
 - [x] A fresh AI-judge run on a clean clone of the submission branch; its factual findings fixed.
-- [ ] A fresh AI check for contradictions between the files; whatever it finds fixed.
+- [x] A fresh AI check for contradictions between the files: 16 found and fixed (1 Nov, 19:30); a second check on the
+  final branch before the push.
 - [ ] `dotnet test` once more, and the count in `HACKATHON.md`.
 - [ ] The secrets check again, on the final commit and its history.
 - [ ] The submission branch rebuilt from the final `main` (plain commit messages; a colleague's email in the import commit
