@@ -116,6 +116,62 @@ public class ClaudeCodeClientTests : IDisposable
     }
 
     [Fact]
+    public async Task A_core_task_run_counts_its_calls_in_one_event_and_a_call_outside_it_is_its_own()
+    {
+        var meter = new Meter();
+        var runner = new FakeRunner();
+        for (var i = 0; i < 3; i++) runner.Returns(Ok(Envelope(structured: """{"action":"keep","confidence":0.8}""")));
+        var client = new ClaudeCodeClient(Options.Create(new AgentOptions { Enabled = true, RuntimeDirectory = Path.Combine(_dir, "runtime"), TimeoutSeconds = 60 }),
+            runner, _db, NullLogger<ClaudeCodeClient>.Instance, meter: meter);
+
+        using (var run = UsageRun.Start(meter, CoreTasks.CampaignPlanning, new { brief = 10 }))
+        {
+            await client.CallAsync(Request(AgentRole.Alpha) with { Purpose = "campaign-plan brief 10 r1" });
+            await client.CallAsync(Request(AgentRole.Nova) with { Purpose = "campaign-review brief 10 r1" });
+            run.Source = new UsageSource(CoreTasks.ShopSql, CoreTasks.ShopCopy, new[] { "agent.SalesLines" }, 420);
+            (run.Units, run.Ok) = (1, true);
+            Assert.Empty(meter.Events);                                                     // nothing sent while the run is open
+        }
+        Assert.Null(UsageRun.Current);
+        await client.CallAsync(Request(AgentRole.Nova) with { Purpose = "chat 4" });
+
+        Assert.Equal(2, meter.Events.Count);
+        var e = meter.Events[0];
+        Assert.Equal((CoreTasks.CampaignPlanning, 2, 8840L, 90L, true, (int?)1, 420L),
+            (e.Task, e.AiRequests, e.TokensIn, e.TokensOut, e.Ok, e.Units, e.Source!.RowsRead));   // both calls: input + cache, output
+        Assert.Equal("nova chat", meter.Events[1].Task);
+        Assert.Null(meter.Events[1].Units);
+    }
+
+    [Fact]
+    public void A_run_not_marked_done_is_not_ok_and_a_test_run_records_nothing()
+    {
+        var meter = new Meter();
+        using (UsageRun.Start(meter, CoreTasks.RunCheck, new { run = 7 })) { }
+        using (var test = UsageRun.Start(null, CoreTasks.RunCheck, new { run = 8 })) (test.Units, test.Ok) = (1, true);
+
+        var e = Assert.Single(meter.Events);
+        Assert.Equal((false, 0), (e.Ok, e.Units));
+    }
+
+    [Fact]
+    public void The_meter_sends_units_source_and_input_only_for_a_run()
+    {
+        var at = new DateTime(2026, 11, 1, 16, 0, 0, DateTimeKind.Utc);
+        var call = HacktrackMeter.Json(new UsageEvent("nova chat", at, at, 1, 10, 2, true));
+        foreach (var field in new[] { "units", "source", "input" }) Assert.DoesNotContain($"\"{field}\"", call);
+
+        var run = JsonNode.Parse(HacktrackMeter.Json(new UsageEvent(CoreTasks.RunCheck, at, at, 1, 10, 2, true)
+        {
+            Units = 1, Source = new UsageSource(CoreTasks.ShopSql, CoreTasks.ShopCopy, new[] { "PricingTool.ProposedPrices" }, 46258), Input = new { run = 11112 },
+        }))!;
+        Assert.Equal(1, (int)run["units"]!);
+        Assert.Equal(("shop-sql", 46258L, "PricingTool.ProposedPrices"),
+            ((string)run["source"]!["system"]!, (long)run["source"]!["rows_read"]!, (string)run["source"]!["tables"]![0]!));
+        Assert.Equal(11112, (int)run["input"]!["run"]!);                                     // hook.js hashes it; never sent as is
+    }
+
+    [Fact]
     public void The_meter_names_a_task_without_its_ids_and_sends_what_hook_js_takes()
     {
         Assert.Equal("nova chat", HacktrackMeter.TaskOf(AgentRole.Nova, "chat 4"));

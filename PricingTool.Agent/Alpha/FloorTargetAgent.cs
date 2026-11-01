@@ -52,11 +52,17 @@ public sealed class FloorTargetAgent
     private readonly ILogger<FloorTargetAgent> _logger;
     private readonly TimeProvider _clock;
     private readonly IKillSwitch _killSwitch;
+    private readonly IUsageMeter? _meter;
+
+    /// <summary>The tables Alpha's scorecard reads (the agent.* views are over the copy of the NOP replica).</summary>
+    private static readonly string[] SourceTables =
+        { "agent.SalesLines", "agent.BandConfig", "agent.CostChanges", "agent.CampaignHistory", "PricingTool.ProposedPrices", "PricingTool.DailySnapshots" };
 
     public FloorTargetAgent(IAlphaInputSource input, ClaudeCodeClient client, AgentDbContext db, PricingToolDbContext tool,
         AgentModeStore modes, IOptions<AgentOptions> options, ILogger<FloorTargetAgent> logger, TimeProvider? clock = null,
-        IKillSwitch? killSwitch = null)
+        IKillSwitch? killSwitch = null, IUsageMeter? meter = null)
     {
+        _meter = meter;
         _input = input;
         _client = client;
         _db = db;
@@ -92,8 +98,11 @@ public sealed class FloorTargetAgent
         var pass = new AgentPass { LayerId = layerId, Source = Source, Mode = mode.ToString(), StartedUtc = now, Status = "Running", IsTest = isTest };
         _db.AgentPasses.Add(pass);
         await _db.SaveChangesAsync(ct);
+        // One run of the core task for the organisers' meter (a test pass records none): its model call counts toward it.
+        using var usage = UsageRun.Start(isTest ? null : _meter, CoreTasks.FloorTargetReview, new { layer = layerId, pass = pass.Id }, _clock, now);
 
         var card = await _input.BuildAsync(layerId, ct);
+        usage.Source = new UsageSource(CoreTasks.ShopSql, CoreTasks.ShopCopy, SourceTables, card.Rows.Count);
         var overrides = (await _tool.BandCategoryRules.AsNoTracking().Where(r => r.LayerId == layerId).ToListAsync(ct))
             .ToDictionary(r => Key(r.BandId, r.Category));
         var bands = card.Bands.ToDictionary(b => b.BandId);
@@ -194,6 +203,7 @@ public sealed class FloorTargetAgent
         await _db.SaveChangesAsync(CancellationToken.None);
 
         if (!isTest) await WriteTimeSheetAsync(pass, card, decisions, sw.Elapsed);
+        (usage.Units, usage.Ok) = (1, true);   // one unit = one layer's review
         return new AlphaPassResult(pass.Id, pass.Status, null, decisions);
     }
 

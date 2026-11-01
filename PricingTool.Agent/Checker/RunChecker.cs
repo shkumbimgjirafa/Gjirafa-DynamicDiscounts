@@ -39,10 +39,17 @@ public sealed class RunChecker
     private readonly TimeProvider _clock;
     private readonly IKillSwitch _killSwitch;
     private readonly IProposalCategoryLookup? _categories;
+    private readonly IUsageMeter? _meter;
+
+    /// <summary>The tables a check reads: the run's changed prices, its floors and the SKUs' stock.</summary>
+    private static readonly string[] SourceTables =
+        { "PricingTool.ProposedPrices", "PricingTool.PricingRuns", "PricingTool.PricingRunCategoryRules", "PricingTool.DailySnapshots" };
 
     public RunChecker(PricingToolDbContext tool, AgentDbContext db, ClaudeCodeClient client, IOptions<AgentOptions> options,
-        ILogger<RunChecker> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null, IProposalCategoryLookup? categories = null)
+        ILogger<RunChecker> logger, TimeProvider? clock = null, IKillSwitch? killSwitch = null, IProposalCategoryLookup? categories = null,
+        IUsageMeter? meter = null)
     {
+        _meter = meter;
         _tool = tool;
         _db = db;
         _client = client;
@@ -60,8 +67,17 @@ public sealed class RunChecker
         public decimal Impact => Math.Abs(Input.Price - Input.CurrentPrice);
     }
 
-    /// <param name="isTest">A check of injected test rows: stored and labelled, never in the time sheet.</param>
+    /// <param name="isTest">A check of injected test rows: stored and labelled, never in the time sheet or the meter.</param>
     public async Task<RunCheckResult> CheckAsync(long runId, bool isTest = false, CancellationToken ct = default)
+    {
+        // One run of the core task for the organisers' meter: its model call counts toward it; one unit = one engine run checked.
+        using var usage = UsageRun.Start(isTest ? null : _meter, CoreTasks.RunCheck, new { run = runId }, _clock);
+        var result = await CheckRunAsync(runId, isTest, usage, ct);
+        (usage.Units, usage.Ok) = result.Status == "Succeeded" ? (1, true) : (0, false);
+        return result;
+    }
+
+    private async Task<RunCheckResult> CheckRunAsync(long runId, bool isTest, UsageRun usage, CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         var run = await _tool.PricingRuns.AsNoTracking().SingleAsync(r => r.Id == runId, ct);
@@ -77,6 +93,7 @@ public sealed class RunChecker
             return await FinishAsync(check, sw, "Skipped", $"Stopped by the kill switch ({stop.Reason}): no check, so the run stays blocked.", Array.Empty<AgentRunCheckRow>());
 
         var (inputs, notes) = await LoadAsync(run, ct);
+        usage.Source = new UsageSource(CoreTasks.ShopSql, CoreTasks.ShopCopy, SourceTables, inputs.Count);
         var flagged = inputs.Select(i => { var h = RunCheckRules.Evaluate(i); return new Flagged(i, h, RunCheckRules.Worst(h)); })
             .Where(f => f.Hits.Count > 0)
             .OrderByDescending(f => Severity.Rank(f.RuleSeverity)).ThenByDescending(f => f.Impact).ThenBy(f => f.Input.Sku, StringComparer.Ordinal)

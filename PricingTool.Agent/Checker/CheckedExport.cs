@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PricingTool.Agent.Alpha;
+using PricingTool.Agent.ClaudeCode;
 using PricingTool.Agent.Storage;
 using PricingTool.Agent.Tools;
 using PricingTool.Core.Domain;
@@ -111,11 +112,16 @@ public sealed class CheckedExport
     private readonly TimeProvider _clock;
     private readonly IShelfSource? _shelf;
     private readonly BandConfigProvider? _bands;
+    private readonly IUsageMeter? _meter;
     private static readonly PricingTool.Core.Services.RoundingService Rounding = new();
 
+    /// <summary>The tables an export reads: the run's changed prices, its check's verdicts and the SKUs' recent units.</summary>
+    private static readonly string[] SourceTables = { "PricingTool.ProposedPrices", "ai.AgentRunCheckRow", "PricingTool.DailySnapshots" };
+
     public CheckedExport(PricingToolDbContext tool, AgentDbContext db, IHoldoutLookup holdouts, IOptions<AgentOptions> options,
-        TimeProvider? clock = null, IShelfSource? shelf = null, BandConfigProvider? bands = null)
+        TimeProvider? clock = null, IShelfSource? shelf = null, BandConfigProvider? bands = null, IUsageMeter? meter = null)
     {
+        _meter = meter;
         _tool = tool;
         _db = db;
         _holdouts = holdouts;
@@ -277,12 +283,17 @@ public sealed class CheckedExport
     public async Task<ExportResult> ExportAsync(long runId, string directory, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
+        var started = _clock.GetUtcNow().UtcDateTime;
         var set = await CheckedSetAsync(runId, ct);
         if (set.Check is not { } check)
             return new ExportResult(false, $"Run {runId} has not been checked: nothing exported.", null, 0, 0, null);
         if (set.Blocked is { } why)
             return new ExportResult(false, $"Run {runId} is blocked by check #{check.Id}: {why}. Nothing exported.", null, 0, 0, check.Id);
 
+        // One run of the core task for the organisers' meter (a refused export isn't one; a test check's run records none).
+        using var usage = UsageRun.Start(check.IsTest ? null : _meter, CoreTasks.CreateAndPushDiscounts, new { run = runId, check = check.Id }, _clock, started);
+        usage.Source = new UsageSource(CoreTasks.ShopSql, CoreTasks.ShopCopy, SourceTables,
+            set.Prices.Count + set.HeldByCheck + set.HoldoutLeftOut + set.PausedRaisesLeftOut);
         var run = await _tool.PricingRuns.AsNoTracking().SingleAsync(r => r.Id == runId, ct);
         var layer = await _tool.Layers.AsNoTracking().SingleAsync(l => l.Id == run.LayerId, ct);
         var exported = set.Prices;
@@ -326,6 +337,7 @@ public sealed class CheckedExport
             Comment = "Written by the export; minutes after = the export's wall clock. The team's push of the file is manual and not included.",
         });
         await _db.SaveChangesAsync(ct);
+        (usage.Units, usage.Ok) = (1, true);   // one unit = one engine run's push
 
         return new ExportResult(true,
             $"Check #{check.Id} verdict {check.Verdict}: {exported.Count} prices exported, {batch.LeftOutByCheck} held by the check, {batch.LeftOutHoldout} holdout left out" +

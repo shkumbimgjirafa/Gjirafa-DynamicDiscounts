@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <None Update="Prompts\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="ClaudeCode\hook.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\docs\hackathon-2026\agent-data-dictionary.md" Link="Prompts\agent-data-dictionary.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\docs\hackathon-2026\Time-sheet-template-hours-saved.xlsx" Link="Templates\Time-sheet-template-hours-saved.xlsx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

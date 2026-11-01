@@ -57,11 +57,17 @@ public sealed class CampaignPlanning
     private readonly AgentOptions _options;
     private readonly ILogger<CampaignPlanning> _logger;
     private readonly TimeProvider _clock;
+    private readonly IUsageMeter? _meter;
+
+    /// <summary>The tables a plan's candidates come from: the latest run's prices, stock, booked sales and past campaigns.</summary>
+    private static readonly string[] SourceTables =
+        { "PricingTool.ProposedPrices", "PricingTool.DailySnapshots", "hk.ProductForProposal", "agent.SalesLines", "agent.CampaignHistory" };
 
     public CampaignPlanning(AgentDbContext db, PricingToolDbContext tool, ICampaignCandidateSource candidates, AgentDataTools tools,
         BandConfigProvider bands, ClaudeCodeClient client, IKillSwitch killSwitch, IOptions<AgentOptions> options, ILogger<CampaignPlanning> logger,
-        TimeProvider? clock = null, ICampaignPublisher? publisher = null)
+        TimeProvider? clock = null, ICampaignPublisher? publisher = null, IUsageMeter? meter = null)
     {
+        _meter = meter;
         _db = db;
         _tool = tool;
         _candidates = candidates;
@@ -90,6 +96,8 @@ public sealed class CampaignPlanning
         var brief = await _db.CampaignBriefs.SingleAsync(b => b.Id == briefId, ct);
         if (brief.Status is not (BriefStatus.Proposed or BriefStatus.Planned))
             return new PlanningResult(briefId, "Refused", Array.Empty<CampaignPlan>(), $"Brief #{briefId} is {brief.Status}: only a proposed brief is planned.");
+        // One run of the core task for the organisers' meter (a test brief records none): Alpha's and Nova's calls count toward it.
+        using var usage = UsageRun.Start(brief.IsTest ? null : _meter, CoreTasks.CampaignPlanning, new { brief = briefId }, _clock);
         var layer = await _tool.Layers.AsNoTracking().SingleAsync(l => l.Id == brief.LayerId, ct);
         var calendar = brief.CalendarId is { } cid ? await _db.CampaignCalendar.AsNoTracking().SingleOrDefaultAsync(c => c.Id == cid, ct) : null;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
@@ -114,6 +122,7 @@ public sealed class CampaignPlanning
         var depthCap = calendar?.DepthCapLiftedBy is null ? _options.Campaigns.MaxDepthPct : CampaignLimitOptions.LiftedMaxDepthPct;
         var everyInStock = calendar?.EverySkuInStock == true;
         var (candidates, leftOutBefore, followers) = await CandidatesAsync(brief, layer.Id, layer.Brand == "GjirafaMall", today, ct, rules, everyInStock);
+        usage.Source = new UsageSource(CoreTasks.ShopSql, CoreTasks.ShopCopy, SourceTables, candidates.Count + followers.Count);
         // The model sets the brief's minimum margin; code never lets it under the floor. Stored on the brief, so the cost watcher
         // judges the live campaign on the same value.
         var marginFloor = _options.Campaigns.MinMarginFloorPct;
@@ -233,6 +242,7 @@ public sealed class CampaignPlanning
             await PublishPlanAsync(brief, final, ct);
         await _db.SaveChangesAsync(CancellationToken.None);
         _logger.LogInformation("Campaign brief {Brief}: {Rounds} round(s), plan #{Plan} {Status}", brief.Id, plans.Count, final.Id, final.Status);
+        (usage.Units, usage.Ok) = (1, true);   // one unit = one campaign planned (accepted, or held for a person to decide)
         return new PlanningResult(brief.Id, final.Status, plans, null);
     }
 

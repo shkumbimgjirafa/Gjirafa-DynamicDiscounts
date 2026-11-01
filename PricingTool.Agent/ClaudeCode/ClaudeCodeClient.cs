@@ -362,11 +362,15 @@ public sealed class ClaudeCodeClient
         _db.AiCallLog.Add(entry);
         // The log row must survive the caller's cancellation: the call has already been made and paid for.
         await _db.SaveChangesAsync(CancellationToken.None);
-        // Each attempt that reached the model is one AI task for the organisers' meter; a labelled injected test isn't the solution's use.
+        // Each attempt that reached the model is one AI task for the organisers' meter, or part of the core task's run it was
+        // made in (one event for the whole run); a labelled injected test isn't the solution's use.
         if (process is not null && !request.Purpose.StartsWith("[INJECTED-TEST]", StringComparison.Ordinal))
-            _meter?.Record(new UsageEvent(HacktrackMeter.TaskOf(request.Role, request.Purpose), entry.CalledAtUtc, _clock.GetUtcNow().UtcDateTime,
-                env?.NumTurns is > 0 ? env.NumTurns.Value : 1, entry.InputTokens + entry.CacheReadTokens + entry.CacheCreationTokens, entry.OutputTokens,
-                entry.Success));
+        {
+            var (requests, tokensIn) = (env?.NumTurns is > 0 ? env.NumTurns.Value : 1, entry.InputTokens + entry.CacheReadTokens + entry.CacheCreationTokens);
+            if (UsageRun.Current is { } run) run.AddCall(requests, tokensIn, entry.OutputTokens);
+            else _meter?.Record(new UsageEvent(HacktrackMeter.TaskOf(request.Role, request.Purpose), entry.CalledAtUtc, _clock.GetUtcNow().UtcDateTime,
+                requests, tokensIn, entry.OutputTokens, entry.Success));
+        }
         return entry.Id;
     }
 

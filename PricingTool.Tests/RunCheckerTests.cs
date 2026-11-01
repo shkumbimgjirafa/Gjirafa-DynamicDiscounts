@@ -91,11 +91,17 @@ public class RunCheckerTests : IDisposable
         ["structured_output"] = new JsonObject { ["run_id"] = Run, ["verdict"] = verdict, ["violations"] = new JsonArray(violations.Select(v => (JsonNode)v).ToArray()) },
     }.ToJsonString());
 
-    private RunChecker Checker(bool enabled = true, int cap = 150)
+    private RunChecker Checker(bool enabled = true, int cap = 150, IUsageMeter? meter = null)
     {
         var options = Options.Create(new AgentOptions { Enabled = enabled, RuntimeDirectory = Path.Combine(_dir, "runtime"), RunCheckerModelCap = cap });
-        var client = new ClaudeCodeClient(options, new Runner(this), _db, NullLogger<ClaudeCodeClient>.Instance);
-        return new RunChecker(_tool, _db, client, options, NullLogger<RunChecker>.Instance);
+        var client = new ClaudeCodeClient(options, new Runner(this), _db, NullLogger<ClaudeCodeClient>.Instance, meter: meter);
+        return new RunChecker(_tool, _db, client, options, NullLogger<RunChecker>.Instance, meter: meter);
+    }
+
+    private sealed class Meter : IUsageMeter
+    {
+        public List<UsageEvent> Events { get; } = new();
+        public void Record(UsageEvent e) => Events.Add(e);
     }
 
     private sealed class Holdouts : IHoldoutLookup
@@ -109,9 +115,39 @@ public class RunCheckerTests : IDisposable
 
     private readonly Holdouts _holdouts = new();
 
-    private CheckedExport Exporter() => new(_tool, _db, _holdouts, Options.Create(new AgentOptions()));
+    private CheckedExport Exporter(IUsageMeter? meter = null) => new(_tool, _db, _holdouts, Options.Create(new AgentOptions()), meter: meter);
 
-    private Task<ExportResult> Export() => Exporter().ExportAsync(Run, Path.Combine(_dir, "exports"));
+    private Task<ExportResult> Export(IUsageMeter? meter = null) => Exporter(meter).ExportAsync(Run, Path.Combine(_dir, "exports"));
+
+    [Fact]
+    public async Task A_real_check_and_its_export_are_one_meter_run_each_with_the_model_call_inside_the_check()
+    {
+        Injected(1, "INJ-OK", 49.50m, 52.50m, 30m);
+        Injected(4, "INJ-UNCHARMED", 49.37m, 50.50m, 30m);
+        ModelSays("warn", V("INJ-UNCHARMED", "warn", "Off the grid.", fix: 49.50m));
+        var meter = new Meter();
+
+        await Checker(meter: meter).CheckAsync(Run);
+        await Export(meter);
+
+        Assert.Equal(new[] { CoreTasks.RunCheck, CoreTasks.CreateAndPushDiscounts }, meter.Events.Select(e => e.Task));
+        var (check, push) = (meter.Events[0], meter.Events[1]);
+        Assert.Equal((2, 1500L, true, (int?)1), (check.AiRequests, check.TokensIn + check.TokensOut, check.Ok, check.Units));   // the one call, 2 turns
+        Assert.Equal((0, true, (int?)1, 2L), (push.AiRequests, push.Ok, push.Units, push.Source!.RowsRead));
+        Assert.Equal("shop-sql", check.Source!.System);
+    }
+
+    [Fact]
+    public async Task A_test_check_sends_nothing_to_the_meter()
+    {
+        Injected(4, "INJ-UNCHARMED", 49.37m, 50.50m, 30m);
+        ModelSays("warn", V("INJ-UNCHARMED", "warn", "Off the grid.", fix: 49.50m));
+        var meter = new Meter();
+
+        await Checker(meter: meter).CheckAsync(Run, isTest: true);
+
+        Assert.Empty(meter.Events);
+    }
 
     [Fact]
     public async Task Injected_bad_rows_are_blocked_and_held_and_the_rest_of_the_run_is_exported()
