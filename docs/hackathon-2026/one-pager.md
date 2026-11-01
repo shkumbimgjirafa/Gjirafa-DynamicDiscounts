@@ -1,7 +1,40 @@
 # Pricing Tool v2: the price engine, with two AI agents built around it
 
 Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with Claude Code). Figures carry their ID in
-[`evidence/numbers.json`](evidence/numbers.json); the money is the [financial sheet](Financial%20sheet.xlsx).
+[`evidence/numbers.json`](evidence/numbers.json); the money is the [financial sheet](Financial%20sheet.xlsx). Page 1 is the
+whole case; the pages after it are the detail.
+
+**The problem.** Kosovo's prices are set by hand (the team's process, stated by the user). Margin floors exist per price
+band, but in Aug–Sep
+24 % of the revenue sold under its floor and brought 6 % of the
+gross profit (E30); prices change on a few manual dates (8 regular runs since July, E28); campaigns are planned by
+hand with no set goal (stated by the user); dead stock is cleared in one-off batches a person starts (E28).
+
+**What it does.** It turns the declared pricing calculator (v0.5, no AI in it) into a system that prices both Kosovo shops
+every day by itself. **Alpha** (AI) sets each band's floor and target per category every week; **Nova** (AI) writes each
+campaign's brief with a goal and Alpha picks its plan; an **AI run checker** confirms, escalates or fixes the prices code
+flags; a **publisher** writes the shop's NOP discounts itself, with audit and rollback. The AI decides, code enforces: no
+model output changes a price without passing limits written in C#.
+
+**The claim: €10,430 a month at full scope, in two parts.**
+
+| Part | € a month | Label |
+|---|---|---|
+| The calculator's own gain: in its Aug–Sep test the products it repriced earned this much more gross profit than untouched products (E27). It counts because without this build the calculator stays a test run by hand and doesn't go live. | €7,597 | the rate measured; that it goes live only with this build assumed (stated by the user) |
+| What the agents add: the loss block, cost reaction, daily cadence, campaign planning, raises that reach the shelf (walk-forward backtest on Aug–Sep sales, E8) | €2,833 | estimated |
+| **The claim** | **€10,430** | year 1: net benefit €88,017, ROI 795%, payback 3.1 months |
+
+**Real data.** A read-only copy of the shop's NOP replica: booked sales lines with their cost, products, discounts. Each
+engine run prices every product of both Kosovo shops (511,198 GjirafaMall and 129,708 Gjirafa50 SKUs, 1 Nov).
+
+**What is mocked or not finished.** Publishing goes only to a sandbox copy of the shop's tables, never the live shop; the
+live shop still gets its prices through a checked file the team pushes. Injected test cases run in a separate test
+database, labelled [INJECTED-TEST]. Not finished, among others (the full list follows): the Për ty reproduction test
+fails by one point (E11), the campaign
+estimates aren't calibrated yet (E10), the money ledger has measured nothing yet, and the laptop's start-up task is
+disabled.
+
+<!-- page break -->
 
 ## The problem: four gaps in how we price
 

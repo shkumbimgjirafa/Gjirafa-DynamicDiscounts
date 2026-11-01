@@ -1,13 +1,14 @@
 # Submission checklist
 
 Deadline: **Mon 2 Nov, 08:00** (freeze from 06:00, plan section 6). Kept up to date as items are done; the plan's own
-list is section 8. Last updated Sun 1 Nov, 19:49.
+list is section 8. Last updated Sun 1 Nov, 20:16.
 
 ## The deliverables
 
 - [x] **Prototype:** this repo, with the README's "Hackathon build" section and `HACKATHON.md` (how to run it, what's new).
 - [x] **One-page summary:** `docs/hackathon-2026/one-pager.md` (rewritten 1 Nov evening by the one-pager session: four problems, then the
-  engine and its agents, no score).
+  engine and its agents, no score; on Mergca's advice a page 1 that stands on its own: the problem, what it does, the claim
+  in its two parts, what's mocked).
 - [x] **Financial sheet:** `docs/hackathon-2026/Financial sheet.xlsx`, every line labelled measured / estimated / assumed. Rebuilt
   1 Nov 19:44 from the regenerated evidence, every category priced (no holdout categories, the user's decision): the claim is
   €10,430 a month; year 1 net benefit €88,017, ROI 795 %, payback 3.1 months.
@@ -15,7 +16,7 @@ list is section 8. Last updated Sun 1 Nov, 19:49.
   the repo). What it shows: `docs/hackathon-2026/demo-backup-video.md`.
 - [x] **What is mocked or unfinished:** `HACKATHON.md` section 5.
 - [x] **Evidence:** `docs/hackathon-2026/evidence/` (`numbers.json`, one script per figure, `evidence.html`). Regenerated 1 Nov
-  19:30 from today's data (the levers from the same stored backtest); the evidence page, written at 19:48: 52 of
+  19:30 from today's data (the levers from the same stored backtest); the evidence page, written at 20:15: 52 of
   52 checks match.
 - [x] **Screenshots:** four of the running app in `docs/hackathon-2026/screenshots/`, listed in `HACKATHON.md` section 2.
 - [x] **Hours for 1 Nov:** 8 h, the user's estimate, in `hours.md`, the sheet's costs and E16.
