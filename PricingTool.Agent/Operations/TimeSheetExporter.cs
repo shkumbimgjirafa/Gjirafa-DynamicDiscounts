@@ -8,18 +8,22 @@ using PricingTool.Agent.Storage;
 
 namespace PricingTool.Agent.Operations;
 
-public sealed record TimeSheetExport(string XlsxPath, string CsvPath, string JsonPath, int Exported, int WithoutMinutesBefore);
+public sealed record TimeSheetExport(string XlsxPath, string CsvPath, string JsonPath, int Exported, int WithoutMinutesBefore, int BeforePeriod = 0);
 
 /// <summary>
 /// The organisers' hours-saved sheet, filled by the app from its own <c>ai.TimeSheetEntry</c> rows: a copy of
 /// the template (columns A–H from row 7; the example row is replaced, column F keeps its formula), plus CSV and
 /// JSON for Jarvis. A row whose task type has no measured "minutes before" yet is kept in the database but not
-/// exported (the user sets it once per task type).
+/// exported (the user sets it once per task type), and so is a row from before the sheet's period.
 /// </summary>
 public sealed class TimeSheetExporter
 {
     public const string TemplateFile = "Time-sheet-template-hours-saved.xlsx";
     private const int FirstRow = 7;
+
+    /// <summary>The first day the organisers' sheet covers (its template: one row per real task, 2 Nov – 2 Dec). The
+    /// build weekend's runs before it stay in the database but are not exported (the user's decision, 1 Nov).</summary>
+    public static readonly DateOnly PeriodStart = new(2026, 11, 2);
 
     private readonly AgentDbContext _db;
     private readonly CycleOptions _options;
@@ -38,8 +42,9 @@ public sealed class TimeSheetExporter
     {
         var types = await _db.TimeSheetTaskTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         var all = await _db.TimeSheetEntries.AsNoTracking().OrderBy(e => e.Date).ThenBy(e => e.Id).ToListAsync(ct);
+        var inPeriod = all.Where(e => e.Date >= PeriodStart).ToList();
         // The task type's current "minutes before" applies to every row of that type once the user has set it.
-        var rows = all.Select(e => (Entry: e, Before: e.MinutesBefore ?? types.GetValueOrDefault(e.TaskTypeId)?.MinutesBefore))
+        var rows = inPeriod.Select(e => (Entry: e, Before: e.MinutesBefore ?? types.GetValueOrDefault(e.TaskTypeId)?.MinutesBefore))
             .Where(r => r.Before is not null).ToList();
 
         var dir = _options.TimeSheetDir();
@@ -84,7 +89,7 @@ public sealed class TimeSheetExporter
             proof = r.Entry.Proof, comment = r.Entry.Comment, source = r.Entry.Source,
         }), new JsonSerializerOptions { WriteIndented = true }), ct);
 
-        return new TimeSheetExport(xlsx, csv, json, rows.Count, all.Count - rows.Count);
+        return new TimeSheetExport(xlsx, csv, json, rows.Count, inPeriod.Count - rows.Count, all.Count - inPeriod.Count);
     }
 
     private static string Csv(string v) => v.Contains(',') || v.Contains('"') || v.Contains('\n') ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;

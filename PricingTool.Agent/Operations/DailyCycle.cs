@@ -219,7 +219,8 @@ public sealed class DailyCycle
         yield return new Step("time-sheet", async ct =>
         {
             var r = await With((TimeSheetExporter t) => t.ExportAsync(ct));
-            return (StepStatus.Succeeded, $"{r.Exported} rows exported to {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before");
+            return (StepStatus.Succeeded, $"{r.Exported} rows exported to {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before; " +
+                                          $"{r.BeforePeriod} rows from before {TimeSheetExporter.PeriodStart:d MMM} kept, not exported");
         });
         yield return new Step("retention", async ct =>
         {

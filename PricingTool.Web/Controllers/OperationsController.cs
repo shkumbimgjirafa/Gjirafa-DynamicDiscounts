@@ -111,7 +111,8 @@ public class OperationsController : Controller
     public async Task<IActionResult> ExportTimeSheet([FromServices] TimeSheetExporter exporter)
     {
         var r = await exporter.ExportAsync();
-        TempData["Message"] = $"{r.Exported} rows exported to {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before.";
+        TempData["Message"] = $"{r.Exported} rows exported to {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before; " +
+                              $"{r.BeforePeriod} rows from before {TimeSheetExporter.PeriodStart:d MMM} kept, not exported.";
         return RedirectToAction(nameof(TimeSheet));
     }
 

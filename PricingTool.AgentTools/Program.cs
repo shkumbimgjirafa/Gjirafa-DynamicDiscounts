@@ -822,7 +822,8 @@ switch (command)
         using var host = builder.Build();
         using var scope = host.Services.CreateScope();
         var r = await scope.ServiceProvider.GetRequiredService<TimeSheetExporter>().ExportAsync();
-        Console.WriteLine($"{r.Exported} rows -> {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before.");
+        Console.WriteLine($"{r.Exported} rows -> {r.XlsxPath} (+ .csv, .json); {r.WithoutMinutesBefore} rows wait for their task type's minutes before; " +
+                          $"{r.BeforePeriod} rows from before {TimeSheetExporter.PeriodStart:d MMM} kept, not exported.");
         return 0;
     }
 
