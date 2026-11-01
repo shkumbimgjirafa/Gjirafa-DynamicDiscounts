@@ -29,8 +29,8 @@ Gjirafa50 it is most of levers 1 and 3: in Aug–Sep 72 % of its lines sold unde
 
 **The levers in the claim (1–3 and 5–8): about €2.8k a month central, €1.4k low, €7.0k high (E8: €2,833 / €1,436 / €7,021; snapshot #5 of 31 Oct). Lever 4 (MK/AL coverage, E4) is computed below but is not in the claim.** The high case is up from €5.8k mostly through lever 8's October pace. The levers add to the rollout
 of the calculator's tested effect (B0) in the claim; they don't replace it.
-The financial sheet then leaves out the holdout categories' share (about 11 % of the changed prices), which the backtest
-doesn't. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
+The financial sheet leaves no holdout share out: since 1 Nov there are no holdout categories (the user's decision), so
+every category the backtest scores is priced. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
 2026) to stop August's one event counting every month; dry run 2 showed that scored them against months before the
 calculator, a baseline that no longer exists (lever 1 rose from €0.2k to €0.9k on those months). The low case now
 answers the one-event point instead.

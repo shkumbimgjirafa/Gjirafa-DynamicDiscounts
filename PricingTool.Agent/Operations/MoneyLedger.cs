@@ -17,15 +17,18 @@ public sealed record LedgerSummary(decimal Measured30Eur, decimal Measured7Eur, 
 /// <summary>
 /// The money ledger (condition 4 of the 10 % bar). Every pushed export (an Approval recorded through
 /// <see cref="Checker.CheckedExport.MarkPushedAsync"/>) gets an entry; after 7 and 30 days its gross profit is
-/// measured from the sales lines (booked COGS) as a difference-in-differences against the holdout categories:
-/// <c>measured = GP_after(pushed SKUs) − GP_before(pushed SKUs) × GP_after(holdout) / GP_before(holdout)</c>,
-/// over the same number of days before and after the push. The holdout's ratio carries the season.
-/// Conservative by rule: a window not yet complete, or a holdout too thin to compare against, stays null and
-/// counts as €0; the expected figure is shown for reference and never added to a total.
+/// measured from the sales lines (booked COGS) as a difference-in-differences against a comparison group:
+/// <c>measured = GP_after(pushed SKUs) − GP_before(pushed SKUs) × GP_after(comparison) / GP_before(comparison)</c>,
+/// over the same number of days before and after the push. The comparison's ratio carries the season. It is the
+/// holdout categories when a layer has any; with none (the user's decision, 1 Nov: the agents price every category),
+/// the layer's products this push didn't change, as in the calculator's Aug–Sep test (other pushes in the window may
+/// have changed some of them, so it carries the season rather than being untouched).
+/// Conservative by rule: a window not yet complete, or a comparison too thin, stays null and counts as €0; the
+/// expected figure is shown for reference and never added to a total.
 /// </summary>
 public sealed class MoneyLedger
 {
-    /// <summary>Below this many holdout sales lines in either window the comparison is not attributable.</summary>
+    /// <summary>Below this many comparison sales lines in either window the comparison is not attributable.</summary>
     public const int MinHoldoutLines = 30;
 
     /// <summary>A window is re-measured for this many days after it closes: late cancellations still post.</summary>
@@ -85,18 +88,22 @@ public sealed class MoneyLedger
     private async Task<(decimal? Value, string Evidence)> MeasureAsync(MoneyLedgerEntry e, int days, CancellationToken ct)
     {
         var holdouts = _options.Limits.Holdouts.TryGetValue(e.LayerId.ToString(CultureInfo.InvariantCulture), out var h) ? h : new List<string>();
-        if (holdouts.Count == 0) return (null, $"{days}-day window: no holdout categories on layer {e.LayerId}, so not attributable (counts €0).");
+        var comparison = holdouts.Count > 0 ? $"holdout ({string.Join(", ", holdouts)})" : "the layer's products this push didn't change";
 
         await using var conn = new SqlConnection(_source.ConnectionString);
         await conn.OpenAsync(ct);
+        // The comparison (#h): the holdout categories' products, or with none configured every other product of the layer.
         await using var cmd = new SqlCommand("""
             DECLARE @Mall bit = (SELECT CASE WHEN Brand = 'GjirafaMall' THEN 1 ELSE 0 END FROM PricingTool.Layers WHERE Id = @L);
             DECLARE @From datetime = DATEADD(day, -@N, @D), @To datetime = DATEADD(day, @N, @D);
-            SELECT DISTINCT Sku INTO #t FROM PricingTool.ApprovalItems WHERE ApprovalId = @A;
+            SELECT DISTINCT Sku INTO #t FROM PricingTool.ApprovalItems WHERE ApprovalId = @A AND Sku IS NOT NULL;
+            CREATE CLUSTERED INDEX IX_t ON #t (Sku);
             SELECT DISTINCT p.Sku INTO #h FROM hk.Products p
-            WHERE p.LayerId = @L AND (CASE WHEN @Mall = 1 THEN ISNULL(p.MainGroup, N'Others') ELSE ISNULL(p.CategoryL1, N'Unknown') END)
-                  IN (SELECT value FROM STRING_SPLIT(@Cats, '|'))
-              AND p.Sku NOT IN (SELECT Sku FROM #t);
+            WHERE p.LayerId = @L AND p.Sku IS NOT NULL
+              AND (@Cats = N'' OR (CASE WHEN @Mall = 1 THEN ISNULL(p.MainGroup, N'Others') ELSE ISNULL(p.CategoryL1, N'Unknown') END)
+                  IN (SELECT value FROM STRING_SPLIT(@Cats, '|')))
+              AND NOT EXISTS (SELECT 1 FROM #t WHERE #t.Sku = p.Sku);
+            CREATE CLUSTERED INDEX IX_h ON #h (Sku);
             SELECT
                 ISNULL(SUM(CASE WHEN t.Sku IS NOT NULL AND s.DateAdded <  @D THEN s.Margin END), 0),
                 ISNULL(SUM(CASE WHEN t.Sku IS NOT NULL AND s.DateAdded >= @D THEN s.Margin END), 0),
@@ -119,12 +126,12 @@ public sealed class MoneyLedger
         decimal tb = r.GetDecimal(0), ta = r.GetDecimal(1), hb = r.GetDecimal(2), ha = r.GetDecimal(3);
         int hbLines = r.GetInt32(4), haLines = r.GetInt32(5);
 
-        var basis = $"{days} days before vs after {e.AppliedUtc:yyyy-MM-dd}; pushed SKUs GP {tb:0} -> {ta:0}; holdout ({string.Join(", ", holdouts)}) GP {hb:0} -> {ha:0} " +
+        var basis = $"{days} days before vs after {e.AppliedUtc:yyyy-MM-dd}; pushed SKUs GP {tb:0} -> {ta:0}; {comparison} GP {hb:0} -> {ha:0} " +
                     $"({hbLines} / {haLines} lines); booked COGS from hk.SalesLines";
         if (hbLines < MinHoldoutLines || haLines < MinHoldoutLines || hb <= 0)
-            return (null, basis + $". Holdout too thin to compare (< {MinHoldoutLines} lines or no profit before): not attributable, counts €0.");
+            return (null, basis + $". Comparison too thin (< {MinHoldoutLines} lines or no profit before): not attributable, counts €0.");
         var value = Math.Round(ta - tb * (ha / hb), 2);
-        return (value, basis + $". Measured = {ta:0} - {tb:0} x {ha:0}/{hb:0} = {value:0} EUR (difference-in-differences against the holdout).");
+        return (value, basis + $". Measured = {ta:0} - {tb:0} x {ha:0}/{hb:0} = {value:0} EUR (difference-in-differences against {comparison}).");
     }
 
     public async Task<LedgerSummary> SummaryAsync(CancellationToken ct = default)

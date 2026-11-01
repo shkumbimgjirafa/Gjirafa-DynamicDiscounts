@@ -192,9 +192,9 @@
         </div>
         <div class="col-md-6 col-xl-3">
             <div class="tile">
-                <div class="tile-label">Against the holdout categories</div>
+                <div class="tile-label">@(r.Holdouts.Count > 0 ? "Against the holdout categories" : "Against the rest of the shop")</div>
                 <div class="tile-value text-muted">not measured yet</div>
-                <div class="tile-note">Measured 7 and 30 days after a publish that reaches customers, against @(r.Holdouts.Count > 0 ? string.Join(", ", r.Holdouts) : "the holdout"); a sandbox publish never does.</div>
+                <div class="tile-note">Measured 7 and 30 days after a publish that reaches customers, against @(r.Holdouts.Count > 0 ? string.Join(", ", r.Holdouts) : "the shop's products the publish didn't change (no holdout categories)"); a sandbox publish never does.</div>
             </div>
         </div>
     </div>

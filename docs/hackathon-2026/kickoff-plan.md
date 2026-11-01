@@ -311,7 +311,7 @@ each change, these limits are what make autonomy safe:
   Anything over a cap waits for the next day, or goes to the exceptions inbox.
 - **Never below cost** outside the dead-stock lane (the existing rule), and never above the anchor (the existing firm rule).
 - **Auto-pause and rollback.** If a category's GP/day or units fall more than a set % below its seasonal expectation after a change, the agent rolls the change back, pauses that category and reports it.
-- **Holdout:** a few categories per layer stay on hand-set floors and are never touched. They are the control group that turns the gain from estimated into measured.
+- **Holdout:** a few categories per layer stay on hand-set floors and are never touched. They are the control group that turns the gain from estimated into measured. *(1 Nov, the user: no holdout categories; the agents price every category, and the money ledger and the outcome tracker compare against the rest of the shop.)*
 - Thin data (fewer than N units in 30 days) forces `keep`.
 - Malformed or out-of-range output is rejected and logged.
 - An API failure keeps the current values and shows in the exceptions inbox. The loop never publishes on partial results.
@@ -714,7 +714,7 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
    - The evidence file, written before the demo: "Recomputed now: 49 of 49 checks match", every figure with its label
      (measured, estimated, assumed), method, sources and where it is used. If there is time, run the command again in the
      terminal while talking (about 40 s).
-   - The claim: €9,283 a month at full scope, 76 points: the price engine's measured gain, €7,597 a month against
+   - The claim: €10,430 a month at full scope, 76 points (every category priced since 1 Nov): the price engine's measured gain, €7,597 a month against
      untouched products (E27), plus €2,833 from the agents' controlled pricing logic (estimated); it runs by itself on
      the sandbox (Run week, step 2).
    - The financial sheet's Summary and its "Benefit by source". Don't cite the year-over-year margin (E25): it doesn't
@@ -722,7 +722,7 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
 6. **(25s) Ask.** A 6–8 week pilot on KS:
    - **Black Friday (27 Nov) planned by the two agents**, with a campaign holdout
    - the publisher switched from sandbox to the shop for a few categories in autonomous mode
-   - a **holdout** on hand-set floors
+   - ~~a **holdout** on hand-set floors~~ *(1 Nov, the user: every category priced)*
 
    That makes the go/no-go measured, not estimated.
 

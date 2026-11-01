@@ -36,7 +36,7 @@ switched on superseding only those, and on 31 Oct held back the margin trim's cu
 133,957 of 135,255 GjirafaMall and 32,225 of 33,219 Gjirafa50 checked prices on the sandbox shelf, all read back as written.
 
 **What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
-SKUs; run checks; checked exports with the holdout left out); Alpha's weekly pass #2 changed 8 band × category rules,
+SKUs; run checks; checked exports); Alpha's weekly pass #2 changed 8 band × category rules,
 each by one point, within its limits; Nova planned Black Friday 2026 against the goal a person set, and the plan was
 held for that person because the arithmetic falls short of it. **Not finished, and shown as such:** the Për ty
 reproduction test fails by one point (expected margin 14.9 % within bounds, but
@@ -44,8 +44,8 @@ reproduction test fails by one point (expected margin 14.9 % within bounds, but
 aren't calibrated yet (E10); the Monday email isn't built and the start-up task is disabled; setting a price on the
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim: €9,283 a month at full scope, 76 points** (Evidence and Works are our own ratings; year 1: net benefit
-€77,630, ROI 735%, payback 3.1 months).
+**Money (12 months). The claim: €10,430 a month at full scope, 76 points** (Evidence and Works are our own ratings; year 1: net benefit
+€88,530, ROI 839%, payback 3.0 months).
 
 **Where it comes from.** *The price engine, measured:* in the calculator's Aug–Sep test on the real shop, the products
 it repriced earned €7,597 a month more gross profit than untouched products in the same shop and category in the same
@@ -68,8 +68,7 @@ user, who ran the tests). The rate above was measured in Aug–Sep 2026 on the r
 
 **Coverage.** Each engine run prices every product of both Kosovo shops: GjirafaMall KS, 511,198 SKUs, and Gjirafa50
 KS, 129,708 SKUs (runs #1111 and #1110, 1 Nov 2026, measured). Nothing goes to the live shop yet: the runs only
-compute, and publishing writes to the sandbox. Live, it would price the same products, the holdout categories left on
-hand-set floors.
+compute, and publishing writes to the sandbox. Live, it would price the same products, every category included.
 North Macedonia and Albania are built in but not in the claim. **What makes it live-ready** is what this weekend built:
 the two agents, the limits in code, the run checker, the cost watcher, the outcome tracker and the publisher with audit
 and rollback; going live is configuration and a write login (`GO-LIVE.md`).
@@ -80,8 +79,7 @@ and rollback; going live is configuration and a write login (`GO-LIVE.md`).
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
 | The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7) | €2,188 | estimated (E1–E3, E6, E7) |
-| The holdout categories' share, left out | −€1,147 | estimated |
-| **The claim, at full scope** | **€9,283** | |
+| **The claim, at full scope** | **€10,430** | |
 | Hours saved | not counted | hours, never euros |
 
 The levers come mostly from automation, not from the model's own floor choices (lever 2, €2 a
@@ -95,17 +93,18 @@ sessions' AI usage of $633.13 API-equivalent, E18) and €6,927 running (AI
 
 | Year 1 | The claim |
 |---|---|
-| Extra gross profit a month at full scope | €9,283 |
-| Net benefit (9.5 full-benefit months − all costs) | €77,630 |
-| ROI | 735% |
-| Payback (months) | 3.1 |
+| Extra gross profit a month at full scope | €10,430 |
+| Net benefit (9.5 full-benefit months − all costs) | €88,530 |
+| ROI | 839% |
+| Payback (months) | 3.0 |
 | Track A score (/100; Evidence and Works are our own ratings) | 76 |
 
 **Biggest unproven assumption.** That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
 the levers score changed prices at elasticity −1 (assumed). The publisher writes raises as the regular price, on the
-sandbox so far. The pilot's holdout categories turn these into measurements.
+sandbox so far. The pilot's money ledger turns these into measurements, each push against the shop's products it didn't
+change.
 
 **The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,
-one canary category first, `GO-LIVE.md`); holdout categories kept on hand-set floors as the control, with the money
-ledger measuring the difference. That makes the go/no-go measured, not estimated.
+one canary category first, `GO-LIVE.md`); every category priced, with the money ledger measuring each push against the
+shop's products it didn't change. That makes the go/no-go measured, not estimated.

@@ -62,8 +62,8 @@ isn't clear which shop or which days.
   every time, even when an active rule already says the same (code replaces an older rule for the same shop and days),
   and list the shops in `runWeek` (1 GjirafaMall, 4 Gjirafa50). Code then starts Run week for each shop, Gjirafa50 first:
   your pass works out the full category × band matrix of floors and targets that gets the shop to its target at the
-  engine's prices (a target moves as far as you judge necessary, a floor at most 1 point a week; holdouts and thin rows
-  stay as they are), the engine prices the shop with it, the run checker holds the SKUs it flags (a blocked SKU alone,
+  engine's prices (a target moves as far as you judge necessary, a floor at most 1 point a week; thin rows stay as
+  they are), the engine prices the shop with it, the run checker holds the SKUs it flags (a blocked SKU alone,
   the rest goes on), the prices go to the shop sandbox, and each shop's result and price list are posted in this thread.
   Your `reply` says that this is what happens next, with where each shop stands now; you don't say it is done. If some
   of the days fall in a campaign, record the target for the days before it, start the runs, and ask in one sentence

@@ -57,8 +57,7 @@ def src_row(r):
 
 sources = "\n".join(["| Where the claim's benefit comes from | € a month | Label |", "|---|---|---|"]
                     + [src_row(r) for r in range(4, 8)]
-                    + [f"| The holdout categories' share, left out | −{eur(-src_ws['B10'].value)} | estimated |",
-                       f"| **The claim, at full scope** | **{eur(src_ws['B11'].value)}** | |",
+                    + [f"| **The claim, at full scope** | **{eur(src_ws['B11'].value)}** | |",
                        "| Hours saved | not counted | hours, never euros |"])
 total_cost = case["B9"].value
 one_time = case["B7"].value
@@ -129,11 +128,12 @@ sandbox copy of the shop's price tables; going live is configuration, a DBA's gr
 against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
 Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); the rest were held by cheaper discounts,
 96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). The user then
-switched on superseding only those, and held back the margin trim's cuts: 49,214 of 50,969 GjirafaMall and 25,390 of 26,604
-Gjirafa50 checked prices are on the sandbox shelf.
+switched on superseding only those, and on 31 Oct held back the margin trim's cuts (49,214 of 50,969 GjirafaMall and 25,390 of
+26,604 Gjirafa50 checked prices then on the sandbox shelf). On 1 Nov the user let the cuts go out again: that day's Run weeks put
+133,957 of 135,255 GjirafaMall and 32,225 of 33,219 Gjirafa50 checked prices on the sandbox shelf, all read back as written.
 
 **What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
-SKUs; run checks; checked exports with the holdout left out); Alpha's weekly pass #2 changed 8 band × category rules,
+SKUs; run checks; checked exports); Alpha's weekly pass #2 changed 8 band × category rules,
 each by one point, within its limits; Nova planned Black Friday 2026 against the goal a person set, and the plan was
 held for that person because the arithmetic falls short of it. **Not finished, and shown as such:** the Për ty
 reproduction test fails by one point (expected margin {per_ty['expectedMarginPct']} % within bounds, but
@@ -165,8 +165,7 @@ user, who ran the tests). The rate above was measured in Aug–Sep 2026 on the r
 
 **Coverage.** Each engine run prices every product of both Kosovo shops: GjirafaMall KS, 511,198 SKUs, and Gjirafa50
 KS, 129,708 SKUs (runs #1111 and #1110, 1 Nov 2026, measured). Nothing goes to the live shop yet: the runs only
-compute, and publishing writes to the sandbox. Live, it would price the same products, the holdout categories left on
-hand-set floors.
+compute, and publishing writes to the sandbox. Live, it would price the same products, every category included.
 North Macedonia and Albania are built in but not in the claim. **What makes it live-ready** is what this weekend built:
 the two agents, the limits in code, the run checker, the cost watcher, the outcome tracker and the publisher with audit
 and rollback; going live is configuration and a write login (`GO-LIVE.md`).
@@ -186,12 +185,13 @@ sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) a
 
 **Biggest unproven assumption.** That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
 the levers score changed prices at elasticity −1 (assumed). The publisher writes raises as the regular price, on the
-sandbox so far. The pilot's holdout categories turn these into measurements.
+sandbox so far. The pilot's money ledger turns these into measurements, each push against the shop's products it didn't
+change.
 
 **The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,
-one canary category first, `GO-LIVE.md`); holdout categories kept on hand-set floors as the control, with the money
-ledger measuring the difference. That makes the go/no-go measured, not estimated.
+one canary category first, `GO-LIVE.md`); every category priced, with the money ledger measuring each push against the
+shop's products it didn't change. That makes the go/no-go measured, not estimated.
 """
 out = DOCS / "one-pager.md"
 out.write_text(page, encoding="utf-8")

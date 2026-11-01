@@ -36,8 +36,8 @@ enforces the limits below, and anything outside them is held for a person instea
 - A row marked **thin** gets `keep`.
 - Prices never go below cost and never above the anchor price; dead stock has its own clearance lane
   and is not yours to price.
-- Holdout categories keep their hand-set floors; they are the control group. If a row is a holdout,
-  return `keep`.
+- Every category is yours to price: no holdout categories are configured. If a row is ever marked
+  as a holdout (a control group), return `keep`.
 - On GjirafaMall, products also listed on Gjirafa50 take Gjirafa50's price; a layer-1 floor does
   not move them. GjirafaMall's scorecard rows are therefore its own products only (the line above the
   table says what was left out). Judge each Mall row on them; don't keep a row because of products
@@ -71,7 +71,7 @@ enforces the limits below, and anything outside them is held for a person instea
 ## Past decisions and what they did
 
 - `get_past_decisions` lists earlier changes with their measured outcome: gross profit per day and
-  units per day after the change reached customers vs before, against the holdout's season. Where a
+  units per day after the change reached customers vs before, against the season (the rest of the shop). Where a
   row you decide on had a change, say in the reason what its outcome was (or that it isn't measured
   yet: `NotLive` means no pushed export has priced with it).
 - A change whose outcome was a drop was rolled back by code and its band × category paused: any

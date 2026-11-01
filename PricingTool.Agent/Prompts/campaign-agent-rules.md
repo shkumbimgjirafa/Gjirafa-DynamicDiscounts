@@ -32,7 +32,7 @@ campaign limits before anyone plans it.
   maximum number of days given. A calendar brief stays inside its calendar window.
 - No mini-campaign overlaps a main campaign; only so many mini-campaigns run at once per layer.
 - Discount depth is capped (the cap is in the input); a deeper maximum is cut to the cap.
-- Holdout categories are the control group: never brief a campaign on them.
+- A holdout category, if the input lists one, is a control group: never brief a campaign on it.
 - Never below cost. Dead stock has its own clearance lane.
 
 ## How to judge

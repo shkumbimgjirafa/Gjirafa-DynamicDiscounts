@@ -108,7 +108,7 @@ ws.merge_cells("A2:G2")
 ws.row_dimensions[2].height = 40
 put(ws, "A3", "The claim: the automated system's next 12 months: the price engine's measured gain (B0, E27: repriced vs "
               "untouched products in the calculator's Aug–Sep test) plus what the AI agents' controlled pricing logic adds (the "
-              "levers, central case), with the holdout categories' share left out. The past months are not claimed; Aug–Sep is the "
+              "levers, central case), every category priced (no holdout categories). The past months are not claimed; Aug–Sep is the "
               "evidence for the rate. Payback is computed from the ramp on Inputs rows 15–18 (built in month 1, then the pilot).",
     NOTE, wrap=True)
 put(ws, "A4", '="The claim: "&TEXT(B6,"€#,##0")&" a month at full scope; year 1: net benefit "&TEXT(B7,"€#,##0")'
@@ -272,13 +272,12 @@ for col, case in cases.items():
     put(wi, f"{col}{R['levCheck']}", v("E8", case), BLUE, EUR).border = BOX
 put(wi, f"E{R['levCheck']}", f'=IF(AND(B{R["levSum"]}=B{R["levCheck"]},C{R["levSum"]}=C{R["levCheck"]},D{R["levSum"]}=D{R["levCheck"]}),"matches","DIFFERS")', BLACK)
 put(wi, f"G{R['levCheck']}", "E8", BOLD)
-put(wi, f"A{R['holdout']}", "Holdout categories (the control): share left out")
+put(wi, f"A{R['holdout']}", "Holdout categories: share left out (none)")
 for col in "BCD":
-    put(wi, f"{col}{R['holdout']}", 0.11, BLUE, PCT, YELLOW).border = BOX
-put(wi, f"E{R['holdout']}", "estimated")
-put(wi, f"F{R['holdout']}", "The agents never change the holdout categories, so their part of every lever is not benefit. Share of the "
-                            "changed prices in them in the 31 Oct exports (Gj50 6,759 of 51,391; Mall 16,874 of 169,081); "
-                            "the backtest itself doesn't leave them out", NOTE)
+    put(wi, f"{col}{R['holdout']}", 0, BLUE, PCT).border = BOX
+put(wi, f"E{R['holdout']}", "the user's decision")
+put(wi, f"F{R['holdout']}", "No holdout categories (the user's decision, 1 Nov): the agents price every category, so no part of a "
+                            "lever is left out. The money ledger measures each push against the shop's products it didn't change", NOTE)
 
 header(wi, R["b0Head"], ["B0, the price engine's measured gain", "Value", "Unit", "Label", "Source / note", "", "ID"])
 put(wi, f"A{R['b0Mid']}", "The calculator's Aug–Sep test: repriced products vs untouched products in the same shop, category and weeks")
@@ -357,7 +356,7 @@ s, b = R["levSum"], R["b0Used"]
 ho = R["holdout"]
 benefit = {"B": f"=(Inputs!C{s}+Inputs!C{b})*(1-Inputs!C{ho})"}     # B0 at E20 mid + the levers' central case
 lines = [
-    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "B0 at E20 mid + levers 1–8, central · the holdout share left out"),
+    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "B0 at E20 mid + levers 1–8, central · every category priced (no holdout)"),
     (5, "Months of full benefit in year 1", f"={I['months']}", NUM1, GREEN, "After the build month: the pilot at its share, then full scope"),
     (6, "First-year benefit", "={c}4*{c}5", EUR, BLACK, "Extra margin in the first 12 months"),
     (7, "One-time cost", f"=({I['hours']}+{I['person']}+{I['build']}+{I['training']})*{I['rate']}+{I['setup']}+{I['buildAi']}*{I['fx']}", EUR, GREEN,
@@ -405,9 +404,9 @@ for i, (lab, f, lab2, source, fid) in enumerate(src):
     put(wsb, f"E{r}", fid, BOLD)
 put(wsb, "A9", "Before the holdout share", BOLD)
 put(wsb, "B9", "=SUM(B4:B8)", BLACK, EUR).border = BOX
-put(wsb, "A10", "The holdout categories' share, left out")
+put(wsb, "A10", "The holdout categories' share, left out (none: every category priced)")
 put(wsb, "B10", f"=-B9*Inputs!C{R['holdout']}", BLACK, EUR).border = BOX
-put(wsb, "C10", "estimated")
+put(wsb, "C10", "the user's decision")
 put(wsb, "A11", "The claim: monthly benefit at full scope", BOLD)
 c = put(wsb, "B11", "=B9+B10", BLACK, EUR)
 c.border = BOX

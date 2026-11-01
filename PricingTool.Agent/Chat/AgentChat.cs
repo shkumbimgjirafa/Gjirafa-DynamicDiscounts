@@ -153,8 +153,8 @@ public sealed class AgentChat
             sb.AppendLine("- Left out by the publisher, once per SKU: " + string.Join("; ", leftOut.Select(g =>
                 $"layer {g.LayerId} {g.Kind} {g.Skus:N0} SKUs ({g.NewInLastDay:N0} new in the last day, up to {g.MostDays} days)")) + ".");
         sb.AppendLine(ledger.Count > 0
-            ? $"- Results vs the holdout: {ledger.Sum(m => m.Measured30Eur!.Value):N0} EUR gross profit over 30 days across {ledger.Count} measured changes (measured)."
-            : "- Results vs the holdout: nothing measured yet (no pushed change has completed its window).");
+            ? $"- Results vs the comparison group (the holdout, or the shop's products a push didn't change): {ledger.Sum(m => m.Measured30Eur!.Value):N0} EUR gross profit over 30 days across {ledger.Count} measured changes (measured)."
+            : "- Results vs the comparison group: nothing measured yet (no pushed change has completed its window).");
         foreach (var r in results) sb.AppendLine($"- A finished campaign was reviewed (calendar #{r.CalendarId}): {r.Lesson}");
         sb.AppendLine(coming.Count > 0 ? $"- Coming up: {string.Join("; ", coming.Select(c => $"{c.Name} from {c.StartDate:ddd dd MMM} ({c.Status})"))}." : "- Coming up: no campaign in the next three weeks.");
         sb.Append($"- AI: {calls.Count} calls, {calls.Sum(c => c.CostUsd ?? 0m):0.00} USD (measured).");

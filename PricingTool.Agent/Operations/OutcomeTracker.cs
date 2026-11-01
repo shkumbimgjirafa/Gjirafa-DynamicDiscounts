@@ -53,7 +53,8 @@ internal sealed record LiveSource(int LayerId, long RunId, DateTime LiveUtc, lon
 /// export of an engine run that priced with its rule), then compares the band × category's gross profit per day and
 /// units per day over the <see cref="OutcomeOptions.WindowDays"/> days after that push with the same number of days
 /// before, normal days only, booked cost from the sales lines. The holdout categories carry the season: expected
-/// after = before × the holdout's after/before ratio.
+/// after = before × the holdout's after/before ratio. With no holdout categories (the user's decision, 1 Nov: the
+/// agents price every category) the rest of the shop, every other band × category, carries it instead.
 ///
 /// <para>Band × category sales over two weeks are noisy: on 26 no-change fortnights of four of Alpha's rule groups
 /// (Mar–Sep 2026) gross profit against this expectation ranged from −60 % to +217 %, and a plain "20 % under" rule
@@ -372,7 +373,7 @@ public sealed class OutcomeTracker
         var campaignDays = new HashSet<DateOnly>();
         foreach (var c in await _reader.GetCampaignWindowsAsync(d.LayerId, from, to, ct))
             for (var day = c.StartDate; day <= c.EndDate; day = day.AddDays(1)) campaignDays.Add(day);
-        return new DailySeries(days, campaignDays, holdouts.Count == 0 ? "none configured" : string.Join(", ", holdouts));
+        return new DailySeries(days, campaignDays, holdouts.Count == 0 ? "none configured; the rest of the shop (every other band x category) carries the season" : string.Join(", ", holdouts));
     }
 
     private static decimal? R(decimal? v, int digits) => v is { } x ? Math.Round(x, digits) : null;

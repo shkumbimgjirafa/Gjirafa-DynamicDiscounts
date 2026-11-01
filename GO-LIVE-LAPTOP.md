@@ -61,7 +61,8 @@ below is registered.
    - Your email for column B of the time sheet, in user-secrets for the Engine and Web projects (from a Claude
      session, so it lands in the package's user-secrets):
      `dotnet user-secrets set "Agent:TimeSheetOwnerEmail" "<your email>" --project PricingTool.Engine` (and `--project PricingTool.Web`).
-   - The limits and holdouts in `Agent:Limits` were confirmed on 30 Oct. To change them, edit
+   - The limits in `Agent:Limits`: no holdout categories since 1 Nov (the user's decision: every category is priced). To
+     change them, edit
      `PricingTool.Engine/appsettings.Hackathon.json`, `PricingTool.Web/appsettings.Hackathon.json` and
      `PricingTool.AgentTools/appsettings.json` together (a test keeps the three the same).
 
@@ -75,7 +76,7 @@ be rebuilt while it runs) and starts the engine host (`--hackathon-host`). The h
 (a start before 07:00 waits for 07:00) and then each day from 07:00:
 
 size check (warns at 8 GB) → incremental hk refresh from the replica → engine runs, Gjirafa50 then GjirafaMall →
-Alpha's floor/target pass (Mondays) → run checks → checked exports for the push (holdout categories left out) →
+Alpha's floor/target pass (Mondays) → run checks → checked exports for the push →
 the live shop's other discounts and regular prices into the shop sandbox (`mirror-L<layer>`, read-only from the replica,
 about 20 s on Gjirafa50 and 45 s on GjirafaMall) → the checked prices to the sandbox (`publish-L<layer>`: its first
 figure, "on the shelf at our price", is the day's shadow of the live shelf) → money ledger → time-sheet export →
@@ -90,7 +91,7 @@ hour, three times a day at most. Steps not built yet are logged as NotBuilt.
 1. Open the **Ledger** page. The day's export files are listed under "Exports for the team's push".
 2. The team pushes the file the way it does today.
 3. Click **Mark as pushed** on that export (or `PricingTool.AgentTools mark-pushed <export id>`). That records it as
-   applied (an Approval) and starts its 7- and 30-day measurement against the holdout.
+   applied (an Approval) and starts its 7- and 30-day measurement against the shop's products the push didn't change.
 4. Look at the **Agent** page's "Waiting for you" (the exceptions inbox). On a normal day it is empty.
 
 ## Memory on this laptop (for you to decide; nothing here is changed for you)

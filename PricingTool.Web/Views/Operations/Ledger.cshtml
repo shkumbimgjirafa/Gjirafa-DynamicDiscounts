@@ -7,11 +7,12 @@
 }
 
 <h1 class="h3">Money ledger</h1>
-<p class="page-sub">What the applied prices earned: measured 7 and 30 days after they went out, against the holdout categories. Anything not yet measured counts as €0.</p>
+<p class="page-sub">What the applied prices earned: measured 7 and 30 days after they went out, against @(Model.Holdouts.Values.Any(v => v.Count > 0) ? "the holdout categories" : "the shop's products each push didn't change"). Anything not yet measured counts as €0.</p>
 <details class="how"><summary>How this works</summary>
     Condition 4 of the 10 % bar: the gross profit the applied prices made, measured in the 30 days, against three times the monthly raise.
-    Every pushed export is measured at 7 and 30 days from the refreshed sales lines (booked COGS), as a difference-in-differences against the
-    holdout categories. <strong>Conservative by rule:</strong> a window not yet complete, or not attributable (holdout too thin), counts as €0.
+    Every pushed export is measured at 7 and 30 days from the refreshed sales lines (booked COGS), as a difference-in-differences against a
+    comparison group: the holdout categories when a shop has any, otherwise (since 1 Nov, every category priced) the shop's products the push
+    didn't change. <strong>Conservative by rule:</strong> a window not yet complete, or not attributable (comparison too thin), counts as €0.
     The expected figure is an estimate made at export time and is never added to a total.
 </details>
 
@@ -61,7 +62,7 @@
 <h2 class="h5">Export files <span class="small text-muted">the manual path, next to the agents' sandbox publishes</span></h2>
 <p class="text-muted small">
     The daily cycle writes one file per layer from the checked run: warned and blocked rows held back, holdout categories left out
-    (@string.Join("; ", Model.Holdouts.Select(h => $"layer {h.Key}: {string.Join(", ", h.Value)}"))).
+    (@(Model.Holdouts.Values.Any(v => v.Count > 0) ? string.Join("; ", Model.Holdouts.Select(h => $"layer {h.Key}: {string.Join(", ", h.Value)}")) : "none: every category goes out")).
     When a person pushes a file to the shop, mark it here: that records it as applied (an Approval) and starts its measurement.
 </p>
 <table class="table table-sm align-middle">

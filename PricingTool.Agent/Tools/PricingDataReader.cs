@@ -210,8 +210,8 @@ public sealed class PricingDataReader
                 r.GetDecimal(4), r.GetInt32(5)), ct);
 
     /// <summary>Per day in [<paramref name="from"/>, <paramref name="to"/>): units and gross profit of band
-    /// <paramref name="bandId"/> × <paramref name="category"/>, and of the <paramref name="holdouts"/> categories (all bands).
-    /// One query; days without sales are absent.</summary>
+    /// <paramref name="bandId"/> × <paramref name="category"/>, and of the comparison: the <paramref name="holdouts"/>
+    /// categories (all bands), or with none every other band × category of the layer. One query; days without sales are absent.</summary>
     public Task<List<DaySales>> GetDailyRowAndHoldoutAsync(int layerId, int bandId, string category, IReadOnlyCollection<string> holdouts,
         DateOnly from, DateOnly to, CancellationToken ct = default) =>
         QueryAsync("""
@@ -219,7 +219,8 @@ public sealed class PricingDataReader
             WITH s AS (
                 SELECT s.SaleDate, s.Qty, s.GrossProfit,
                        CASE WHEN s.BandId = @Band AND c.Category = @Category THEN 1 ELSE 0 END AS IsRow,
-                       CASE WHEN c.Category IN (SELECT value FROM STRING_SPLIT(@Holdouts, N'|')) THEN 1 ELSE 0 END AS IsHoldout
+                       CASE WHEN @Holdouts = N'' THEN CASE WHEN s.BandId = @Band AND c.Category = @Category THEN 0 ELSE 1 END
+                            WHEN c.Category IN (SELECT value FROM STRING_SPLIT(@Holdouts, N'|')) THEN 1 ELSE 0 END AS IsHoldout
                 FROM agent.SalesLines s
                 CROSS APPLY (SELECT CASE WHEN @Mall = 1 THEN s.MainGroup ELSE s.CategoryL1 END AS Category) c
                 WHERE s.LayerId = @L AND s.SaleDate >= @From AND s.SaleDate < @To)

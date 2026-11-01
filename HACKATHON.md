@@ -18,8 +18,8 @@ lives in files, not in the app: [`evidence.html`](docs/hackathon-2026/evidence/e
 one-pager.
 
 **The money claim** (section 4): the price engine's measured gain, €7,597 a month against untouched products (E27),
-plus €2,833 a month from the controlled pricing logic the AI agents run (estimated, E8); €9,283 a month at full scope with
-the holdout categories left out, 76 points (Evidence and Works are our own ratings).
+plus €2,833 a month from the controlled pricing logic the AI agents run (estimated, E8); €10,430 a month at full scope,
+every category priced, 76 points (Evidence and Works are our own ratings).
 
 Everything below can be checked from this repository, except what needs the hackathon database (`PricingToolHackathon` on
 LocalDB): it holds the company's sales data, so it is not in git. Those figures' aggregates are in
@@ -89,7 +89,7 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 
 | Agent | The model proposes | Code decides | Where |
 |---|---|---|---|
-| **Alpha, weekly floors and targets** | keep / raise / lower per band × category, with reason and evidence | `SafetyLimits.Evaluate`: a step of at most 1 point a week counted from last week's value, the layer's hard minimum, target ≥ floor, thin data kept, holdout categories untouched, paused categories held; then `AgentDecision` rows (applied / held / rejected) and, for applied ones, the `BandCategoryRule` the engine prices with | `PricingTool.Agent/Alpha/FloorTargetAgent.cs:150` → `Alpha/SafetyLimits.cs:37` → `FloorTargetAgent.cs:168` |
+| **Alpha, weekly floors and targets** | keep / raise / lower per band × category, with reason and evidence | `SafetyLimits.Evaluate`: a step of at most 1 point a week counted from last week's value, the layer's hard minimum, target ≥ floor, thin data kept, paused categories held (holdout categories, if any are configured, untouched; none are since 1 Nov); then `AgentDecision` rows (applied / held / rejected) and, for applied ones, the `BandCategoryRule` the engine prices with | `PricingTool.Agent/Alpha/FloorTargetAgent.cs:150` → `Alpha/SafetyLimits.cs:37` → `FloorTargetAgent.cs:168` |
 | **Nova, weekly briefs** | campaign briefs (dates, scope, goal, depth, minimum margin) and lessons | `CampaignLimits.Evaluate`: lead time, calendar window, length, no overlap with a main campaign, holdout, two minis at once, depth cap 25 % (90 % for one campaign whose cap a person lifted in the chat, see Chat); a minimum margin never under 3 % (code raises it, also in review rounds); a goal a person set overrides Nova's | `Campaigns/CampaignAgent.cs:151` |
 | **Campaign planning** | Alpha chooses one of four strategies code computed; Nova accepts or adjusts | `CampaignPlanner` computes every price (charm-rounded, never under cost or at today's price, depth cap, holdout, minimum margin of at least 3 %); only a listed strategy is accepted; a person's goal can't be changed by Nova; a plan short of it is held | `Campaigns/CampaignPlanning.cs:147`, `:450`, `:130` |
 | **Run checker** | pass / hold / fix per flagged row of an engine run | `RunCheckRules` judge every row in code; the model can't downgrade a rule's block to a pass or a warn: it can only replace the price with one that passes every rule again (then the row is "fixed" and that price is exported); anything the model escalates becomes a block | `Checker/RunChecker.cs:80`, `:133` |
@@ -122,8 +122,8 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €9,283 a month at full scope, 76 points** (Evidence and Works are our own ratings; year 1: net benefit €77,630, ROI 735 %, payback 3.1 months; the
-[financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx), with the holdout categories' share left out).
+**The claim: €10,430 a month at full scope, 76 points** (Evidence and Works are our own ratings; year 1: net benefit €88,530, ROI 839 %, payback 3.0 months; the
+[financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx); every category priced, no holdout categories: the user's decision, 1 Nov).
 
 **Where it comes from.** *The price engine, measured:* in the calculator's Aug–Sep test on the real shop, the products it
 repriced earned €7,597 a month more gross profit than untouched products in the same shop and category in the same weeks
@@ -148,8 +148,7 @@ dead-stock sets) and Gjirafa50 KS's of 21 Jul with its dead-stock runs (E27).
 
 **Coverage.** Each engine run prices every product of both Kosovo shops: GjirafaMall KS, 511,198 SKUs, and Gjirafa50
 KS, 129,708 SKUs (runs #1111 and #1110, 1 Nov 2026, measured). Nothing goes to the live shop yet: the runs only
-compute, and publishing writes to the sandbox. Live, it would price the same products, the holdout categories left on
-hand-set floors.
+compute, and publishing writes to the sandbox. Live, it would price the same products, every category included.
 North Macedonia and Albania are built in but not in the claim. What makes it live-ready is what this weekend built
 (sections 2 and 3); going live is configuration and a write login (`GO-LIVE.md`).
 
@@ -159,8 +158,7 @@ North Macedonia and Albania are built in but not in the claim. What makes it liv
 | Recovered leakage: raises that reach the shelf (lever 8) | €249 | estimated (E24) |
 | Cadence: prices daily, not on a few manual dates (lever 5) | €396 | estimated (E5) |
 | The other levers: loss block, category floors, cost reaction, learning, campaign planning (1, 2, 3, 6, 7) | €2,188 | estimated (E1–E3, E6, E7) |
-| The holdout categories' share (about 11 % of the changed prices; the agents never change them), left out | −€1,147 | estimated |
-| **The claim, at full scope** | **€9,283** | |
+| **The claim, at full scope** | **€10,430** | |
 | Hours saved | not counted | hours, never euros |
 
 GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies. "Own vendors" is the
@@ -207,7 +205,7 @@ Those discounts were mostly not team deals but the calculator's own earlier push
 model's own decisions are the per-category floors (lever 2: €2 a month in the backtest, because Alpha's rules move a
 floor one point a week) and the campaign plans (lever 7 replays the planner's per-SKU depth, which code computes; the
 model chooses among the strategies). What the agents add so far is running the whole loop every day, on every layer,
-without a person; how much their own judgment is worth is what the pilot's holdout measures. Their value grows with
+without a person; how much their own judgment is worth is what the pilot's money ledger measures, each push against the shop's products it didn't change. Their value grows with
 the context they keep, which a two-month backtest can't show: each week Nova's prompt carries people's lessons and
 corrections, the lessons it drew from finished campaigns and how its recent plans did against their goals
 (`Campaigns/LessonBook.cs`), and Alpha reads the measured outcome of each of its earlier changes (`get_past_decisions`,
@@ -264,7 +262,7 @@ the reason next to each.
     Gjirafa50 takes Gjirafa50's price, so a Mall floor never moves it (that mix is why pass #13 kept every Mall row on 31 Oct).
     While a margin target is in force (the user's decisions, 1 Nov), Alpha's answer is the full category × band matrix: a
     target has no weekly step (the floor keeps its 1 point; the engine still keeps every price between floor and anchor), and
-    each row it keeps (not thin, not a holdout) is written as that category's own rule.
+    each row it keeps (not thin) is written as that category's own rule.
   - **A person's campaign terms** (no depth cap, every SKU in stock, the engine's discount optimization off on the
     campaign's days, a margin goal spent down to) are tested; Java e Portokalltë 2026 (4–9 Nov, both shops) is to be
     planned again with them, and the discount-optimization switch first flips on 4 Nov.
