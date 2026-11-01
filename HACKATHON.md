@@ -67,7 +67,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
 
 1. Restore the hackathon database `PricingToolHackathon` on `(localdb)\mssqllocaldb` (the daily backups in
    `%LOCALAPPDATA%\PricingToolAgent\backups`; the data is not in git) and log Claude Code in once (`claude auth login`).
-2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1029 passed, 1 skipped: the opt-in real headless call; E17).
+2. `dotnet build PricingTool.sln` and `dotnet test PricingTool.sln` (1031 passed, 1 skipped: the opt-in real headless call; E17).
    The evidence is a file:
    `dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html`
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
@@ -247,6 +247,9 @@ the reason next to each.
     those shops, one after the other; each ends in a price list (`Sku, ProposedPrice, StartDate, EndDate, AlgorithmUsed,
     NewMargin`) linked in the thread. GjirafaMall's scorecard is now its own products only: a product also listed on
     Gjirafa50 takes Gjirafa50's price, so a Mall floor never moves it (that mix is why pass #13 kept every Mall row on 31 Oct).
+    While a margin target is in force (the user's decisions, 1 Nov), Alpha's answer is the full category × band matrix: a
+    target has no weekly step (the floor keeps its 1 point; the engine still keeps every price between floor and anchor), and
+    each row it keeps (not thin, not a holdout) is written as that category's own rule.
   - **A person's campaign terms** (no depth cap, every SKU in stock, the engine's discount optimization off on the
     campaign's days, a margin goal spent down to) are tested; Java e Portokalltë 2026 (4–9 Nov, both shops) is to be
     planned again with them, and the discount-optimization switch first flips on 4 Nov.
@@ -313,7 +316,7 @@ the reason next to each.
 
 ## 7. Tests
 
-`dotnet test PricingTool.sln`: 1029 passed, 1 skipped (1 Nov, 12:05). The twelve failure and unusual cases the plan names
+`dotnet test PricingTool.sln`: 1031 passed, 1 skipped (1 Nov, 12:30). The twelve failure and unusual cases the plan names
 (API down, timeout, malformed output, thin data, missing cost, kill switch, auto-rollback, unreachable campaign goal,
 overlapping discount, injected cost rise, data-error cost jump, bad `query_data`) map to their tests in
 [`docs/hackathon-2026/failure-cases.md`](docs/hackathon-2026/failure-cases.md).

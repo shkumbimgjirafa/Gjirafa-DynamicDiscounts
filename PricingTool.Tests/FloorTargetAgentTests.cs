@@ -117,6 +117,51 @@ public class FloorTargetAgentTests : IDisposable
         Decision("SMART", "lower", 12m, 22m),                        // holdout: kept
         Decision("Gaming", "raise", 14m, 24m));                      // thin: kept
 
+    /// <summary>A person's margin target in force on the layer today (the user's decisions of 1 Nov).</summary>
+    private async Task MarginTargetToday()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        _db.ChatRules.Add(new ChatRule { LayerId = Layer, Kind = ChatRuleKinds.MarginTarget, Value = "22", FromDate = today, ToDate = today.AddDays(2),
+            Instruction = "@alpha Gjirafa50 22%", CreatedBy = "manager@test", CreatedUtc = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task With_a_margin_target_in_force_the_target_moves_freely_and_every_kept_row_becomes_its_own_rule()
+    {
+        await SetMode(AutonomyMode.Autonomous);
+        await MarginTargetToday();
+        ModelAnswers(
+            Decision("Aksesorë", "raise", 14m, 31m),                    // target +8 pt: no step while the target is in force
+            Decision("Celular, Tablet & Navigim", "keep", 13m, 23m),    // kept: written as its own rule (the full matrix)
+            Decision("SMART", "keep", 13m, 23m),                        // holdout: never written
+            Decision("Gaming", "keep", 13m, 23m));                      // thin: never written
+
+        var result = await Agent().RunPassAsync(Layer);
+
+        var d = result.Decisions.ToDictionary(x => x.Category);
+        Assert.Equal((DecisionStatus.Applied, "raise", 14m, 31m), (d["Aksesorë"].Status, d["Aksesorë"].Action, d["Aksesorë"].ProposedFloorPct, d["Aksesorë"].ProposedTargetPct!.Value));
+        Assert.Equal(("keep", DecisionStatus.Applied, true), (d["Celular, Tablet & Navigim"].Action, d["Celular, Tablet & Navigim"].Status, d["Celular, Tablet & Navigim"].AppliedUtc is not null));
+        var rules = await _tool.BandCategoryRules.OrderBy(r => r.Category).Select(r => new { r.Category, r.MarginFloorPct, r.TargetMarginPct }).ToListAsync();
+        Assert.Equal(new[] { ("Aksesorë", 14m, 31m), ("Celular, Tablet & Navigim", 13m, 23m) },
+            rules.Select(r => (r.Category, r.MarginFloorPct!.Value, r.TargetMarginPct!.Value)));
+        Assert.Equal(1, (await _db.AgentPasses.SingleAsync()).Applied);             // a kept row is no change
+    }
+
+    [Fact]
+    public async Task With_a_margin_target_in_force_the_floor_keeps_its_step_and_a_test_pass_writes_no_matrix()
+    {
+        await SetMode(AutonomyMode.Autonomous);
+        await MarginTargetToday();
+        ModelAnswers(Decision("Aksesorë", "raise", 15m, 31m), Decision("Celular, Tablet & Navigim", "keep", 13m, 23m));
+
+        var result = await Agent().RunPassAsync(Layer, isTest: true);
+
+        var d = result.Decisions.ToDictionary(x => x.Category);
+        Assert.Equal((DecisionStatus.Held, "max-step"), (d["Aksesorë"].Status, d["Aksesorë"].Limit));    // floor +2 pt: held for a person
+        Assert.Empty(await _tool.BandCategoryRules.ToListAsync());                                      // a test pass writes nothing
+    }
+
     [Fact]
     public async Task Autonomous_applies_what_is_within_the_limits_and_holds_the_rest()
     {

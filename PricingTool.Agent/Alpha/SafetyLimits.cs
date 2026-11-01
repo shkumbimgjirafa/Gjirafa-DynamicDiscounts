@@ -17,10 +17,13 @@ public static class DecisionStatus
 
 /// <summary>One proposed floor/target change with everything the limits need to judge it.</summary>
 /// <param name="IsPaused">The band × category was paused after an automatic rollback (outcome drop): a change waits for a person.</param>
+/// <param name="TargetOpen">A person's effective margin target is in force on the layer: the target has no weekly step (the user's
+/// decision, 1 Nov: "any margin Alpha sees necessary"; the engine still keeps each price between its floor and its anchor). The floor's
+/// step, the ranges, the order and the hard minimum still hold.</param>
 public sealed record LimitInput(
     int LayerId, string Category, bool ThinData, bool IsHoldout,
     decimal CurrentFloor, decimal CurrentTarget, decimal FloorWeekAgo, decimal TargetWeekAgo,
-    string Action, decimal ProposedFloor, decimal ProposedTarget, bool IsPaused = false);
+    string Action, decimal ProposedFloor, decimal ProposedTarget, bool IsPaused = false, bool TargetOpen = false);
 
 /// <summary>What code lets through: the status, the values to store and, when a limit acted, which one.</summary>
 public sealed record LimitVerdict(string Status, string Action, decimal Floor, decimal Target, string? Limit, string? Detail);
@@ -72,7 +75,7 @@ public static class SafetyLimits
                 $"Paused after an automatic rollback (its last change cost gross profit or units): a person decides here until the pause is released ({asked}).");
 
         var floorStep = Math.Abs(d.ProposedFloor - d.FloorWeekAgo);
-        var targetStep = Math.Abs(d.ProposedTarget - d.TargetWeekAgo);
+        var targetStep = d.TargetOpen ? 0m : Math.Abs(d.ProposedTarget - d.TargetWeekAgo);
         if (floorStep > o.MaxStepPpPerWeek + Epsilon || targetStep > o.MaxStepPpPerWeek + Epsilon)
             return new LimitVerdict(DecisionStatus.Held, action, d.ProposedFloor, d.ProposedTarget, "max-step",
                 $"Moves {Math.Max(floorStep, targetStep):0.##} pt against a 7-day limit of {o.MaxStepPpPerWeek:0.##} pt " +

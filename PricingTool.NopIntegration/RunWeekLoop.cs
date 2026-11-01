@@ -226,8 +226,10 @@ public sealed class RunWeekSteps : IRunWeekSteps
         var changed = r.Decisions.Where(d => d.Status == DecisionStatus.Applied && d.Action != "keep").ToList();
         var why = r.Decisions.Where(d => d.Action != "keep" || d.Status != DecisionStatus.Applied).Take(6)
             .Select(d => $"band {d.BandId} {d.Category}: {d.Action} {d.CurrentFloorPct:0.#}→{d.ProposedFloorPct:0.#} % floor, {d.Status}{(d.Limit is null ? "" : $" ({d.Limit})")}: {d.Reason}");
+        var kept = r.Decisions.Count(d => d.Action == "keep" && d.AppliedUtc != null);   // the full matrix while a margin target is in force
         return new RunWeekStepResult(r.Status is "Succeeded" or "Skipped" ? StepStatus.Succeeded : StepStatus.Failed,
-            $"pass #{r.PassId} {r.Status}: {changed.Count} changed, {r.Count(DecisionStatus.Held)} held for a person, {r.Count(DecisionStatus.Rejected)} rejected by code, " +
+            $"pass #{r.PassId} {r.Status}: {changed.Count} changed" + (kept > 0 ? $", {kept} kept and written as the category's own rule" : "") +
+            $", {r.Count(DecisionStatus.Held)} held for a person, {r.Count(DecisionStatus.Rejected)} rejected by code, " +
             $"{r.Count(DecisionStatus.Pending)} pending (approve-first) {r.Error}".Trim(), string.Join(" | ", why), r.PassId);
     }
 

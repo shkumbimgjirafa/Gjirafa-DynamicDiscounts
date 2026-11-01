@@ -28,6 +28,12 @@ public sealed record AlphaPassResult(long? PassId, string Status, string? Error,
 /// Applied changes are written as per-category overrides (PricingTool.BandCategoryRules); the band's own
 /// hand-set values stay untouched as the baseline. The engine reads the overrides from the per-category
 /// floors step on.
+///
+/// While a person's effective margin target is in force on the layer (a margin-target rule, today through
+/// <see cref="MarginTargetDaysAhead"/> days), the user's decisions of 1 Nov apply: the target has no weekly step (the floor's
+/// stays), and every row Alpha keeps that isn't thin or a holdout is written as that category's own rule too, so the
+/// layer has a full category × band matrix. A kept row stays a "keep": it changes no value, counts as no change and is
+/// never measured or rolled back. Test passes and approve-first mode write none of them.
 /// </summary>
 public sealed class FloorTargetAgent
 {
@@ -101,7 +107,8 @@ public sealed class FloorTargetAgent
         var targets = (await _db.ChatRules.AsNoTracking()
                 .Where(r => r.Kind == ChatRuleKinds.MarginTarget && r.RemovedUtc == null && r.LayerId == layerId).ToListAsync(ct))
             .Where(r => r.ActiveOn(today, today.AddDays(MarginTargetDaysAhead))).ToList();
-        var prompt = BuildPrompt(effective, rows, mode, recent) + Environment.NewLine +
+        var matrix = targets.Count > 0;
+        var prompt = BuildPrompt(effective, rows, mode, recent, matrix) + Environment.NewLine +
                      await Operations.Goals.BlockAsync(_db, today, layerId, ct) +
                      MarginTargetBlock(targets, card.ShopMargin, card.Layer.Brand == "GjirafaMall");
         if (injectedTestNote is not null) prompt += $"\n[INJECTED-TEST] {injectedTestNote}\n";
@@ -153,7 +160,7 @@ public sealed class FloorTargetAgent
             }
 
             var verdict = SafetyLimits.Evaluate(new LimitInput(layerId, row.Category, row.ThinData, _options.Limits.IsHoldout(layerId, row.Category),
-                floor, target, floor - moved.Floor, target - moved.Target, p.Action, p.NewFloorPct, p.NewTargetPct, paused.Contains(key)), _options.Limits);
+                floor, target, floor - moved.Floor, target - moved.Target, p.Action, p.NewFloorPct, p.NewTargetPct, paused.Contains(key), TargetOpen: matrix), _options.Limits);
             Fill(decision, p, queryIds, verdict.Action, verdict.Floor, verdict.Target,
                 verdict.Status == DecisionStatus.Applied && verdict.Action != "keep" && (mode == AutonomyMode.ApproveFirst || isTest)
                     ? DecisionStatus.Pending : verdict.Status,
@@ -171,6 +178,10 @@ public sealed class FloorTargetAgent
         _db.AgentDecisions.AddRange(decisions);
         await _db.SaveChangesAsync(CancellationToken.None);
         await ApplyAsync(layerId, decisions.Where(d => d.Status == DecisionStatus.Applied && d.Action != "keep").ToList(), overrides);
+        if (matrix && !isTest && mode == AutonomyMode.Autonomous)
+            await ApplyAsync(layerId, decisions.Where(d => d.Status == DecisionStatus.Applied && d.Action == "keep" && d.Limit is null
+                    && !overrides.ContainsKey(Key(d.BandId, d.Category))).ToList(), overrides,
+                how: "kept, written as the category's own rule while a margin target is in force (the full matrix)");
 
         // Changes applied: a "keep" passes the limits too, but changes nothing (a pass that kept every row applied none).
         pass.Applied = decisions.Count(d => d.Status == DecisionStatus.Applied && d.Action != "keep");
@@ -346,7 +357,7 @@ public sealed class FloorTargetAgent
     }
 
     internal string BuildPrompt(AlphaScorecard card, IReadOnlyList<ScorecardRow> rows, AutonomyMode mode,
-        IReadOnlyDictionary<string, (decimal Floor, decimal Target)> recent)
+        IReadOnlyDictionary<string, (decimal Floor, decimal Target)> recent, bool matrix = false)
     {
         var l = _options.Limits;
         var layer = card.Layer.LayerId;
@@ -357,9 +368,15 @@ public sealed class FloorTargetAgent
         sb.AppendLine($"Return exactly one decision for each of the {rows.Count} scorecard rows with units > 0, identified by its band_id and its category exactly as written. Rows without sales need no decision. Answer with layer = {layer}.");
         sb.AppendLine("The floor and target columns are today's values for each row (category overrides included).");
         sb.AppendLine("Limits code enforces this week, per row (anything outside them is held for a person or rejected, never applied):");
-        sb.AppendLine($"- floor and target move at most {l.MaxStepPpPerWeek:0.##} pt from their value 7 days ago;");
+        sb.AppendLine(matrix
+            ? $"- the floor moves at most {l.MaxStepPpPerWeek:0.##} pt from its value 7 days ago; while the margin target below is in force the target has no " +
+              "weekly step: set it where you judge each row needs it (the engine still keeps every price between its floor and its anchor);"
+            : $"- floor and target move at most {l.MaxStepPpPerWeek:0.##} pt from their value 7 days ago;");
         sb.AppendLine($"- the floor is at least {l.HardMinFloorFor(layer):0.##}% on this layer; the target is never below the floor;");
         sb.AppendLine($"- rows marked thin, and the holdout categories ({holdouts}), stay as they are: answer keep.");
+        if (matrix)
+            sb.AppendLine("- a margin target is in force, so every row you keep (not thin, not a holdout) is also written as that category's own " +
+                          "floor and target: your answer is the full category × band matrix;");
         if (recent.Count > 0)
             sb.AppendLine("- already moved in the last 7 days (counts against the step): " +
                 string.Join("; ", recent.Select(r => $"{r.Key}: floor {r.Value.Floor:+0.##;-0.##} pt, target {r.Value.Target:+0.##;-0.##} pt")));

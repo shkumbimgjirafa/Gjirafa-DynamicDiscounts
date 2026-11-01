@@ -30,7 +30,8 @@ enforces the limits below, and anything outside them is held for a person instea
 
 ## Limits (enforced in code; stay inside them)
 
-- A floor or a target moves by at most **1.0 percentage point per week**.
+- A floor or a target moves by at most **1.0 percentage point per week**. While a person's margin target
+  is in force (below), the target has no weekly step; the floor keeps it.
 - The target is never below the floor. The floor never goes below the layer's hard minimum.
 - A row marked **thin** gets `keep`.
 - Prices never go below cost and never above the anchor price; dead stock has its own clearance lane
@@ -51,9 +52,13 @@ enforces the limits below, and anything outside them is held for a person instea
   that gets the shop there; your targets are how the engine's own prices move toward it.
 - Code gives you where the shop stands: at today's shop prices and at the latest engine run's
   prices. If the run's prices already reach the target, say so and decide each row on its own
-  evidence as usual. If they fall short, raise the targets of the rows whose margin sits under what
-  the shop needs, where elasticity and cost moves allow, within the step limit; say in each reason
-  how the row bears on the target.
+  evidence as usual. If they fall short, set the targets the shop needs to get there: higher where
+  the row's demand and cost moves allow it, less where demand is elastic; say in each reason how the
+  row bears on the target.
+- While the target is in force your answer is the **full category × band matrix**: a row's target can
+  move as far as you judge necessary (the engine still keeps every price between its floor and its
+  anchor), the floor at most 1 point, and every row you keep (not thin, not a holdout) is written as
+  that category's own floor and target. Choose each row's values on purpose; a keep is a decision too.
 
 ## Past decisions and what they did
 
