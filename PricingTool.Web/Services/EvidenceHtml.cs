@@ -16,9 +16,9 @@ public static class EvidenceHtml
     /// <summary>The plan's list (section 5, "Evidence page"): what each item is, as references to numbers.json.</summary>
     public static readonly (string Item, string[] Ids)[] PlanList =
     {
-        ("The calculator's Aug–Sep lift (B0): E20 mid is the claim's rate; E20 low and E27 are robustness checks; E20 high is sensitivity, quoted", new[] { "E20", "E27" }),
+        ("The calculator's Aug–Sep lift (B0): the claim's rate is E27, against untouched products in the same shop, category and weeks (SKUs with a sales history); E20 high is sensitivity, quoted", new[] { "E27", "E20" }),
         ("The same-weeks control (changed vs unchanged products in the same weeks): a robustness check, E20 low", new[] { "E20" }),
-        ("B0 against untouched products in the same category and weeks: a robustness check", new[] { "E27" }),
+        ("The before/after on the repriced products: a robustness check, E20 mid", new[] { "E20" }),
         ("The test, run by hand: the facts beside the without-the-build line (assumed)", new[] { "E28" }),
         ("The year-over-year margin fingerprint", new[] { "E25" }),
         ("Për ty Oct 2026: the agents' plan vs the hand plan's forecast vs what it made", new[] { "E11", "E12" }),
@@ -80,9 +80,10 @@ public static class EvidenceHtml
                   "Nothing here is typed by hand. To write it again: <code>dotnet run --project PricingTool.Web --no-build --launch-profile hackathon -- --evidence-html docs/hackathon-2026/evidence/evidence.html</code></div>");
         if (page.Claim is { } claim)
         {
-            var mid = byId.TryGetValue("E20", out var e20) && e20.Value.ValueKind == JsonValueKind.Object && e20.Value.TryGetProperty("mid", out var m) ? "€" + m.GetDecimal().ToString("N0", CultureInfo.InvariantCulture) : "n/a";
+            var b0 = byId.TryGetValue("E27", out var e27) && e27.Value.ValueKind == JsonValueKind.Object && e27.Value.TryGetProperty("total", out var t)
+                     && t.TryGetProperty("vsUntouchedWithSalesHistory", out var v) ? "€" + v.GetDecimal().ToString("N0", CultureInfo.InvariantCulture) : "n/a";
             sb.Append($"<div class=\"claim\"><strong>The claim: €{claim.Monthly.ToString("N0", CultureInfo.InvariantCulture)} a month at full scope, {claim.Score:0} points</strong> " +
-                      $"<span class=\"small muted\">(year 1 net benefit €{claim.Net.ToString("N0", CultureInfo.InvariantCulture)}; B0 {mid} a month, E20 mid). From the financial sheet's Summary; the figures below are what it rests on.</span></div>");
+                      $"<span class=\"small muted\">(year 1 net benefit €{claim.Net.ToString("N0", CultureInfo.InvariantCulture)}; B0 {b0} a month, E27). From the financial sheet's Summary; the figures below are what it rests on.</span></div>");
         }
         var matched = lines.Count(l => l.Matches);
         sb.Append("<div class=\"summary\">");

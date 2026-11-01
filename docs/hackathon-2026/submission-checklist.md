@@ -1,7 +1,7 @@
 # Submission checklist
 
 Deadline: **Mon 2 Nov, 08:00** (freeze from 06:00, plan section 6). Kept up to date as items are done; the plan's own
-list is section 8. Last updated Sun 1 Nov, 19:26.
+list is section 8. Last updated Sun 1 Nov, 19:49.
 
 ## The deliverables
 
@@ -9,13 +9,14 @@ list is section 8. Last updated Sun 1 Nov, 19:26.
 - [x] **One-page summary:** `docs/hackathon-2026/one-pager.md` (rewritten 1 Nov evening by the one-pager session: four problems, then the
   engine and its agents, no score).
 - [x] **Financial sheet:** `docs/hackathon-2026/Financial sheet.xlsx`, every line labelled measured / estimated / assumed. Rebuilt
-  1 Nov 19:00 from the regenerated evidence, every category priced (no holdout categories, the user's decision): the claim is
+  1 Nov 19:44 from the regenerated evidence, every category priced (no holdout categories, the user's decision): the claim is
   €10,430 a month; year 1 net benefit €88,017, ROI 795 %, payback 3.1 months.
 - [x] **2-minute video:** `Pricetool demo cut.mp4` (1:54, silent with captions), in Downloads, submitted as a file (not in
   the repo). What it shows: `docs/hackathon-2026/demo-backup-video.md`.
 - [x] **What is mocked or unfinished:** `HACKATHON.md` section 5.
 - [x] **Evidence:** `docs/hackathon-2026/evidence/` (`numbers.json`, one script per figure, `evidence.html`). Regenerated 1 Nov
-  19:25 from today's data (the levers from the same stored backtest): 52 of 52 checks match.
+  19:30 from today's data (the levers from the same stored backtest); the evidence page, written at 19:48: 52 of
+  52 checks match.
 - [x] **Screenshots:** four of the running app in `docs/hackathon-2026/screenshots/`, listed in `HACKATHON.md` section 2.
 - [x] **Hours for 1 Nov:** 8 h, the user's estimate, in `hours.md`, the sheet's costs and E16.
 - [x] **Go-live runbook:** `GO-LIVE.md`.
@@ -43,8 +44,8 @@ list is section 8. Last updated Sun 1 Nov, 19:26.
 ## Before the push (1 Nov evening)
 
 - [x] A fresh AI-judge run on a clean clone of the submission branch; its factual findings fixed.
-- [x] A fresh AI check for contradictions between the files: 16 found and fixed (1 Nov, 19:30); a second check on the
-  final branch before the push.
+- [x] A fresh AI check for contradictions between the files: 16 found and fixed (1 Nov, 19:30); a second
+  check found 5 more, fixed (19:45).
 - [ ] `dotnet test` once more, and the count in `HACKATHON.md`.
 - [ ] The secrets check again, on the final commit and its history.
 - [ ] The submission branch rebuilt from the final `main` (plain commit messages; a colleague's email in the import commit

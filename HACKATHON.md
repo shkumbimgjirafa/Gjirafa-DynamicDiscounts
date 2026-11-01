@@ -73,7 +73,7 @@ schedule, audit log) and its tests (692 at import, all still passing).
    writes [`evidence.html`](docs/hackathon-2026/evidence/evidence.html): every figure of `numbers.json` with its label,
    method, sources (and when each was loaded) and where it is used (the one-pager, the financial sheet's cells, this file),
    and the figures whose script is a SQL file (13 files: E12–E14, E20–E23, E25–E30) rerun as it is written, as
-   `evidence_reader`, a database user that can only read, each cell compared with the stored value (1 Nov 19:30, on
+   `evidence_reader`, a database user that can only read, each cell compared with the stored value (1 Nov 19:48, on
    `numbers.json` as rebuilt from that day's data at 19:30: 52 of 52 matched, 47 s; the page's header gives the result
    of its own run).
 3. The web app: `dotnet run --project PricingTool.Web --launch-profile hackathon` → http://localhost:5058 (the app and the
@@ -287,7 +287,7 @@ the reason next to each.
     whole loop on demand is **Run week** on the Run tab (Alpha → engine → run checker → the checked prices to the
     sandbox → read-back; `RunWeekLoop`). Cuts go out as discounts, raises as the store's regular price
     (`NopRegularPriceWriter`); the cost watcher's raise to the floor goes the same way.
-  - **The money ledger** has measured nothing yet: no pushed change has completed its 14-day window.
+  - **The money ledger** has measured nothing yet: no pushed change has completed its first window (7 days; 30 for the second).
 - **Known limitations** (several found by our own review runs):
   - E21 is not one leak the agents fix: of the €14.7k a month sold under the hand-set floor in Aug–Sep, €3.0k is
     allowed or not a price (dead stock, vouchers), €4.2k is GjirafaMall SKUs priced by Gjirafa50, and the rest sits in

@@ -12,13 +12,14 @@
     string HeadHtml(string id) => !byId.TryGetValue(id, out var f) ? "not in numbers.json"
         : f.Value.ValueKind == System.Text.Json.JsonValueKind.Object && (f.Value.TryGetProperty("mid", out _) || f.Value.TryGetProperty("central", out _))
             ? System.Net.WebUtility.HtmlEncode(HeadOf(id)) : EvidenceService.ShowHtml(f.Value);
-    string ValueOfMid() => byId.TryGetValue("E20", out var e) && e.Value.TryGetProperty("mid", out var m) ? "€" + m.GetDecimal().ToString("N0") : "n/a";
+    string ValueOfB0() => byId.TryGetValue("E27", out var e) && e.Value.TryGetProperty("total", out var t) && t.TryGetProperty("vsUntouchedWithSalesHistory", out var v)
+        ? "€" + v.GetDecimal().ToString("N0") : "n/a";
     // The plan's list (section 5, "Evidence page"): what each item is, as references to numbers.json; no figure is typed here.
     var planList = new (string Item, string[] Ids)[]
     {
-        ("The calculator's Aug–Sep lift (B0): E20 mid is the claim's rate; E20 low and E27 are robustness checks; E20 high is sensitivity, quoted", new[] { "E20", "E27" }),
+        ("The calculator's Aug–Sep lift (B0): the claim's rate is E27, against untouched products in the same shop, category and weeks (SKUs with a sales history); E20 high is sensitivity, quoted", new[] { "E27", "E20" }),
         ("The same-weeks control (changed vs unchanged products in the same weeks): a robustness check, E20 low", new[] { "E20" }),
-        ("B0 against untouched products in the same category and weeks: a robustness check", new[] { "E27" }),
+        ("The before/after on the repriced products: a robustness check, E20 mid", new[] { "E20" }),
         ("The test, run by hand: the facts beside the without-the-build line (assumed)", new[] { "E28" }),
         ("The year-over-year margin fingerprint", new[] { "E25" }),
         ("Për ty Oct 2026: the agents' plan vs the hand plan's forecast vs what it made", new[] { "E11", "E12" }),
@@ -34,7 +35,7 @@
 @if (Model.Claim is { } claim)
 {
     <p class="fs-5"><strong>The claim: €@claim.Monthly.ToString("N0") a month at full scope, @claim.Score.ToString("0") points</strong>
-        (year 1 net benefit €@claim.Net.ToString("N0"); B0 @ValueOfMid() a month, E20 mid). <span class="small text-muted">From the financial
+        (year 1 net benefit €@claim.Net.ToString("N0"); B0 @ValueOfB0() a month, E27). <span class="small text-muted">From the financial
         sheet's Summary; the figures below are what it rests on.</span></p>
 }
 <p class="page-sub">Every figure the claim rests on, with its label (measured, estimated, assumed), method and sources. Figures with a SQL script can be recomputed live, read-only.</p>
