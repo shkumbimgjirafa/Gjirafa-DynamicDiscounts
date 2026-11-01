@@ -12,7 +12,11 @@ using PricingTool.Agent.Storage;
 
 namespace PricingTool.Agent.Chat;
 
-public sealed record ChatTurn(long ConversationId, IReadOnlyList<ChatMessage> Added, string? Error);
+public sealed record ChatTurn(long ConversationId, IReadOnlyList<ChatMessage> Added, string? Error)
+{
+    /// <summary>The shops Alpha asked Run week for, on the person's order to set up their prices (1 = GjirafaMall KS, 4 = Gjirafa50 KS).</summary>
+    public IReadOnlyList<int> RunWeek { get; init; } = Array.Empty<int>();
+}
 
 /// <summary>
 /// The Agent tab's chat (plan section 5, "AgentChat"): a person talks with the agents, grounded in the same read-only data tools.
@@ -108,7 +112,10 @@ public sealed class AgentChat
             }
         }
         if (role == AgentRole.Nova && a.Goal is { } goal) await GoalAsync(conversation, goal, text, author, reply, added, ct);
-        return new ChatTurn(conversation, added, null);
+        return new ChatTurn(conversation, added, null)
+        {
+            RunWeek = role == AgentRole.Alpha ? (a.RunWeek ?? Array.Empty<int>()).Where(l => l is 1 or 4).Distinct().ToList() : Array.Empty<int>(),
+        };
     }
 
     /// <summary>The Monday report, written by code from the stored records, as the first message of a new conversation.</summary>
@@ -172,6 +179,7 @@ public sealed class AgentChat
         sb.AppendLine("Active rules: " + (rules.Count == 0 ? "none." : string.Join("; ", rules.Select(r => $"#{r.Id} {r.Kind} {r.Value} {r.FromDate:yyyy-MM-dd}..{r.ToDate:yyyy-MM-dd}{(r.LayerId is { } l ? $" layer {l}" : "")}"))));
         sb.Append(await Goals.BlockAsync(_db, today, null, ct));
         sb.AppendLine(await EffectiveMarginAsync(today, ct));
+        sb.AppendLine(await RunsNowAsync(ct));
         sb.AppendLine(await CampaignStateAsync(today, ct));
         if (ChatTopics.CalendarIdOf(_topic) is { } focus) sb.AppendLine(await CampaignFocusAsync(focus, today, ct));
         else if (_topic == ChatTopics.NewCampaign)
@@ -179,8 +187,9 @@ public sealed class AgentChat
         sb.AppendLine("The conversation so far (oldest first):");
         foreach (var m in history) sb.AppendLine($"[{m.From}] {m.Text}");
         sb.AppendLine();
-        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha and goal null and briefs, cancel and rules empty.");
-        else if (role == AgentRole.Alpha) sb.AppendLine("Answer the person's last message in `reply`. You don't write briefs, cancel campaigns or record goals and don't ask Alpha: goal and askAlpha stay null, briefs and cancel empty.");
+        if (handedQuestion is not null) sb.AppendLine($"Nova hands you this question: {handedQuestion}\nAnswer it in `reply`; leave askAlpha and goal null and briefs, cancel, rules and runWeek empty.");
+        else if (role == AgentRole.Alpha) sb.AppendLine("Answer the person's last message in `reply`. You don't write briefs, cancel campaigns or record goals and don't ask Alpha: goal and askAlpha stay null, briefs and cancel empty. " +
+                                                       "When the person orders prices set up or run for shops, list them in runWeek (1 GjirafaMall, 4 Gjirafa50); otherwise runWeek stays empty.");
         else sb.AppendLine(noMoreAlpha ? "Alpha has answered above. Answer the person's last message now; askAlpha stays null." : "Answer the person's last message.");
 
         var call = await _client.CallAsync(new AgentCallRequest(role, $"chat {conversation}", sb.ToString(), Path.Combine(PromptsDirectory, "chat-rules.md"))
@@ -234,6 +243,57 @@ public sealed class AgentChat
         catch (Exception ex) when (ex is Microsoft.Data.SqlClient.SqlException or InvalidOperationException)
         {
             sb.Append("(Not measured just now: ").Append(ex.Message).Append(')');
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Each shop's latest engine run as the records show it (the user's request, 1 Nov: the agents answer from the facts, not from an
+    /// earlier message): its changed prices by the engine's leading reason, its run check (blocked SKUs named), and its publish.
+    /// </summary>
+    private async Task<string> RunsNowAsync(CancellationToken ct)
+    {
+        var sb = new StringBuilder("Each shop's latest price run (code, from the records; answer from these, not from an earlier message):" + Environment.NewLine);
+        if (_source is null) return sb.Append("(Not available in this host.)").ToString();
+        try
+        {
+            await using var conn = new Microsoft.Data.SqlClient.SqlConnection(_source.ConnectionString);
+            await conn.OpenAsync(ct);
+            await using var cmd = new Microsoft.Data.SqlClient.SqlCommand("""
+                SELECT r.LayerId, r.Id, r.TriggeredBy, r.StartedUtc, c.Id, c.Verdict, c.Status, c.Blocks, c.Warns,
+                       (SELECT STRING_AGG(x.Sku + ' (' + x.Flags + ')', ', ') FROM (SELECT TOP 5 Sku, Flags FROM ai.AgentRunCheckRow
+                        WHERE CheckId = c.Id AND FinalSeverity = 'block' ORDER BY Id) x),
+                       b.Id, b.Status, b.Requested, b.Created + b.Updated + b.Unchanged, b.Skipped,
+                       (SELECT STRING_AGG(CONCAT(g.Lead, ' ', g.Cuts, ' cuts / ', g.Raises, ' raises'), '; ') FROM (
+                            SELECT CASE WHEN CHARINDEX(',', p.ReasonCodes) > 0 THEN LEFT(p.ReasonCodes, CHARINDEX(',', p.ReasonCodes) - 1) ELSE p.ReasonCodes END AS Lead,
+                                   SUM(CASE WHEN p.ProposedPriceValue < p.CurrentPrice THEN 1 ELSE 0 END) AS Cuts,
+                                   SUM(CASE WHEN p.ProposedPriceValue > p.CurrentPrice THEN 1 ELSE 0 END) AS Raises
+                            FROM PricingTool.ProposedPrices p WHERE p.PricingRunId = r.Id AND p.HasChange = 1
+                            GROUP BY CASE WHEN CHARINDEX(',', p.ReasonCodes) > 0 THEN LEFT(p.ReasonCodes, CHARINDEX(',', p.ReasonCodes) - 1) ELSE p.ReasonCodes END) g)
+                FROM (SELECT LayerId, MAX(Id) AS Id FROM PricingTool.PricingRuns WHERE LayerId IN (1, 4) AND Status = 1 GROUP BY LayerId) last
+                JOIN PricingTool.PricingRuns r ON r.Id = last.Id
+                OUTER APPLY (SELECT TOP 1 * FROM ai.AgentRunCheck k WHERE k.RunId = r.Id AND k.IsTest = 0 ORDER BY k.Id DESC) c
+                OUTER APPLY (SELECT TOP 1 * FROM ai.PublishBatch k WHERE k.EngineRunId = r.Id AND k.Kind = 'Regular' ORDER BY k.Id DESC) b
+                ORDER BY r.LayerId
+                """, conn) { CommandTimeout = 120 };
+            await using var rd = await cmd.ExecuteReaderAsync(ct);
+            while (await rd.ReadAsync(ct))
+            {
+                string? S(int i) => rd.IsDBNull(i) ? null : Convert.ToString(rd.GetValue(i), CultureInfo.InvariantCulture);
+                sb.Append($"- layer {rd.GetInt32(0)}: engine run #{rd.GetInt64(1)} ({S(2)}, {rd.GetDateTime(3):yyyy-MM-dd HH:mm} UTC); changed prices by the engine's reason: {S(15) ?? "none"}. ");
+                sb.Append(S(4) is null ? "Not checked yet. "
+                    : $"Check #{S(4)}: verdict {S(5)} ({S(6)}), {S(7)} blocked SKU(s){(S(9) is { } blocked ? $" ({blocked})" : "")}, {S(8)} warned (held). ");
+                sb.AppendLine(S(10) is null ? "Not published."
+                    : $"Publish batch #{S(10)} {S(11)}: {S(12)} checked prices sent, {S(13)} written or already on the shelf, {S(14)} skipped (mostly cheaper deals).");
+            }
+            sb.AppendLine("Reasons: MARGIN_TARGET_TRIM = the engine moves a price toward its band × category target margin (most cuts); SYNCED_TO_GJ50 = a " +
+                          "GjirafaMall product takes Gjirafa50's price; DEAD_STOCK_MARKDOWN = the dead-stock lane; ELASTIC_OPTIMAL = the elasticity model. " +
+                          "Since 1 Nov (the person's decisions) the trim cuts go out, and a SKU the check blocks is held alone while the rest of the run " +
+                          "goes out; before that, one blocked SKU stopped the whole shop's publish.");
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.SqlClient.SqlException or InvalidOperationException)
+        {
+            sb.Append("(Not read just now: ").Append(ex.Message).Append(')');
         }
         return sb.ToString();
     }
@@ -594,7 +654,7 @@ public sealed class AgentChat
     }
 
     private sealed record ChatAnswer(string Reply, string? AskAlpha, IReadOnlyList<ChatBriefDto>? Briefs, IReadOnlyList<ChatRuleDto>? Rules, ChatGoalDto? Goal = null,
-        IReadOnlyList<long>? Cancel = null);
+        IReadOnlyList<long>? Cancel = null, IReadOnlyList<int>? RunWeek = null);
 
     private sealed record ChatGoalDto(int Layer, string Period, string Start, string Kind, decimal Value);
 

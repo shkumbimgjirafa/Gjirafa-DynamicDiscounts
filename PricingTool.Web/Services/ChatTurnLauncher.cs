@@ -13,7 +13,8 @@ namespace PricingTool.Web.Services;
 /// so a turn takes from half a minute to a few minutes, and the page shouldn't hang on it. The person's message is stored
 /// as the turn starts; the Chat tab refreshes until the answer lands. One turn at a time per process.
 ///
-/// A turn on the Chat tab that records a person's effective margin target for today or the coming week (a margin-target rule)
+/// A turn on the Chat tab that records a person's effective margin target for today or the coming week (a margin-target rule), or
+/// in which Alpha asks for Run week on the person's order (the same target told again),
 /// then starts Run week for those shops, one after the other (the user's request, 1 Nov): Alpha reviews the band × category floors
 /// and targets with the target in view, the engine prices the shop, the checker checks, the prices go to the sandbox, and each
 /// result with its price list is posted in the thread.
@@ -85,13 +86,14 @@ public class ChatTurnLauncher
     private async Task RunWeekForMarginTargetsAsync(ChatTurn turn, string author)
     {
         var ruleIds = turn.Added.Where(m => m.RuleId is not null).Select(m => m.RuleId!.Value).ToList();
-        if (ruleIds.Count == 0) return;
+        if (ruleIds.Count == 0 && turn.RunWeek.Count == 0) return;
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
         var today = DateOnly.FromDateTime(DateTime.Now);
         var rules = (await db.ChatRules.AsNoTracking().Where(r => ruleIds.Contains(r.Id) && r.Kind == ChatRuleKinds.MarginTarget).ToListAsync())
             .Where(r => r.ActiveOn(today, today.AddDays(FloorTargetAgent.MarginTargetDaysAhead)) && r.LayerId is 1 or 4).ToList();
-        var layers = RunOrder.Where(l => rules.Any(r => r.LayerId == l)).ToList();
+        // The shops a new margin target covers, and those Alpha asked Run week for on the person's order (the same target told again).
+        var layers = RunOrder.Where(l => rules.Any(r => r.LayerId == l) || turn.RunWeek.Contains(l)).ToList();
         if (layers.Count == 0) return;
 
         var names = await scope.ServiceProvider.GetRequiredService<PricingToolDbContext>().Layers.AsNoTracking()

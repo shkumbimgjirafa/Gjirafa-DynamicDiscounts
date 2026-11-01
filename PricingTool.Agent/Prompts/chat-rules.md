@@ -56,7 +56,20 @@ isn't clear which shop or which days.
   07:00 publish: it finds the lowest per-product margin that brings the shop to the target at the prices going out and
   raises every product under it up to it, never above its regular price, never a dead-stock product, a price a person
   set or a product held for a check; GjirafaMall's products that take Gjirafa50's price follow Gjirafa50. It says in
-  the thread what it did. If the shop is already above the target, nothing changes: say so with the measured figure.
+  the thread what it did.
+- **Set up a shop's prices on the person's order (Alpha).** When the person orders prices set up for shops, with margin
+  targets for some days, you do it; never answer that you can't or that nothing is needed. Return the targets in `rules`
+  every time, even when an active rule already says the same (code replaces an older rule for the same shop and days),
+  and list the shops in `runWeek` (1 GjirafaMall, 4 Gjirafa50). Code then starts Run week for each shop, Gjirafa50 first:
+  your pass works out the full category × band matrix of floors and targets that gets the shop to its target at the
+  engine's prices (a target moves as far as you judge necessary, a floor at most 1 point a week; holdouts and thin rows
+  stay as they are), the engine prices the shop with it, the run checker holds the SKUs it flags (a blocked SKU alone,
+  the rest goes on), the prices go to the shop sandbox, and each shop's result and price list are posted in this thread.
+  Your `reply` says that this is what happens next, with where each shop stands now; you don't say it is done. If some
+  of the days fall in a campaign, record the target for the days before it, start the runs, and ask in one sentence
+  only about the campaign days. When the person only asks to run prices (no target), list the shops in `runWeek` alone.
+- **Today's price runs.** The prompt lists each shop's latest engine run, its check and its publish, from the records.
+  Say why a run was held or what it changed only from those figures, never from an earlier message in the thread.
   Raising prices right before a campaign doesn't change the lowest price of the last 30 days that discounts are usually
   compared with; mention it once if the person links the two.
 - **Turn an instruction into a rule.** When the person tells you what campaigns must or must not do, return it in `rules`:

@@ -78,7 +78,7 @@ public class AgentChatTests : IDisposable
     }
 
     private void Says(string reply, string? askAlpha = null, JsonObject? brief = null, JsonObject? rule = null, JsonObject? goal = null,
-        JsonObject[]? briefs = null, long[]? cancel = null, JsonObject[]? rules = null) => _answers.Enqueue(new JsonObject
+        JsonObject[]? briefs = null, long[]? cancel = null, JsonObject[]? rules = null, int[]? runWeek = null) => _answers.Enqueue(new JsonObject
     {
         ["type"] = "result", ["subtype"] = "success", ["is_error"] = false, ["num_turns"] = 2, ["result"] = "", ["total_cost_usd"] = 0.03m,
         ["usage"] = new JsonObject { ["input_tokens"] = 900, ["output_tokens"] = 120 },
@@ -87,6 +87,7 @@ public class AgentChatTests : IDisposable
             ["reply"] = reply, ["askAlpha"] = askAlpha, ["briefs"] = new JsonArray((briefs ?? (brief is null ? Array.Empty<JsonObject>() : new[] { brief })).Select(b => (JsonNode)b).ToArray()),
             ["cancel"] = new JsonArray((cancel ?? Array.Empty<long>()).Select(id => (JsonNode)JsonValue.Create(id)).ToArray()),
             ["rules"] = new JsonArray((rules ?? (rule is null ? Array.Empty<JsonObject>() : new[] { rule })).Select(r => (JsonNode)r).ToArray()), ["goal"] = goal,
+            ["runWeek"] = new JsonArray((runWeek ?? Array.Empty<int>()).Select(l => (JsonNode)JsonValue.Create(l)).ToArray()),
         },
     }.ToJsonString());
 
@@ -191,6 +192,19 @@ public class AgentChatTests : IDisposable
         Assert.Null(mall[1].RemovedUtc);
         Assert.Contains($"replacing rule #{mall[0].Id} (19.5%)", again.Added[^1].Text);
         Assert.Null((await _db.ChatRules.SingleAsync(r => r.LayerId == 4)).RemovedUtc);                 // the other shop's stays
+    }
+
+    [Fact]
+    public async Task An_order_to_set_up_prices_reaches_Run_week_through_Alpha_only()
+    {
+        Says("Setting up both shops: Run week starts for Gjirafa50, then GjirafaMall.", runWeek: new[] { 4, 1 });
+        var alpha = await Chat().AskAsync(null, "@alpha set up prices for both shops for 1-3 Nov", "manager@test");
+        Assert.Equal(new[] { 4, 1 }, alpha.RunWeek);
+        Assert.Contains("Each shop's latest price run", _prompts[^1]);                                 // the facts, not an earlier message
+
+        Says("That's Alpha's to start.", runWeek: new[] { 1 });
+        var nova = await Chat().AskAsync(alpha.ConversationId, "run the prices", "manager@test");
+        Assert.Empty(nova.RunWeek);                                                                      // only Alpha starts runs
     }
 
     [Fact]
