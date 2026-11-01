@@ -80,6 +80,7 @@ def days(isos):
 
 
 last_run = max(e28["gjirafaMallKsRegularRuns"] + e28["gjirafa50KsRegularRuns"] + e28["gjirafa50KsDeadStockRuns"])
+first_run = min(e28["gjirafaMallKsRegularRuns"] + e28["gjirafa50KsRegularRuns"])
 levers = v("E8", "central")
 cw = v("E22")
 # The problem's numbers: sales under the floor (E30) and the calculator's runs by hand (E28).
@@ -113,9 +114,12 @@ model output changes a price without passing limits written in C#.
 
 | Part | € a month | Label |
 |---|---|---|
-| The calculator's own gain: in its Aug–Sep test the products it repriced earned this much more gross profit than untouched products (E27). It counts because without this build the calculator stays a test run by hand and doesn't go live. | {eur(b0)} | the rate measured; that it goes live only with this build assumed (stated by the user) |
-| What the agents add: the loss block, cost reaction, daily cadence, campaign planning, raises that reach the shelf (walk-forward backtest on Aug–Sep sales, E8) | {eur(levers)} | estimated |
+| **(a) The calculator's effect, measured in a test, made recurring by this build.** The calculator was tested by hand on both Kosovo shops: {ks_runs} regular price runs between {days([first_run])} and {days([last_run])}, none since (E28). In Aug–Sep the products it repriced earned this much more gross profit than untouched products of the same shop, category and weeks (E27). It doesn't run on a schedule today; this build runs it every day. | {eur(b0)} | measured in the test (E27); that it runs only with this build: assumed (stated by the user) |
+| **(b) What the agents add,** standing on its own: the loss block, cost reaction, daily cadence, campaign planning, raises that reach the shelf (walk-forward backtest on Aug–Sep sales, E8) | {eur(levers)} | estimated |
 | **The claim** | **{eur(claim['month'])}** | year 1: net benefit {eur(claim['net'])}, ROI {claim['roi']:.0%}, payback {claim['payback']:.1f} months |
+
+**The biggest assumption:** that the test's effect, measured over two months, holds for a year and at full scale (every product
+of both shops, every day), and that demand answers a price change at elasticity −1 (the agents' part).
 
 **Real data.** A read-only copy of the shop's NOP replica: booked sales lines with their cost, products, discounts. Each
 engine run prices every product of both Kosovo shops (511,198 GjirafaMall and 129,708 Gjirafa50 SKUs, 1 Nov).
@@ -244,7 +248,8 @@ sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) a
 
 ## The risk, and the ask
 
-**Biggest unproven assumption.** That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
+**Biggest unproven assumption.** That two months (Aug–Sep 2026) stand for a year and hold at full scale (every product of
+both shops, every day), and how demand answers a price change:
 the levers score changed prices at elasticity −1 (assumed). The publisher writes raises as the regular price, on the
 sandbox so far. The pilot's money ledger turns these into measurements, each push against the shop's products it didn't
 change.
