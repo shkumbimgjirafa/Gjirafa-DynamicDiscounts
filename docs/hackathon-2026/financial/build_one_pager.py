@@ -35,10 +35,9 @@ def k(x):
     return f"€{x / 1000:.1f}k"
 
 
-# One claim, one number (the user's decision, 31 Oct): the claim is the sheet's model column (B) and its score; where it
-# comes from is the sheet's 'Benefit by source'.
+# One claim, one number (the user's decision, 31 Oct): the claim is the sheet's model column (B); where it comes from is
+# the sheet's 'Benefit by source'. The page shows no score (the user, 1 Nov: the reader can do the math).
 claim = {k: case[f"B{r}"].value for k, r in (("month", 4), ("net", 10), ("roi", 11), ("payback", 13))}
-score = summary["B20"].value
 money = "\n".join([
     "| Year 1 | The claim |",
     "|---|---|",
@@ -46,7 +45,6 @@ money = "\n".join([
     f"| Net benefit (11 live months − all costs) | {eur(claim['net'])} |",
     f"| ROI | {claim['roi']:.0%} |",
     f"| Payback (months) | {claim['payback']:.1f} |",
-    f"| Track A score (/100; Evidence and Works are our own ratings) | {score:.0f} |",
 ])
 src_ws = wb["Benefit by source"]
 
@@ -84,65 +82,94 @@ def days(isos):
 last_run = max(e28["gjirafaMallKsRegularRuns"] + e28["gjirafa50KsRegularRuns"] + e28["gjirafa50KsDeadStockRuns"])
 gj50_dead_in_test = [d for d in e28["gjirafa50KsDeadStockRuns"] if d < "2026-10-01"]
 levers = v("E8", "central")
-e21 = v("E21")
 cw = v("E22")
-
-
-def cause(n):
-    return next(c for k, c in e21["augSepByCause"].items() if k.startswith(n + " "))
-
-
-e21_free = cause("1")["both"] + cause("3")["both"]
+# The problem's numbers: sales under the floor (E30) and the calculator's runs by hand (E28).
+floor_all, floor_gj50 = v("E30", "Both"), v("E30", "Gjirafa50 KS")
+floor_margin = floor_all["underFloorGp"] / floor_all["underFloorRevenue"]
+rest_margin = (floor_all["gp"] - floor_all["underFloorGp"]) / (floor_all["netRevenue"] - floor_all["underFloorRevenue"])
+ks_runs = len(e28["gjirafaMallKsRegularRuns"]) + len(e28["gjirafa50KsRegularRuns"])
+gj50_dead = len(e28["gjirafa50KsDeadStockRuns"])
+assert round(b0 + levers) == round(claim["month"]), "the engine and the agents no longer add up to the sheet's claim"
 money = money.replace("Net benefit (11 live months − all costs)", f"Net benefit ({months:g} full-benefit months − all costs)")
 
-page = f"""# Pricing Tool v2: two AI agents that set prices, plan campaigns and publish discounts
+page = f"""# Pricing Tool v2: the price engine, with two AI agents built around it
 
 Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with Claude Code). Figures carry their ID in
 [`evidence/numbers.json`](evidence/numbers.json); the money is the [financial sheet](Financial%20sheet.xlsx).
 
-**The problem.** The pricing calculator (v0.5, declared, running since July 2026) only reads and calculates. A person sets
-every floor and target by hand, plans campaigns in spreadsheets, exports prices and creates the discounts in the shop.
-So prices reach customers on a few manual dates, mostly in Kosovo (North Macedonia and Albania got a push in some months
-only), and a cost rise waits for the next push: cross-dock
-lines alone sold {eur(v('E14'))} a month under their booked cost over the last 12 months (E14, measured). In Aug–Sep
-{eur(e21['augSepTotal'])} a month of gross profit went under the hand-set floor (E21), but it isn't one leak:
-{eur(e21_free)} of it is allowed or not a price (dead stock, vouchers), {eur(cause('2')['both'])} is GjirafaMall SKUs that take
-Gjirafa50's price, and the rest sits where the agents' levers work (loss sales, cost reaction, days without a calculator
-price).
+## The problem: four gaps in how we price
 
-**What's new (built this weekend, everything after the labelled import commit).** **Alpha**, the pricing agent, sets
-each band's floor and target per main category every week. **Nova**, the campaign agent, keeps the calendar, writes
-briefs with goals, and Alpha turns each into a plan that code computes (four strategies, charm-rounded, never under
-cost or a 3 % margin on any SKU). An AI run checker confirms, escalates or fixes flagged prices, and can't lift a
-rule's block; a cost watcher checks costs every 15 minutes (on 31 Oct it read the morning's {cw['distinctMoves']} real cost moves within
-{cw['minutesAfterRefresh']['first']:g}–{cw['minutesAfterRefresh']['last']:g} minutes of the refresh, raised none because no rise put a price we set under its floor, and held
-{cw['heldTeamDeal'] + cw['heldCostAboveShelf']} for a person: {cw['heldTeamDeal']} under the floor at a cheaper deal, of them {cw['heldTeamDealBy']['teamDeal']} a team deal and the rest the calculator's own earlier push or an app-only deal, {cw['heldCostAboveShelf']} with a floor above the shelf; E22); an outcome tracker is built to measure every applied change and roll
-back what hurts (tested; no pushed change has completed its window yet); a publisher writes the shop's NOP discounts itself, with audit and rollback, and **Run week** runs the
-whole loop for a layer with one press; a backtest; and an app of four tabs: Run (the current run as live, its expected effect,
-Alpha's account), Chat (the agents' activity and only what needs a person), Campaigns (the calendar, with Nova to talk each
-campaign through: re-plan, cancel, a whole-shop campaign on both shops) and Proposals. **The AI decides, code enforces:** no model output changes a
-price, band or discount without passing limits written in C#; campaign terms a person gives in the chat (cancellations too) are the model's reading of
-the message, bounded by code but not checked against the message itself. During the hackathon the publisher writes only to a
-sandbox copy of the shop's price tables; going live is configuration, a DBA's grant, the shop's answers on its cache and
-`OldPrice`, and the owner's call on superseding (`GO-LIVE.md`), never yet run
-against the live shop. A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
+1. **No margin control.** Cross-dock products (bought from the supplier after the customer orders) can sell at a loss:
+   {eur(v('E14'))} a month of gross profit lost on lines sold under their booked cost (last 12 months, E14, measured). Then
+   come the thin margins. Margin floors exist for them, set by hand per price band, but nothing holds prices to them: in
+   Aug–Sep **{floor_all['revenueSharePct']:.0f} % of Kosovo's revenue sold under its floor and brought only
+   {floor_all['gpSharePct']:.0f} % of the gross profit**, a {floor_margin * 100:.0f} % margin against {rest_margin * 100:.0f} % on the rest
+   (Gjirafa50 alone: {floor_gj50['revenueSharePct']:.0f} % of its revenue, {floor_gj50['gpSharePct']:.0f} % of its profit; E30, measured).
+2. **Prices stand still.** Marketing sets the prices of general products for a whole month, the change takes a few days
+   to go live, and in between there is little or no dynamic control, so a cost rise waits for the next list (the team's
+   process, as stated by the user). The calculator ran by hand too: {ks_runs} regular price runs in Kosovo since July, and
+   Gjirafa50 once went {e28['gjirafa50KsLongestGapDays']} days between them (E28, measured).
+3. **Campaigns are slow and have no target.** Each one is planned by hand and takes a lot of time and effort, and it
+   starts with no set goal for what it should earn or what margin it may give up (stated by the user).
+4. **No dead-stock strategy.** Old stock is cleared in one-off batches a person starts: {gj50_dead} on Gjirafa50 since July,
+   none on a schedule (E28, measured).
+
+## The answer: one price engine, run by AI agents
+
+**The engine, run by its agents, promises {eur(claim['month'])} more gross profit every month.** The engine is the pricing calculator (v0.5,
+declared, tested by hand since July): it prices every product of both Kosovo shops against a margin floor and a target
+per price band, charm-rounded, never above the anchor, with dead stock on its own lane, marked down by age. In its
+Aug–Sep test on the real shop, the products it repriced earned **{eur(b0)} a month** more gross profit than untouched
+products (E27, measured). Run every day by the agents, with what they add (the loss block, cost reaction, daily cadence,
+campaign planning, raises that reach the shelf), it earns **{eur(levers)} a month** more (estimated, E8).
+
+## The agents and their crew
+
+All built this weekend (everything after the labelled import commit).
+
+| | In a few words | What it does | Fixes |
+|---|---|---|---|
+| **Alpha**, the pricing agent (AI) | *Floors that move* | Sets each band's floor and target per main category, every week, within limits in code | 1, 2 |
+| **Nova**, the campaign agent (AI) | *Every campaign gets a goal* | Keeps the calendar and writes each brief with a goal; Alpha picks one of four plans code computes, charm-rounded, never under cost or a 3 % margin on any SKU | 3 |
+| **Run checker** (AI) | *A second look* | Confirms, escalates or fixes the flagged prices of every run; it can't lift a rule's block | 1 |
+| **Cost watcher** (code) | *A 15-minute reflex* | On 31 Oct it read the morning's {cw['distinctMoves']} real cost moves within {cw['minutesAfterRefresh']['first']:g}–{cw['minutesAfterRefresh']['last']:g} minutes; none needed a raise, {cw['heldTeamDeal'] + cw['heldCostAboveShelf']} went to a person (E22) | 1, 2 |
+| **Publisher** (code) | *Writes the discounts itself* | Writes the shop's NOP discounts, with audit and rollback | 2, 4 |
+| **Run week** (code) | *One press* | Runs the whole loop for a shop: price, check, publish, read back | 2, 4 |
+| **Outcome tracker** (code) | *Keeps what works* | Measures every applied change and rolls back what hurts (tested; no pushed change has completed its window yet) | all |
+
+**The AI decides, code enforces.** No model output changes a price, band or discount without passing limits written in
+C#; campaign terms a person gives in the chat (cancellations too) are the model's reading of the message, bounded by code
+but not checked against the message itself. **One app, four tabs:** Run (the current run as live, its expected effect,
+Alpha's account), Chat (the agents' activity and only what needs a person), Campaigns (the calendar, with Nova to talk
+each campaign through: re-plan, cancel, a whole-shop campaign on both shops) and Proposals; plus a backtest. **Sandbox
+first:** during the hackathon the publisher writes only to a sandbox copy of the shop's price tables; going live is
+configuration, a DBA's grant, the shop's answers on its cache and `OldPrice`, and the owner's call on superseding
+(`GO-LIVE.md`), never yet run against the live shop.
+
+## What runs, and what isn't finished
+
+**What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
+SKUs; run checks; checked exports); Alpha's weekly pass #2 changed 8 band × category rules,
+each by one point, within its limits; Nova planned Black Friday 2026 against the goal a person set, and the plan was
+held for that person because the arithmetic falls short of it.
+
+**On the sandbox shelf.** A discount can only lower a price, so a raise is written as the store's regular price: on 31 Oct's
 Run weeks 57 % of the two KS layers' checked prices reached the sandbox shelf (909 of them raises); the rest were held by cheaper discounts,
 96.5 % of them the calculator's own October pushes the team imported, not team deals (1.5 % of the checked prices). The user then
 switched on superseding only those, and on 31 Oct held back the margin trim's cuts (49,214 of 50,969 GjirafaMall and 25,390 of
 26,604 Gjirafa50 checked prices then on the sandbox shelf). On 1 Nov the user let the cuts go out again: that day's Run weeks put
 133,957 of 135,255 GjirafaMall and 32,225 of 33,219 Gjirafa50 checked prices on the sandbox shelf, all read back as written.
 
-**What runs, on real data.** Daily cycles on both Kosovo layers (30 Oct: engine runs #1100 and #1101, 129,675 and 511,093
-SKUs; run checks; checked exports); Alpha's weekly pass #2 changed 8 band × category rules,
-each by one point, within its limits; Nova planned Black Friday 2026 against the goal a person set, and the plan was
-held for that person because the arithmetic falls short of it. **Not finished, and shown as such:** the Për ty
+**Not finished, and shown as such:** the Për ty
 reproduction test fails by one point (expected margin {per_ty['expectedMarginPct']} % within bounds, but
 {per_ty['keptPctOurBase']} % of normal margin kept against {per_ty['requiredKeptPct']} %; E11); the campaign estimates
 aren't calibrated yet (E10); the Monday email isn't built and the start-up task is disabled; setting a price on the
 Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
-**Money (12 months). The claim: {eur(claim['month'])} a month at full scope, {score:.0f} points** (Evidence and Works are our own ratings; year 1: net benefit
-{eur(claim['net'])}, ROI {claim['roi']:.0%}, payback {claim['payback']:.1f} months).
+## The money
+
+**The claim (12 months): {eur(claim['month'])} a month at full scope** (year 1: net benefit {eur(claim['net'])}, ROI
+{claim['roi']:.0%}, payback {claim['payback']:.1f} months).
 
 **Where it comes from.** *The price engine, measured:* in the calculator's Aug–Sep test on the real shop, the products
 it repriced earned {eur(b0)} a month more gross profit than untouched products in the same shop and category in the same
@@ -183,12 +210,14 @@ sessions' AI usage of ${v('E18', 'sinceKickoffUsd'):,.2f} API-equivalent, E18) a
 
 {money}
 
+## The risk, and the ask
+
 **Biggest unproven assumption.** That two months (Aug–Sep 2026) stand for a year, and how demand answers a price change:
 the levers score changed prices at elasticity −1 (assumed). The publisher writes raises as the regular price, on the
 sandbox so far. The pilot's money ledger turns these into measurements, each push against the shop's products it didn't
 change.
 
-**The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents, with a campaign holdout; the
+**The pilot ask.** Six to eight weeks in Kosovo: Black Friday planned by the two agents; the
 publisher switched from the sandbox to the shop for a few categories in autonomous mode (a least-privilege write login,
 one canary category first, `GO-LIVE.md`); every category priced, with the money ledger measuring each push against the
 shop's products it didn't change. That makes the go/no-go measured, not estimated.

@@ -90,13 +90,15 @@ public class EvidenceTests : IClassFixture<LocalDbFixture>
         var hackathon = File.ReadAllText(Path.Combine(dir, "..", "..", "..", "HACKATHON.md"));
         foreach (var doc in new[] { onePager, hackathon })
         {
-            // One claim with its score and its B0; no other B0, no alternative total, no second framing.
+            // One claim and its B0; no other B0, no alternative total, no second framing.
             foreach (var x in new[] { claim, claimB0 }) Assert.Contains(Eur(x), doc);
-            Assert.Contains($"{score:0} points", doc);
             foreach (var x in b0) Assert.DoesNotContain(Eur(x), doc);
             foreach (var word in new[] { "framing", "cross-check", "controlled measurement", "scenario", "levers alone", "levers only" })
                 Assert.DoesNotContain(word, doc, StringComparison.OrdinalIgnoreCase);
         }
+        // The score is in HACKATHON.md, not on the one-pager (the user, 1 Nov: the reader can do the math).
+        Assert.Contains($"{score:0} points", hackathon);
+        Assert.DoesNotContain("points", onePager, StringComparison.OrdinalIgnoreCase);
 
         Assert.Contains($"{Eur(b0[1])[1..]} ({Eur(b0[0])[1..]} / {Eur(b0[2])[1..]})", EvidenceService.Show(e20.Value));
         var page = Assert.IsType<EvidencePage>(Assert.IsType<ViewResult>(await new EvidenceController(evidence).Index(CancellationToken.None)).Model);
