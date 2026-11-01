@@ -73,6 +73,17 @@ holdout = next(r[1].value for r in inputs.iter_rows(min_col=1, max_col=2) if str
 per_ty = v("E11")
 e27 = v("E27")
 b0 = e27["total"]["vsUntouchedWithSalesHistory"]
+e28 = v("E28")
+
+
+def days(isos):
+    from datetime import date
+    t = [f"{date.fromisoformat(x).day} {date.fromisoformat(x):%b}" for x in isos]
+    return ", ".join(t[:-1]) + " and " + t[-1] if len(t) > 1 else t[0]
+
+
+last_run = max(e28["gjirafaMallKsRegularRuns"] + e28["gjirafa50KsRegularRuns"] + e28["gjirafa50KsDeadStockRuns"])
+gj50_dead_in_test = [d for d in e28["gjirafa50KsDeadStockRuns"] if d < "2026-10-01"]
 levers = v("E8", "central")
 e21 = v("E21")
 cw = v("E22")
@@ -143,6 +154,22 @@ permanent and automatic, and the agents learn from the measured outcome of each 
 sandbox during the hackathon):* Run week on Gjirafa50 KS on Monday's fresh data, started ten minutes before the demo and
 shown in it: the proposed prices, the check, the publish to the local sandbox with its rollback, the read-back, every
 number traced to a query. The past months are not claimed; Aug–Sep is the evidence for the rate.
+
+**The test, and why it counts.** The calculator (v0.5) ran only as a test, by hand, with no schedule (E28, measured from
+the tool's approvals and the pushed discount sets): GjirafaMall KS on {days(e28['gjirafaMallKsRegularRuns'])};
+Gjirafa50 KS on {days(e28['gjirafa50KsRegularRuns'])}, with dead-stock runs on {days(gj50_dead_in_test)}; North
+Macedonia and Albania had full pushes in July (Gjirafa50 AL), September (GjirafaMall AL) and on 21 Oct (all four). The
+last run was {days([last_run])}; nothing has run since. Without this build it doesn't go live (assumed: stated by the
+user, who ran the tests). The rate above was measured in Aug–Sep 2026 on the runs live then: GjirafaMall KS's of 21 Jul,
+6 Aug and 3 Sep (with smaller floor and dead-stock sets) and Gjirafa50 KS's of 21 Jul with its dead-stock runs (E27).
+
+**Coverage.** Each engine run prices every product of both Kosovo shops: GjirafaMall KS, 511,198 SKUs, and Gjirafa50
+KS, 129,708 SKUs (runs #1111 and #1110, 1 Nov 2026, measured). Nothing goes to the live shop yet: the runs only
+compute, and publishing writes to the sandbox. Live, it would price the same products, the holdout categories left on
+hand-set floors.
+North Macedonia and Albania are built in but not in the claim. **What makes it live-ready** is what this weekend built:
+the two agents, the limits in code, the run checker, the cost watcher, the outcome tracker and the publisher with audit
+and rollback; going live is configuration and a write login (`GO-LIVE.md`).
 
 {sources}
 

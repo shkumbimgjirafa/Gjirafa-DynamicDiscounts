@@ -294,9 +294,9 @@ c = put(wi, f"C{R['b0Used']}", f"=B{R['b0Mid']}", BLACK, EUR)
 c.border = BOX
 c.fill = TOTAL
 put(wi, f"E{R['b0Used']}", "formula")
-put(wi, f"A{R['withoutBuild']}", "The engine was a test, run by hand; the build makes it permanent and automatic", BOLD)
+put(wi, f"A{R['withoutBuild']}", "The engine ran only as a test, by hand (last run 21 Oct, E28); without the build it doesn't go live", BOLD)
 put(wi, f"B{R['withoutBuild']}", "yes", BLUE, None, YELLOW).border = BOX
-put(wi, f"D{R['withoutBuild']}", "stated by the user, who ran it")
+put(wi, f"D{R['withoutBuild']}", "assumed (stated by the user, who ran the tests)")
 
 header(wi, R["judgeHead"], ["Judgment ratings (one per row; they don't depend on the money case)", "Rating", "", "", "Label", "Why"])
 judgments = [
