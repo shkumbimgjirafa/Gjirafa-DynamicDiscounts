@@ -300,9 +300,10 @@ put(wi, f"D{R['withoutBuild']}", "assumed (stated by the user, who ran the tests
 header(wi, R["judgeHead"], ["Judgment ratings (one per row; they don't depend on the money case)", "Rating", "", "", "Label", "Why"])
 judgments = [
     ("evB", "Evidence rating, the claim (0–5)", 3,
-     "B0 was measured on the real shop with real sales (the low case with a same-weeks control on each KS layer), before "
-     "the hackathon; this build recomputes the low and mid cases from its own data, but they are one run per layer, and "
-     "the mid and high cases are before/after, not controlled"),
+     "B0 was measured on the real shop with real sales before the hackathon and is recomputed from this build's own data "
+     "(E27: repriced vs untouched SKUs of the same shop, category and weeks, Aug–Sep 2026; the claim uses SKUs with a sales "
+     "history, €7,597 of the €2,749–€12,527 its variants give); a placebo before the calculator's first approval shows no "
+     "such lift in sum (E29), though per run it ranges from −€3,124 to +€892; one test period, nothing measured live yet"),
     ("works", "Works rating (0–5)", 4,
      "The daily cycle ran end to end on real data (engine runs, run checks, checked exports, sandbox publishes) and the "
      "failure cases in failure-cases.md pass; not 5: the Për ty reproduction test fails by one point, the money ledger "
@@ -354,9 +355,9 @@ put(wf, "A1", "Financial case: the Track A money formula", TITLE)
 header(wf, 3, ["Line"] + scen + ["How it's calculated"])          # the explanation in column C
 s, b = R["levSum"], R["b0Used"]
 ho = R["holdout"]
-benefit = {"B": f"=(Inputs!C{s}+Inputs!C{b})*(1-Inputs!C{ho})"}     # B0 at E20 mid + the levers' central case
+benefit = {"B": f"=(Inputs!C{s}+Inputs!C{b})*(1-Inputs!C{ho})"}     # B0 (E27) + the levers' central case
 lines = [
-    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "B0 at E20 mid + levers 1–8, central · every category priced (no holdout)"),
+    (4, "Monthly benefit at full scope (€/month)", None, EUR, GREEN, "B0 (E27) + levers 1–8, central · every category priced (no holdout)"),
     (5, "Months of full benefit in year 1", f"={I['months']}", NUM1, GREEN, "After the build month: the pilot at its share, then full scope"),
     (6, "First-year benefit", "={c}4*{c}5", EUR, BLACK, "Extra margin in the first 12 months"),
     (7, "One-time cost", f"=({I['hours']}+{I['person']}+{I['build']}+{I['training']})*{I['rate']}+{I['setup']}+{I['buildAi']}*{I['fx']}", EUR, GREEN,
@@ -417,7 +418,7 @@ put(wsb, "B12", f"={I['months']}", BLACK, NUM1).border = BOX
 put(wsb, "D12", "Built in month 1, a two-month pilot at an assumed quarter of the benefit, then full scope (Inputs rows 15–18)", NOTE)
 put(wsb, "A13", "Hours saved", BOLD)
 put(wsb, "B13", "not counted")
-put(wsb, "D13", "Hours, never euros: the time sheet's minutes per task aren't set yet (they wait for the user), and hours saved are not benefit here", NOTE)
+put(wsb, "D13", "Hours, never euros: the time sheet's minutes per task are set (240 / 120 / 30 per run, the user's estimates, not timed), and hours saved are not benefit here", NOTE)
 put(wsb, "A15", "GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no marketplace commission applies.", NOTE)
 put(wsb, "A16", "Cancelled orders are excluded; returns after delivery are not netted out.", NOTE)
 wsb.column_dimensions["A"].width = 70

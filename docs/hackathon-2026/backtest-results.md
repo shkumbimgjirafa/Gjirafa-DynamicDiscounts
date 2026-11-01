@@ -19,7 +19,7 @@ measured; elasticity cases −0.5 / −1.0 / −2.0 (assumed), the low case (−
 | 5 | Cadence | 396 (260 / 474) | 0 | measured run → push gaps only |
 | 6 | Learning | 0 | — | as built; the plan's plain rule: −614 |
 | 7 | Campaign planning | 578 | 205 | estimated, 12 months of campaigns; uplift curve leave-one-out (low: half its slope, high: twice) |
-| 8 | Raises reach the shelf | 249 (249 / see below) | 0 | estimated (e −1); the part of E23 v2's publisher removes, each line once; high: October's pace, €2,830 both layers |
+| 8 | Raises reach the shelf | 249 (249 / see below) | 0 | estimated (e −1); the part of E23 v2's publisher removes, each line once; high: October's pace, €2,813 both layers |
 
 The raise levers' gain on lines sold under a team deal (a product discount on the line, `hk.SalesLineDiscountsKs`, at a
 unit price no KS approval gave the SKU, within 1.1 %) is in the high case only: v2 doesn't raise a price a team deal
@@ -27,7 +27,7 @@ holds; a person may supersede it. That is €378 a month of the €2,179 central
 Gjirafa50 it is most of levers 1 and 3: in Aug–Sep 72 % of its lines sold under a discount the calculator never set
 (approval #1 listed only the prices it changed); on GjirafaMall 2 %.
 
-**The levers in the claim (1–3 and 5–8): about €2.8k a month central, €1.4k low, €7.0k high (E8: €2,833 / €1,436 / €7,021; snapshot #5 of 31 Oct). Lever 4 (MK/AL coverage, E4) is computed below but is not in the claim.** The high case is up from €5.8k mostly through lever 8's October pace. The levers add to the rollout
+**The levers in the claim (1–3 and 5–8): about €2.8k a month central, €1.4k low, €7.0k high (E8: €2,833 / €1,436 / €7,004; snapshot #5 of 31 Oct). Lever 4 (MK/AL coverage, E4) is computed below but is not in the claim.** The high case is up from €5.8k mostly through lever 8's October pace. The levers add to the rollout
 of the calculator's tested effect (B0) in the claim; they don't replace it.
 The financial sheet leaves no holdout share out: since 1 Nov there are no holdout categories (the user's decision), so
 every category the backtest scores is priced. **What was tried and dropped:** after dry run 1, levers 1 and 3 were averaged over 12 months (Oct 2025 – Sep
@@ -91,7 +91,7 @@ answers the one-event point instead.
   of which v2's publisher removes, or a team deal (`app-deals-august-2026`, `zipro-sep-2026`, `techtober-2026`), left to
   a person and not counted. GP forgone at e −1, Aug–Sep: €300 a month v2 removes, €1,274 team deals. The backtest prices
   the removable lines at the new price after levers 1–6, so a line another lever scores counts once: €249 a month
-  (GjirafaMall; Gjirafa50 had no approved raise in Aug–Sep). High: October's pace, €2,830 a month, the month two push
+  (GjirafaMall; Gjirafa50 had no approved raise in Aug–Sep). High: October's pace, €2,813 a month, the month two push
   sets overlapped. What the publisher adds over the CSV import.
 - **Team deals (all raise levers).** v2 doesn't raise a price a team deal holds, so the part of levers 1, 2, 3 and 5 on
   lines sold under one (above) is in the high case only. Snapshot #5 also reads each day's lines in sale-time order

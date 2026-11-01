@@ -1,6 +1,6 @@
 # Failure and unusual cases (plan section 6, Sun 13:00–14:30)
 
-Each case the plan names, what the system does, and the test that proves it (`dotnet test`, 918 tests, 1 skipped:
+Each case the plan names, what the system does, and the test that proves it (`dotnet test`, 1,039 passed, 1 skipped:
 the opt-in real headless call). Tests run on scripted Claude Code answers and in-memory or LocalDB sandbox data; injected
 rows and runs are labelled `[INJECTED-TEST]` and live in the test database `PricingToolHackathonTest`.
 

@@ -83,6 +83,17 @@ schedule, audit log) and its tests (692 at import, all still passing).
 5. Reproduce the figures: `PricingTool.AgentTools backtest-snapshot`, then
    `powershell -ExecutionPolicy Bypass -File docs\hackathon-2026\evidence\build-numbers.ps1`.
 
+**Screenshots** of the running app (1 Nov, `docs/hackathon-2026/screenshots/`):
+- `01-run-tab.png`: the Run tab for GjirafaMall Kosovo: run #11113, priced at 13:32 and published to the sandbox at 13:43
+  by Run week #10006; Alpha in autonomous mode, the kill switch, the Run week button.
+- `02-chat-margin-target-order.png`: the Chat at 13:24: a person's margin targets for 1–4 Nov (Gjirafa50 15 %, GjirafaMall
+  19.5 %) and Alpha's answer, with where each shop stands on booked lines; "Waiting for you" on the right.
+- `03-floors-and-targets-by-category-and-band.png`: run #11113's floors and targets by category × band (shaded: a rule
+  Alpha set for that category; in each cell the SKUs whose price changed). It was taken before the holdout categories
+  were dropped at 17:30, so Sport and Vegla Pune have no rule of Alpha's in it. The browser's bookmarks bar is cropped out.
+- `04-campaigns-calendar.png`: the Campaigns calendar (Java e Portokalltë 4–9 Nov on both shops; Black Friday 27–30 Nov,
+  not yet published) and the planning thread of Gjirafa50's brief #12.
+
 ## 3. Where a model's output becomes a decision
 
 The models (Claude Opus 5.5 through Claude Code headless, `claude -p --output-format json`; the run checker on Sonnet 5.5)
@@ -99,8 +110,8 @@ answer in a JSON schema. Code parses it, retries once on a bad answer, and other
 | **Publisher** | nothing | with `Publisher:Target` = Sandbox (every config in this repo) the writer refuses any schema but `shop_sandbox_*`; every write is audited first so a rollback restores it exactly; a raise above the run's max(anchor, current) is refused again here, and a regular price someone changed since the run is never overwritten | `NopIntegration/PublisherOptions.cs:58`, `NopRegularPriceWriter.Decide` |
 
 Every call is logged in `ai.AiCallLog` (model, tokens incl. cache, cost, duration, turns), and every data tool call in
-`ai.AgentQueryLog`. The agents' runtime Claude calls: 85 calls, $10.29 in the live database and 5 calls, $1.03 in the test
-database (E15). The Claude Code sessions that built this used $633.13 since kickoff (API-equivalent; the fourteen AI-judge dry runs and the released data session's share included), $375.49 of it in the unattended
+`ai.AgentQueryLog`. The agents' runtime Claude calls: 117 calls, $14.74 in the live database and 13 calls, $3.85 in the test
+database (E15). The Claude Code sessions that built this used $764.23 since kickoff (API-equivalent; the fourteen AI-judge dry runs and the released data session's share included), $375.49 of it in the unattended
 blocks (E18; tokens measured from the session transcripts, priced at API list prices: API-equivalent, the actual spend is
 the flat Claude subscription).
 
@@ -123,7 +134,7 @@ isolated runtime folder, `--setting-sources ""`, no built-in tools, only our rea
 
 ## 4. The numbers: one claim
 
-**The claim: €10,430 a month at full scope, 76 points** (Evidence and Works are our own ratings; year 1: net benefit €88,530, ROI 839 %, payback 3.0 months; the
+**The claim: €10,430 a month at full scope, 76 points** (Evidence and Works are our own ratings; year 1: net benefit €88,017, ROI 795 %, payback 3.1 months; the
 [financial sheet](docs/hackathon-2026/Financial%20sheet.xlsx); every category priced, no holdout categories: the user's decision, 1 Nov).
 
 **Where it comes from.** *The price engine, measured:* in the calculator's Aug–Sep test on the real shop, the products it
@@ -267,7 +278,8 @@ the reason next to each.
   - **A person's campaign terms** (no depth cap, every SKU in stock, the engine's discount optimization off on the
     campaign's days, a margin goal spent down to) are tested; Java e Portokalltë 2026 (4–9 Nov, both shops) is to be
     planned again with them, and the discount-optimization switch first flips on 4 Nov.
-  - **Minutes saved per task** are not set, so the time sheet exports no rows yet.
+  - **Minutes saved per task** are set (the user's estimates, not timed: Alpha's review 240 a shop, a run check 120, a push
+    30); the time sheet exports runs from 2 Nov, the organisers' period, so it holds none yet.
   - **Campaign what-ifs** go through a brief and the planning loop; only the floor what-if has its own tool.
   - **To the live shop, the checked push file is still the path.** The daily cycle writes it, and since prompt 07 also
     publishes the same checked prices to the sandbox (`publish-L<layer>`, from the 1 Nov cycle on the restarted host). The
@@ -313,7 +325,7 @@ the reason next to each.
     updated in place, and ends its own in the same transaction as a regular-price raise.
   - With `Publisher:Target` = Sandbox the guard is on the schema name (`shop_sandbox_*`), not the server.
   - The hackathon's 8,000-request bar: the agents make about 290 calls a month by design (one per run or pass, never
-    one per product; 85 live calls so far, E15), and no call is made to raise a count.
+    one per product; 117 live calls so far, E15), and no call is made to raise a count.
 
 ## 6. Rule compliance
 
@@ -326,7 +338,7 @@ the reason next to each.
 | No secrets in the tree | `git grep -i -E "password|pwd=|api[_-]?key|secret"` finds only code that reads secrets from configuration and docs that say where they live |
 | No AI-reviewer text | None anywhere; the plan forbids it |
 | The organisers' AI Pioneer meter (31 Oct, at Mergca's request; v3 on 1 Nov) | The build sessions report through Claude Code hooks in this project's `.claude/settings.local.json` (git-ignored). The agents' work goes through `HacktrackMeter` to the organisers' `hook.js` (v3, a verbatim copy in `PricingTool.Agent/ClaudeCode/`): each of the four core tasks on the team's task cards (`CoreTasks`: Alpha's floor and target review, the run check, the checked push, Nova's campaign planning) is one run event per run, with its model calls, requests and tokens inside it, one unit, the tables it read and the number of rows it worked through, and its input ids (hashed by `hook.js`, never sent); any other call (chat, Nova's weekly brief) is one event per attempt that reached the model. Test passes and labelled injected tests are not counted. The team token lives only in that ignored file and in the user's environment variables, never in a tracked file |
-| Hours as a cost line | `docs/hackathon-2026/hours.md`: 10.9 attended hours (Friday's 3.9 timed by block, Saturday's 7 the user's own estimate), the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $375.49 API-equivalent; $633.13 since the kickoff (E18) |
+| Hours as a cost line | `docs/hackathon-2026/hours.md`: 18.9 attended hours (Friday's 3.9 timed by block, Saturday's 7 and Sunday's 8 the user's own estimates), the rest unattended blocks (E16 counts them); unattended blocks count as AI cost only, $375.49 API-equivalent; $764.23 since the kickoff (E18) |
 
 ## 7. Tests
 

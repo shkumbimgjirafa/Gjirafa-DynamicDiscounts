@@ -7,7 +7,7 @@ Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with 
 
 1. **No margin control.** Cross-dock products (bought from the supplier after the customer orders) can sell at a loss:
    €2,134 a month of gross profit lost on lines sold under their booked cost (last 12 months, E14, measured). Then
-   come the thin margins. Margin floors exist for them, set by hand per price band, but nothing holds prices to them: in
+   come the thin margins. Margin floors exist for them, set by hand per price band, but prices often sit under them: in
    Aug–Sep **24 % of Kosovo's revenue sold under its floor and brought only
    6 % of the gross profit**, a 4 % margin against 19 % on the rest
    (Gjirafa50 alone: 30 % of its revenue, 10 % of its profit; E30, measured).
@@ -38,7 +38,7 @@ All built this weekend (everything after the labelled import commit).
 | **Alpha**, the pricing agent (AI) | *Floors that move* | Sets each band's floor and target per main category, every week, within limits in code | 1, 2 |
 | **Nova**, the campaign agent (AI) | *Every campaign gets a goal* | Keeps the calendar and writes each brief with a goal; Alpha picks one of four plans code computes, charm-rounded, never under cost or a 3 % margin on any SKU | 3 |
 | **Run checker** (AI) | *A second look* | Confirms, escalates or fixes the flagged prices of every run; it can't lift a rule's block | 1 |
-| **Cost watcher** (code) | *A 15-minute reflex* | On 31 Oct it read the morning's 293 real cost moves within 0.7–9.1 minutes; none needed a raise, 54 went to a person (E22) | 1, 2 |
+| **Cost watcher** (code) | *A 15-minute reflex* | On 31 Oct it read the morning's 293 real cost moves within 0.7–9.1 minutes; no rise was raised: 102 of 156 rises left the price above its floor, the other 54 went to a person (E22) | 1, 2 |
 | **Publisher** (code) | *Writes the discounts itself* | Writes the shop's NOP discounts, with audit and rollback | 2, 4 |
 | **Run week** (code) | *One press* | Runs the whole loop for a shop: price, check, publish, read back | 2, 4 |
 | **Outcome tracker** (code) | *Keeps what works* | Measures every applied change and rolls back what hurts (tested; no pushed change has completed its window yet) | all |
@@ -74,8 +74,8 @@ Proposals tab doesn't publish it; the money ledger has measured nothing yet.
 
 ## The money
 
-**The claim (12 months): €10,430 a month at full scope** (year 1: net benefit €88,530, ROI
-839%, payback 3.0 months).
+**The claim (12 months): €10,430 a month at full scope** (year 1: net benefit €88,017, ROI
+795%, payback 3.1 months).
 
 **Where it comes from.** *The price engine, measured:* in the calculator's Aug–Sep test on the real shop, the products
 it repriced earned €7,597 a month more gross profit than untouched products in the same shop and category in the same
@@ -117,16 +117,16 @@ month, E2). GjirafaMall lines are Gjirafa's own vendors only, at booked cost: no
 orders are excluded and returns after delivery are not netted out. The year ramps up: built in month 1, a
 2-month pilot at 25% of the benefit, then full scope (9.5 full-benefit months); payback comes from that ramp
 (the pilot's assumptions are not tuned to cross a line). Costs:
-€3,628 one-time (hackathon hours at €50, 40 hours to production including code review, the build
-sessions' AI usage of $633.13 API-equivalent, E18) and €6,927 running (AI
-€69 a month from the measured cost per call, E19; maintenance and review hours), €10,555 in all.
+€4,159 one-time (hackathon hours at €50, 40 hours to production including code review, the build
+sessions' AI usage of $764.23 API-equivalent, E18) and €6,909 running (AI
+€67 a month from the measured cost per call, E19; maintenance and review hours), €11,068 in all.
 
 | Year 1 | The claim |
 |---|---|
 | Extra gross profit a month at full scope | €10,430 |
-| Net benefit (9.5 full-benefit months − all costs) | €88,530 |
-| ROI | 839% |
-| Payback (months) | 3.0 |
+| Net benefit (9.5 full-benefit months − all costs) | €88,017 |
+| ROI | 795% |
+| Payback (months) | 3.1 |
 
 ## The risk, and the ask
 

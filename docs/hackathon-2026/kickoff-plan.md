@@ -617,7 +617,7 @@ for 30 days on real data, on its own.
   - **the same-weeks control (changed vs unchanged products, run 2026-10-27):**
     - It confirms the margin effect: products priced up went from 18.4% to 24.5% margin in the September run, losing about 6 points more volume than unchanged products, with gross profit up about 9 points relative to them.
     - It does **not** cleanly confirm the €13k/month. The September run's controlled gain is ≈ €3.5–4.3k/month. The August run gives no clean result: units of raised products rose 285% after the rise, and most of its after-window profit came from products that didn't sell before.
-    - So present the test phase's profit effect as a **range** (≈ €4k to €13k/month), and pitch v2's randomized holdout as what turns it into a clean A/B. *(31 Oct: the claim uses the comparison against untouched products, E27.)*
+    - So present the test phase's profit effect as a **range** (≈ €4k to €13k/month), and pitch v2's randomized holdout as what turns it into a clean A/B. *(31 Oct: the claim uses the comparison against untouched products, E27. 1 Nov, the user: no holdout categories; the money ledger compares each push with the products it didn't change.)*
   - Për ty Oct 2026, if measured: hand plan vs agents' plan vs actual
   - cross-dock below-cost loss, last 12 months (~€2.85k/month)
   - below-floor GP forgone (Jun €24.4k / Jul €15.1k, booked COGS)
@@ -709,9 +709,9 @@ browser tab; open the financial sheet on its Summary; have a terminal ready in t
      test database, so it never shows in the app. (Real ones: on 31 Oct the watcher read the morning's 293 cost moves
      within 0.7–9.1 minutes, E22.)
    - An out-of-range decision is rejected by code; the kill switch and autonomy on the Run tab; the holdout categories
-     marked in the grid; the audit log under Admin; the AI calls with their cost (E15: 85 live calls, $10.29, measured).
+     marked in the grid; the audit log under Admin; the AI calls with their cost (E15: 117 live calls, $14.74, measured).
 5. **(45s) Money: the evidence file and the sheet.**
-   - The evidence file, written before the demo: "Recomputed now: 49 of 49 checks match", every figure with its label
+   - The evidence file, written before the demo: "Recomputed now: 52 of 52 checks match", every figure with its label
      (measured, estimated, assumed), method, sources and where it is used. If there is time, run the command again in the
      terminal while talking (about 40 s).
    - The claim: €10,430 a month at full scope, 76 points (every category priced since 1 Nov): the price engine's measured gain, €7,597 a month against

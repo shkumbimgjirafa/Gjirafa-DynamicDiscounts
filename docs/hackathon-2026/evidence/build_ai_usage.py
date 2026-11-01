@@ -66,6 +66,8 @@ def blocks():
         if not re.match(r"^\| (Fri|Sat|Sun|Mon) ", row):
             continue
         c = [x.strip() for x in row.split("|")]
+        if not (re.match(r"^\d\d:\d\d", c[2]) and re.match(r"^\d\d:\d\d", c[3])):
+            continue                    # a day-level row of the person's own hours (no block times): no AI usage of its own
         day = datetime.strptime(c[1].split(" ", 1)[1] + " 2026", "%d %b %Y").date()
         start_txt = c[2]
         start_day = day - timedelta(days=1) if "(30 Oct)" in start_txt and day.day == 31 else day

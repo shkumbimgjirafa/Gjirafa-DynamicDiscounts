@@ -250,10 +250,10 @@ Add 'E18' 'The build sessions'' own AI usage (the two Claude Code sessions that 
     'measured tokens; API-equivalent cost (the actual spend is the flat Claude subscription)' `
     "Usage fields of the session transcripts, each response once, priced per model at list prices ($($usage.prices)); blocks in CET, transcripts in UTC" `
     'Claude Code session transcripts (aggregates in docs/hackathon-2026/evidence/ai-usage.json)' 'python -I docs/hackathon-2026/evidence/build_ai_usage.py <transcripts>'
-Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured (Friday, attended rows timed by block) and estimated (Saturday: the user''s own estimate, about 7 h); the person''s time inside unattended blocks is not timed' `
+Add 'E16' 'Hackathon hours (hours.md)' ([ordered]@{ attendedHours = $attended; unattendedBlocks = $unattended; rows = $rows.Count }) 'hours' 'measured (Friday, attended rows timed by block) and estimated (Saturday about 7 h and Sunday 8 h: the user''s own estimates); the person''s time inside unattended blocks is not timed' `
     'Attended rows: their hours; unattended rows ("0 (unattended, AI)") count as AI cost only (E18)' 'docs/hackathon-2026/hours.md' 'this script'
-$testsLine = 'dotnet test: 1017 passed, 1 skipped (the opt-in real headless call), 31 Oct 20:36'
-Add 'E17' 'Automated tests' ([ordered]@{ passed = 1017; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
+$testsLine = 'dotnet test: 1039 passed, 1 skipped (the opt-in real headless call), 1 Nov 18:05'
+Add 'E17' 'Automated tests' ([ordered]@{ passed = 1039; skipped = 1 }) 'tests' 'measured' $testsLine 'PricingTool.Tests' 'dotnet test PricingTool.sln'
 
 # --- The calculator's own results ----------------------------------------------------------------------------------------
 # E20 low and mid recomputed from PricingToolHackathon (the deployed tool's approvals and the booked sales lines); the
@@ -456,7 +456,7 @@ foreach ($f in $figures) { if ($recomputes.ContainsKey($f.id)) { $f.recompute = 
 
 $out = [ordered]@{
     generated = (Get-Date).ToString('yyyy-MM-dd HH:mm'); generator = 'docs/hackathon-2026/evidence/build-numbers.ps1'
-    note = 'Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.'
+    note = 'Every figure carries its label. One claim: B0 (E27) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.'
     figures = $figures
 }
 $json = $out | ConvertTo-Json -Depth 6

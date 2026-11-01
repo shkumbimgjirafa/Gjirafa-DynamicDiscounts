@@ -101,7 +101,7 @@ Gjirafa AI Hackathon 2026, Track A (Money). Team: Shkumbim (solo, building with 
 
 1. **No margin control.** Cross-dock products (bought from the supplier after the customer orders) can sell at a loss:
    {eur(v('E14'))} a month of gross profit lost on lines sold under their booked cost (last 12 months, E14, measured). Then
-   come the thin margins. Margin floors exist for them, set by hand per price band, but nothing holds prices to them: in
+   come the thin margins. Margin floors exist for them, set by hand per price band, but prices often sit under them: in
    Aug–Sep **{floor_all['revenueSharePct']:.0f} % of Kosovo's revenue sold under its floor and brought only
    {floor_all['gpSharePct']:.0f} % of the gross profit**, a {floor_margin * 100:.0f} % margin against {rest_margin * 100:.0f} % on the rest
    (Gjirafa50 alone: {floor_gj50['revenueSharePct']:.0f} % of its revenue, {floor_gj50['gpSharePct']:.0f} % of its profit; E30, measured).
@@ -132,7 +132,7 @@ All built this weekend (everything after the labelled import commit).
 | **Alpha**, the pricing agent (AI) | *Floors that move* | Sets each band's floor and target per main category, every week, within limits in code | 1, 2 |
 | **Nova**, the campaign agent (AI) | *Every campaign gets a goal* | Keeps the calendar and writes each brief with a goal; Alpha picks one of four plans code computes, charm-rounded, never under cost or a 3 % margin on any SKU | 3 |
 | **Run checker** (AI) | *A second look* | Confirms, escalates or fixes the flagged prices of every run; it can't lift a rule's block | 1 |
-| **Cost watcher** (code) | *A 15-minute reflex* | On 31 Oct it read the morning's {cw['distinctMoves']} real cost moves within {cw['minutesAfterRefresh']['first']:g}–{cw['minutesAfterRefresh']['last']:g} minutes; none needed a raise, {cw['heldTeamDeal'] + cw['heldCostAboveShelf']} went to a person (E22) | 1, 2 |
+| **Cost watcher** (code) | *A 15-minute reflex* | On 31 Oct it read the morning's {cw['distinctMoves']} real cost moves within {cw['minutesAfterRefresh']['first']:g}–{cw['minutesAfterRefresh']['last']:g} minutes; no rise was raised: {cw['risesStillAboveTheFloor']} of {cw['rises']} rises left the price above its floor, the other {cw['heldTeamDeal'] + cw['heldCostAboveShelf']} went to a person (E22) | 1, 2 |
 | **Publisher** (code) | *Writes the discounts itself* | Writes the shop's NOP discounts, with audit and rollback | 2, 4 |
 | **Run week** (code) | *One press* | Runs the whole loop for a shop: price, check, publish, read back | 2, 4 |
 | **Outcome tracker** (code) | *Keeps what works* | Measures every applied change and rolls back what hurts (tested; no pushed change has completed its window yet) | all |

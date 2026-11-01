@@ -39,3 +39,13 @@ Details: `docs/hackathon-2026/kickoff-plan.md`, section 2.
 
 The registration text says "with a person approving its changes". The build keeps that as the
 approve-first mode; the demo runs in autonomous mode, where a person handles only the exceptions.
+
+## How the money claim relates to this declaration (added 1 Nov 2026)
+
+The text above records the registration and is not changed. The calculator's past effect stays unclaimed: no month
+before the hackathon is in the money claim. The claim is the automated system's next 12 months (the user's decision,
+31 Oct): the engine's rate measured in its Aug–Sep 2026 test, here against untouched products in the same shop, category
+and weeks (B0, E27: €7,597 a month, a different measure from the before/after €10k above), plus what the agents' levers
+add. B0 counts in that forward claim because, as the user states, without this build the calculator stays a test run by
+hand and does not go live; that is labelled **assumed (stated by the user)** wherever it is used (`HACKATHON.md`, the
+one-pager, the financial sheet's Inputs).

@@ -1,7 +1,7 @@
 {
-    "generated":  "2026-10-31 23:39",
+    "generated":  "2026-11-01 18:52",
     "generator":  "docs/hackathon-2026/evidence/build-numbers.ps1",
-    "note":  "Every figure carries its label. One claim: B0 (E20 mid) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
+    "note":  "Every figure carries its label. One claim: B0 (E27) made permanent by the build, plus the levers (E8, E24). Smaller numbers are robustness checks or sensitivity, never alternative claims.",
     "figures":  [
                     {
                         "id":  "E1",
@@ -119,23 +119,23 @@
                                                               "approval":  37,
                                                               "layer":  "Gjirafa50 KS",
                                                               "days":  9,
-                                                              "units":  512,
-                                                              "atNewPrice":  1,
-                                                              "atOldPrice":  360,
-                                                              "pctAtOld":  70.3,
-                                                              "gpForgoneEm1":  3774,
-                                                              "gpForgoneConstantUnits":  4868
+                                                              "units":  506,
+                                                              "atNewPrice":  0,
+                                                              "atOldPrice":  354,
+                                                              "pctAtOld":  70.0,
+                                                              "gpForgoneEm1":  3737,
+                                                              "gpForgoneConstantUnits":  4816
                                                           }
                                                       ],
                                       "augSepPerMonthEm1":  {
                                                                 "v2Removes":  300,
                                                                 "teamDeal":  1274
                                                             },
-                                      "octoberV2RemovesPerMonthEm1":  2830
+                                      "octoberV2RemovesPerMonthEm1":  2813
                                   },
                         "unit":  "units / EUR a month",
                         "label":  "measured (units); estimated (GP at e -1)",
-                        "method":  "Sales of each approval\u0027s raised SKUs (new price over old x 1.02) on its layer, from the day after it went live to the day before the next one did, outside campaign days; at the old price within 1.1 %. Share of units at the old price: #12 17.0 %, #25 20.0 %, #35 84.0 %, #37 70.3 % (17-20 % Aug-Sep, 70-84 % in late October, when two push sets overlapped). What held the old price, from the live discount at the sold price (hk.DiscountHistoryRaisedKs): the calculator\u0027s earlier push still live, or the regular price never raised (v2\u0027s publisher removes both), or a team deal (left to a person). Aug-Sep, GP forgone a month at e -1: 300 that v2 removes, 1274 team deals; October\u0027s pace of the part v2 removes: 2830 a month.",
+                        "method":  "Sales of each approval\u0027s raised SKUs (new price over old x 1.02) on its layer, from the day after it went live to the day before the next one did, outside campaign days; at the old price within 1.1 %. Share of units at the old price: #12 17.0 %, #25 20.0 %, #35 84.0 %, #37 70.0 % (17-20 % Aug-Sep, 70-84 % in late October, when two push sets overlapped). What held the old price, from the live discount at the sold price (hk.DiscountHistoryRaisedKs): the calculator\u0027s earlier push still live, or the regular price never raised (v2\u0027s publisher removes both), or a team deal (left to a person). Aug-Sep, GP forgone a month at e -1: 300 that v2 removes, 1274 team deals; October\u0027s pace of the part v2 removes: 2813 a month.",
                         "source":  "PricingTool.ApprovalItems, hk.SalesLines, hk.CampaignWindows, hk.DiscountHistoryRaisedKs",
                         "script":  "docs/hackathon-2026/evidence/raises-not-on-shelf.sql (three result sets; this script runs it)",
                         "recompute":  {
@@ -175,7 +175,7 @@
                                                              "where":  {
                                                                            "ApprovalId":  "37"
                                                                        },
-                                                             "value":  70.3
+                                                             "value":  70.0
                                                          },
                                                          {
                                                              "label":  "Aug-Sep, a month at e -1: what v2 removes",
@@ -204,11 +204,11 @@
                         "value":  {
                                       "central":  249,
                                       "low":  249,
-                                      "high":  2830
+                                      "high":  2813
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated",
-                        "method":  "Lines of an approved raise sold at the old price because today\u0027s process left the calculator\u0027s earlier push live or never raised the regular price (E23\u0027s rule), priced at the new price; walk-forward in the backtest after levers 1-6, so a line another lever scores is counted once. Central = low: the Aug-Sep monthly average at e -1 (layer 1: 249; layer 4: 0; E23\u0027s whole spans give 300). High: October\u0027s pace (2830 a month, E23), the month two push sets overlapped. It is what v2\u0027s publisher adds over the CSV import; team deals stay a person\u0027s call.",
+                        "method":  "Lines of an approved raise sold at the old price because today\u0027s process left the calculator\u0027s earlier push live or never raised the regular price (E23\u0027s rule), priced at the new price; walk-forward in the backtest after levers 1-6, so a line another lever scores is counted once. Central = low: the Aug-Sep monthly average at e -1 (layer 1: 249; layer 4: 0; E23\u0027s whole spans give 300). High: October\u0027s pace (2813 a month, E23), the month two push sets overlapped. It is what v2\u0027s publisher adds over the CSV import; team deals stay a person\u0027s call.",
                         "source":  "ai.BacktestSnapshot #5 (2026-10-31 08:10 UTC)",
                         "script":  "PricingTool.AgentTools backtest-snapshot (or backtest-levers 1 4 --detail); the Backtest page and its CSV"
                     },
@@ -246,7 +246,7 @@
                         "value":  {
                                       "central":  2833,
                                       "low":  1436,
-                                      "high":  7021,
+                                      "high":  7004,
                                       "underTeamDealCentral":  378
                                   },
                         "unit":  "EUR/month",
@@ -379,14 +379,14 @@
                         "id":  "E15",
                         "name":  "Agents\u0027 runtime Claude calls (Alpha, Nova, the run checker, the chat), as logged",
                         "value":  {
-                                      "liveCalls":  85,
-                                      "liveUsd":  10.29,
-                                      "testCalls":  5,
-                                      "testUsd":  1.03,
-                                      "inputTokens":  1367,
-                                      "outputTokens":  374716,
-                                      "cacheReadTokens":  699355,
-                                      "cacheCreationTokens":  661046
+                                      "liveCalls":  117,
+                                      "liveUsd":  14.74,
+                                      "testCalls":  13,
+                                      "testUsd":  3.85,
+                                      "inputTokens":  1463,
+                                      "outputTokens":  550145,
+                                      "cacheReadTokens":  1042447,
+                                      "cacheCreationTokens":  949371
                                   },
                         "unit":  "calls / USD",
                         "label":  "measured",
@@ -399,24 +399,24 @@
                         "name":  "Cost of one agent call by kind (live database)",
                         "value":  {
                                       "alphaWeeklyPass":  {
-                                                              "calls":  7,
-                                                              "avgUsd":  0.4108
+                                                              "calls":  11,
+                                                              "avgUsd":  0.4021
                                                           },
                                       "chat":  {
-                                                   "calls":  23,
-                                                   "avgUsd":  0.0854
+                                                   "calls":  29,
+                                                   "avgUsd":  0.0928
                                                },
                                       "novaWeeklyPass":  {
                                                              "calls":  3,
                                                              "avgUsd":  0.2179
                                                          },
                                       "planningCall":  {
-                                                           "calls":  22,
-                                                           "avgUsd":  0.0400
+                                                           "calls":  34,
+                                                           "avgUsd":  0.0383
                                                        },
                                       "runCheck":  {
-                                                       "calls":  11,
-                                                       "avgUsd":  0.2647
+                                                       "calls":  17,
+                                                       "avgUsd":  0.2559
                                                    }
                                   },
                         "unit":  "USD per call",
@@ -429,8 +429,8 @@
                         "id":  "E18",
                         "name":  "The build sessions\u0027 own AI usage (the two Claude Code sessions that built this)",
                         "value":  {
-                                      "sinceKickoffUsd":  633.13,
-                                      "sinceKickoffResponses":  3562,
+                                      "sinceKickoffUsd":  764.23,
+                                      "sinceKickoffResponses":  4547,
                                       "unattendedBlocksUsd":  375.49,
                                       "unattendedBlocksResponses":  1815
                                   },
@@ -444,12 +444,12 @@
                         "id":  "E16",
                         "name":  "Hackathon hours (hours.md)",
                         "value":  {
-                                      "attendedHours":  10.9,
+                                      "attendedHours":  18.9,
                                       "unattendedBlocks":  47,
-                                      "rows":  87
+                                      "rows":  104
                                   },
                         "unit":  "hours",
-                        "label":  "measured (Friday, attended rows timed by block) and estimated (Saturday: the user\u0027s own estimate, about 7 h); the person\u0027s time inside unattended blocks is not timed",
+                        "label":  "measured (Friday, attended rows timed by block) and estimated (Saturday about 7 h and Sunday 8 h: the user\u0027s own estimates); the person\u0027s time inside unattended blocks is not timed",
                         "method":  "Attended rows: their hours; unattended rows (\"0 (unattended, AI)\") count as AI cost only (E18)",
                         "source":  "docs/hackathon-2026/hours.md",
                         "script":  "this script"
@@ -458,12 +458,12 @@
                         "id":  "E17",
                         "name":  "Automated tests",
                         "value":  {
-                                      "passed":  1017,
+                                      "passed":  1039,
                                       "skipped":  1
                                   },
                         "unit":  "tests",
                         "label":  "measured",
-                        "method":  "dotnet test: 1017 passed, 1 skipped (the opt-in real headless call), 31 Oct 20:36",
+                        "method":  "dotnet test: 1039 passed, 1 skipped (the opt-in real headless call), 1 Nov 18:05",
                         "source":  "PricingTool.Tests",
                         "script":  "dotnet test PricingTool.sln"
                     },
@@ -565,7 +565,7 @@
                                                                      "campaignDays":  0
                                                                  },
                                                      "2026-10":  {
-                                                                     "normalDays":  14920,
+                                                                     "normalDays":  15473,
                                                                      "campaignDays":  11884
                                                                  }
                                                  },
@@ -617,7 +617,7 @@
                                   },
                         "unit":  "EUR/month",
                         "label":  "estimated from measured lines: the gap to the floor at the same units (October provisional: late cancellations post for two weeks)",
-                        "method":  "Each booked line whose margin on booked COGS is under its band\u0027s hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units, both KS layers, tool scope (no outlet, Apple, Starlink; the June/July analysis in the main repo, Jun 24,400 and Jul 15,100, included them). Each line gets the first cause that fits: 0 campaign day; 1 its SKU in a live markdown batch; 2 a GjirafaMall SKU listed on Gjirafa50, which takes Gjirafa50\u0027s price; 3 above the floor before an order-level voucher; 4 cross-dock sold under its booked cost; 5 no calculator price live for the SKU that day; 6 sold more than 2 % under the calculator\u0027s live price; 7 at the calculator\u0027s price but under the floor on booked cost. Aug-Sep: 2954 a month is allowed or not a price (dead stock, vouchers); the rest sits in the lanes of levers 1, 3 and 5, partly on Gjirafa50\u0027s side of shared SKUs (cause 2: 3459 a month under Gjirafa50\u0027s own floor, 1851 under cost). Cause 5 as context only: on SKUs today\u0027s engine run raises, about 1648 a month (Mall 300, Gj50 1348), a proxy (August\u0027s runs weren\u0027t kept), not in the sheet. The totals equal PricingTool.AgentTools backtest-below-floor 1 4.",
+                        "method":  "Each booked line whose margin on booked COGS is under its band\u0027s hand-set floor of that day (rebuilt from the band edits in the audit log) lifted to the floor at the same units, both KS layers, tool scope (no outlet, Apple, Starlink; the June/July analysis in the main repo, Jun 24,400 and Jul 15,100, included them). Each line gets the first cause that fits: 0 campaign day; 1 its SKU in a live markdown batch; 2 a GjirafaMall SKU listed on Gjirafa50, which takes Gjirafa50\u0027s price; 3 above the floor before an order-level voucher; 4 cross-dock sold under its booked cost; 5 no calculator price live for the SKU that day; 6 sold more than 2 % under the calculator\u0027s live price; 7 at the calculator\u0027s price but under the floor on booked cost. Aug-Sep: 2954 a month is allowed or not a price (dead stock, vouchers); the rest sits in the lanes of levers 1, 3 and 5, partly on Gjirafa50\u0027s side of shared SKUs (cause 2: 3459 a month under Gjirafa50\u0027s own floor, 1851 under cost). Cause 5 as context only: on SKUs today\u0027s engine run raises, about 1532 a month (Mall 300, Gj50 1232), a proxy (August\u0027s runs weren\u0027t kept), not in the sheet. The totals equal PricingTool.AgentTools backtest-below-floor 1 4.",
                         "source":  "hk.SalesLines, hk.SalesLineDiscountsKs, PricingTool.AuditLog, PricingTool.Approvals / ApprovalItems, band config",
                         "script":  "docs/hackathon-2026/evidence/e21-by-cause.sql (three result sets; this script runs it); totals also by PricingTool.AgentTools backtest-below-floor 1 4",
                         "recompute":  {
@@ -773,7 +773,7 @@
                                                       "Oct 2026, provisional":  {
                                                                                     "marginPct":  13.1,
                                                                                     "yearBeforePct":  11.3,
-                                                                                    "deltaPp":  1.7
+                                                                                    "deltaPp":  1.8
                                                                                 }
                                                   },
                                       "deltaPpByMonth":  {
@@ -789,12 +789,13 @@
                                                              "2026-07":  2.6,
                                                              "2026-08":  4.1,
                                                              "2026-09":  5.0,
-                                                             "2026-10":  1.7
+                                                             "2026-10":  1.8,
+                                                             "2026-11":  8.7
                                                          }
                                   },
                         "unit":  "percentage points",
                         "label":  "measured (October 2026 provisional)",
-                        "method":  "Booked gross profit over net revenue, tool scope, every day, against the same months a year earlier (hk.SalesLines starts 1 Oct 2024). Aug - Sep 2026, the calculator live: 15.5 % vs 10.8 %, +4.7 pt; Mar - Jun 2026, before the calculator: +3.1 pt; but Nov 2025 - Feb 2026, with no calculator, ran +8.6 pt, so the fingerprint alone doesn\u0027t separate the calculator from what else moved margin (E20\u0027s same-weeks control does). Oct 2026, provisional: +1.7 pt.",
+                        "method":  "Booked gross profit over net revenue, tool scope, every day, against the same months a year earlier (hk.SalesLines starts 1 Oct 2024). Aug - Sep 2026, the calculator live: 15.5 % vs 10.8 %, +4.7 pt; Mar - Jun 2026, before the calculator: +3.1 pt; but Nov 2025 - Feb 2026, with no calculator, ran +8.6 pt, so the fingerprint alone doesn\u0027t separate the calculator from what else moved margin (E20\u0027s same-weeks control does). Oct 2026, provisional: +1.8 pt.",
                         "source":  "hk.SalesLines",
                         "script":  "docs/hackathon-2026/evidence/e25-yoy-margin.sql (two result sets; this script runs it)",
                         "recompute":  {
@@ -834,7 +835,7 @@
                                                              "where":  {
                                                                            "Period":  "Oct 2026, provisional"
                                                                        },
-                                                             "value":  1.7
+                                                             "value":  1.8
                                                          }
                                                      ]
                                       }
