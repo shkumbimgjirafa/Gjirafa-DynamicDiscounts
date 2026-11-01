@@ -182,6 +182,15 @@ public class AgentChatTests : IDisposable
         Assert.Equal("No rule recorded: A margin target is for one shop: say which (one rule per shop).", t.Added[^1].Text);
         Assert.Contains("Effective margin, what a person means by \"margin\"", _prompts[0]);
         Assert.Contains("You are Alpha", _prompts[0]);
+
+        // Told again for overlapping days, the newer target replaces the older one (else code would apply the higher).
+        Says("GjirafaMall at 18% on 6–8 Nov.", rule: new JsonObject { ["layer"] = 1, ["kind"] = "margin-target", ["value"] = "18", ["fromDate"] = "2026-11-06", ["toDate"] = "2026-11-08" });
+        var again = await Chat().AskAsync(t.ConversationId, "@alpha GjirafaMall 18% 6-8 Nov", "manager@test");
+        var mall = await _db.ChatRules.Where(r => r.LayerId == 1).OrderBy(r => r.Id).ToListAsync();
+        Assert.Equal((true, "manager@test"), (mall[0].RemovedUtc is not null, mall[0].RemovedBy));
+        Assert.Null(mall[1].RemovedUtc);
+        Assert.Contains($"replacing rule #{mall[0].Id} (19.5%)", again.Added[^1].Text);
+        Assert.Null((await _db.ChatRules.SingleAsync(r => r.LayerId == 4)).RemovedUtc);                 // the other shop's stays
     }
 
     [Fact]

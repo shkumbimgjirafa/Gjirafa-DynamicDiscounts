@@ -466,11 +466,17 @@ public sealed class AgentChat
                 FromDate = from, ToDate = to, Instruction = instruction.Length > 1000 ? instruction[..1000] : instruction,
                 CreatedBy = author, CreatedUtc = _clock.GetUtcNow().UtcDateTime,
             };
+            // A shop's newer margin target replaces the older ones on days they share (else code would apply the higher of the two).
+            var replaced = r.Kind != ChatRuleKinds.MarginTarget ? new List<ChatRule>()
+                : (await _db.ChatRules.Where(x => x.Kind == ChatRuleKinds.MarginTarget && x.LayerId == r.Layer && x.RemovedUtc == null).ToListAsync(ct))
+                    .Where(x => x.ActiveOn(from, to)).ToList();
+            foreach (var old in replaced) (old.RemovedUtc, old.RemovedBy) = (rule.CreatedUtc, author);
             _db.ChatRules.Add(rule);
             await _db.SaveChangesAsync(ct);
             reply.RuleId = rule.Id;
             await AddAsync(conversation, "code", $"Rule #{rule.Id} in force: {rule.Kind} {rule.Value} from {from:yyyy-MM-dd} to {to:yyyy-MM-dd}" +
-                                                 $"{(rule.LayerId is { } layer ? $" on layer {layer}" : " on both layers")}. " +
+                                                 $"{(rule.LayerId is { } layer ? $" on layer {layer}" : " on both layers")}" +
+                                                 (replaced.Count == 0 ? ". " : $", replacing {string.Join(", ", replaced.Select(x => $"rule #{x.Id} ({x.Value}%)"))}. ") +
                                                  (rule.Kind switch
                                                  {
                                                      ChatRuleKinds.ProtectDiscount => "The publisher never ends a team discount whose name matches it, even under the floor",
