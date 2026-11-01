@@ -209,6 +209,33 @@ public class ClaudeCodeClientTests : IDisposable
     }
 
     [Fact]
+    public void With_echo_on_the_meter_passes_on_what_hook_js_prints()
+    {
+        // A stand-in for hook.js that prints like its HACKTRACK_ECHO line: nothing is sent anywhere.
+        var hook = Path.Combine(_dir, "echo-hook.js");
+        File.WriteAllText(hook, "process.stderr.write('[hacktrack] queued event: ' + process.argv[3] + '\\n'); console.log('id-1 sent');");
+        var old = new[] { "HACKTRACK_HOOK", "HACKTRACK_TOKEN", "HACKTRACK_ECHO" }.ToDictionary(k => k, Environment.GetEnvironmentVariable);
+        var (was, got) = (Console.Error, new StringWriter());
+        try
+        {
+            Environment.SetEnvironmentVariable("HACKTRACK_HOOK", hook);
+            Environment.SetEnvironmentVariable("HACKTRACK_TOKEN", "test-token");
+            Environment.SetEnvironmentVariable("HACKTRACK_ECHO", "1");
+            Console.SetError(got);
+            var e = new UsageEvent(CoreTasks.RunCheck, DateTime.UtcNow, DateTime.UtcNow, 2, 10, 2, true) { Units = 1 };
+            new HacktrackMeter(NullLogger<HacktrackMeter>.Instance).Record(e);
+            if (got.ToString().Length == 0) return;                                      // no node on this machine: nothing to check
+            Assert.Contains("[hacktrack] queued event: " + HacktrackMeter.Json(e), got.ToString());
+            Assert.Contains("id-1 sent", got.ToString());
+        }
+        finally
+        {
+            Console.SetError(was);
+            foreach (var (k, v) in old) Environment.SetEnvironmentVariable(k, v);
+        }
+    }
+
+    [Fact]
     public async Task Builds_an_isolated_headless_command_with_the_prompt_on_stdin()
     {
         var runner = new FakeRunner().Returns(Ok(Envelope(structured: """{"action":"keep","confidence":0.8}""")));

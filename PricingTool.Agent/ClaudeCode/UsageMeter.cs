@@ -130,12 +130,21 @@ public sealed class HacktrackMeter : IUsageMeter
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hacktrack", "hook.js"),
             }.FirstOrDefault(File.Exists);
             if (string.IsNullOrEmpty(env["HACKTRACK_TOKEN"]) || hook is null || !File.Exists(hook)) return;
-            var start = new ProcessStartInfo("node") { UseShellExecute = false, CreateNoWindow = true };
+            // HACKTRACK_ECHO=1 (checking an integration): hook.js prints the queued event, so wait for it and pass that on;
+            // otherwise its window-less process has nowhere to print. Without it, never wait.
+            var echo = Setting("HACKTRACK_ECHO") == "1";
+            var start = new ProcessStartInfo("node") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = echo, RedirectStandardError = echo };
             start.ArgumentList.Add(hook);
             start.ArgumentList.Add("send");
             start.ArgumentList.Add(Json(e));
             foreach (var (k, v) in env) if (v is not null) start.Environment[k] = v;
+            start.Environment["HACKTRACK_ECHO"] = echo ? "1" : "";
             using var p = Process.Start(start);                                // hook.js queues, sends and exits within seconds
+            if (echo && p is not null)
+            {
+                var (output, error) = (p.StandardOutput.ReadToEndAsync(), p.StandardError.ReadToEndAsync());
+                if (Task.WaitAll(new Task[] { output, error }, TimeSpan.FromSeconds(15))) Console.Error.Write(error.Result + output.Result);
+            }
         }
         catch (Exception ex)
         {
